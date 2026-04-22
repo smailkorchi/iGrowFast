@@ -16,10 +16,12 @@ import {
 } from 'recharts';
 import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import {
     AnalyticsOrder,
     inWindow,
+    isAdminPullback,
     isDelivered,
     isPaid,
     isRevenueOrder,
@@ -35,7 +37,8 @@ interface SellersSectionProps {
 }
 
 export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) => {
-    const { deliveredPkgIds, paidOrderIds } = useStatusCategories();
+    const { deliveredPkgIds, paidOrderIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
     const { data: sellers, isLoading } = useQuery({
         queryKey: ['analytics-sellers-v2', businessId],
         queryFn: async () => {
@@ -160,6 +163,13 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                 const commission = commissionBySeller.get(seller.id) || 0;
                 const basis = normalizeCommissionBasis((seller as { commission_basis?: string | null }).commission_basis);
 
+                // Success / delivery rate (Coliaty formula):
+                //   delivered ÷ (tracked − admin-pullback)
+                const tracked = sellerOrdersInRange.filter((o) => !!o.id && trackedOrderIds.has(o.id));
+                const pullback = tracked.filter((o) =>
+                    isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+                );
+                const deliveryDenom = tracked.length - pullback.length;
                 return {
                     name: seller.name,
                     active: seller.active,
@@ -170,7 +180,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                     delivered: deliveredAny,
                     deliveredPaid,
                     revenue,
-                    successRate: sellerOrdersInRange.length > 0 ? (deliveredAny / sellerOrdersInRange.length) * 100 : 0,
+                    successRate: deliveryDenom > 0 ? (deliveredAny / deliveryDenom) * 100 : 0,
                     presences: sellerPresences,
                     commission,
                 };
@@ -211,7 +221,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             sellerPerformance: sellerPerformance.slice(0, 10),
             trendData,
         };
-    }, [sellers, orders, sellerEarnings, sellerPayments, presences, dateFilter, deliveredPkgIds, paidOrderIds]);
+    }, [sellers, orders, sellerEarnings, sellerPayments, presences, dateFilter, deliveredPkgIds, paidOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     return (
         <SectionWrapper

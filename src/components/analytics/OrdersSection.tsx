@@ -2,12 +2,15 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     AnalyticsOrder,
     inWindow,
-    isConfirmed,
+    isAdminPullback,
     isDelivered,
     isFailed,
+    isRateConfirmed,
+    isRateTouched,
     isShipped,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
@@ -32,11 +35,14 @@ interface OrdersSectionProps {
 
 export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) => {
     const {
-        confirmedIds,
         cancelledIds,
         newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
         deliveredPkgIds,
     } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-full-v2', businessId],
@@ -63,16 +69,26 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         // "Order value" = raw order total for volume metrics (not pure revenue — see §1).
         const avgOrderValue = total > 0 ? filtered.reduce((s, o) => s + Number(o.price || 0), 0) / total : 0;
 
-        // Confirmation rate denominator = orders your team has touched (i.e. not still in 'new').
-        const touchedOrders = filtered.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
-        const confirmedCount = filtered.filter(o => isConfirmed(o, confirmedIds)).length;
         const shippedCount = filtered.filter(o => isShipped(o)).length;
         const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
         // Failed = cancelled + fake + double + blacklisted merged bucket (§4).
         const failedCount = filtered.filter(o => isFailed(o, cancelledIds)).length;
 
-        const confirmRate = touchedOrders.length > 0 ? (confirmedCount / touchedOrders.length) * 100 : 0;
-        const deliveryRate = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
+        // Confirmation-rate metric: numerator counts every order where a yes was
+        // spoken (everything except `new` and `callback`). Denominator excludes
+        // only `new` so unreached orders still penalise the rate.
+        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds)).length;
+        const rateTouchedCount = filtered.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds)).length;
+
+        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
+        const pullback = tracked.filter(o =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const deliveryDenom = tracked.length - pullback.length;
+
+        const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+        const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
         const failedRate = total > 0 ? (failedCount / total) * 100 : 0;
 
         const today = new Date();
@@ -128,18 +144,21 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         // Funnel — New → Confirmed → Delivered → Failed (Shipped is an intermediate
         // state covered under Shipping & Delivery, not a headline conversion stage).
         const funnelData = [
-            { stage: 'New', count: total - touchedOrders.length },
-            { stage: 'Confirmed', count: confirmedCount },
+            { stage: 'New', count: total - rateTouchedCount },
+            { stage: 'Confirmed', count: rateConfirmedCount },
             { stage: 'Delivered', count: deliveredCount },
             { stage: 'Failed', count: failedCount },
         ];
 
         return {
-            total, confirmedCount, deliveredCount, shippedCount, failedCount,
+            total,
+            // Confirmed count = one-true-definition (yes was spoken).
+            confirmedCount: rateConfirmedCount,
+            deliveredCount, shippedCount, failedCount,
             confirmRate, deliveryRate, failedRate, avgOrderValue,
             todayOrders, weekOrders, trendData, topCities, funnelData,
         };
-    }, [orders, dateFilter, confirmedIds, cancelledIds, newOrderIds, deliveredPkgIds]);
+    }, [orders, dateFilter, cancelledIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds]);
 
     return (
         <SectionWrapper
@@ -155,7 +174,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                     metrics.deliveryRate >= 50 ? 'positive' : metrics.deliveryRate >= 25 ? 'warning' : 'negative';
                 const narrative = metrics.total === 0
                     ? 'No orders in this period.'
-                    : `${metrics.total.toLocaleString('fr-MA')} orders came in. ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed (${metrics.confirmRate.toFixed(0)}% of touched) and ${metrics.deliveredCount.toLocaleString('fr-MA')} delivered (${metrics.deliveryRate.toFixed(0)}% of confirmed). ${
+                    : `${metrics.total.toLocaleString('fr-MA')} orders came in. ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed (${metrics.confirmRate.toFixed(1)}% of touched) and ${metrics.deliveredCount.toLocaleString('fr-MA')} delivered (${metrics.deliveryRate.toFixed(1)}% of confirmed). ${
                         metrics.failedRate > 20
                             ? `${metrics.failedRate.toFixed(0)}% failed — worth investigating.`
                             : metrics.deliveryRate >= 60

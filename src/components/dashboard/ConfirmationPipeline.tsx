@@ -6,6 +6,7 @@ import { PhoneCall } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
 interface ConfirmationPipelineProps {
@@ -15,13 +16,14 @@ interface ConfirmationPipelineProps {
 
 export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPipelineProps) => {
     const { pendingIds, callbackIds, getOrderStatusColor } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders } = useQuery({
         queryKey: ['confirmation-pipeline-orders', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, order_status_id, order_statuses(code, label)')
+                .select('id, date, order_status_id, tracking_number, order_statuses(code, label)')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -46,14 +48,22 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             statusId && (pendingIds.has(statusId) || callbackIds.has(statusId));
 
         type OrderRow = {
+            id?: string | null;
             order_status_id?: string | null;
             date?: string | null;
+            tracking_number?: string | null;
             order_statuses?: { label?: string | null; code?: string | null } | null;
         };
-        const confirmationOrders = orders.filter(
-            (o: OrderRow) =>
-                o.order_status_id && isConfirmationStatus(o.order_status_id) && isInRange(o.date),
-        );
+        // Pending confirmation = status ∈ {new, callback} AND no tracking code
+        // (tracking code lives in company_parcels / courier_parcels, not on the
+        // orders row). Once a parcel is handed to a courier, the order is
+        // confirmed regardless of its order_status.
+        const confirmationOrders = orders.filter((o: OrderRow) => {
+            if (o.id && trackedOrderIds.has(o.id)) return false;
+            return !!o.order_status_id
+                && isConfirmationStatus(o.order_status_id)
+                && isInRange(o.date);
+        });
 
         const statusCounts: Record<string, { label: string; count: number }> = {};
         confirmationOrders.forEach((o: OrderRow) => {
@@ -74,7 +84,7 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             .sort((a, b) => b.count - a.count);
 
         return { total: confirmationOrders.length, sorted };
-    }, [orders, dateFilter, pendingIds, callbackIds, getOrderStatusColor]);
+    }, [orders, dateFilter, pendingIds, callbackIds, getOrderStatusColor, trackedOrderIds]);
 
     if (!metrics) return null;
 

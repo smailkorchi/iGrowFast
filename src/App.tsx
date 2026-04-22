@@ -45,6 +45,7 @@ import CourierLayout from "./components/layout/CourierLayout";
 import CourierDashboard from "./pages/courier/Dashboard";
 import CourierOrders from "./pages/courier/Orders";
 import CourierPayments from "./pages/courier/Payments";
+import CourierProfile from "./pages/courier/Profile";
 import MediaBuyerLayout from "./components/layout/MediaBuyerLayout";
 import MediaBuyerDashboard from "./pages/mediabuyer/Dashboard";
 import MediaBuyerStatistics from "./pages/mediabuyer/Statistics";
@@ -231,6 +232,7 @@ const App = () => (
                   <Route path="dashboard" element={<CourierDashboard />} />
                   <Route path="orders" element={<CourierOrders />} />
                   <Route path="payments" element={<CourierPayments />} />
+                  <Route path="profile" element={<CourierProfile />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </CourierLayout>

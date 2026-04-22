@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import {
     User, Mail, ShieldCheck, LogOut, Loader2, CreditCard, Building2,
     Fingerprint, MapPin, Zap, CheckCircle2, Target, Award,
@@ -54,14 +55,21 @@ interface ProductStat {
     stock: number;
     total: number;
     confirmed: number;
+    rateConfirmed: number;
+    rateTouched: number;
     delivered: number;
+    tracked: number;
+    pullback: number;
 }
 
 type ProductSort = 'attributed' | 'delivered' | 'performance' | 'name';
 type PerformanceBucket = 'all' | 'high' | 'mid' | 'low' | 'none';
 
-const getDeliveryRate = (p: ProductStat) => (p.total > 0 ? (p.delivered / p.total) * 100 : 0);
-const getConfirmRate = (p: ProductStat) => (p.total > 0 ? (p.confirmed / p.total) * 100 : 0);
+const getDeliveryRate = (p: ProductStat) => {
+    const denom = p.tracked - p.pullback;
+    return denom > 0 ? (p.delivered / denom) * 100 : 0;
+};
+const getConfirmRate = (p: ProductStat) => (p.rateTouched > 0 ? (p.rateConfirmed / p.rateTouched) * 100 : 0);
 
 const SellerProfile = () => {
     const { toast } = useToast();
@@ -78,7 +86,14 @@ const SellerProfile = () => {
         address: ''
     });
 
-    const [stats, setStats] = useState({
+    const [stats, setStats] = useState<{
+        total: number;
+        confirmed: number;
+        delivered: number;
+        confirmationRate: number;
+        deliveryRate: number;
+        performanceStatus: string;
+    }>({
         total: 0,
         confirmed: 0,
         delivered: 0,
@@ -122,20 +137,69 @@ const SellerProfile = () => {
                 });
 
                 // Fetch real performance stats
+                const sellerBusinessId = (seller as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
                 const { data: ordersData, error: ordersError } = await supabase
                     .from('orders')
-                    .select('order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label)')
+                    .select('id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label)')
                     .eq('seller_id', session.user.id)
                     .is('date_deleted', null);
+
+                // Fetch parcel tracking up front — `orders.tracking_number`
+                // is never populated; the authoritative source for "has
+                // tracking" is company_parcels / courier_parcels. Hoisted so
+                // the per-product stats block below can reuse it.
+                const trackedSet = new Set<string>();
+                if (sellerBusinessId) {
+                    const [{ data: cpRows }, { data: xpRows }] = await Promise.all([
+                        supabase
+                            .from('company_parcels')
+                            .select('order_id, tracking_code')
+                            .eq('DigiCom Business', sellerBusinessId),
+                        supabase
+                            .from('courier_parcels')
+                            .select('order_id, tracking_code')
+                            .eq('DigiCom Business', sellerBusinessId),
+                    ]);
+                    (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
+                        if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+                    });
+                    (xpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
+                        if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+                    });
+                }
 
                 if (!ordersError && ordersData) {
                     const ordersList = ordersData;
                     const total = ordersList.length;
-                    const confirmed = ordersList.filter(o => statusCats.confirmedIds.has(o.order_status_id)).length;
                     const delivered = ordersList.filter(o => isDeliveredForCommission(o, statusCats.deliveredPkgIds)).length;
 
-                    const cRate = total > 0 ? (confirmed / total) * 100 : 0;
-                    const dRate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
+                    // Confirmation rate: numerator = any order where a yes was
+                    // spoken (tracking code OR status except `new`/`callback`).
+                    // Denominator = touched (tracking OR status NOT in `new`).
+                    const rateConfirmedCount = ordersList.filter((o: any) => {
+                        const hasTracking = !!o.id && trackedSet.has(o.id);
+                        if (hasTracking) return true;
+                        return !!o.order_status_id
+                            && !statusCats.newOrderIds.has(o.order_status_id)
+                            && !statusCats.unreachedOrderIds.has(o.order_status_id);
+                    }).length;
+                    const rateTouchedCount = ordersList.filter((o: any) => {
+                        const hasTracking = !!o.id && trackedSet.has(o.id);
+                        if (hasTracking) return true;
+                        return !o.order_status_id || !statusCats.newOrderIds.has(o.order_status_id);
+                    }).length;
+
+                    const cRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+
+                    // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+                    const trackedCount = ordersList.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
+                    const pullbackCount = ordersList.filter((o: any) =>
+                        !!o.id && trackedSet.has(o.id)
+                        && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
+                    ).length;
+                    const deliveryDenom = trackedCount - pullbackCount;
+                    const dRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
+                    const confirmed = rateConfirmedCount;
 
                     let status = 'Standard';
                     if (dRate >= 90 && cRate >= 80) status = 'Elite';
@@ -144,10 +208,11 @@ const SellerProfile = () => {
 
                     setStats({
                         total,
-                        confirmed,
+                        // Confirmed count = one-true-definition (yes was spoken).
+                        confirmed: rateConfirmedCount,
                         delivered,
-                        confirmationRate: Math.round(cRate),
-                        deliveryRate: Math.round(dRate),
+                        confirmationRate: cRate,
+                        deliveryRate: dRate,
                         performanceStatus: status
                     });
                 }
@@ -163,7 +228,7 @@ const SellerProfile = () => {
 
                     const { data: orderItemsData } = await supabase
                         .from('order_items')
-                        .select('order_id, product_id, orders!inner(seller_id, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label))')
+                        .select('order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label))')
                         .eq('orders.seller_id', session.user.id);
 
                     const orderItems = (orderItemsData || []).map(oi => ({
@@ -204,6 +269,24 @@ const SellerProfile = () => {
                             }
                             if (!nameStr) nameStr = p.label || p.code || 'Unnamed Product';
 
+                            // Coliaty delivery-rate inputs per product.
+                            // Tracked = parcel exists with tracking_code.
+                            // Pullback = tracked AND flagged fake/double/blacklisted/cancelled
+                            // at order level OR Hors-zone/Annulé at package level.
+                            const trackedForProduct = uniqueOrders.filter(o => {
+                                const oo = Array.isArray(o) ? o[0] : o;
+                                return !!oo?.id && trackedSet.has(oo.id);
+                            });
+                            const pullbackForProduct = trackedForProduct.filter(o => {
+                                const oo = Array.isArray(o) ? o[0] : o;
+                                return isAdminPullback(
+                                    oo,
+                                    true,
+                                    statusCats.adminPullbackOrderIds,
+                                    statusCats.adminPullbackPackageIds,
+                                );
+                            });
+
                             return {
                                 id: p.id,
                                 name: nameStr,
@@ -215,9 +298,27 @@ const SellerProfile = () => {
                                 cost_price: Number(p.cost_price) || 0,
                                 stock: Number(p.stock) || 0,
                                 total: uniqueOrders.length,
+                                tracked: trackedForProduct.length,
+                                pullback: pullbackForProduct.length,
                                 confirmed: uniqueOrders.filter(o => {
                                     const oo = Array.isArray(o) ? o[0] : o;
                                     return oo?.order_status_id && statusCats.confirmedIds.has(oo.order_status_id);
+                                }).length,
+                                // Rate helpers — "yes was spoken" numerator / touched denominator.
+                                // Tracking code is a hard override (tracking ⇒ confirmed ⇒ touched).
+                                rateConfirmed: uniqueOrders.filter(o => {
+                                    const oo = Array.isArray(o) ? o[0] : o;
+                                    const hasTracking = !!oo?.id && trackedSet.has(oo.id);
+                                    if (hasTracking) return true;
+                                    return !!oo?.order_status_id
+                                        && !statusCats.newOrderIds.has(oo.order_status_id)
+                                        && !statusCats.unreachedOrderIds.has(oo.order_status_id);
+                                }).length,
+                                rateTouched: uniqueOrders.filter(o => {
+                                    const oo = Array.isArray(o) ? o[0] : o;
+                                    const hasTracking = !!oo?.id && trackedSet.has(oo.id);
+                                    if (hasTracking) return true;
+                                    return !oo?.order_status_id || !statusCats.newOrderIds.has(oo.order_status_id);
                                 }).length,
                                 delivered: uniqueOrders.filter(o => {
                                     const oo = Array.isArray(o) ? o[0] : o;
@@ -579,8 +680,8 @@ const SellerProfile = () => {
                             <div className="space-y-3">
                                 {[
                                     { label: 'Attribuées', value: stats.total.toLocaleString(), sub: 'total', icon: Zap, dot: 'bg-ant-ink', text: 'text-ant-ink' },
-                                    { label: 'Confirmation', value: `${stats.confirmationRate}%`, sub: `${stats.confirmed} commandes`, icon: Target, dot: 'bg-ant-orange', text: 'text-ant-orange' },
-                                    { label: 'Livraison', value: `${stats.deliveryRate}%`, sub: `${stats.delivered} livrées`, icon: CheckCircle2, dot: 'bg-ant-green', text: 'text-ant-green' },
+                                    { label: 'Confirmation', value: `${stats.confirmationRate.toFixed(1)}%`, sub: `${stats.confirmed} commandes`, icon: Target, dot: 'bg-ant-orange', text: 'text-ant-orange' },
+                                    { label: 'Livraison', value: `${stats.deliveryRate.toFixed(1)}%`, sub: `${stats.delivered} livrées`, icon: CheckCircle2, dot: 'bg-ant-green', text: 'text-ant-green' },
                                 ].map((row) => {
                                     const Icon = row.icon;
                                     return (
@@ -792,7 +893,7 @@ const SellerProfile = () => {
                                                     </div>
                                                     <div className="bg-ant-paper px-2 py-1.5 text-center">
                                                         <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-orange">Conf</p>
-                                                        <p className="font-display text-[13px] font-semibold tabular-nums text-ant-ink mt-0.5">{p.confirmed}</p>
+                                                        <p className="font-display text-[13px] font-semibold tabular-nums text-ant-ink mt-0.5">{p.rateConfirmed}</p>
                                                     </div>
                                                     <div className="bg-ant-paper px-2 py-1.5 text-center">
                                                         <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-green">Liv</p>
@@ -844,8 +945,9 @@ const SellerProfile = () => {
                     {selectedProduct && (() => {
                         const p = selectedProduct;
                         const displayName = p.name || 'Produit inconnu';
-                        const confirmRate = p.total > 0 ? Math.round((p.confirmed / p.total) * 100) : 0;
-                        const deliveryRate = p.total > 0 ? Math.round((p.delivered / p.total) * 100) : 0;
+                        const confirmRate = p.rateTouched > 0 ? (p.rateConfirmed / p.rateTouched) * 100 : 0;
+                        const pDenom = p.tracked - p.pullback;
+                        const deliveryRate = pDenom > 0 ? Math.round((p.delivered / pDenom) * 100) : 0;
                         const stockTone = p.stock === 0
                             ? { bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', text: 'text-ant-rose', dot: 'bg-ant-rose' }
                             : p.stock < 10
@@ -943,7 +1045,7 @@ const SellerProfile = () => {
                                                     </div>
                                                     <div className="bg-ant-paper p-3 text-center">
                                                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-orange">Confirmées</p>
-                                                        <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">{p.confirmed}</p>
+                                                        <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">{p.rateConfirmed}</p>
                                                     </div>
                                                     <div className="bg-ant-paper p-3 text-center">
                                                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-green">Livrées</p>
@@ -956,7 +1058,7 @@ const SellerProfile = () => {
                                                         <div className="flex justify-between items-baseline">
                                                             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Taux de confirmation</span>
                                                             <span className={cn('font-display text-[13px] font-semibold tabular-nums', cr.text)}>
-                                                                {p.total === 0 ? '—' : `${confirmRate}%`}
+                                                                {p.total === 0 ? '—' : `${confirmRate.toFixed(1)}%`}
                                                             </span>
                                                         </div>
                                                         <div className="h-1.5 w-full bg-ant-line rounded-full overflow-hidden">
@@ -993,13 +1095,13 @@ const SellerProfile = () => {
                                                         </div>
                                                         <ChevronRight className="w-3 h-3 text-ant-mid" strokeWidth={1.75} />
                                                         <div className="flex-1 text-center">
-                                                            <div className="h-1 bg-ant-orange rounded-full mb-1 mx-auto" style={{ width: `${p.total === 0 ? 100 : (p.confirmed / p.total) * 100}%` }} />
-                                                            <p className="font-display text-[13px] font-semibold tabular-nums text-ant-orange">{p.confirmed}</p>
+                                                            <div className="h-1 bg-ant-orange rounded-full mb-1 mx-auto" style={{ width: `${p.rateTouched === 0 ? 100 : (p.rateConfirmed / p.rateTouched) * 100}%` }} />
+                                                            <p className="font-display text-[13px] font-semibold tabular-nums text-ant-orange">{p.rateConfirmed}</p>
                                                             <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Conf</p>
                                                         </div>
                                                         <ChevronRight className="w-3 h-3 text-ant-mid" strokeWidth={1.75} />
                                                         <div className="flex-1 text-center">
-                                                            <div className="h-1 bg-ant-green rounded-full mb-1 mx-auto" style={{ width: `${p.total === 0 ? 100 : (p.delivered / p.total) * 100}%` }} />
+                                                            <div className="h-1 bg-ant-green rounded-full mb-1 mx-auto" style={{ width: `${pDenom <= 0 ? 100 : (p.delivered / pDenom) * 100}%` }} />
                                                             <p className="font-display text-[13px] font-semibold tabular-nums text-ant-green">{p.delivered}</p>
                                                             <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Liv</p>
                                                         </div>

@@ -79,7 +79,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import {
     FaWhatsapp,
     FaInstagram,
@@ -227,7 +229,9 @@ const AdsKpi: React.FC<AdsKpiProps> = ({ label, value, suffix, accent, icon }) =
 };
 
 const AdsHistory = () => {
-    const { confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory } = useStatusCategories();
+    const { cancelledIds, deliveredPkgIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, getOrderCategory } = useStatusCategories();
+    const activeBusinessIdForTracking = typeof localStorage !== 'undefined' ? localStorage.getItem('activeBusinessId') : null;
+    const { trackedOrderIds } = useTrackedOrders(activeBusinessIdForTracking);
     const location = useLocation();
     const currentUserId = useCurrentUserId();
 
@@ -352,32 +356,59 @@ const AdsHistory = () => {
             });
 
             const totalOrders = matchedOrders.length;
-            let confirmedOrders = 0;
             let deliveredOrders = 0;
             let cancelledOrders = 0;
             let fakeOrders = 0;
             let grossRevenue = 0;
             let shippingCosts = 0;
+            // Confirmed = the one true definition: has tracking_number OR
+            // status is anything except `new`/`callback`. Touched = cohort
+            // minus orders sitting fresh at `new`.
+            let confirmedOrders = 0;
+            let rateTouchedOrders = 0;
+            // Coliaty delivery-rate denominator: tracked minus admin-pullback.
+            let trackedOrdersCount = 0;
+            let pullbackOrdersCount = 0;
 
             matchedOrders.forEach((o: any) => {
                 const isDelivered = isDeliveredForCommission(o, deliveredPkgIds);
                 const orderCat = getOrderCategory(o.order_status_id);
+                const sid = o.order_status_id;
+                // `orders.tracking_number` is never populated; the authoritative
+                // tracking source is company_parcels/courier_parcels, which
+                // `trackedOrderIds` already aggregates.
+                const hasTracking = !!o.id && trackedOrderIds.has(o.id);
 
                 if (isDelivered) {
                     deliveredOrders++;
-                    confirmedOrders++;
                     grossRevenue += Number(o.price) || 0;
                     shippingCosts += Number(o.shipping_cost) || 0;
-                } else if (o.order_status_id && confirmedIds.has(o.order_status_id)) {
-                    confirmedOrders++;
-                } else if (o.order_status_id && cancelledIds.has(o.order_status_id)) {
+                } else if (sid && cancelledIds.has(sid)) {
                     if (orderCat === 'fake' || orderCat === 'double') {
                         fakeOrders++;
                     } else {
                         cancelledOrders++;
                     }
                 }
+
+                // Wide confirmed + touched (one true definition).
+                // Tracking number is a hard override — tracking ⇒ confirmed ⇒ touched.
+                if (hasTracking || !sid || !newOrderIds.has(sid)) {
+                    rateTouchedOrders++;
+                    if (hasTracking || (sid && !unreachedOrderIds.has(sid))) {
+                        confirmedOrders++;
+                    }
+                }
+
+                // Coliaty delivery denominator = tracked − admin-pullback.
+                if (!!o.id && trackedOrderIds.has(o.id)) {
+                    trackedOrdersCount++;
+                    if (isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds)) {
+                        pullbackOrdersCount++;
+                    }
+                }
             });
+            const deliveryDenomOrders = trackedOrdersCount - pullbackOrdersCount;
 
             const productCost = productCosts?.find((p: any) => p.id === campaign.product_id);
             const costPrice = Number(productCost?.cost_price || 0);
@@ -393,8 +424,8 @@ const AdsHistory = () => {
                 deliveredOrders,
                 cancelledOrders,
                 fakeOrders,
-                confirmRate: totalOrders > 0 ? (confirmedOrders / totalOrders) * 100 : 0,
-                deliveryRate: confirmedOrders > 0 ? (deliveredOrders / confirmedOrders) * 100 : 0,
+                confirmRate: rateTouchedOrders > 0 ? (confirmedOrders / rateTouchedOrders) * 100 : 0,
+                deliveryRate: deliveryDenomOrders > 0 ? (deliveredOrders / deliveryDenomOrders) * 100 : 0,
                 fulfillmentRate: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
                 cpa: totalOrders > 0 ? adSpend / totalOrders : 0,
                 cpc: confirmedOrders > 0 ? adSpend / confirmedOrders : 0,
@@ -413,7 +444,7 @@ const AdsHistory = () => {
                 qualityScore: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
             };
         };
-    }, [allOrders, productCosts, confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory]);
+    }, [allOrders, productCosts, cancelledIds, deliveredPkgIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
 
     const form = useForm<AdsHistoryValues>({
         resolver: zodResolver(adsHistorySchema),

@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import {
     ShoppingBag,
     Truck,
@@ -48,11 +50,12 @@ interface MonthData {
 }
 
 const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className }) => {
-    const { deliveredPkgIds, cancelledIds } = useStatusCategories();
+    const { deliveredPkgIds, cancelledIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
     const [orders, setOrders] = useState<OrderRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+    const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
 
     // Debounce phone search — normalize digits only, skip below 6 chars.
     useEffect(() => {
@@ -132,9 +135,15 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         const delivered = orders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds)).length;
         const cancelled = orders.filter((o) => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
         const totalSpent = orders.reduce((acc, o) => acc + o.raw_price, 0);
-        const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+        const tracked = orders.filter((o) => !!o.id && trackedOrderIds.has(o.id));
+        const pullback = tracked.filter((o) =>
+            isAdminPullback(o as any, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const deliveryDenom = tracked.length - pullback.length;
+        const deliveryRate = deliveryDenom > 0 ? Math.round((delivered / deliveryDenom) * 100) : 0;
         return { total, delivered, cancelled, totalSpent, deliveryRate };
-    }, [orders, deliveredPkgIds, cancelledIds]);
+    }, [orders, deliveredPkgIds, cancelledIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     // Last 6 months of order volume — feeds the sparkline area chart.
     const chartData = useMemo((): MonthData[] => {

@@ -7,6 +7,8 @@ import { MapPin, AlertTriangle, ChevronRight } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
 interface DashboardCityStatsProps {
@@ -31,7 +33,8 @@ const TOP_COLORS = [
 const OTHERS_COLOR = '#e8e6dc';
 
 export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStatsProps) => {
-    const { confirmedIds, deliveredPkgIds } = useStatusCategories();
+    const { deliveredPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
     const [showAll, setShowAll] = useState(false);
 
     const { data: orders } = useQuery({
@@ -63,6 +66,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
         };
 
         type CityOrderRow = {
+            id?: string;
             date?: string | null;
             master_cities?: { name?: string | null } | null;
             package_status_id?: string | null;
@@ -75,9 +79,12 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
         };
         const filtered = orders.filter((o: CityOrderRow) => isInRange(o.date));
 
+        // Per-city delivery rate uses Coliaty's formula: delivered divided by
+        // (tracked − admin-pullback). `deliveryDenom` replaces the old strict
+        // "confirmed" counter.
         const cityMap: Record<
             string,
-            { name: string; total: number; confirmed: number; delivered: number; revenue: number }
+            { name: string; total: number; deliveryDenom: number; delivered: number; revenue: number }
         > = {};
 
         const productRevenue = (o: CityOrderRow) => {
@@ -85,11 +92,6 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             const ship = Number(o.shipping_cost || 0);
             if (o.include_delivery_in_total === false) return Math.max(0, price);
             return Math.max(0, price - ship);
-        };
-
-        const labelMatch = (s: string | null | undefined) => {
-            const t = (s || '').toLowerCase();
-            return t.includes('livré') || t.includes('livre') || t.includes('delivered');
         };
 
         let totalOrders = 0;
@@ -101,21 +103,29 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             const cityName = o.master_cities?.name;
             if (!cityName) return;
             if (!cityMap[cityName]) {
-                cityMap[cityName] = { name: cityName, total: 0, confirmed: 0, delivered: 0, revenue: 0 };
+                cityMap[cityName] = { name: cityName, total: 0, deliveryDenom: 0, delivered: 0, revenue: 0 };
             }
             cityMap[cityName].total += 1;
             totalOrders += 1;
 
-            const confirmed = !!o.order_status_id && confirmedIds.has(o.order_status_id);
-            if (confirmed) {
-                cityMap[cityName].confirmed += 1;
-                totalConfirmed += 1;
+            // Delivery-rate denominator = tracked orders minus admin pullbacks.
+            const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+            if (hasTracking) {
+                const pullback = isAdminPullback(
+                    o,
+                    true,
+                    adminPullbackOrderIds,
+                    adminPullbackPackageIds,
+                );
+                if (!pullback) {
+                    cityMap[cityName].deliveryDenom += 1;
+                    totalConfirmed += 1;
+                }
             }
 
-            const delivered =
-                labelMatch(o.package_status_label) ||
-                labelMatch(o.package_statuses?.label) ||
-                (!!o.package_status_id && deliveredPkgIds.has(o.package_status_id));
+            // Delivered iff package_status_id resolves to a delivered-category row.
+            // Single source of truth — matches seller_daily_earnings view.
+            const delivered = !!o.package_status_id && deliveredPkgIds.has(o.package_status_id);
             if (delivered) {
                 cityMap[cityName].delivered += 1;
                 cityMap[cityName].revenue += productRevenue(o);
@@ -153,7 +163,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
 
         // Problem cities: meaningful volume AND weak delivery rate.
         const problemCities = sortedByDelivered
-            .filter((c) => c.confirmed >= 3 && c.delivered / Math.max(1, c.confirmed) < 0.3)
+            .filter((c) => c.deliveryDenom >= 3 && c.delivered / Math.max(1, c.deliveryDenom) < 0.3)
             .slice(0, 3);
 
         const overallRate =
@@ -171,7 +181,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             totalRevenue,
             overallRate,
         };
-    }, [orders, dateFilter, confirmedIds, deliveredPkgIds]);
+    }, [orders, dateFilter, deliveredPkgIds, trackedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds]);
 
     if (!metrics) return null;
 
@@ -289,8 +299,8 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                 <div className="text-[11px] text-ant-rose font-medium">
                                     Low delivery rate in{' '}
                                     {metrics.problemCities.map((c, i) => {
-                                        const rate = c.confirmed > 0
-                                            ? Math.round((c.delivered / c.confirmed) * 100)
+                                        const rate = c.deliveryDenom > 0
+                                            ? Math.round((c.delivered / c.deliveryDenom) * 100)
                                             : 0;
                                         return (
                                             <span key={c.name} className="font-semibold">
@@ -315,8 +325,8 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                 </span>
                             </div>
                             {visibleCities.map((c, i) => {
-                                const deliveryRateNum = c.confirmed > 0
-                                    ? Math.min(100, (c.delivered / c.confirmed) * 100)
+                                const deliveryRateNum = c.deliveryDenom > 0
+                                    ? Math.min(100, (c.delivered / c.deliveryDenom) * 100)
                                     : 0;
                                 const volumeShare = (c.total / maxCityVolume) * 100;
                                 const rateTone =
@@ -351,7 +361,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                                 rateTone,
                                             )}
                                         >
-                                            {deliveryRateNum.toFixed(0)}%
+                                            {deliveryRateNum.toFixed(1)}%
                                         </span>
                                         <span className="text-[10px] text-ant-mid tabular-nums text-right">
                                             {Math.round(c.revenue).toLocaleString('fr-MA')}{' '}

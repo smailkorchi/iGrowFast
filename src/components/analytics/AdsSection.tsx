@@ -6,6 +6,7 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     Megaphone, DollarSign, Target, TrendingUp,
     MousePointerClick, BarChart3, Zap,
@@ -96,7 +97,8 @@ type AdsOrderForMatching = {
 };
 
 export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
-    const { confirmedIds, deliveredPkgIds } = useStatusCategories();
+    const { deliveredPkgIds, newOrderIds, unreachedOrderIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     // ── Source 1: legacy per-product ads (ads_history) ─────────────
     const { data: adsHistory, isLoading: loadingAds } = useQuery<ProductAdRow[]>({
@@ -189,11 +191,18 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
 
         const orders = allOrders as unknown as (AdsOrderForMatching & AnalyticsOrder)[];
 
-        // Shared classification helpers. Delivered uses label OR category (consistent with
-        // seller_daily_earnings). Confirmed includes the tracking-number short-circuit.
-        const classify = (o: AnalyticsOrder) => {
+        // Shared classification helpers. Delivered uses label OR category
+        // (consistent with seller_daily_earnings). Confirmed = the one true
+        // definition: has a tracking code (company_parcels/courier_parcels)
+        // OR status is anything except `new`/`callback`.
+        const classify = (o: AnalyticsOrder & { id?: string }) => {
             const isDelivered = isDeliveredHelper(o, deliveredPkgIds);
-            const isConfirmed = isDelivered || !!(o.order_status_id && confirmedIds.has(o.order_status_id));
+            const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+            const isConfirmed =
+                hasTracking
+                || (!!o.order_status_id
+                    && !newOrderIds.has(o.order_status_id)
+                    && !unreachedOrderIds.has(o.order_status_id));
             return { isDelivered, isConfirmed };
         };
 
@@ -405,7 +414,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             globalCampaignCount,
             platformData, trendData,
         };
-    }, [adsHistory, campaignEntries, allOrders, dateFilter, confirmedIds, deliveredPkgIds]);
+    }, [adsHistory, campaignEntries, allOrders, dateFilter, deliveredPkgIds, newOrderIds, unreachedOrderIds, trackedOrderIds]);
 
     // Expose campaignRows to satisfy linter usage (campaign names could be reused later in the UI).
     void campaignRows;

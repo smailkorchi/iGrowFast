@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import {
@@ -71,6 +71,51 @@ const CourierPayments = () => {
     const courierId = me?.id;
     const businessId = me?.['DigiCom Business'];
 
+    const { data: earnedThisMonth = 0 } = useQuery({
+        queryKey: ['courier-earned-this-month', courierId, businessId],
+        queryFn: async () => {
+            if (!courierId || !businessId) return 0;
+            const now = new Date();
+            const from = startOfMonth(now).toISOString();
+            const to = endOfMonth(now).toISOString();
+
+            const [{ data: parcels, error: pErr }, { data: fees, error: fErr }] = await Promise.all([
+                (supabase as any)
+                    .from('courier_parcels')
+                    .select(`
+                        id,
+                        order:orders!courier_parcels_order_id_fkey(include_delivery_in_total, shipping_cost, master_city_id)
+                    `)
+                    .eq('courier_id', courierId)
+                    .eq('DigiCom Business', businessId)
+                    .gte('delivered_at', from)
+                    .lte('delivered_at', to),
+                (supabase as any)
+                    .from('courier_fees')
+                    .select('master_city_id, fee')
+                    .eq('courier_id', courierId),
+            ]);
+            if (pErr) throw pErr;
+            if (fErr) throw fErr;
+            const feeMap = new Map<string, number>();
+            for (const f of (fees || []) as Array<{ master_city_id: string; fee: number | string | null }>) {
+                feeMap.set(f.master_city_id, Number(f.fee || 0));
+            }
+            let total = 0;
+            for (const p of (parcels || []) as Array<{ order: { include_delivery_in_total: boolean | null; shipping_cost: number | string | null; master_city_id: string | null } | null }>) {
+                const o = p.order;
+                if (!o) continue;
+                if (o.include_delivery_in_total) {
+                    total += Number(o.shipping_cost || 0);
+                } else if (o.master_city_id) {
+                    total += feeMap.get(o.master_city_id) ?? 0;
+                }
+            }
+            return total;
+        },
+        enabled: !!courierId && !!businessId,
+    });
+
     const { data: notes = [], isLoading } = useQuery({
         queryKey: ['courier-payment-notes', courierId, businessId],
         queryFn: async () => {
@@ -96,23 +141,14 @@ const CourierPayments = () => {
         const lifetimeDelivered = notes.reduce((s, n) => s + Number(n.order_count || 0), 0);
         const lifetimeGross = notes.reduce((s, n) => s + Number(n.total_amount || 0), 0);
 
-        const now = new Date();
-        const monthKey = format(now, 'yyyy-MM');
-        const thisMonthNotes = notes.filter(
-            (n) => n.paid_at && format(new Date(n.paid_at), 'yyyy-MM') === monthKey
-        );
-        const thisMonthEarnings = thisMonthNotes.reduce((s, n) => s + Number(n.total_shipping_fees || 0), 0);
-        const thisMonthDelivered = thisMonthNotes.reduce((s, n) => s + Number(n.order_count || 0), 0);
-
         return {
             lifetimeEarnings,
             lifetimeDelivered,
             lifetimeGross,
-            thisMonthEarnings,
-            thisMonthDelivered,
+            thisMonthEarnings: earnedThisMonth,
             totalNotes: notes.length,
         };
-    }, [notes]);
+    }, [notes, earnedThisMonth]);
 
     const filteredNotes = useMemo(() => {
         if (!searchQuery.trim()) return notes;

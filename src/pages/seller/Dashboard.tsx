@@ -4,11 +4,11 @@ import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     computeUnpaidCommission,
     normalizeCommissionBasis,
-    isConfirmed,
     isDeliveredForCommission,
     isDeliveredOnLocalDay,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
+import { isAdminPullback, isRateConfirmed, isRateTouched } from '@/lib/analyticsDefinitions';
 import {
     ShoppingCart, Eye, ChevronRight, Truck, Receipt,
     Wallet as WalletIcon, Clock, PackageCheck, CalendarDays,
@@ -153,7 +153,7 @@ const SellerDashboard = () => {
 
             let ordersQuery = supabase
                 .from('orders')
-                .select('id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
+                .select('id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
                 .eq('seller_id', userId)
                 .is('date_deleted', null);
             if (sellerBusinessId) {
@@ -170,8 +170,38 @@ const SellerDashboard = () => {
             }));
 
             const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
-            const isPending = (o: any) => statusCats.pendingIds.has(o.order_status_id);
-            const isOrderConfirmed = (o: any) => isConfirmed(o, statusCats.confirmedIds);
+
+            // Fetch per-order parcel tracking up front. `orders.tracking_number`
+            // is not populated in production — the authoritative tracking source
+            // is company_parcels.tracking_code / courier_parcels.tracking_code.
+            const trackedSet = new Set<string>();
+            if (sellerBusinessId) {
+                const [{ data: cpRows }, { data: xpRows }] = await Promise.all([
+                    supabase
+                        .from('company_parcels')
+                        .select('order_id, tracking_code')
+                        .eq('DigiCom Business', sellerBusinessId),
+                    supabase
+                        .from('courier_parcels')
+                        .select('order_id, tracking_code')
+                        .eq('DigiCom Business', sellerBusinessId),
+                ]);
+                (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
+                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+                });
+                (xpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
+                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+                });
+            }
+
+            // Pending confirmation = status ∈ {new, callback} AND no tracking
+            // code. Tracking code (company_parcels / courier_parcels) overrides
+            // everything — once the parcel is handed to a courier the order is
+            // confirmed regardless of its order_status.
+            const isPending = (o: any) => {
+                if (o?.id && trackedSet.has(o.id)) return false;
+                return statusCats.pendingIds.has(o.order_status_id);
+            };
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
             const now = new Date();
@@ -180,9 +210,24 @@ const SellerDashboard = () => {
             ).length;
 
             const delivered = orders.filter(o => isDelivered(o)).length;
-            const confirmed = orders.filter(o => isOrderConfirmed(o)).length;
-            const successRate = orders.length > 0 ? (delivered / orders.length) * 100 : 0;
-            const confirmRate = orders.length > 0 ? (confirmed / orders.length) * 100 : 0;
+            // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+            const tracked = orders.filter(o => !!o.id && trackedSet.has(o.id));
+            const pullback = tracked.filter(o =>
+                isAdminPullback(
+                    o as any,
+                    true,
+                    statusCats.adminPullbackOrderIds,
+                    statusCats.adminPullbackPackageIds,
+                ),
+            );
+            const deliveryDenom = tracked.length - pullback.length;
+            const successRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
+            // Confirmation rate: numerator = any order where a yes was spoken
+            // (everything except `new` and `callback`). Denominator = touched
+            // (total minus `new`). Matches the canonical business definition.
+            const rateConfirmedCount = orders.filter(o => isRateConfirmed(o, statusCats.newOrderIds, statusCats.unreachedOrderIds, trackedSet)).length;
+            const rateTouchedCount = orders.filter(o => isRateTouched(o, statusCats.newOrderIds, trackedSet)).length;
+            const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
 
             const { data: paymentsData } = await supabase
                 .from('seller_payments')
@@ -205,7 +250,8 @@ const SellerDashboard = () => {
                 todayOrders: todayOrders.length,
                 deliveredToday,
                 pendingOrders: orders.filter(o => isPending(o)).length,
-                confirmedOrders: confirmed,
+                // Confirmed count = one-true-definition (yes was spoken).
+                confirmedOrders: rateConfirmedCount,
                 deliveredOrders: delivered,
                 unpaidDeliveries,
                 totalOrders: orders.length,
@@ -232,15 +278,21 @@ const SellerDashboard = () => {
                 };
             }));
 
-            const productMap: Record<string, { name: string; image: string | null; delivered: number; total: number; revenue: number }> = {};
+            const productMap: Record<string, { name: string; image: string | null; delivered: number; total: number; tracked: number; pullback: number; revenue: number }> = {};
             orders.forEach((o: any) => {
                 const item = o.order_items?.[0];
                 if (!item) return;
                 const pName = item.products?.name || 'Unknown';
                 if (!productMap[pName]) {
-                    productMap[pName] = { name: pName, image: item.products?.image_url || null, delivered: 0, total: 0, revenue: 0 };
+                    productMap[pName] = { name: pName, image: item.products?.image_url || null, delivered: 0, total: 0, tracked: 0, pullback: 0, revenue: 0 };
                 }
                 productMap[pName].total++;
+                if (!!o.id && trackedSet.has(o.id)) {
+                    productMap[pName].tracked++;
+                    if (isAdminPullback(o as any, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds)) {
+                        productMap[pName].pullback++;
+                    }
+                }
                 if (isDelivered(o)) {
                     productMap[pName].delivered++;
                     productMap[pName].revenue += Number(o.price) || 0;
@@ -249,12 +301,13 @@ const SellerDashboard = () => {
 
             const topProd = Object.values(productMap).sort((a, b) => b.revenue - a.revenue)[0];
             if (topProd) {
+                const prodDenom = topProd.tracked - topProd.pullback;
                 setTopProduct({
                     name: topProd.name,
                     image: topProd.image,
                     delivered: topProd.delivered,
                     revenue: topProd.revenue,
-                    successRate: topProd.total > 0 ? (topProd.delivered / topProd.total) * 100 : 0,
+                    successRate: prodDenom > 0 ? (topProd.delivered / prodDenom) * 100 : 0,
                 });
             }
         } catch (error) {
@@ -426,7 +479,7 @@ const SellerDashboard = () => {
                                                 style={{ width: `${Math.min(100, step.pct)}%` }}
                                             />
                                         </div>
-                                        <p className="font-serif italic text-[11px] text-ant-mid tabular-nums">{step.pct.toFixed(0)}%</p>
+                                        <p className="font-serif italic text-[11px] text-ant-mid tabular-nums">{step.pct.toFixed(1)}%</p>
                                     </div>
                                 );
                             })}

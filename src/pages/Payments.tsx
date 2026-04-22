@@ -25,6 +25,8 @@ interface UnpaidOrder {
     company_id: string | null; courier_id: string | null;
     payment_delivery_id: string | null;
     current_courier_payment_note_id: string | null;
+    include_delivery_in_total: boolean | null;
+    master_city_id: string | null;
     parcels: { tracking_code: string | null; provider: { id: string; name: string; logo_url: string | null } | null }[];
     courier_parcels: { tracking_code: string | null }[];
     company: { id: string; name: string; logo_url: string | null } | null;
@@ -200,9 +202,37 @@ const Payments = () => {
             const lineItemsTable = isCourier ? 'courier_payment_note_orders' : 'company_payment_note_orders';
             const orderLinkField = isCourier ? 'current_courier_payment_note_id' : 'payment_delivery_id';
 
+            // Resolve the per-order courier fee.
+            //   - Provider notes: shipping_fee = orders.shipping_cost (unchanged).
+            //   - Courier notes: shipping_fee = orders.shipping_cost when the
+            //     include_delivery_in_total toggle is on (per-order override),
+            //     otherwise courier_fees.fee for (courier_id, master_city_id).
+            //     No matching courier_fees row -> 0. Owner's responsibility.
+            let courierFeeMap = new Map<string, number>();
+            if (isCourier) {
+                const cityIds = Array.from(new Set(orders.map(o => o.master_city_id).filter(Boolean) as string[]));
+                if (cityIds.length > 0) {
+                    const { data: fees, error: feesError } = await (supabase as any)
+                        .from('courier_fees')
+                        .select('master_city_id, fee')
+                        .eq('courier_id', group.target_id)
+                        .in('master_city_id', cityIds);
+                    if (feesError) throw feesError;
+                    for (const f of (fees || []) as Array<{ master_city_id: string; fee: number | string | null }>) {
+                        courierFeeMap.set(f.master_city_id, Number(f.fee || 0));
+                    }
+                }
+            }
+
+            const resolveShippingFee = (o: UnpaidOrder): number => {
+                if (!isCourier) return Number(o.shipping_cost || 0);
+                if (o.include_delivery_in_total) return Number(o.shipping_cost || 0);
+                return o.master_city_id ? (courierFeeMap.get(o.master_city_id) ?? 0) : 0;
+            };
+
             // Recalculate totals from selected orders
             const total_amount = orders.reduce((s, o) => s + Number(o.price || 0), 0);
-            const total_shipping = orders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+            const total_shipping = orders.reduce((s, o) => s + resolveShippingFee(o), 0);
             const net_amount = total_amount - total_shipping;
 
             const insertPayload: any = {
@@ -237,7 +267,7 @@ const Payments = () => {
                     ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || null)
                     : (o.parcels?.[0]?.tracking_code || o.tracking_number || null),
                 amount: +Number(o.price || 0).toFixed(2),
-                shipping_fee: +Number(o.shipping_cost || 0).toFixed(2),
+                shipping_fee: +resolveShippingFee(o).toFixed(2),
                 'DigiCom Business': activeBusinessId,
             }));
             const { error: itemsError } = await (supabase as any).from(lineItemsTable).insert(lineItems);

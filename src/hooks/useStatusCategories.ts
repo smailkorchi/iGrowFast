@@ -8,6 +8,9 @@ import {
   CANCELLED_ORDER_CATS,
   CALLBACK_ORDER_CATS,
   PENDING_ORDER_CATS,
+  UNREACHED_ORDER_CATS,
+  ADMIN_PULLBACK_ORDER_CATS,
+  ADMIN_PULLBACK_PACKAGE_CODES,
   SHIPPED_PKG_CATS,
   DELIVERED_PKG_CATS,
   RETURNED_PKG_CATS,
@@ -110,6 +113,17 @@ export function useStatusCategories() {
     const pendingIds = collectIds(PENDING_ORDER_CATS, orderCatMap);
     // "Brand new uncalled" denominator exclusion — the single `new` category.
     const newOrderIds = collectIds(['new'], orderCatMap);
+    // Confirmation-rate helper set: tried to call, customer never answered.
+    // Excluded from BOTH sides of the rate.
+    const unreachedOrderIds = collectIds(UNREACHED_ORDER_CATS, orderCatMap);
+
+    // Delivery-rate "Annulés vendeur/coliaty" helper sets.
+    const adminPullbackOrderIds = collectIds(ADMIN_PULLBACK_ORDER_CATS, orderCatMap);
+    const adminPullbackPackageIds = new Set(
+      packageStatuses
+        .filter(s => ADMIN_PULLBACK_PACKAGE_CODES.includes(s.code))
+        .map(s => s.id),
+    );
     const deliveredPkgIds = collectIds(DELIVERED_PKG_CATS, pkgCatMap);
     const shippedPkgIds = collectIds(SHIPPED_PKG_CATS, pkgCatMap);
     const returnedPkgIds = collectIds(RETURNED_PKG_CATS, pkgCatMap);
@@ -177,6 +191,9 @@ export function useStatusCategories() {
       callbackIds,
       pendingIds,
       newOrderIds,
+      unreachedOrderIds,
+      adminPullbackOrderIds,
+      adminPullbackPackageIds,
       deliveredPkgIds,
       shippedPkgIds,
       returnedPkgIds,

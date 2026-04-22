@@ -7,6 +7,8 @@ import { Truck, Building2, Bike } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
 interface ShippingPipelineProps {
@@ -19,14 +21,15 @@ const COLOR_RETURNED = '#c96356'; // ant rose
 const COLOR_IN_TRANSIT = '#6a9bcc'; // ant blue
 
 export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelineProps) => {
-    const { getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds } = useStatusCategories();
+    const { getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders } = useQuery({
         queryKey: ['shipping-pipeline-orders', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, package_status_id, package_status_label, company_id, courier_id')
+                .select('id, date, order_status_id, package_status_id, package_status_label, company_id, courier_id')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -65,9 +68,11 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         if (!orders || !providers || !couriers) return null;
 
         type SPOrder = {
+            id: string;
             date: string | null;
             company_id: string | null;
             courier_id: string | null;
+            order_status_id: string | null;
             package_status_id: string | null;
             package_status_label: string | null;
         };
@@ -130,14 +135,25 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             total: number;
             delivered: number;
             returned: number;
+            // Coliaty denom — tracked minus admin-pullback for this fulfiller.
+            deliveryDenom: number;
         };
         const fulfillerDist = new Map<string, FulfillerStats>();
         const bump = (kind: FulfillerKind, id: string, o: SPOrder) => {
             const key = `${kind}:${id}`;
-            const row = fulfillerDist.get(key) || { kind, id, total: 0, delivered: 0, returned: 0 };
+            const row = fulfillerDist.get(key) || { kind, id, total: 0, delivered: 0, returned: 0, deliveryDenom: 0 };
             row.total += 1;
             if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) row.delivered += 1;
             if (o.package_status_id && returnedPkgIds.has(o.package_status_id)) row.returned += 1;
+            if (!!o.id && trackedOrderIds.has(o.id)) {
+                const pullback = isAdminPullback(
+                    o,
+                    true,
+                    adminPullbackOrderIds,
+                    adminPullbackPackageIds,
+                );
+                if (!pullback) row.deliveryDenom += 1;
+            }
             fulfillerDist.set(key, row);
         };
         shipped.forEach((o) => {
@@ -154,7 +170,10 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
 
         const fulfillerList = Array.from(fulfillerDist.values())
             .map((stats) => {
-                const rate = stats.total > 0 ? Math.min(100, (stats.delivered / stats.total) * 100) : 0;
+                // Delivery rate (Coliaty): delivered ÷ (tracked − admin-pullback).
+                const rate = stats.deliveryDenom > 0
+                    ? Math.min(100, (stats.delivered / stats.deliveryDenom) * 100)
+                    : 0;
                 const inTransitCount = stats.total - stats.delivered - stats.returned;
                 if (stats.kind === 'provider') {
                     const p = providerById.get(stats.id);
@@ -192,22 +211,33 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             .filter((f) => f.kind === 'courier')
             .reduce((s, f) => s + f.total, 0);
 
+        // Overall delivery rate uses the same Coliaty formula scoped to the
+        // shipping-lifecycle set.
+        const overallTracked = shipped.filter((o) => !!o.id && trackedOrderIds.has(o.id));
+        const overallPullback = overallTracked.filter((o) =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const overallDeliveryDenom = overallTracked.length - overallPullback.length;
+
         return {
             total: shipped.length,
             delivered,
             returned,
             inTransit,
+            deliveryDenom: overallDeliveryDenom,
             statusChart,
             fulfillerList,
             providerShipments,
             courierShipments,
         };
-    }, [orders, providers, couriers, dateFilter, getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds]);
+    }, [orders, providers, couriers, dateFilter, getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     if (!metrics) return null;
 
     const overallDeliveryRate =
-        metrics.total > 0 ? Math.min(100, (metrics.delivered / metrics.total) * 100) : 0;
+        metrics.deliveryDenom > 0
+            ? Math.min(100, (metrics.delivered / metrics.deliveryDenom) * 100)
+            : 0;
 
     return (
         <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">

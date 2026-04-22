@@ -97,6 +97,7 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -2032,21 +2033,50 @@ const Orders = () => {
             if (!orders || !userId || !sellerProfile) return;
 
             const allOrders = orders || [];
-            const total = allOrders.length;
-
-            // Count confirmed orders (confirmed, processed, paid, unpaid)
-            const confirmed = allOrders.filter(o =>
-                statusCats.confirmedIds.has(o.order_status_id)
-            ).length;
 
             // Count delivered orders (package in delivered category)
             const delivered = allOrders.filter(o =>
                 isDeliveredForCommission(o, statusCats.deliveredPkgIds)
             ).length;
 
-            // Rates
-            const confirmRate = total > 0 ? (confirmed / total) * 100 : 0;
-            const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
+            // `orders.tracking_number` is never populated; the authoritative
+            // source for "has tracking" is company_parcels.tracking_code or
+            // courier_parcels.tracking_code. The orders query already joins
+            // both tables (`parcels` + `courier_parcels`), so build the set
+            // directly from the embedded rows — no extra round-trip, and no
+            // dependency on sellerProfile carrying "DigiCom Business".
+            const trackedSet = new Set<string>();
+            allOrders.forEach((o: any) => {
+                if (!o?.id) return;
+                const parcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.parcels) ? o.parcels : [];
+                const courierParcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.courier_parcels) ? o.courier_parcels : [];
+                const hasCompanyTracking = parcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
+                const hasCourierTracking = courierParcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
+                if (hasCompanyTracking || hasCourierTracking) trackedSet.add(o.id);
+            });
+
+            // Confirmation rate: numerator = any order where a yes was spoken
+            // (tracking code OR status anything except `new`/`callback`).
+            // Denominator = touched (tracking OR status NOT in `new`).
+            const rateConfirmedCount = allOrders.filter((o: any) => {
+                const hasTracking = !!o.id && trackedSet.has(o.id);
+                if (hasTracking) return true;
+                return !!o.order_status_id
+                    && !statusCats.newOrderIds.has(o.order_status_id)
+                    && !statusCats.unreachedOrderIds.has(o.order_status_id);
+            }).length;
+            const rateTouchedCount = allOrders.filter((o: any) => {
+                const hasTracking = !!o.id && trackedSet.has(o.id);
+                if (hasTracking) return true;
+                return !o.order_status_id || !statusCats.newOrderIds.has(o.order_status_id);
+            }).length;
+            const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+            const trackedCount = allOrders.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
+            const pullbackCount = allOrders.filter((o: any) =>
+                !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
+            ).length;
+            const deliveryDenom = trackedCount - pullbackCount;
+            const deliveryRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
 
             const basis = normalizeCommissionBasis(sellerProfile.commission_basis);
             const commissionRate = Number(sellerProfile.commission_price) || 0;
@@ -2083,7 +2113,7 @@ const Orders = () => {
         };
 
         calculateSellerStats();
-    }, [orders, userId, sellerProfile, sellerProductIds, statusCats.confirmedIds, statusCats.deliveredPkgIds]);
+    }, [orders, userId, sellerProfile, sellerProductIds, statusCats.deliveredPkgIds, statusCats.newOrderIds, statusCats.unreachedOrderIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -2213,8 +2243,8 @@ const Orders = () => {
                 {/* Seller Performance KPIs */}
                 <section className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                     {[
-                        { label: 'Taux de livraison', value: `${sellerStats.deliveryRate.toFixed(0)}%`, sub: `${sellerStats.totalDelivered} livrées`, dot: 'bg-ant-green', text: 'text-ant-green' },
-                        { label: 'Taux de confirmation', value: `${sellerStats.confirmRate.toFixed(0)}%`, sub: 'taux de succès', dot: 'bg-ant-ink', text: 'text-ant-ink' },
+                        { label: 'Taux de livraison', value: `${sellerStats.deliveryRate.toFixed(1)}%`, sub: `${sellerStats.totalDelivered} livrées`, dot: 'bg-ant-green', text: 'text-ant-green' },
+                        { label: 'Taux de confirmation', value: `${sellerStats.confirmRate.toFixed(1)}%`, sub: 'taux de succès', dot: 'bg-ant-ink', text: 'text-ant-ink' },
                         { label: 'Commission due', value: `${new Intl.NumberFormat('fr-FR').format(Math.round(sellerStats.unpaidCommission))}`, unit: 'MAD', sub: `${sellerStats.commissionRate} MAD / ${sellerStats.commissionBasis === 'per_unit' ? 'unité' : 'commande'}`, dot: 'bg-ant-orange', text: 'text-ant-orange' },
                         { label: 'Mes commandes', value: new Intl.NumberFormat('fr-FR').format(filteredOrders.length), sub: 'vue actuelle', dot: 'bg-ant-mid', text: 'text-ant-ink' },
                     ].map((s, i) => (

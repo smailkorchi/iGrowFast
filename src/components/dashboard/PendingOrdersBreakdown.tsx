@@ -7,6 +7,7 @@ import { Clock, AlertTriangle, Hourglass, CalendarClock } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { differenceInDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { PENDING_STALE_DAYS } from '@/lib/analyticsDefinitions';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
@@ -26,13 +27,14 @@ const BUCKETS = [
 
 export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrdersBreakdownProps) => {
     const { pendingIds, callbackIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders } = useQuery({
         queryKey: ['pending-orders-breakdown-orders', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, created_at, price, order_status_id')
+                .select('id, date, created_at, price, order_status_id, tracking_number')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -59,12 +61,17 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
             date: string | null;
             price: number | null;
             created_at?: string | null;
+            tracking_number?: string | null;
         };
         const isPendingStatus = (id: string | null) =>
             !!id && (pendingIds.has(id) || callbackIds.has(id));
-        const pending = (orders as unknown as POBOrder[]).filter(
-            (o) => isPendingStatus(o.order_status_id) && isInRange(o.date),
-        );
+        // Tracking code (company_parcels / courier_parcels) overrides
+        // everything: once a parcel is handed to a courier, the order is
+        // confirmed regardless of status and must leave the pending queue.
+        const pending = (orders as unknown as POBOrder[]).filter((o) => {
+            if (o.id && trackedOrderIds.has(o.id)) return false;
+            return isPendingStatus(o.order_status_id) && isInRange(o.date);
+        });
 
         const startOfNow = startOfDay(new Date());
         const buckets: Record<string, POBOrder[]> = { today: [], '1-3d': [], '4-7d': [], '7+d': [] };
@@ -95,7 +102,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
         });
 
         return { total: pending.length, totalValue, staleCount, bucketStats };
-    }, [orders, dateFilter, pendingIds, callbackIds]);
+    }, [orders, dateFilter, pendingIds, callbackIds, trackedOrderIds]);
 
     if (!metrics) return null;
 

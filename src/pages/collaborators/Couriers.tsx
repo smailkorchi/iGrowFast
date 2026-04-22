@@ -26,6 +26,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
 type Courier = {
@@ -42,8 +44,17 @@ type Courier = {
 type OrderRow = {
     id: string;
     courier_id: string | null;
+    order_status_id: string | null;
     package_status_id: string | null;
     shipping_cost: number | string | null;
+    include_delivery_in_total: boolean | null;
+    master_city_id: string | null;
+};
+
+type CourierFeeRow = {
+    courier_id: string;
+    master_city_id: string;
+    fee: number | string | null;
 };
 
 type PaymentNote = {
@@ -51,6 +62,7 @@ type PaymentNote = {
     courier_id: string;
     status: string;
     total_amount: number | string;
+    total_shipping_fees: number | string;
     net_amount: number | string;
     order_count: number;
     paid_at: string | null;
@@ -99,7 +111,8 @@ const deliveryTier = (rate: number) => {
 
 const Couriers = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const { deliveredPkgIds, shippedPkgIds, returnedPkgIds } = useStatusCategories();
+    const { deliveredPkgIds, shippedPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState<Courier | null>(null);
     const [sortBy, setSortBy] = useState<'rate' | 'delivered' | 'orders' | 'unpaid'>('rate');
@@ -128,7 +141,7 @@ const Couriers = () => {
             if (!activeBusinessId || courierIds.length === 0) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
-                .select('id, courier_id, package_status_id, shipping_cost')
+                .select('id, courier_id, order_status_id, package_status_id, shipping_cost, include_delivery_in_total, master_city_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .in('courier_id', courierIds)
                 .is('date_deleted', null);
@@ -138,13 +151,35 @@ const Couriers = () => {
         enabled: !!activeBusinessId && courierIds.length > 0,
     });
 
+    const { data: courierFees = [] } = useQuery<CourierFeeRow[]>({
+        queryKey: ['couriers-fees', activeBusinessId, courierIds.sort().join(',')],
+        queryFn: async () => {
+            if (!activeBusinessId || courierIds.length === 0) return [];
+            const { data, error } = await (supabase as any)
+                .from('courier_fees')
+                .select('courier_id, master_city_id, fee')
+                .in('courier_id', courierIds);
+            if (error) throw error;
+            return (data || []) as CourierFeeRow[];
+        },
+        enabled: !!activeBusinessId && courierIds.length > 0,
+    });
+
+    const feeLookup = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const f of courierFees) {
+            map.set(`${f.courier_id}:${f.master_city_id}`, Number(f.fee || 0));
+        }
+        return map;
+    }, [courierFees]);
+
     const { data: paymentNotes = [] } = useQuery<PaymentNote[]>({
         queryKey: ['couriers-payment-notes', activeBusinessId, courierIds.sort().join(',')],
         queryFn: async () => {
             if (!activeBusinessId || courierIds.length === 0) return [];
             const { data, error } = await (supabase as any)
                 .from('courier_payment_notes')
-                .select('id, courier_id, status, total_amount, net_amount, order_count, paid_at, created_at')
+                .select('id, courier_id, status, total_amount, total_shipping_fees, net_amount, order_count, paid_at, created_at')
                 .eq('DigiCom Business', activeBusinessId)
                 .in('courier_id', courierIds)
                 .order('created_at', { ascending: false });
@@ -159,6 +194,7 @@ const Couriers = () => {
             string,
             {
                 totalOrders: number;
+                confirmed: number;
                 inTransit: number;
                 delivered: number;
                 returned: number;
@@ -169,16 +205,32 @@ const Couriers = () => {
             }
         >();
         for (const c of couriers) {
-            m.set(c.id, { totalOrders: 0, inTransit: 0, delivered: 0, returned: 0, totalShippingFees: 0, totalPaid: 0, totalUnpaid: 0, notesCount: 0 });
+            m.set(c.id, { totalOrders: 0, confirmed: 0, inTransit: 0, delivered: 0, returned: 0, totalShippingFees: 0, totalPaid: 0, totalUnpaid: 0, notesCount: 0 });
         }
         for (const o of orders) {
             if (!o.courier_id) continue;
             const row = m.get(o.courier_id);
             if (!row) continue;
             row.totalOrders += 1;
+            // Delivery-rate denominator (Coliaty): tracked orders minus admin pullbacks.
+            if (!!o.id && trackedOrderIds.has(o.id)) {
+                const pullback = isAdminPullback(
+                    o as any,
+                    true,
+                    adminPullbackOrderIds,
+                    adminPullbackPackageIds,
+                );
+                if (!pullback) row.confirmed += 1;
+            }
             if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) {
                 row.delivered += 1;
-                row.totalShippingFees += Number(o.shipping_cost || 0);
+                const override = o.include_delivery_in_total
+                    ? Number(o.shipping_cost || 0)
+                    : null;
+                const fallback = o.master_city_id
+                    ? (feeLookup.get(`${o.courier_id}:${o.master_city_id}`) ?? 0)
+                    : 0;
+                row.totalShippingFees += override !== null ? override : fallback;
             } else if (o.package_status_id && shippedPkgIds.has(o.package_status_id)) {
                 row.inTransit += 1;
             } else if (o.package_status_id && returnedPkgIds.has(o.package_status_id)) {
@@ -189,11 +241,12 @@ const Couriers = () => {
             const row = m.get(n.courier_id);
             if (!row) continue;
             row.notesCount += 1;
-            if (n.status === 'paid') row.totalPaid += Number(n.net_amount || 0);
-            else row.totalUnpaid += Number(n.net_amount || 0);
+            const fees = Number(n.total_shipping_fees || 0);
+            if (n.status === 'paid') row.totalPaid += fees;
+            else row.totalUnpaid += fees;
         }
         return m;
-    }, [couriers, orders, paymentNotes, deliveredPkgIds, shippedPkgIds, returnedPkgIds]);
+    }, [couriers, orders, paymentNotes, deliveredPkgIds, shippedPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, feeLookup]);
 
     const rankMap = useMemo(() => {
         const sorted = [...couriers].sort((a, b) => {
@@ -221,8 +274,8 @@ const Couriers = () => {
             const sa = stats.get(a.id);
             const sb = stats.get(b.id);
             if (sortBy === 'rate') {
-                const ra = sa && sa.totalOrders > 0 ? sa.delivered / sa.totalOrders : 0;
-                const rb = sb && sb.totalOrders > 0 ? sb.delivered / sb.totalOrders : 0;
+                const ra = sa && sa.confirmed > 0 ? sa.delivered / sa.confirmed : 0;
+                const rb = sb && sb.confirmed > 0 ? sb.delivered / sb.confirmed : 0;
                 return rb - ra;
             }
             if (sortBy === 'delivered') return (sb?.delivered || 0) - (sa?.delivered || 0);
@@ -339,7 +392,7 @@ const Couriers = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {filtered.map((c) => {
                             const s = stats.get(c.id);
-                            const rate = s && s.totalOrders > 0 ? (s.delivered / s.totalOrders) * 100 : 0;
+                            const rate = s && s.confirmed > 0 ? (s.delivered / s.confirmed) * 100 : 0;
                             const tier = deliveryTier(rate);
                             const rank = rankMap.get(c.id) ?? 0;
                             const isActive = c.active !== false;
@@ -447,7 +500,7 @@ const Couriers = () => {
                         const totalFees = s?.totalShippingFees || 0;
                         const paidFees = s?.totalPaid || 0;
                         const pendingFees = s?.totalUnpaid || 0;
-                        const rate = s && s.totalOrders > 0 ? (s.delivered / s.totalOrders) * 100 : 0;
+                        const rate = s && s.confirmed > 0 ? (s.delivered / s.confirmed) * 100 : 0;
                         const tier = deliveryTier(rate);
                         const isActive = selected.active !== false;
 
@@ -580,7 +633,7 @@ const Couriers = () => {
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums">
-                                                                    {fmtCurFull(Number(n.net_amount || 0))} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                                    {fmtCurFull(Number(n.total_shipping_fees || 0))} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                                                 </p>
                                                                 <p className="text-[11px] text-ant-mid tabular-nums">
                                                                     {n.order_count} orders · {new Date(n.created_at).toLocaleDateString()}

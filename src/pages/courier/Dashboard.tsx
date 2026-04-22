@@ -39,6 +39,7 @@ type CourierParcel = {
     tracking_code: string | null;
     created_at: string | null;
     updated_at: string | null;
+    delivered_at: string | null;
     status_label: string | null;
     status_color: string | null;
     status_category: string | null;
@@ -103,7 +104,7 @@ const CourierDashboard = () => {
             const { data, error } = await (supabase as any)
                 .from('courier_parcels')
                 .select(`
-                    id, tracking_code, created_at, updated_at, status_label, status_color,
+                    id, tracking_code, created_at, updated_at, delivered_at, status_label, status_color,
                     note:courier_delivery_notes!inner(id, is_finalized),
                     status:package_statuses(id, label, color, category, recheck),
                     order:orders!courier_parcels_order_id_fkey(
@@ -124,6 +125,7 @@ const CourierDashboard = () => {
                         tracking_code: p.tracking_code,
                         created_at: p.created_at,
                         updated_at: p.updated_at,
+                        delivered_at: p.delivered_at,
                         status_label: s?.label || p.status_label,
                         status_color: s?.color || p.status_color,
                         status_category: s?.category || null,
@@ -171,8 +173,7 @@ const CourierDashboard = () => {
             if (cat === 'delivered') {
                 deliveredTotal++;
                 pendingEarningsGross += p.order_shipping;
-                const ts = p.updated_at || p.created_at;
-                if (ts && isSameDay(new Date(ts), today)) deliveredToday++;
+                if (p.delivered_at && isSameDay(new Date(p.delivered_at), today)) deliveredToday++;
             } else if (cat !== 'returned' && cat !== 'cancelled' && cat !== 'refused') {
                 activeCount++;
             }
@@ -225,9 +226,19 @@ const CourierDashboard = () => {
             refused: { name: 'Refusé', value: 0, color: '#c93942' },
             other: { name: 'Autre', value: 0, color: '#b0aea5' },
         };
+        const collapse: Record<string, string> = {
+            pickup_pending: 'in_transit',
+            picked_up: 'in_transit',
+            returning: 'returned',
+            recheck: 'postponed',
+            scheduled: 'postponed',
+            callback: 'new',
+            interested: 'new',
+            relaunch: 'new',
+        };
         for (const [cat, n] of stats.byCategory.entries()) {
-            if (map[cat]) map[cat].value += n;
-            else map.other.value += n;
+            const target = map[cat] ? cat : (collapse[cat] && map[collapse[cat]] ? collapse[cat] : 'other');
+            map[target].value += n;
         }
         return Object.values(map).filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
     }, [stats.byCategory]);

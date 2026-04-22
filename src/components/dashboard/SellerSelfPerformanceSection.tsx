@@ -6,14 +6,15 @@ import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useSellerCommissionTotals } from '@/hooks/useSellerCommissionTotals';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     assignmentTimestampForMetrics,
     commissionAccruedForDeliveredOrder,
-    isConfirmed,
     isDeliveredForCommission,
     normalizeCommissionBasis,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { SourcePills, type SourceStat } from './performance/SourcePills';
@@ -37,6 +38,7 @@ type SSPOrder = {
     order_status_id: string | null;
     package_status_id: string | null;
     package_status_label: string | null;
+    tracking_number: string | null;
     seller_id: string | null;
     source_name: string | null;
     order_items: SSPOrderItem[] | null;
@@ -52,11 +54,15 @@ export function SellerSelfPerformanceSection({
     const {
         orderStatuses,
         packageStatuses,
-        confirmedIds,
         deliveredPkgIds,
+        newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
         getOrderStatusColor,
         getPkgStatusColor,
     } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId ?? null);
 
     const { data: sellerRow, isLoading: loadingSeller } = useQuery({
         queryKey: ['seller-self-performance-profile', sellerId],
@@ -78,7 +84,7 @@ export function SellerSelfPerformanceSection({
             let q = supabase
                 .from('orders')
                 .select(
-                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, package_status_label, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label, category), package_statuses(label, category)'
+                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label, category), package_statuses(label, category)'
                 );
             if (businessId) {
                 q = q.eq('DigiCom Business', businessId);
@@ -91,6 +97,10 @@ export function SellerSelfPerformanceSection({
             return data || [];
         },
         enabled: !!sellerId,
+        // Always refetch on mount so the seller and admin dashboards can't drift
+        // apart on any order that changed status between loads.
+        staleTime: 0,
+        refetchOnMount: 'always',
     });
 
     const { data: commissionTotals } = useSellerCommissionTotals(
@@ -136,13 +146,43 @@ export function SellerSelfPerformanceSection({
         const assignedCount = cohort.length;
         const assignedPercent = totalInWindow > 0 ? (assignedCount / totalInWindow) * 100 : 0;
 
-        const confirmed = cohort.filter((o) => isConfirmed(o, confirmedIds));
+        // One true definition: an order is confirmed if it has a tracking
+        // code (in company_parcels/courier_parcels) OR its status is anything
+        // except `new` or a `callback` variant. Same rule for count and rate.
+        const hasTracking = (o: SSPOrder) => !!o.id && trackedOrderIds.has(o.id);
+        const confirmed = cohort.filter((o) =>
+            hasTracking(o)
+            || (!!o.order_status_id
+                && !newOrderIds.has(o.order_status_id)
+                && !unreachedOrderIds.has(o.order_status_id)),
+        );
         const confirmedCount = confirmed.length;
-        const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-        const delivered = confirmed.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
+        // Touched denominator = cohort minus orders still sitting fresh at `new`.
+        // Tracking code is a hard override — tracking ⇒ confirmed ⇒ touched.
+        const rateTouchedCount = cohort.filter((o) =>
+            hasTracking(o)
+            || !o.order_status_id
+            || !newOrderIds.has(o.order_status_id),
+        ).length;
+        const confirmedPercent = rateTouchedCount > 0 ? (confirmedCount / rateTouchedCount) * 100 : 0;
+
+        // Delivered = package state is delivered. Computed directly from the
+        // cohort so it is independent of the confirmed set.
+        const delivered = cohort.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
         const deliveredCount = delivered.length;
-        const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
+
+        // Delivery rate (Coliaty formula):
+        //   delivered ÷ (tracked − admin-pullback)
+        // Tracked = order has a tracking_code in company_parcels or courier_parcels.
+        // Admin-pullback = tracked AND flagged fake/double/blacklisted/cancelled
+        //   at order level, OR Hors-zone/Annulé at package level.
+        const tracked = cohort.filter((o) => !!o.id && trackedOrderIds.has(o.id));
+        const pullback = tracked.filter((o) =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const deliveryDenom = tracked.length - pullback.length;
+        const deliveredPercent = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
 
         const sourceAgg = new Map<string, { assigned: number; confirmed: number; delivered: number }>();
         const bump = (src: string, k: 'assigned' | 'confirmed' | 'delivered') => {
@@ -160,7 +200,9 @@ export function SellerSelfPerformanceSection({
 
         // Pre-conf pane: one pill per distinct current order_status in the not-yet-confirmed
         // subset of the cohort. Sum always equals assignedCount - confirmedCount.
-        const notYetConfirmed = cohort.filter((o) => !isConfirmed(o, confirmedIds));
+        // Uses the same one-true-definition as the count/rate above.
+        const confirmedIdSet = new Set(confirmed.map((o) => o.id));
+        const notYetConfirmed = cohort.filter((o) => !confirmedIdSet.has(o.id));
         const preConfShareTotal = notYetConfirmed.length;
         const preCountByStatus = new Map<string | null, number>();
         notYetConfirmed.forEach((o) => {
@@ -259,8 +301,12 @@ export function SellerSelfPerformanceSection({
         sellerRow,
         sellerId,
         dateFilter,
-        confirmedIds,
         deliveredPkgIds,
+        newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
+        trackedOrderIds,
         orderStatuses,
         packageStatuses,
         getOrderStatusColor,

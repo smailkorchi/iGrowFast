@@ -2,12 +2,13 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     AnalyticsOrder,
     SHIPPING_STUCK_DAYS,
     deliveryTimestamp,
     inWindow,
-    isConfirmed,
+    isAdminPullback,
     isDelivered,
     isReturned,
     isShipped,
@@ -29,7 +30,8 @@ interface ShippingSectionProps {
 }
 
 export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps) => {
-    const { deliveredPkgIds, returnedPkgIds } = useStatusCategories();
+    const { deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-shipping-v2', businessId],
@@ -94,15 +96,6 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
-        // Confirmed orders anchor most rates (delivery rate denominator).
-        const confirmedOrders = filtered.filter(o => isConfirmed(o, { has: (id: string) => false } as Set<string>) || isConfirmed(o, new Set([o.order_status_id || ''])));
-        // Simpler: build the confirmed id check via the hook-level confirmedIds.
-        // We don't have that Set here; use the tracking-number short-circuit to approximate,
-        // falling back to any order that has moved past 'new' by checking tracking_number OR package_status.
-        const isConfirmedLoose = (o: AnalyticsOrder) =>
-            !!o.tracking_number || !!o.package_status_id;
-        const confirmedBasis = filtered.filter(isConfirmedLoose);
-
         // Shipped = has a tracking number (locked rule §5).
         const shippedOrders = filtered.filter(o => isShipped(o));
         const totalShipments = shippedOrders.length;
@@ -110,8 +103,13 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
         const returnedCount = filtered.filter(o => isReturned(o, returnedPkgIds)).length;
 
-        // Locked rule: delivery rate = delivered / confirmed; return rate = returned / shipped.
-        const deliveryRate = confirmedBasis.length > 0 ? (deliveredCount / confirmedBasis.length) * 100 : 0;
+        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
+        const pullback = tracked.filter(o =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const deliveryDenom = tracked.length - pullback.length;
+        const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
         const returnRate = totalShipments > 0 ? (returnedCount / totalShipments) * 100 : 0;
 
         const totalShippingCost = filtered
@@ -148,7 +146,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         // Use ALL orders in the window that have been handed off to a provider or courier,
         // not just shipped (has tracking). Otherwise fulfillers with offline handoff never show.
         const assignedOrders = filtered.filter(o => o.company_id || o.courier_id);
-        const providerCounts: Record<string, { total: number; delivered: number; name: string; logo_url: string | null; kind: 'provider' | 'courier' }> = {};
+        const providerCounts: Record<string, { total: number; delivered: number; tracked: number; pullback: number; name: string; logo_url: string | null; kind: 'provider' | 'courier' }> = {};
         assignedOrders.forEach(o => {
             const pid = o.company_id || o.courier_id;
             if (!pid) return;
@@ -157,16 +155,27 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             if (!providerCounts[pid]) providerCounts[pid] = {
                 total: 0,
                 delivered: 0,
+                tracked: 0,
+                pullback: 0,
                 name,
                 logo_url: info?.logo_url ?? null,
                 kind: info?.kind ?? (o.courier_id ? 'courier' : 'provider'),
             };
             providerCounts[pid].total++;
             if (isDelivered(o, deliveredPkgIds)) providerCounts[pid].delivered++;
+            if (!!o.id && trackedOrderIds.has(o.id)) {
+                providerCounts[pid].tracked++;
+                if (isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds)) {
+                    providerCounts[pid].pullback++;
+                }
+            }
         });
         const providerData = Object.values(providerCounts)
             .sort((a, b) => b.total - a.total)
-            .map(p => ({ ...p, rate: p.total > 0 ? (p.delivered / p.total) * 100 : 0 }));
+            .map(p => {
+                const denom = p.tracked - p.pullback;
+                return { ...p, rate: denom > 0 ? (p.delivered / denom) * 100 : 0 };
+            });
 
         const pendingPayments = (paymentNotes || []).filter(p => p.status === 'unpaid').reduce((s, p) => s + Number(p.total_amount || 0), 0);
 
@@ -189,7 +198,9 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         return {
             totalShipments,
-            confirmedCount: confirmedBasis.length,
+            // "Confirmed" in this card reads as "handed to courier, net of
+            // admin pullbacks" — same denominator as the delivery rate.
+            confirmedCount: deliveryDenom,
             deliveredCount,
             returnedCount,
             deliveryRate,
@@ -201,7 +212,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             pendingPayments,
             trendData,
         };
-    }, [orders, providers, couriers, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds]);
+    }, [orders, providers, couriers, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     return (
         <SectionWrapper
@@ -218,11 +229,11 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                 const topProvider = metrics.providerData[0];
                 const narrative = metrics.totalShipments === 0
                     ? 'No shipments in this period.'
-                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(0)}%).${
+                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(1)}%).${
                           metrics.avgDeliveryDays > 0 ? ` Average ${metrics.avgDeliveryDays.toFixed(1)} days from order to delivery.` : ''
                       }${
                           metrics.returnRate > 10
-                              ? ` ${metrics.returnRate.toFixed(0)}% of shipped packages came back — worth auditing.`
+                              ? ` ${metrics.returnRate.toFixed(1)}% of shipped packages came back — worth auditing.`
                               : ''
                       }${
                           metrics.stuckCount > 0
@@ -230,7 +241,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                               : ''
                       }${
                           topProvider
-                              ? ` ${topProvider.name} handled the most shipments at ${topProvider.rate.toFixed(0)}% delivery rate.`
+                              ? ` ${topProvider.name} handled the most shipments at ${topProvider.rate.toFixed(1)}% delivery rate.`
                               : ''
                       }`;
 

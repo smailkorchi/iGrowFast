@@ -13,12 +13,15 @@ import {
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     AnalyticsOrder,
     inWindow,
-    isConfirmed,
+    isAdminPullback,
     isDelivered,
     isFailed,
+    isRateConfirmed,
+    isRateTouched,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
 
@@ -47,11 +50,15 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         cancelledIds,
         pendingIds,
         newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
         deliveredPkgIds,
         returnedPkgIds,
         getPkgsByCategories,
         isPkgCategory,
     } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders } = useQuery({
         queryKey: ['kpi-cards-orders-v2', businessId],
@@ -112,22 +119,41 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const shippedPkgIdsSet = new Set(shippedPkgIdList);
         const refusedPkgIdList = Array.from(getPkgsByCategories(['refused']).map(s => s.id));
 
-        // Confirmed = category match OR tracking_number set (§2).
-        const confirmed = filtered.filter(o => isConfirmed(o, confirmedIds));
         const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
-        // Confirmation rate denominator = orders the team has touched (§5).
-        const touched = filtered.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
+
+        // Confirmation-rate metric uses the wide "yes was spoken" definition:
+        // any order except `new` (untouched) and `callback` (tried, no answer).
+        // Tracking-code override: once the parcel was handed to a courier
+        // (tracking code in company_parcels / courier_parcels), the order is
+        // confirmed regardless of order_status.
+        const rateConfirmed = filtered.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds));
+        const rateTouched = filtered.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds));
+
+        // Delivery rate (Coliaty formula):
+        //   delivered ÷ (tracked − admin-pullback)
+        // Tracked = order has a tracking_code in company_parcels or courier_parcels.
+        // Admin-pullback = tracked AND flagged fake/double/blacklisted/cancelled
+        //   at order level, OR Hors-zone/Annulé at package level.
+        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
+        const adminPullback = tracked.filter(o =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const deliveryDenom = tracked.length - adminPullback.length;
 
         const confirmationRateNum =
-            touched.length > 0 ? Math.min(100, (confirmed.length / touched.length) * 100) : 0;
+            rateTouched.length > 0 ? Math.min(100, (rateConfirmed.length / rateTouched.length) * 100) : 0;
         const confirmationRate = confirmationRateNum.toFixed(1);
         const deliveryRateNum =
-            confirmed.length > 0 ? Math.min(100, (delivered.length / confirmed.length) * 100) : 0;
+            deliveryDenom > 0 ? Math.min(100, (delivered.length / deliveryDenom) * 100) : 0;
         const deliveryRate = deliveryRateNum.toFixed(1);
 
-        const pendingConfirmation = filtered.filter(o =>
-            !!o.order_status_id && pendingIds.has(o.order_status_id),
-        );
+        // Pending confirmation = status ∈ {new, callback} AND no tracking code.
+        // Tracking code (company_parcels / courier_parcels) is a hard override:
+        // if one exists, the order is confirmed regardless of status.
+        const pendingConfirmation = filtered.filter(o => {
+            if (o.id && trackedOrderIds.has(o.id)) return false;
+            return !!o.order_status_id && pendingIds.has(o.order_status_id);
+        });
 
         const enCoursLivraison = filtered.filter(o =>
             !!o.package_status_id && shippedPkgIdsSet.has(o.package_status_id),
@@ -167,8 +193,8 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             },
             {
                 title: 'Confirmed',
-                value: confirmed.length,
-                subtitle: `${pct(confirmed.length)}% of total`,
+                value: rateConfirmed.length,
+                subtitle: `${pct(rateConfirmed.length)}% of total`,
                 icon: CheckCircle2,
                 accent: ANT.green,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: confirmedIdList, filterStatusLabel: 'Confirmed' } }),
@@ -176,7 +202,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             {
                 title: 'Confirmation Rate',
                 value: `${confirmationRate}%`,
-                subtitle: `${confirmed.length}/${total} of total`,
+                subtitle: `${rateConfirmed.length}/${rateTouched.length} touched`,
                 icon: Target,
                 accent: ANT.orange,
                 rate: confirmationRateNum,
@@ -185,8 +211,8 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 title: 'Delivered',
                 value: delivered.length,
                 subtitle:
-                    confirmed.length > 0
-                        ? `${((delivered.length / confirmed.length) * 100).toFixed(1)}% of confirmed`
+                    deliveryDenom > 0
+                        ? `${((delivered.length / deliveryDenom) * 100).toFixed(1)}% of shipped`
                         : `${pct(delivered.length)}% of total`,
                 icon: Package,
                 accent: ANT.green,
@@ -195,7 +221,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             {
                 title: 'Delivery Rate',
                 value: `${deliveryRate}%`,
-                subtitle: `${delivered.length}/${confirmed.length} of confirmed`,
+                subtitle: `${delivered.length}/${deliveryDenom} shipped`,
                 icon: TrendingUp,
                 accent: ANT.orange,
                 rate: deliveryRateNum,
@@ -243,7 +269,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, newOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
+    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">

@@ -2,11 +2,14 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     AnalyticsOrder,
     inWindow,
-    isConfirmed,
+    isAdminPullback,
     isDelivered,
+    isRateConfirmed,
+    isRateTouched,
     isRevenueOrder,
     placementTimestamp,
     pureRevenueForOrder,
@@ -29,7 +32,8 @@ interface BusinessHealthSectionProps {
 }
 
 export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealthSectionProps) => {
-    const { confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds } = useStatusCategories();
+    const { confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-health-v2', businessId],
@@ -64,15 +68,21 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         const orderVelocity = filtered.length / daySpan;
 
         // ── Rates under the locked rules ────────────────────────────────
-        // Confirmed = status in confirmed set OR has a tracking_number.
-        const confirmed = filtered.filter(o => isConfirmed(o, confirmedIds));
         // Delivered = package category or label match. No "must be paid" private rule.
         const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
-        // Confirmation rate denominator = all orders except brand-new uncalled.
-        const touchedOrders = filtered.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
-        const confirmRate = touchedOrders.length > 0 ? (confirmed.length / touchedOrders.length) * 100 : 0;
-        // Delivery rate = delivered ÷ confirmed (per locked rule, §5).
-        const deliveryRate = confirmed.length > 0 ? (delivered.length / confirmed.length) * 100 : 0;
+        // Confirmation-rate metric: numerator counts every order where a yes was
+        // spoken (all categories except `new` and `callback`); denominator is
+        // "touched" (total minus `new`). Unreached orders still drag the rate.
+        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds)).length;
+        const rateTouchedCount = filtered.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds)).length;
+        const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
+        const pullback = tracked.filter(o =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const deliveryDenom = tracked.length - pullback.length;
+        const deliveryRate = deliveryDenom > 0 ? (delivered.length / deliveryDenom) * 100 : 0;
 
         // Revenue (pure, paid+delivered) for trend only — not a health metric, but shown as context.
         const revenueOrders = filtered.filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
@@ -98,9 +108,14 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             const mStart = startOfMonth(month);
             const mEnd = endOfMonth(month);
             const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
-            const monthTouched = monthOrders.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
-            const monthConfirmed = monthOrders.filter(o => isConfirmed(o, confirmedIds));
+            const monthRateTouched = monthOrders.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds));
+            const monthRateConfirmed = monthOrders.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds));
             const monthDelivered = monthOrders.filter(o => isDelivered(o, deliveredPkgIds));
+            const monthTracked = monthOrders.filter(o => !!o.id && trackedOrderIds.has(o.id));
+            const monthPullback = monthTracked.filter(o =>
+                isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+            );
+            const monthDeliveryDenom = monthTracked.length - monthPullback.length;
             const monthRevenue = monthOrders
                 .filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds))
                 .reduce((s, o) => s + pureRevenueForOrder(o), 0);
@@ -108,8 +123,8 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             return {
                 month: format(month, 'MMM yy'),
                 revenue: monthRevenue,
-                confirmRate: monthTouched.length > 0 ? (monthConfirmed.length / monthTouched.length) * 100 : 0,
-                deliveryRate: monthConfirmed.length > 0 ? (monthDelivered.length / monthConfirmed.length) * 100 : 0,
+                confirmRate: monthRateTouched.length > 0 ? (monthRateConfirmed.length / monthRateTouched.length) * 100 : 0,
+                deliveryRate: monthDeliveryDenom > 0 ? (monthDelivered.length / monthDeliveryDenom) * 100 : 0,
             };
         });
 
@@ -131,11 +146,12 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             revenueGrowth,
             trendData,
             totalOrders: filtered.length,
-            confirmedCount: confirmed.length,
+            // Confirmed count = one-true-definition (yes was spoken).
+            confirmedCount: rateConfirmedCount,
             deliveredCount: delivered.length,
-            touchedCount: touchedOrders.length,
+            touchedCount: rateTouchedCount,
         };
-    }, [orders, dateFilter, confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds]);
+    }, [orders, dateFilter, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     return (
         <SectionWrapper
@@ -151,7 +167,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
                     metrics.deliveryRate >= 70 ? 'positive' : metrics.deliveryRate >= 40 ? 'warning' : 'negative';
                 const narrative = metrics.totalOrders === 0
                     ? 'No orders in this window — nothing to score yet.'
-                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(0)}%). ${metrics.confirmRate.toFixed(0)}% of touched orders get confirmed. ${
+                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(1)}%). ${metrics.confirmRate.toFixed(1)}% of touched orders get confirmed. ${
                         metrics.hasConfirmTimeData
                             ? `Average time to confirm: ${metrics.avgConfirmTime.toFixed(1)} hours.`
                             : 'No confirmation timestamps on file yet.'

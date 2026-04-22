@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import {
     ShoppingBag,
     MapPin,
@@ -58,6 +59,8 @@ interface ProductPerformance {
     image: string | null;
     attributed: number;
     delivered: number;
+    tracked: number;
+    pullback: number;
     successRate: number;
     revenue: number;
 }
@@ -128,7 +131,7 @@ const SellerStatistics = () => {
 
             let ordersBuilder = supabase
                 .from('orders')
-                .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))')
+                .select('id, city_id, order_status_id, package_status_id, package_status_label, tracking_number, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id)
                 .is('date_deleted', null);
             if (sellerBusinessId) {
@@ -145,8 +148,38 @@ const SellerStatistics = () => {
                 cityData: (o.master_cities as any)
             }));
 
+            // Fetch parcel tracking codes up front — the `orders.tracking_number`
+            // column is not populated in production; the authoritative source is
+            // company_parcels.tracking_code / courier_parcels.tracking_code.
+            // Every "has tracking" check below must use this set, otherwise
+            // confirmed counts / rates drift from the real state.
+            const trackedSet = new Set<string>();
+            if (sellerBusinessId) {
+                const [{ data: cpRows }, { data: xpRows }] = await Promise.all([
+                    supabase
+                        .from('company_parcels')
+                        .select('order_id, tracking_code')
+                        .eq('DigiCom Business', sellerBusinessId),
+                    supabase
+                        .from('courier_parcels')
+                        .select('order_id, tracking_code')
+                        .eq('DigiCom Business', sellerBusinessId),
+                ]);
+                (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
+                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+                });
+                (xpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
+                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+                });
+            }
+            const hasTracking = (o: any) => !!o?.id && trackedSet.has(o.id);
+
             const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
-            const isConfirmedOrBeyond = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
+            // Confirmed = status in confirmed bucket OR parcel already handed to
+            // a courier (tracking code). Must match the rule used for the rate
+            // below, otherwise "Confirmées" count and "Taux de confirmation"
+            // disagree on the same orders.
+            const isConfirmedOrBeyond = (o: any) => hasTracking(o) || statusCats.confirmedIds.has(o.order_status_id);
             const isFake = (o: any) => statusCats.isOrderInCategories(o.order_status_id, ['fake', 'double']);
 
             if (ordersError) throw ordersError;
@@ -184,24 +217,34 @@ const SellerStatistics = () => {
             orders?.forEach((o: any) => {
                 const items = o.order_items || [];
                 const seenProducts = new Set<string>();
+                const isTracked = !!o.id && trackedSet.has(o.id);
+                const isPullback = isTracked && isAdminPullback(
+                    o,
+                    true,
+                    statusCats.adminPullbackOrderIds,
+                    statusCats.adminPullbackPackageIds,
+                );
                 items.forEach((item: any) => {
                     const product = item.products;
                     const pName = product?.name || 'Generic Item';
                     const pImage = product?.image_url || null;
-                    if (!prodMap[pName]) prodMap[pName] = { name: pName, image: pImage, attributed: 0, delivered: 0, successRate: 0, revenue: 0 };
+                    if (!prodMap[pName]) prodMap[pName] = { name: pName, image: pImage, attributed: 0, delivered: 0, tracked: 0, pullback: 0, successRate: 0, revenue: 0 };
                     if (!seenProducts.has(pName)) {
                         seenProducts.add(pName);
                         prodMap[pName].attributed += 1;
+                        if (isTracked) prodMap[pName].tracked += 1;
+                        if (isPullback) prodMap[pName].pullback += 1;
                         if (isDelivered(o)) prodMap[pName].delivered += 1;
                     }
                     if (isDelivered(o)) prodMap[pName].revenue += Number(item.unit_price) * Number(item.quantity);
                 });
             });
 
-            const formattedProducts = Object.values(prodMap).map(p => ({
-                ...p,
-                successRate: p.attributed > 0 ? (p.delivered / p.attributed) * 100 : 0
-            })).sort((a, b) => b.delivered - a.delivered).slice(0, 5);
+            // Coliaty delivery-rate per product: delivered ÷ (tracked − admin-pullback).
+            const formattedProducts = Object.values(prodMap).map(p => {
+                const denom = p.tracked - p.pullback;
+                return { ...p, successRate: denom > 0 ? (p.delivered / denom) * 100 : 0 };
+            }).sort((a, b) => b.delivered - a.delivered).slice(0, 5);
             setProductPerformance(formattedProducts);
 
             const { data: earnings, error: earningsError } = await supabase
@@ -236,7 +279,6 @@ const SellerStatistics = () => {
 
             const totalAttributed = orders?.length || 0;
             const deliveredOrders = orders?.filter(o => isDelivered(o)).length || 0;
-            const successRate = totalAttributed > 0 ? (deliveredOrders / totalAttributed) * 100 : 0;
             const efficiency = (presenceCount || 0) > 0 ? deliveredOrders / (presenceCount || 0) : 0;
 
             const currentMonth = startOfMonth(new Date());
@@ -262,8 +304,30 @@ const SellerStatistics = () => {
             const confirmedOrders = orders?.filter(o => isConfirmedOrBeyond(o)).length || 0;
             const deliveredOrdersCount = orders?.filter(o => isDelivered(o)).length || 0;
             const fakeOrders = orders?.filter(o => isFake(o)).length || 0;
-            const confirmRate = totalOrdersCount > 0 ? (confirmedOrders / totalOrdersCount) * 100 : 0;
-            const deliveryEff = confirmedOrders > 0 ? (deliveredOrdersCount / confirmedOrders) * 100 : 0;
+            // Confirmation rate: numerator = any order where a yes was spoken
+            // (tracking code OR status anything except `new`/`callback`).
+            // Denominator = touched (tracking OR status NOT in `new`).
+            const rateConfirmedCount = orders?.filter((o: any) => {
+                if (hasTracking(o)) return true;
+                return !!o.order_status_id
+                    && !statusCats.newOrderIds.has(o.order_status_id)
+                    && !statusCats.unreachedOrderIds.has(o.order_status_id);
+            }).length || 0;
+            const rateTouchedCount = orders?.filter((o: any) => {
+                if (hasTracking(o)) return true;
+                return !o.order_status_id || !statusCats.newOrderIds.has(o.order_status_id);
+            }).length || 0;
+            const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+
+            // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+            // `trackedSet` was fetched above (before the confirmation rules).
+            const trackedCount = (orders || []).filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
+            const pullbackCount = (orders || []).filter((o: any) =>
+                !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
+            ).length;
+            const deliveryDenom = trackedCount - pullbackCount;
+            const deliveryEff = deliveryDenom > 0 ? (deliveredOrdersCount / deliveryDenom) * 100 : 0;
+            const successRate = deliveryEff;
             const integrityScore = totalOrdersCount > 0 ? (1 - (fakeOrders / totalOrdersCount)) * 100 : 100;
 
             const { data: paymentsData } = await supabase

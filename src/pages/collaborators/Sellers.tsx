@@ -29,7 +29,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { cn } from '@/lib/utils';
 import {
     Select,
@@ -69,6 +71,7 @@ interface SellerKPIs {
     shippedOrders: number;
     confirmRate: number;
     deliveryRate: number;
+    deliveryDenom: number;
     cancellationRate: number;
     liveCommission: number;
     totalRevenue: number;
@@ -159,8 +162,13 @@ const Sellers = () => {
         cancelledIds,
         deliveredPkgIds,
         pendingIds,
+        newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
         getOrderCategory,
     } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
     const [sellers, setSellers] = useState<EnrichedSeller[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedSeller, setSelectedSeller] = useState<EnrichedSeller | null>(null);
@@ -176,7 +184,7 @@ const Sellers = () => {
 
     useEffect(() => {
         fetchSellers();
-    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, getOrderCategory]);
+    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
 
     const fetchSellers = async () => {
         setLoading(true);
@@ -282,9 +290,31 @@ const Sellers = () => {
                     }
                 });
 
-                const totalConfirmedAndDelivered = confirmed + delivered + shipped;
-                const confirmRate = total > 0 ? (totalConfirmedAndDelivered / total) * 100 : 0;
-                const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
+                // Confirmation rate: numerator = any order where a yes was
+                // spoken (tracking code OR status except `new`/`callback`).
+                // Denominator = touched (tracking OR status NOT in `new`).
+                // Tracking lives in company_parcels/courier_parcels, not on the
+                // orders row — use `trackedOrderIds` (already fetched above).
+                const rateConfirmedCount = sellerOrders.filter((o: any) => {
+                    const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+                    if (hasTracking) return true;
+                    return !!o.order_status_id
+                        && !newOrderIds.has(o.order_status_id)
+                        && !unreachedOrderIds.has(o.order_status_id);
+                }).length;
+                const rateTouchedCount = sellerOrders.filter((o: any) => {
+                    const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+                    if (hasTracking) return true;
+                    return !o.order_status_id || !newOrderIds.has(o.order_status_id);
+                }).length;
+                const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+                // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+                const sellerTracked = sellerOrders.filter((o: any) => !!o.id && trackedOrderIds.has(o.id));
+                const sellerPullback = sellerTracked.filter((o: any) =>
+                    isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+                );
+                const sellerDeliveryDenom = sellerTracked.length - sellerPullback.length;
+                const deliveryRate = sellerDeliveryDenom > 0 ? (delivered / sellerDeliveryDenom) * 100 : 0;
                 const cancellationRate = total > 0 ? ((cancelled + fake) / total) * 100 : 0;
 
                 const alreadyPaidDeliveries = sellerPayments
@@ -349,13 +379,15 @@ const Sellers = () => {
                     kpis: {
                         totalOrders: total,
                         pendingOrders: pending,
-                        confirmedOrders: confirmed,
+                        // Confirmed count = one-true-definition (yes was spoken).
+                        confirmedOrders: rateConfirmedCount,
                         deliveredOrders: delivered,
                         cancelledOrders: cancelled,
                         fakeOrders: fake,
                         shippedOrders: shipped,
                         confirmRate,
                         deliveryRate,
+                        deliveryDenom: sellerDeliveryDenom,
                         cancellationRate,
                         liveCommission,
                         totalRevenue,
@@ -376,13 +408,13 @@ const Sellers = () => {
             setSellers(enriched);
 
             const gTotalDelivered = enriched.reduce((s, e) => s + e.kpis.deliveredOrders, 0);
-            const gTotalOrders = enriched.reduce((s, e) => s + e.kpis.totalOrders, 0);
+            const gTotalDeliveryDenom = enriched.reduce((s, e) => s + e.kpis.deliveryDenom, 0);
             setGlobalStats({
                 totalSellers: enriched.length,
                 totalDelivered: gTotalDelivered,
                 totalRevenue: enriched.reduce((s, e) => s + e.kpis.totalRevenue, 0),
                 totalPaid: enriched.reduce((s, e) => s + e.kpis.totalPaid, 0),
-                avgDeliveryRate: gTotalOrders > 0 ? (gTotalDelivered / gTotalOrders) * 100 : 0,
+                avgDeliveryRate: gTotalDeliveryDenom > 0 ? (gTotalDelivered / gTotalDeliveryDenom) * 100 : 0,
             });
         } catch (error) {
             console.error('Error fetching sellers:', error);
@@ -483,7 +515,7 @@ const Sellers = () => {
                         </div>
                         <div className="bg-ant-paper p-3">
                             <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivery</p>
-                            <p className={cn('font-display text-[18px] font-semibold tabular-nums mt-0.5', tier.text)}>{k.deliveryRate.toFixed(0)}%</p>
+                            <p className={cn('font-display text-[18px] font-semibold tabular-nums mt-0.5', tier.text)}>{k.deliveryRate.toFixed(1)}%</p>
                         </div>
                         <div className="bg-ant-paper p-3">
                             <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Revenue</p>
@@ -552,7 +584,7 @@ const Sellers = () => {
                         <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
                             <span>Delivery</span>
                             <span className={cn('font-display text-[14px] tracking-normal tabular-nums normal-case', tier.text)}>
-                                {k.deliveryRate.toFixed(0)}%
+                                {k.deliveryRate.toFixed(1)}%
                             </span>
                         </div>
                         <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">

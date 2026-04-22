@@ -7,12 +7,13 @@ import { Box, ChevronDown, ChevronRight, ShoppingBag } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { differenceInCalendarDays, endOfDay, isWithinInterval, startOfDay } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
-    isConfirmed,
     isDeliveredForCommission,
     normalizeCommissionBasis,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
+import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { FinancialsWaterfall } from './performance/FinancialsWaterfall';
@@ -43,6 +44,7 @@ type DPOrder = {
     order_status_id: string | null;
     package_status_id: string | null;
     package_status_label: string | null;
+    tracking_number: string | null;
     source_name: string | null;
     seller_id: string | null;
     order_statuses: { code: string; label: string; category: string } | null;
@@ -113,13 +115,17 @@ export const DashboardProductsPerformance = ({
     const TOP_N = 3;
 
     const {
-        confirmedIds,
         deliveredPkgIds,
+        newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
         orderStatuses,
         packageStatuses,
         getOrderStatusColor,
         getPkgStatusColor,
     } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const toggle = (id: string) => {
         setExpanded((prev) => {
@@ -172,7 +178,7 @@ export const DashboardProductsPerformance = ({
             const { data } = await supabase
                 .from('orders')
                 .select(
-                    'id, date, shipping_cost, order_status_id, package_status_id, package_status_label, source_name, seller_id, order_statuses(code, label, category), package_statuses(label, category)'
+                    'id, date, shipping_cost, order_status_id, package_status_id, package_status_label, tracking_number, source_name, seller_id, order_statuses(code, label, category), package_statuses(label, category)'
                 )
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
@@ -325,8 +331,16 @@ export const DashboardProductsPerformance = ({
 
             // ========= Funnel (in UNITS of this product) =========
             let orderedUnits = 0;
-            let confirmedUnits = 0;
             let deliveredUnits = 0;
+            // Confirmation rate: numerator = any unit whose order had a yes
+            // spoken (tracking_number OR status ∉ {new, callback}).
+            // Denominator = units whose order has been touched.
+            let rateConfirmedUnits = 0;
+            let rateTouchedUnits = 0;
+            // Coliaty delivery rate: delivered ÷ (tracked − admin-pullback),
+            // counted in units of this product.
+            let trackedUnits = 0;
+            let pullbackUnits = 0;
             // Keep delivered orders distinct (for accessory COGS / shipping / commission)
             const deliveredOrderIds = new Set<string>();
             // Product qty per delivered order, for commission allocation
@@ -337,8 +351,26 @@ export const DashboardProductsPerformance = ({
                 const order = orderById.get(oi.order_id);
                 if (!order) return;
                 orderedUnits += q;
-                if (!isConfirmed(order, confirmedIds)) return;
-                confirmedUnits += q;
+                const sid = order.order_status_id;
+                // `orders.tracking_number` is never populated — use the parcel
+                // tracking set (company_parcels/courier_parcels) for every
+                // "has tracking" check, including confirmation.
+                const hasTracking = !!order.id && trackedOrderIds.has(order.id);
+                // Touched = order has been worked on. Tracking ⇒ touched.
+                if (hasTracking || !sid || !newOrderIds.has(sid)) rateTouchedUnits += q;
+                // Confirmed = the one true definition: tracking code OR
+                // status anything except `new`/`callback`.
+                if (hasTracking
+                    || (sid && !newOrderIds.has(sid) && !unreachedOrderIds.has(sid))) {
+                    rateConfirmedUnits += q;
+                }
+                // Delivery-rate math — Coliaty formula, per product units.
+                if (hasTracking) {
+                    trackedUnits += q;
+                    if (isAdminPullback(order, true, adminPullbackOrderIds, adminPullbackPackageIds)) {
+                        pullbackUnits += q;
+                    }
+                }
                 if (!isDeliveredForCommission(order, deliveredPkgIds)) return;
                 deliveredUnits += q;
                 deliveredOrderIds.add(oi.order_id);
@@ -348,8 +380,10 @@ export const DashboardProductsPerformance = ({
                 );
             });
 
-            const confirmedPercent = orderedUnits > 0 ? (confirmedUnits / orderedUnits) * 100 : 0;
-            const deliveredPercent = confirmedUnits > 0 ? (deliveredUnits / confirmedUnits) * 100 : 0;
+            const confirmedPercent = rateTouchedUnits > 0 ? (rateConfirmedUnits / rateTouchedUnits) * 100 : 0;
+            // Delivery rate (Coliaty): delivered ÷ (tracked − admin-pullback).
+            const deliveryDenomUnits = trackedUnits - pullbackUnits;
+            const deliveredPercent = deliveryDenomUnits > 0 ? (deliveredUnits / deliveryDenomUnits) * 100 : 0;
 
             // ========= Revenue (product-side only) =========
             // Prefer the per-line cost snapshot so a product's current cost_price change
@@ -414,7 +448,13 @@ export const DashboardProductsPerformance = ({
                 if (!order) return;
                 const src = (order.source_name || 'other').toLowerCase();
                 bump(src, 'assigned');
-                if (isConfirmed(order, confirmedIds)) {
+                // Confirmed = the one true definition: tracking code OR
+                // status anything except `new`/`callback`.
+                const sid = order.order_status_id;
+                const hasTracking = !!order.id && trackedOrderIds.has(order.id);
+                const orderConfirmed = hasTracking
+                    || (!!sid && !newOrderIds.has(sid) && !unreachedOrderIds.has(sid));
+                if (orderConfirmed) {
                     bump(src, 'confirmed');
                     if (isDeliveredForCommission(order, deliveredPkgIds)) bump(src, 'delivered');
                 }
@@ -425,12 +465,19 @@ export const DashboardProductsPerformance = ({
             const distinctOrderIds = Array.from(seenOrder);
             const productOrders = distinctOrderIds.map((oid) => orderById.get(oid)).filter((o): o is DPOrder => !!o);
             const totalOrders = productOrders.length;
-            const confirmedOrders = productOrders.filter((o) => isConfirmed(o, confirmedIds));
-            const deliveredOrders = confirmedOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
+            // Confirmed = the one true definition (yes was spoken).
+            const isWideConfirmed = (o: DPOrder) => {
+                const sid = o.order_status_id;
+                const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+                return hasTracking
+                    || (!!sid && !newOrderIds.has(sid) && !unreachedOrderIds.has(sid));
+            };
+            const confirmedOrders = productOrders.filter(isWideConfirmed);
+            const deliveredOrders = productOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
             const confirmedOrdersCount = confirmedOrders.length;
             const deliveredOrdersCount = deliveredOrders.length;
 
-            const notYetConfirmed = productOrders.filter((o) => !isConfirmed(o, confirmedIds));
+            const notYetConfirmed = productOrders.filter((o) => !isWideConfirmed(o));
             const preCountByStatus = new Map<string | null, number>();
             notYetConfirmed.forEach((o) => {
                 preCountByStatus.set(o.order_status_id, (preCountByStatus.get(o.order_status_id) || 0) + 1);
@@ -495,9 +542,9 @@ export const DashboardProductsPerformance = ({
                 stock: Number(product.stock || 0),
                 sellingPrice: Number(product.selling_price || 0),
                 unitProductCost: currentProductCost,
-                // Funnel (units)
+                // Funnel (units) — confirmedUnits uses the one-true-definition.
                 orderedUnits,
-                confirmedUnits,
+                confirmedUnits: rateConfirmedUnits,
                 confirmedPercent,
                 deliveredUnits,
                 deliveredPercent,
@@ -542,8 +589,12 @@ export const DashboardProductsPerformance = ({
         adsHistory,
         sellersForCommission,
         dateFilter,
-        confirmedIds,
         deliveredPkgIds,
+        newOrderIds,
+        unreachedOrderIds,
+        adminPullbackOrderIds,
+        adminPullbackPackageIds,
+        trackedOrderIds,
         orderStatuses,
         packageStatuses,
         getOrderStatusColor,

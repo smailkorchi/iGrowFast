@@ -45,7 +45,26 @@ export type PkgCategory = (typeof PKG_CATEGORIES)[keyof typeof PKG_CATEGORIES];
 export const CONFIRMED_ORDER_CATS: OrderCategory[] = ['confirmed', 'processed', 'paid', 'unpaid'];
 export const CANCELLED_ORDER_CATS: OrderCategory[] = ['cancelled', 'fake', 'double', 'blacklisted'];
 export const CALLBACK_ORDER_CATS: OrderCategory[] = ['callback'];
-export const PENDING_ORDER_CATS: OrderCategory[] = ['new', 'interested'];
+
+// Orders where a customer has NOT yet said yes — `new` (never attempted)
+// and `callback` (attempted, no answer). Matches the one-true-definition:
+// confirmed = tracking_number OR status ∉ {new, callback}.
+export const PENDING_ORDER_CATS: OrderCategory[] = ['new', 'callback'];
+
+// Orders where the CSR tried to call but the customer never answered.
+// Excluded from BOTH the numerator and the denominator of the confirmation rate.
+export const UNREACHED_ORDER_CATS: OrderCategory[] = ['callback'];
+
+// "Annulés vendeur/coliaty" — packages that had a tracking number (were
+// handed to the courier) but were pulled back by the seller/admin or by
+// Coliaty before any real delivery attempt. Excluded from the delivery-rate
+// denominator per Coliaty's own formula.
+//
+// Matched at two levels:
+//  - order_status.category ∈ ADMIN_PULLBACK_ORDER_CATS (seller-side flags)
+//  - package_status.code ∈ ADMIN_PULLBACK_PACKAGE_CODES (courier-side flags)
+export const ADMIN_PULLBACK_ORDER_CATS: OrderCategory[] = ['fake', 'double', 'blacklisted', 'cancelled'];
+export const ADMIN_PULLBACK_PACKAGE_CODES: string[] = ['HorsZone', '5684'];
 
 export const SHIPPED_PKG_CATS: PkgCategory[] = ['in_transit', 'out_for_delivery', 'picked_up', 'pickup_pending'];
 export const DELIVERED_PKG_CATS: PkgCategory[] = ['delivered'];

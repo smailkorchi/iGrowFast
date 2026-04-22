@@ -79,7 +79,7 @@ const TABS: Array<{
 }> = [
     { key: 'all', label: 'Tout', icon: Layers, match: () => true },
     { key: 'nouveau', label: 'Nouveau', icon: Package, match: (s) => (s?.category || '') === 'new' },
-    { key: 'suivi', label: 'Suivi', icon: AlertCircle, match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed' },
+    { key: 'suivi', label: 'Suivi', icon: AlertCircle, match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed' && (s?.category || '') !== 'delivered' },
     { key: 'reported', label: 'Reporté', icon: Clock, match: (s) => (s?.category || '') === 'postponed' },
     { key: 'livre', label: 'Livré', icon: CheckCircle2, match: (s) => (s?.category || '') === 'delivered' },
 ];

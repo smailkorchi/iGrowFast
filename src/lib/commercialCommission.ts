@@ -13,31 +13,23 @@ export type CommissionBasis = "per_order" | "per_unit";
  * - **Per-unit with empty `users.products`:** All line quantities on the order count (lenient fallback); when products are assigned, only those SKUs count.
  */
 
-function labelIndicatesDelivered(label: string | null | undefined): boolean {
-  const t = (label || "").toLowerCase();
-  return t.includes("livré") || t.includes("livre") || t.includes("delivered");
-}
-
 /**
- * Aligns with public.seller_daily_earnings: delivered when order.package_status_label matches,
- * or joined package_statuses.label matches, or package_status_id is in configured "delivered" categories.
+ * Single source of truth for "delivered": the order's `package_status_id` must
+ * resolve to a package_statuses row whose `category = 'delivered'`. Matches the
+ * rewritten `public.seller_daily_earnings` view exactly (migration
+ * `seller_daily_earnings_category_only_delivered`, 2026-04-22).
+ *
+ * Label matching was removed because `ILIKE '%livre%'` matched "livrer"
+ * (infinitive) in phrases like "Retour prêt à livrer", inflating delivered
+ * counts and paying commission on non-delivered orders. Pre-flight DB audit
+ * confirmed no legitimate delivered order exists without a delivered-category
+ * `package_status_id`, so there is no legacy case the label path protects.
  */
 export function isDeliveredForCommission(
-  o: {
-    package_status_id?: string | null;
-    package_status_label?: string | null;
-    package_statuses?: { label?: string | null } | null;
-    package_status?: { label?: string | null } | null;
-  },
+  o: { package_status_id?: string | null },
   deliveredPkgIds: Set<string>,
 ): boolean {
-  if (labelIndicatesDelivered(o.package_status_label)) return true;
-  const ps = o.package_statuses ?? o.package_status;
-  if (ps && typeof ps === "object" && !Array.isArray(ps)) {
-    if (labelIndicatesDelivered((ps as { label?: string | null }).label)) return true;
-  }
-  if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) return true;
-  return false;
+  return !!o.package_status_id && deliveredPkgIds.has(o.package_status_id);
 }
 
 export function normalizeCommissionBasis(v: string | null | undefined): CommissionBasis {

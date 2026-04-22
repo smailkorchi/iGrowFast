@@ -113,20 +113,15 @@ const num = (v: unknown): number => {
 // ─── Delivered / paid / confirmed / failed classification ─────────────────
 
 /**
- * True when the order is delivered by either label match (livré/livre/delivered)
- * or category membership in `deliveredPkgIds`. Mirrors the server-side
- * seller_daily_earnings rule.
+ * Delivered iff `package_status_id` resolves to a delivered-category row in
+ * `package_statuses`. Mirrors the single source of truth defined by the
+ * `seller_daily_earnings` view (migration
+ * `seller_daily_earnings_category_only_delivered`, 2026-04-22). Label matching
+ * is intentionally absent — free-text labels drift and caused commission
+ * inflation via substring ILIKE.
  */
 export function isDelivered(order: AnalyticsOrder, deliveredPkgIds: Set<string>): boolean {
-    const labelMatches = (raw: string | null | undefined): boolean => {
-        const t = (raw || '').toLowerCase();
-        return t.includes('livré') || t.includes('livre') || t.includes('delivered');
-    };
-    if (labelMatches(order.package_status_label)) return true;
-    const ps = order.package_statuses;
-    if (ps && typeof ps === 'object' && !Array.isArray(ps) && labelMatches(ps.label)) return true;
-    if (order.package_status_id && deliveredPkgIds.has(order.package_status_id)) return true;
-    return false;
+    return !!order.package_status_id && deliveredPkgIds.has(order.package_status_id);
 }
 
 /**
@@ -151,14 +146,127 @@ export function isRevenueOrder(
 }
 
 /**
- * Confirmed = order_status is in confirmed set OR tracking_number exists.
- * Once a package has a tracking number, the order is confirmed by definition —
- * even if the admin hasn't flipped the order status yet.
+ * True when the order is considered "has a tracking code". The real source of
+ * truth is `company_parcels.tracking_code` or `courier_parcels.tracking_code`
+ * (exposed via `useTrackedOrders` as a Set of order ids). The legacy
+ * `orders.tracking_number` column is always null in production, so we only
+ * keep it as a belt-and-suspenders fallback for any future backfill.
  */
-export function isConfirmed(order: AnalyticsOrder, confirmedOrderIds: Set<string>): boolean {
-    if (order.order_status_id && confirmedOrderIds.has(order.order_status_id)) return true;
+export function hasTrackingCode(
+    order: AnalyticsOrder & { id?: string },
+    trackedOrderIds?: Set<string>,
+): boolean {
+    if (trackedOrderIds && order.id && trackedOrderIds.has(order.id)) return true;
     if (order.tracking_number && order.tracking_number.trim().length > 0) return true;
     return false;
+}
+
+/**
+ * Confirmed = order_status is in confirmed set OR the order has a tracking
+ * code. Once a package has been handed to a courier (tracking code written
+ * to company_parcels/courier_parcels), the order is confirmed by definition —
+ * even if the admin hasn't flipped the order status yet.
+ *
+ * NOTE: this strict definition is used for commission, revenue, and any
+ * financial logic that requires an order to still be in a healthy state
+ * (confirmed / processed / paid / unpaid). It is NOT the right helper for
+ * the confirmation-rate metric — see `isRateConfirmed` below.
+ */
+export function isConfirmed(
+    order: AnalyticsOrder & { id?: string },
+    confirmedOrderIds: Set<string>,
+    trackedOrderIds?: Set<string>,
+): boolean {
+    if (order.order_status_id && confirmedOrderIds.has(order.order_status_id)) return true;
+    if (hasTrackingCode(order, trackedOrderIds)) return true;
+    return false;
+}
+
+/**
+ * Confirmation-rate numerator: an order counts as confirmed if a customer
+ * was spoken to and said yes at some point in its life — regardless of what
+ * happened afterwards (cancel, return, fake, blacklist, etc.).
+ *
+ * Definition: every order EXCEPT those still sitting at `new` (never worked)
+ * or in `callback` (tried to call, no answer). The tracking-code override
+ * still applies — if the order was handed to a courier, it is confirmed.
+ */
+export function isRateConfirmed(
+    order: AnalyticsOrder & { id?: string },
+    newOrderIds: Set<string>,
+    unreachedOrderIds: Set<string>,
+    trackedOrderIds?: Set<string>,
+): boolean {
+    if (hasTrackingCode(order, trackedOrderIds)) return true;
+    if (!order.order_status_id) return false;
+    if (newOrderIds.has(order.order_status_id)) return false;
+    if (unreachedOrderIds.has(order.order_status_id)) return false;
+    return true;
+}
+
+// ─── Delivery-rate helpers (Coliaty formula) ────────────────────────────
+
+/**
+ * An order is "admin-pulled-back" when it was handed to a courier (has tracking)
+ * AND its current state signals a seller-initiated recall or a Coliaty-side
+ * refusal. Excluded from the delivery-rate denominator per Coliaty's own rule.
+ *
+ * Matched at two levels:
+ *  - order_status.category ∈ adminPullbackOrderIds (seller-side flags: fake,
+ *    double, blacklisted, cancelled)
+ *  - package_status.code ∈ adminPullbackPackageIds (Coliaty-side: Hors-zone,
+ *    generic Annulé with tracking)
+ *
+ * The tracking check is the caller's responsibility (pass `hasTracking`).
+ */
+export function isAdminPullback(
+    order: AnalyticsOrder,
+    hasTracking: boolean,
+    adminPullbackOrderIds: Set<string>,
+    adminPullbackPackageIds: Set<string>,
+): boolean {
+    if (!hasTracking) return false;
+    if (order.order_status_id && adminPullbackOrderIds.has(order.order_status_id)) return true;
+    if (order.package_status_id && adminPullbackPackageIds.has(order.package_status_id)) return true;
+    return false;
+}
+
+/**
+ * Delivery-rate denominator (Coliaty formula): orders handed to the courier
+ * minus admin pullbacks. That's the universe of packages that got (or are
+ * getting) a real delivery attempt.
+ *
+ * `trackedOrderIds` is a Set of order ids that have a tracking code in
+ * company_parcels or courier_parcels. Usually provided by `useTrackedOrders`.
+ */
+export function isInDeliveryDenominator(
+    order: AnalyticsOrder & { id?: string },
+    trackedOrderIds: Set<string>,
+    adminPullbackOrderIds: Set<string>,
+    adminPullbackPackageIds: Set<string>,
+): boolean {
+    if (!order.id) return false;
+    if (!trackedOrderIds.has(order.id)) return false;
+    return !isAdminPullback(order, true, adminPullbackOrderIds, adminPullbackPackageIds);
+}
+
+/**
+ * Confirmation-rate denominator: orders the team has actually started
+ * working on. An order counts as touched if:
+ *   - it has a tracking code (shipped ⇒ confirmed ⇒ touched), OR
+ *   - it has no order_status_id (edge case — still counted as touched), OR
+ *   - its order_status_id is NOT in the `new` bucket.
+ * This guarantees `isRateConfirmed` ⇒ `isRateTouched`, so the rate is
+ * always ≤ 100%.
+ */
+export function isRateTouched(
+    order: AnalyticsOrder & { id?: string },
+    newOrderIds: Set<string>,
+    trackedOrderIds?: Set<string>,
+): boolean {
+    if (hasTrackingCode(order, trackedOrderIds)) return true;
+    if (!order.order_status_id) return true;
+    return !newOrderIds.has(order.order_status_id);
 }
 
 /** Failed = cancelled / fake / double / blacklisted — merged to a single bucket. */

@@ -2,10 +2,11 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     AnalyticsOrder,
     inWindow,
-    isConfirmed,
+    isAdminPullback,
     isDelivered,
     isReturned,
     placementTimestamp,
@@ -42,12 +43,13 @@ type OrderRow = {
 
 type CourierPaymentNote = {
     courier_id: string | null;
-    total_amount: number | null;
+    total_shipping_fees: number | null;
     status: string | null;
 };
 
 export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps) => {
-    const { deliveredPkgIds, returnedPkgIds, confirmedIds } = useStatusCategories();
+    const { deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: couriers, isLoading: loadingCouriers } = useQuery({
         queryKey: ['analytics-couriers', businessId],
@@ -81,7 +83,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         queryFn: async () => {
             const { data } = await supabase
                 .from('courier_payment_notes')
-                .select('courier_id, total_amount, status')
+                .select('courier_id, total_shipping_fees, status')
                 .eq('DigiCom Business', businessId);
             return (data || []) as CourierPaymentNote[];
         },
@@ -103,23 +105,26 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         (paymentNotes || []).forEach((n) => {
             if (!n.courier_id) return;
             if (n.status !== 'paid') {
-                pendingByCourier.set(n.courier_id, (pendingByCourier.get(n.courier_id) || 0) + Number(n.total_amount || 0));
+                pendingByCourier.set(n.courier_id, (pendingByCourier.get(n.courier_id) || 0) + Number(n.total_shipping_fees || 0));
             }
         });
         const paidByCourier = new Map<string, number>();
         (paymentNotes || []).forEach((n) => {
             if (!n.courier_id) return;
             if (n.status === 'paid') {
-                paidByCourier.set(n.courier_id, (paidByCourier.get(n.courier_id) || 0) + Number(n.total_amount || 0));
+                paidByCourier.set(n.courier_id, (paidByCourier.get(n.courier_id) || 0) + Number(n.total_shipping_fees || 0));
             }
         });
 
         const perCourier = couriers.map((c) => {
             const own = windowed.filter(o => o.courier_id === c.id);
             const total = own.length;
-            // Locked: delivery rate = delivered ÷ confirmed (§5). Confirmed uses the
-            // tracking-number short-circuit since couriers only get orders post-confirmation.
-            const confirmed = own.filter(o => isConfirmed(o, confirmedIds)).length;
+            // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+            const tracked = own.filter(o => !!o.id && trackedOrderIds.has(o.id));
+            const pullback = tracked.filter(o =>
+                isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+            );
+            const confirmed = tracked.length - pullback.length;
             const delivered = own.filter(o => isDelivered(o, deliveredPkgIds)).length;
             const returned = own.filter(o => isReturned(o, returnedPkgIds)).length;
             const rate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
@@ -140,7 +145,12 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         const totalCouriers = couriers.length;
         const activeCouriers = couriers.filter((c) => c.active !== false).length;
         const totalShipments = windowed.length;
-        const totalConfirmed = windowed.filter(o => isConfirmed(o, confirmedIds)).length;
+        // Overall delivery-rate denominator = windowed tracked orders minus admin pullbacks.
+        const windowTracked = windowed.filter(o => !!o.id && trackedOrderIds.has(o.id));
+        const windowPullback = windowTracked.filter(o =>
+            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
+        );
+        const totalConfirmed = windowTracked.length - windowPullback.length;
         const totalDelivered = windowed.filter(o => isDelivered(o, deliveredPkgIds)).length;
         const overallRate = totalConfirmed > 0 ? (totalDelivered / totalConfirmed) * 100 : 0;
         const totalPending = Array.from(pendingByCourier.values()).reduce((s, v) => s + v, 0);
@@ -159,7 +169,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
             top,
             bestRate,
         };
-    }, [couriers, orders, paymentNotes, dateFilter, confirmedIds, deliveredPkgIds, returnedPkgIds]);
+    }, [couriers, orders, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     return (
         <SectionWrapper
@@ -178,7 +188,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
                     : metrics.totalShipments === 0
                         ? `${metrics.activeCouriers} courier${metrics.activeCouriers === 1 ? '' : 's'} on roster, but no shipments handled in this period.`
                         : `${metrics.totalDelivered.toLocaleString('fr-MA')} of ${metrics.totalShipments.toLocaleString('fr-MA')} shipments delivered across ${metrics.activeCouriers} active courier${metrics.activeCouriers === 1 ? '' : 's'}.${
-                              metrics.top ? ` ${metrics.top.name} leads with ${metrics.top.delivered} delivered (${metrics.top.rate.toFixed(0)}% rate).` : ''
+                              metrics.top ? ` ${metrics.top.name} leads with ${metrics.top.delivered} delivered (${metrics.top.rate.toFixed(1)}% rate).` : ''
                           }${metrics.totalPending > 0 ? ` ${Math.round(metrics.totalPending).toLocaleString('fr-MA')} MAD pending in payouts.` : ''}`;
 
                 return (
