@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import BusinessWhatsAppInbox from '@/pages/business/WhatsAppInbox';
+import BusinessWhatsAppInbox from '@/pages/admin/business/WhatsAppInbox';
 
 const db = supabase as any;
 
