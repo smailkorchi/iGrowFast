@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -44,13 +43,23 @@ function resolveBusinessId(fallbackFromUser: string | null | undefined): string 
     );
 }
 
-export function useGAConnections() {
+/**
+ * Loads GA connections for a specific business. Always pass `businessId` —
+ * filtering is server-side so a missing/null id returns an empty array and
+ * never fetches rows belonging to other businesses. Previously the query
+ * had no `.eq` filter, fetching everything and relying on client-side
+ * filtering + RLS as the only scope guard.
+ */
+export function useGAConnections(businessId: string | null | undefined) {
     return useQuery({
-        queryKey: ['ga-connections'],
+        queryKey: ['ga-connections', businessId ?? null],
+        enabled: !!businessId,
         queryFn: async () => {
+            if (!businessId) return [] as GAConnection[];
             const { data, error } = await gaDb
                 .from('google_analytics_connections')
                 .select('*')
+                .eq('DigiCom Business', businessId)
                 .order('is_default', { ascending: false })
                 .order('created_at', { ascending: true });
             if (error) throw error;
@@ -187,6 +196,8 @@ const CORE_METRICS: GAReportRequest['metrics'] = [
     { name: 'averageSessionDuration' },
     { name: 'eventCount' },
     { name: 'bounceRate' },
+    // GA4's key-event (formerly "conversions") count — primary business signal.
+    { name: 'conversions' },
 ];
 
 export function useGAReports(property_id: string | null, range: DateRange) {
@@ -345,6 +356,12 @@ export function useGARealtime(property_id: string | null) {
     });
 }
 
+/**
+ * Returns the currently-active business id. Previously wrapped in `useMemo`
+ * with an empty dep array, which froze the value on mount and ignored any
+ * subsequent localStorage writes. The lookup is a single synchronous read —
+ * no memoisation needed.
+ */
 export function useActiveBusinessId(): string | null {
-    return useMemo(() => resolveBusinessId(null), []);
+    return resolveBusinessId(null);
 }

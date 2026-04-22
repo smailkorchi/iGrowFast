@@ -131,6 +131,7 @@ import {
     toProductStockNumber,
     type OrderLineProductOption,
 } from '@/components/orders/OrderLineProductCombobox';
+import SourceIcon, { getSourceMeta } from '@/components/orders/SourceIcon';
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -197,6 +198,96 @@ const SALES_SOURCES = [
     "reorder",
     "other"
 ];
+
+/**
+ * Compact searchable dropdown used across the seller filter bar. Mirrors the
+ * admin Orders page helper: Popover + cmdk Command + caller-supplied row
+ * renderer. Triggers are sized for the seller-view density (h-8, text-[11px]).
+ */
+type SearchableFilterProps<T> = {
+    value: string;
+    onChange: (v: string) => void;
+    allLabel: string;
+    placeholder: string;
+    items: T[] | null | undefined;
+    getKey: (item: T) => string;
+    getSearchText: (item: T) => string;
+    getTriggerLabel: () => React.ReactNode;
+    renderItem: (item: T) => React.ReactNode;
+};
+
+function SearchableFilter<T>({
+    value,
+    onChange,
+    allLabel,
+    placeholder,
+    items,
+    getKey,
+    getSearchText,
+    getTriggerLabel,
+    renderItem,
+}: SearchableFilterProps<T>) {
+    const [open, setOpen] = useState(false);
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    className="h-8 w-full rounded-md border border-ant-line bg-ant-paper text-[11px] text-ant-ink flex items-center justify-between gap-2 px-2.5 hover:border-ant-ink/25 transition"
+                >
+                    <span className="flex-1 text-left truncate">{getTriggerLabel()}</span>
+                    <ChevronsUpDown className="w-3 h-3 text-ant-mid shrink-0" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="start"
+                className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[220px] rounded-xl border-ant-line bg-ant-paper shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]"
+            >
+                <Command
+                    filter={(itemValue, search) => {
+                        const t = itemValue.toLowerCase();
+                        return t.includes(search.toLowerCase()) ? 1 : 0;
+                    }}
+                >
+                    <CommandInput placeholder={placeholder} className="h-8" />
+                    <CommandList className="max-h-[260px]">
+                        <CommandEmpty className="py-3 text-[11px] text-ant-mid text-center">No matches</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="__all__"
+                                onSelect={() => {
+                                    onChange('all');
+                                    setOpen(false);
+                                }}
+                                className="text-[11px] rounded-md cursor-pointer"
+                            >
+                                <span className="flex-1">{allLabel}</span>
+                                {value === 'all' && <Check className="w-3.5 h-3.5 text-ant-orange ml-2" />}
+                            </CommandItem>
+                            {(items ?? []).map((item) => {
+                                const key = getKey(item);
+                                return (
+                                    <CommandItem
+                                        key={key}
+                                        value={`${getSearchText(item)} ${key}`}
+                                        onSelect={() => {
+                                            onChange(key);
+                                            setOpen(false);
+                                        }}
+                                        className="text-[11px] rounded-md cursor-pointer"
+                                    >
+                                        <span className="flex-1 min-w-0">{renderItem(item)}</span>
+                                        {value === key && <Check className="w-3.5 h-3.5 text-ant-orange ml-2 shrink-0" />}
+                                    </CommandItem>
+                                );
+                            })}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 const DATE_FIELD_MAP: Record<string, string> = {
     date: 'date',
@@ -398,13 +489,20 @@ const Orders = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-    const [activeTab, setActiveTab] = useState<'all' | 'new' | 'confirmation' | 'suivi' | 'reported'>('new');
+    const [activeTab, setActiveTab] = useState<'all' | 'new' | 'confirmation' | 'suivi' | 'reported' | 'delivered'>('new');
     const [quickStatusOrder, setQuickStatusOrder] = useState<any>(null);
     const [isQuickStatusOpen, setIsQuickStatusOpen] = useState(false);
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'all' || tab === 'new' || tab === 'confirmation' || tab === 'suivi' || tab === 'reported') {
+        if (
+            tab === 'all'
+            || tab === 'new'
+            || tab === 'confirmation'
+            || tab === 'suivi'
+            || tab === 'reported'
+            || tab === 'delivered'
+        ) {
             setActiveTab(tab);
         }
     }, [searchParams]);
@@ -1309,22 +1407,32 @@ const Orders = () => {
     }, [orders, cities]);
 
     /** Couriers / companies that appear on this seller's orders (filter dropdown only). */
-    const sellerFilterProviders = useMemo(() => {
-        if (!orders?.length) return [] as { id: string; name: string; type: 'courier' | 'company' }[];
-        const list: { id: string; name: string; type: 'courier' | 'company' }[] = [];
+    type SellerFilterProvider = {
+        id: string;
+        name: string;
+        type: 'courier' | 'company';
+        imageUrl: string | null;
+    };
+    const sellerFilterProviders = useMemo<SellerFilterProvider[]>(() => {
+        if (!orders?.length) return [];
+        const list: SellerFilterProvider[] = [];
         const seen = new Set<string>();
         for (const o of orders as any[]) {
             if (o.courier_id && !seen.has(`c-${o.courier_id}`)) {
                 seen.add(`c-${o.courier_id}`);
-                const emb = o.courier as { name?: string } | null | undefined;
-                const name = emb?.name || (couriers as any[])?.find((c: any) => c.id === o.courier_id)?.name || 'Courier';
-                list.push({ id: o.courier_id, name, type: 'courier' });
+                const emb = o.courier as { name?: string; avatar_url?: string | null } | null | undefined;
+                const row = (couriers as any[])?.find((c: any) => c.id === o.courier_id);
+                const name = emb?.name || row?.name || 'Courier';
+                const imageUrl = emb?.avatar_url ?? row?.avatar_url ?? null;
+                list.push({ id: o.courier_id, name, type: 'courier', imageUrl });
             }
             if (o.company_id && !seen.has(`co-${o.company_id}`)) {
                 seen.add(`co-${o.company_id}`);
-                const emb = o.company as { name?: string } | null | undefined;
-                const name = emb?.name || (companies as any[])?.find((c: any) => c.id === o.company_id)?.name || 'Company';
-                list.push({ id: o.company_id, name, type: 'company' });
+                const emb = o.company as { name?: string; logo_url?: string | null } | null | undefined;
+                const row = (companies as any[])?.find((c: any) => c.id === o.company_id);
+                const name = emb?.name || row?.name || 'Company';
+                const imageUrl = emb?.logo_url ?? row?.logo_url ?? null;
+                list.push({ id: o.company_id, name, type: 'company', imageUrl });
             }
         }
         return list.sort((a, b) => a.name.localeCompare(b.name));
@@ -1813,6 +1921,12 @@ const Orders = () => {
                 return packageRecheckActive;
             case 'reported':
                 return isReported;
+            case 'delivered':
+                // Terminal success: package_status category is 'delivered'.
+                // Category-strict (no label match) to match the P&L / Coliaty
+                // rule used everywhere else in the app.
+                return !!o.package_status_id
+                    && statusCats.isPkgCategory(o.package_status_id, 'delivered');
             default:
                 return false;
         }
@@ -1891,7 +2005,7 @@ const Orders = () => {
     };
 
     const tabCounts = useMemo(() => {
-        const counts = { all: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, reportedToday: false, reportedNow: false };
+        const counts = { all: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, reportedToday: false, reportedNow: false };
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
         const currentHour = now.getHours();
@@ -1901,6 +2015,7 @@ const Orders = () => {
             if (isOrderInTab(o, 'new')) counts.new++;
             if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
             if (isOrderInTab(o, 'suivi')) counts.suivi++;
+            if (isOrderInTab(o, 'delivered')) counts.delivered++;
             if (isOrderInTab(o, 'reported')) {
                 counts.reported++;
                 if (o.reported_date) {
@@ -2266,6 +2381,7 @@ const Orders = () => {
                 <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper w-full overflow-x-auto ant-scroll">
                     {[
                         { id: 'all', label: 'Toutes', count: tabCounts.all, icon: LayoutGrid },
+                        { id: 'delivered', label: 'Livré', count: tabCounts.delivered, icon: CheckCircle2 },
                         { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
                         { id: 'confirmation', label: 'Confirmation', count: tabCounts.confirmation, icon: Phone },
                         { id: 'suivi', label: 'Suivi', count: tabCounts.suivi, icon: Truck },
@@ -2639,73 +2755,117 @@ const Orders = () => {
                                     <span className="text-[9px] font-bold text-ant-mid uppercase tracking-[0.12em] flex items-center gap-1">
                                         <MapPin className="w-2.5 h-2.5" /> City
                                     </span>
-                                    <Select value={filterCity} onValueChange={setFilterCity}>
-                                        <SelectTrigger className="h-8 rounded-md border-ant-line text-[11px]">
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[300px]">
-                                            <SelectItem value="all" className="text-[11px]">All Cities</SelectItem>
-                                            {sellerFilterCities.map((c) => (
-                                                <SelectItem key={c.id} value={c.id} className="text-[11px]">{c.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterCity}
+                                        onChange={setFilterCity}
+                                        allLabel="All Cities"
+                                        placeholder="Search cities..."
+                                        items={sellerFilterCities}
+                                        getKey={(c) => c.id}
+                                        getSearchText={(c) => c.name || ''}
+                                        getTriggerLabel={() =>
+                                            sellerFilterCities.find((c) => c.id === filterCity)?.name
+                                            ?? (cities as any[])?.find((c: any) => c.id === filterCity)?.name
+                                            ?? 'All'
+                                        }
+                                        renderItem={(c) => <span className="truncate">{c.name}</span>}
+                                    />
                                 </div>
 
                                 <div className="space-y-1">
                                     <span className="text-[9px] font-bold text-ant-mid uppercase tracking-[0.12em] flex items-center gap-1">
                                         <ShoppingBag className="w-2.5 h-2.5" /> Product
                                     </span>
-                                    <Select value={filterProduct} onValueChange={setFilterProduct}>
-                                        <SelectTrigger className="h-8 rounded-md border-ant-line text-[11px]">
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[300px]">
-                                            <SelectItem value="all" className="text-[11px]">All Products</SelectItem>
-                                            {(products as any[])?.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id} className="text-[11px]">{productNameLabel(p)}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterProduct}
+                                        onChange={setFilterProduct}
+                                        allLabel="All Products"
+                                        placeholder="Search products..."
+                                        items={products as any[]}
+                                        getKey={(p: any) => p.id}
+                                        getSearchText={(p: any) => `${productNameLabel(p)} ${p.code || ''}`}
+                                        getTriggerLabel={() => {
+                                            const p = (products as any[])?.find((x: any) => x.id === filterProduct);
+                                            return p ? productNameLabel(p) : 'All';
+                                        }}
+                                        renderItem={(p: any) => (
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                {p.image_url ? (
+                                                    <img
+                                                        src={p.image_url}
+                                                        alt=""
+                                                        className="w-5 h-5 rounded object-cover border border-ant-ink/5 shrink-0"
+                                                    />
+                                                ) : (
+                                                    <span className="w-5 h-5 rounded bg-ant-ink/5 flex items-center justify-center shrink-0">
+                                                        <Package className="w-2.5 h-2.5 text-ant-mid" />
+                                                    </span>
+                                                )}
+                                                <span className="truncate">{productNameLabel(p)}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="space-y-1">
                                     <span className="text-[9px] font-bold text-ant-mid uppercase tracking-[0.12em] flex items-center gap-1">
                                         <ExternalLink className="w-2.5 h-2.5" /> Source
                                     </span>
-                                    <Select value={filterSource} onValueChange={setFilterSource}>
-                                        <SelectTrigger className="h-8 rounded-md border-ant-line text-[11px]">
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all" className="text-[11px]">All Sources</SelectItem>
-                                            {SALES_SOURCES.map((s) => (
-                                                <SelectItem key={s} value={s} className="text-[11px] capitalize">{s}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterSource}
+                                        onChange={setFilterSource}
+                                        allLabel="All Sources"
+                                        placeholder="Search sources..."
+                                        items={SALES_SOURCES.map((s) => ({ id: s, name: s }))}
+                                        getKey={(s) => s.id}
+                                        getSearchText={(s) => s.name}
+                                        getTriggerLabel={() => filterSource !== 'all' ? (
+                                            <span className="inline-flex items-center gap-1.5 capitalize">
+                                                <SourceIcon source={filterSource} />
+                                                {filterSource}
+                                            </span>
+                                        ) : 'All'}
+                                        renderItem={(s) => (
+                                            <span className="flex items-center gap-2 capitalize">
+                                                <SourceIcon source={s.id} />
+                                                <span className="truncate">{s.name}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="space-y-1">
                                     <span className="text-[9px] font-bold text-ant-mid uppercase tracking-[0.12em] flex items-center gap-1">
                                         <Truck className="w-2.5 h-2.5" /> Delivery
                                     </span>
-                                    <Select value={filterProvider} onValueChange={setFilterProvider}>
-                                        <SelectTrigger className="h-8 rounded-md border-ant-line text-[11px]">
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[300px]">
-                                            <SelectItem value="all" className="text-[11px]">All Services</SelectItem>
-                                            {sellerFilterProviders.map((p) => (
-                                                <SelectItem key={`${p.type}-${p.id}`} value={p.id} className="text-[11px]">
-                                                    <div className="flex items-center gap-2">
-                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-ant-orange" /> : <Building2 className="w-3 h-3 text-ant-ink/50" />}
-                                                        {p.name}
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterProvider}
+                                        onChange={setFilterProvider}
+                                        allLabel="All Services"
+                                        placeholder="Search providers..."
+                                        items={sellerFilterProviders}
+                                        getKey={(p) => p.id}
+                                        getSearchText={(p) => p.name || ''}
+                                        getTriggerLabel={() => sellerFilterProviders.find((p) => p.id === filterProvider)?.name ?? 'All'}
+                                        renderItem={(p) => (
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                {p.imageUrl ? (
+                                                    <img
+                                                        src={p.imageUrl}
+                                                        alt=""
+                                                        className="w-5 h-5 rounded object-cover bg-white border border-ant-ink/5 shrink-0"
+                                                    />
+                                                ) : (
+                                                    <span className="w-5 h-5 rounded bg-ant-ink/5 flex items-center justify-center shrink-0">
+                                                        {p.type === 'courier'
+                                                            ? <Truck className="w-2.5 h-2.5 text-ant-mid" />
+                                                            : <Building2 className="w-2.5 h-2.5 text-ant-mid" />}
+                                                    </span>
+                                                )}
+                                                <span className="truncate">{p.name}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="space-y-1">
@@ -3300,12 +3460,24 @@ const Orders = () => {
                                                     <Select onValueChange={field.onChange} value={field.value} disabled={isEditModalOpen}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-xl border-none bg-ant-ink/[0.04] text-sm font-bold text-ant-ink shadow-inner">
-                                                                <SelectValue placeholder="Select channel" />
+                                                                <SelectValue placeholder="Select channel">
+                                                                    {field.value && (
+                                                                        <span className="inline-flex items-center gap-1.5 capitalize">
+                                                                            <SourceIcon source={field.value} />
+                                                                            {getSourceMeta(field.value).label}
+                                                                        </span>
+                                                                    )}
+                                                                </SelectValue>
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-2xl border-none shadow-2xl">
                                                             {SALES_SOURCES.map(source => (
-                                                                <SelectItem key={source} value={source} className="rounded-xl font-bold capitalize">{source}</SelectItem>
+                                                                <SelectItem key={source} value={source} className="rounded-xl font-bold capitalize">
+                                                                    <span className="inline-flex items-center gap-2">
+                                                                        <SourceIcon source={source} />
+                                                                        {getSourceMeta(source).label}
+                                                                    </span>
+                                                                </SelectItem>
                                                             ))}
                                                         </SelectContent>
                                                     </Select>

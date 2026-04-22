@@ -83,8 +83,10 @@ import {
 } from '@/hooks/useGoogleAnalytics';
 
 // ── Date presets ─────────────────────────────────────────────────────
-type PresetKey = '7d' | '28d' | '90d' | 'ytd';
+type PresetKey = 'today' | 'yesterday' | '7d' | '28d' | '90d' | 'ytd';
 const PRESETS: { key: PresetKey; label: string; days?: number }[] = [
+    { key: 'today', label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
     { key: '7d', label: 'Last 7 days', days: 7 },
     { key: '28d', label: 'Last 28 days', days: 28 },
     { key: '90d', label: 'Last 90 days', days: 90 },
@@ -94,6 +96,13 @@ const PRESETS: { key: PresetKey; label: string; days?: number }[] = [
 function presetToRange(key: PresetKey): DateRange {
     const today = startOfDay(new Date());
     const end = format(today, 'yyyy-MM-dd');
+    if (key === 'today') {
+        return { start: end, end };
+    }
+    if (key === 'yesterday') {
+        const y = format(subDays(today, 1), 'yyyy-MM-dd');
+        return { start: y, end: y };
+    }
     if (key === 'ytd') {
         return { start: format(new Date(today.getFullYear(), 0, 1), 'yyyy-MM-dd'), end };
     }
@@ -177,12 +186,19 @@ const GoogleAnalyticsPage: React.FC = () => {
         if (ownerBusinessId) localStorage.setItem('ga_owner_business_id', ownerBusinessId);
     }, [ownerBusinessId]);
 
-    const { data: allConnections, isLoading: connectionsLoading } = useGAConnections();
-    const connections = useMemo(() => {
-        if (!allConnections) return [];
-        if (!businessId) return [];
-        return allConnections.filter((c) => c['DigiCom Business'] === businessId);
-    }, [allConnections, businessId]);
+    // Clear a stale stored business id when it no longer appears in the
+    // owner's accessible businesses list (business removed or permissions
+    // changed). Without this guard the page kept a stuck id and rendered
+    // a misleading "No connections yet" onboarding card for a phantom business.
+    useEffect(() => {
+        if (!isOwner || !businesses || !ownerBusinessId) return;
+        if (!businesses.some((b) => b.id === ownerBusinessId)) {
+            localStorage.removeItem('ga_owner_business_id');
+            setOwnerBusinessId(null);
+        }
+    }, [isOwner, businesses, ownerBusinessId]);
+
+    const { data: connections = [], isLoading: connectionsLoading } = useGAConnections(businessId);
 
     const [activePropertyId, setActivePropertyId] = useState<string | null>(() => {
         return localStorage.getItem('ga_active_property');
@@ -569,7 +585,7 @@ const Dashboard: React.FC<{
     return (
         <div className="space-y-3">
             {/* KPI strip — unified neutral cards, single orange accent on engagement */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5">
                 <Kpi
                     label="Active users"
                     value={nf.format(data.totals.activeUsers ?? 0)}
@@ -583,6 +599,17 @@ const Dashboard: React.FC<{
                     sublabel={`${nfc.format(data.totals.screenPageViews ?? 0)} views`}
                     icon={Activity}
                     accent="#141413"
+                />
+                <Kpi
+                    label="Conversions"
+                    value={nf.format(Math.round(data.totals.conversions ?? 0))}
+                    sublabel={
+                        data.totals.sessions && data.totals.sessions > 0
+                            ? `${pct((data.totals.conversions ?? 0) / data.totals.sessions)} of sessions`
+                            : '—'
+                    }
+                    icon={Star}
+                    accent="#d97757"
                 />
                 <Kpi
                     label="Engagement rate"
@@ -640,6 +667,8 @@ const Dashboard: React.FC<{
                                     tick={{ fontSize: 10, fill: '#b0aea5' }}
                                     axisLine={false}
                                     tickLine={false}
+                                    interval="preserveStartEnd"
+                                    minTickGap={24}
                                 />
                                 <YAxis
                                     tick={{ fontSize: 10, fill: '#b0aea5' }}
@@ -1078,16 +1107,16 @@ const AddConnectionDialog: React.FC<{
     onAdded: (c: GAConnection) => void;
 }> = ({ open, onOpenChange, businessId, onAdded }) => {
     const { data: sa } = useServiceAccountEmail();
-    const { data: connections } = useGAConnections();
+    // Scoped to this business server-side. Used only to decide whether this
+    // would be the first connection (→ default checked by default).
+    const { data: connections } = useGAConnections(businessId);
     const { toast } = useToast();
     const add = useAddGAConnection();
 
     const [propertyId, setPropertyId] = useState('');
     const [displayName, setDisplayName] = useState('');
     const [websiteUrl, setWebsiteUrl] = useState('');
-    const [makeDefault, setMakeDefault] = useState(
-        !connections || connections.filter((c) => c['DigiCom Business'] === businessId).length === 0
-    );
+    const [makeDefault, setMakeDefault] = useState(!connections || connections.length === 0);
 
     useEffect(() => {
         if (!open) {
@@ -1098,9 +1127,8 @@ const AddConnectionDialog: React.FC<{
     }, [open]);
 
     useEffect(() => {
-        const empty = !connections || connections.filter((c) => c['DigiCom Business'] === businessId).length === 0;
-        setMakeDefault(empty);
-    }, [connections, businessId, open]);
+        setMakeDefault(!connections || connections.length === 0);
+    }, [connections, open]);
 
     const submit = async () => {
         try {

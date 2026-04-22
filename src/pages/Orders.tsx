@@ -143,6 +143,7 @@ import {
     toProductStockNumber,
     type OrderLineProductOption,
 } from '@/components/orders/OrderLineProductCombobox';
+import SourceIcon, { getSourceMeta } from '@/components/orders/SourceIcon';
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -237,6 +238,110 @@ const SALES_SOURCES = [
     "reorder",
     "other"
 ];
+
+/**
+ * Compact filter-bar dropdown. Replaces the old <Select> + <SelectItem> setup
+ * with a searchable Popover+Command combo so users can type to narrow long
+ * lists (cities, products, users, providers) and can see per-row visuals
+ * (product image, provider logo, user avatar, source icon). Trigger styling
+ * matches the rest of the filter bar — pass `activeClass` for the colored
+ * border/background applied when the value isn't `'all'`.
+ */
+type SearchableFilterProps<T> = {
+    value: string;
+    onChange: (v: string) => void;
+    allLabel: string;
+    placeholder: string;
+    activeClass: string;
+    items: T[] | null | undefined;
+    getKey: (item: T) => string;
+    getSearchText: (item: T) => string;
+    getTriggerLabel: () => React.ReactNode;
+    renderItem: (item: T) => React.ReactNode;
+};
+
+function SearchableFilter<T>({
+    value,
+    onChange,
+    allLabel,
+    placeholder,
+    activeClass,
+    items,
+    getKey,
+    getSearchText,
+    getTriggerLabel,
+    renderItem,
+}: SearchableFilterProps<T>) {
+    const [open, setOpen] = useState(false);
+    const isActive = value !== 'all';
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    className={cn(
+                        'h-10 w-full rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-2 px-3 border',
+                        isActive
+                            ? activeClass
+                            : 'border-ant-line bg-ant-paper text-ant-ink',
+                    )}
+                >
+                    <span className="flex-1 text-left truncate">{getTriggerLabel()}</span>
+                    <ChevronsUpDown className="w-3 h-3 text-ant-mid shrink-0" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="start"
+                className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[240px] rounded-2xl border-ant-line bg-ant-paper shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]"
+            >
+                <Command
+                    filter={(itemValue, search) => {
+                        // `itemValue` is the `value` prop we set on each
+                        // CommandItem — we pack the searchable text there so
+                        // cmdk's fuzzy match operates on human text, not UUIDs.
+                        const t = itemValue.toLowerCase();
+                        return t.includes(search.toLowerCase()) ? 1 : 0;
+                    }}
+                >
+                    <CommandInput placeholder={placeholder} className="h-9" />
+                    <CommandList className="max-h-[280px]">
+                        <CommandEmpty className="py-4 text-[11px] text-ant-mid text-center">No matches</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="__all__"
+                                onSelect={() => {
+                                    onChange('all');
+                                    setOpen(false);
+                                }}
+                                className="font-bold text-[11.5px] rounded-lg cursor-pointer"
+                            >
+                                <span className="flex-1">{allLabel}</span>
+                                {value === 'all' && <Check className="w-3.5 h-3.5 text-ant-orange ml-2" />}
+                            </CommandItem>
+                            {(items ?? []).map((item) => {
+                                const key = getKey(item);
+                                return (
+                                    <CommandItem
+                                        key={key}
+                                        value={`${getSearchText(item)} ${key}`}
+                                        onSelect={() => {
+                                            onChange(key);
+                                            setOpen(false);
+                                        }}
+                                        className="text-[11.5px] font-semibold rounded-lg cursor-pointer"
+                                    >
+                                        <span className="flex-1 min-w-0">{renderItem(item)}</span>
+                                        {value === key && <Check className="w-3.5 h-3.5 text-ant-orange ml-2 shrink-0" />}
+                                    </CommandItem>
+                                );
+                            })}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 /**
  * For courier (internal) orders the package status lives on the latest
@@ -2622,17 +2727,18 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <MapPin className="w-3 h-3" /> City
                                     </span>
-                                    <Select value={filterCity} onValueChange={setFilterCity}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterCity !== 'all' ? "border-ant-green/30 bg-ant-green/10/50 text-ant-green" : "border-ant-line bg-ant-paper text-ant-ink")}>
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Cities</SelectItem>
-                                            {cities?.map((c: any) => (
-                                                <SelectItem key={c.id} value={c.id} className="font-bold text-xs rounded-xl">{c.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterCity}
+                                        onChange={setFilterCity}
+                                        allLabel="All Cities"
+                                        placeholder="Search cities..."
+                                        activeClass="border-ant-green/30 bg-ant-green/10/50 text-ant-green"
+                                        items={cities}
+                                        getKey={(c: any) => c.id}
+                                        getSearchText={(c: any) => c.name || ''}
+                                        getTriggerLabel={() => cities?.find((c: any) => c.id === filterCity)?.name ?? 'All'}
+                                        renderItem={(c: any) => <span className="truncate">{c.name}</span>}
+                                    />
                                 </div>
 
                                 {/* Product */}
@@ -2640,17 +2746,33 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <ShoppingBag className="w-3 h-3" /> Product
                                     </span>
-                                    <Select value={filterProduct} onValueChange={setFilterProduct}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProduct !== 'all' ? "border-pink-200 bg-pink-50/50 text-pink-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Products</SelectItem>
-                                            {products?.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id} className="font-bold text-xs rounded-xl">{p.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterProduct}
+                                        onChange={setFilterProduct}
+                                        allLabel="All Products"
+                                        placeholder="Search products..."
+                                        activeClass="border-pink-200 bg-pink-50/50 text-pink-700"
+                                        items={products}
+                                        getKey={(p: any) => p.id}
+                                        getSearchText={(p: any) => `${p.name || ''} ${p.code || ''}`}
+                                        getTriggerLabel={() => products?.find((p: any) => p.id === filterProduct)?.name ?? 'All'}
+                                        renderItem={(p: any) => (
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                {p.image_url ? (
+                                                    <img
+                                                        src={p.image_url}
+                                                        alt=""
+                                                        className="w-6 h-6 rounded-md object-cover border border-ant-ink/5 shrink-0"
+                                                    />
+                                                ) : (
+                                                    <span className="w-6 h-6 rounded-md bg-ant-ink/5 flex items-center justify-center shrink-0">
+                                                        <Package className="w-3 h-3 text-ant-mid" />
+                                                    </span>
+                                                )}
+                                                <span className="truncate">{p.name}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 {/* Source */}
@@ -2658,17 +2780,28 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <ExternalLink className="w-3 h-3" /> Source
                                     </span>
-                                    <Select value={filterSource} onValueChange={setFilterSource}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterSource !== 'all' ? "border-cyan-200 bg-cyan-50/50 text-cyan-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Sources</SelectItem>
-                                            {SALES_SOURCES.map((s) => (
-                                                <SelectItem key={s} value={s} className="font-bold text-xs capitalize rounded-xl">{s}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterSource}
+                                        onChange={setFilterSource}
+                                        allLabel="All Sources"
+                                        placeholder="Search sources..."
+                                        activeClass="border-cyan-200 bg-cyan-50/50 text-cyan-700"
+                                        items={SALES_SOURCES.map((s) => ({ id: s, name: s }))}
+                                        getKey={(s: any) => s.id}
+                                        getSearchText={(s: any) => s.name}
+                                        getTriggerLabel={() => filterSource !== 'all' ? (
+                                            <span className="inline-flex items-center gap-1.5 capitalize">
+                                                <SourceIcon source={filterSource} />
+                                                {filterSource}
+                                            </span>
+                                        ) : 'All'}
+                                        renderItem={(s: any) => (
+                                            <span className="flex items-center gap-2 capitalize">
+                                                <SourceIcon source={s.id} />
+                                                <span className="truncate">{s.name}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 {/* Confirmed By */}
@@ -2676,17 +2809,28 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <CheckCircle2 className="w-3 h-3" /> Confirmed By
                                     </span>
-                                    <Select value={filterConfirmedBy} onValueChange={setFilterConfirmedBy}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterConfirmedBy !== 'all' ? "border-green-200 bg-green-50/50 text-green-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Users</SelectItem>
-                                            {confirmers?.map((u: any) => (
-                                                <SelectItem key={u.id} value={u.id} className="font-bold text-xs rounded-xl">{u.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterConfirmedBy}
+                                        onChange={setFilterConfirmedBy}
+                                        allLabel="All Users"
+                                        placeholder="Search users..."
+                                        activeClass="border-green-200 bg-green-50/50 text-green-700"
+                                        items={confirmers}
+                                        getKey={(u: any) => u.id}
+                                        getSearchText={(u: any) => u.name || ''}
+                                        getTriggerLabel={() => confirmers?.find((u: any) => u.id === filterConfirmedBy)?.name ?? 'All'}
+                                        renderItem={(u: any) => (
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                <Avatar className="w-6 h-6 shrink-0 border border-ant-ink/5">
+                                                    {u.avatar_url && <AvatarImage src={u.avatar_url} />}
+                                                    <AvatarFallback className="text-[9px] font-semibold bg-ant-ink/5 text-ant-ink">
+                                                        {(u.name || '?').slice(0, 2).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <span className="truncate">{u.name}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 {/* Assigned To */}
@@ -2694,17 +2838,28 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <User className="w-3 h-3" /> Assigned To
                                     </span>
-                                    <Select value={filterAssignedTo} onValueChange={setFilterAssignedTo}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterAssignedTo !== 'all' ? "border-indigo-200 bg-indigo-50/50 text-indigo-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Commercials</SelectItem>
-                                            {sellers?.map((s: any) => (
-                                                <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">{s.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterAssignedTo}
+                                        onChange={setFilterAssignedTo}
+                                        allLabel="All Commercials"
+                                        placeholder="Search commercials..."
+                                        activeClass="border-indigo-200 bg-indigo-50/50 text-indigo-700"
+                                        items={sellers}
+                                        getKey={(s: any) => s.id}
+                                        getSearchText={(s: any) => s.name || ''}
+                                        getTriggerLabel={() => sellers?.find((s: any) => s.id === filterAssignedTo)?.name ?? 'All'}
+                                        renderItem={(s: any) => (
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                <Avatar className="w-6 h-6 shrink-0 border border-ant-ink/5">
+                                                    {s.avatar_url && <AvatarImage src={s.avatar_url} />}
+                                                    <AvatarFallback className="text-[9px] font-semibold bg-ant-ink/5 text-ant-ink">
+                                                        {(s.name || '?').slice(0, 2).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <span className="truncate">{s.name}</span>
+                                            </span>
+                                        )}
+                                    />
                                 </div>
 
                                 {/* Delivery Service */}
@@ -2712,22 +2867,41 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <Truck className="w-3 h-3" /> Delivery
                                     </span>
-                                    <Select value={filterProvider} onValueChange={setFilterProvider}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProvider !== 'all' ? "border-ant-orange/30 bg-ant-orange/10/50 text-ant-orange" : "border-ant-line bg-ant-paper text-ant-ink")}>
-                                            <SelectValue placeholder="All" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Services</SelectItem>
-                                            {allProviders.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id} className="font-bold text-xs rounded-xl">
-                                                    <div className="flex items-center gap-2">
-                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-ant-blue" />}
-                                                        {p.name}
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableFilter
+                                        value={filterProvider}
+                                        onChange={setFilterProvider}
+                                        allLabel="All Services"
+                                        placeholder="Search providers..."
+                                        activeClass="border-ant-orange/30 bg-ant-orange/10/50 text-ant-orange"
+                                        items={allProviders}
+                                        getKey={(p: any) => p.id}
+                                        getSearchText={(p: any) => p.name || ''}
+                                        getTriggerLabel={() => {
+                                            const p = allProviders.find((x: any) => x.id === filterProvider);
+                                            return p?.name ?? 'All';
+                                        }}
+                                        renderItem={(p: any) => {
+                                            const img = p.type === 'courier' ? p.avatar_url : p.logo_url;
+                                            return (
+                                                <span className="flex items-center gap-2 min-w-0">
+                                                    {img ? (
+                                                        <img
+                                                            src={img}
+                                                            alt=""
+                                                            className="w-6 h-6 rounded-md object-cover bg-white border border-ant-ink/5 shrink-0"
+                                                        />
+                                                    ) : (
+                                                        <span className="w-6 h-6 rounded-md bg-ant-ink/5 flex items-center justify-center shrink-0">
+                                                            {p.type === 'courier'
+                                                                ? <Truck className="w-3 h-3 text-ant-mid" />
+                                                                : <Building2 className="w-3 h-3 text-ant-mid" />}
+                                                        </span>
+                                                    )}
+                                                    <span className="truncate">{p.name}</span>
+                                                </span>
+                                            );
+                                        }}
+                                    />
                                 </div>
 
                                 {/* Exchange Filter */}
@@ -3405,12 +3579,24 @@ const Orders = () => {
                                                     <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink">
-                                                                <SelectValue placeholder="Select channel" />
+                                                                <SelectValue placeholder="Select channel">
+                                                                    {field.value && (
+                                                                        <span className="inline-flex items-center gap-1.5 capitalize">
+                                                                            <SourceIcon source={field.value} />
+                                                                            {getSourceMeta(field.value).label}
+                                                                        </span>
+                                                                    )}
+                                                                </SelectValue>
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-xl border-ant-line bg-ant-paper shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
                                                             {SALES_SOURCES.map(source => (
-                                                                <SelectItem key={source} value={source} className="rounded-xl font-bold capitalize">{source}</SelectItem>
+                                                                <SelectItem key={source} value={source} className="rounded-xl font-bold capitalize">
+                                                                    <span className="inline-flex items-center gap-2">
+                                                                        <SourceIcon source={source} />
+                                                                        {getSourceMeta(source).label}
+                                                                    </span>
+                                                                </SelectItem>
                                                             ))}
                                                         </SelectContent>
                                                     </Select>

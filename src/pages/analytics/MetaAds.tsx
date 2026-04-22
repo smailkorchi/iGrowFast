@@ -83,7 +83,12 @@ const MetaAdsPage: React.FC = () => {
     // ── OAuth popup listener ────────────────────────────────────────────
     useEffect(() => {
         const handler = (e: MessageEvent) => {
-            if (e.origin !== window.location.origin && e.origin !== 'null') return;
+            // Strict origin check. Previously `e.origin === 'null'` was also
+            // accepted as a fallback for sandboxed / file:// contexts, but that
+            // opens the listener to messages from any sandboxed iframe on any
+            // page a user might visit. Legitimate OAuth popups opened from
+            // this page always post back with `window.location.origin`.
+            if (e.origin !== window.location.origin) return;
             const msg = e.data;
             if (!msg || msg.type !== 'meta-oauth') return;
             if (msg.ok) {
@@ -207,11 +212,19 @@ const MetaAdsPage: React.FC = () => {
         return (profile as { 'DigiCom Business'?: string } | null)?.['DigiCom Business'] ?? null;
     }, [isOwner, ownerBusinessId, profile]);
 
-    const { data: allConnections, isLoading: connectionsLoading } = useMetaConnections();
-    const connections = useMemo(() => {
-        if (!allConnections || !businessId) return [];
-        return allConnections.filter((c) => c['DigiCom Business'] === businessId);
-    }, [allConnections, businessId]);
+    // Clear a stale stored business id when it no longer appears in the
+    // owner's accessible businesses list (business removed or access
+    // revoked). Without this guard the page kept a stuck id and rendered
+    // a misleading "no connections yet" onboarding card for a phantom business.
+    useEffect(() => {
+        if (!isOwner || !businesses || !ownerBusinessId) return;
+        if (!businesses.some((b) => b.id === ownerBusinessId)) {
+            localStorage.removeItem('meta_owner_business_id');
+            setOwnerBusinessId(null);
+        }
+    }, [isOwner, businesses, ownerBusinessId]);
+
+    const { data: connections = [], isLoading: connectionsLoading } = useMetaConnections(businessId);
 
     const [activeConnectionId, setActiveConnectionId] = useState<string | null>(
         () => localStorage.getItem('meta_active_connection')

@@ -1,4 +1,4 @@
-import { Bot, Sparkles } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { format } from 'date-fns';
 
 /**
@@ -38,14 +38,14 @@ export default function WhatsAppAutomations() {
                         className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ant-orange/40 to-transparent"
                     />
 
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/25 mb-6">
-                        <Bot className="w-6 h-6 text-ant-orange" strokeWidth={1.5} />
+                    <div className="inline-flex items-center gap-3 mb-6">
+                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/25">
+                            <Bot className="w-6 h-6 text-ant-orange" strokeWidth={1.5} />
+                        </div>
+                        <span className="text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            Coming soon
+                        </span>
                     </div>
-
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                        <Sparkles className="w-3 h-3 text-ant-orange" strokeWidth={1.75} />
-                        Coming soon
-                    </span>
 
                     <h2 className="font-display text-[36px] md:text-[44px] font-semibold text-ant-ink leading-[1.02] tracking-[-0.025em] mt-3">
                         A smarter inbox,<br className="hidden sm:inline" /> on autopilot.
