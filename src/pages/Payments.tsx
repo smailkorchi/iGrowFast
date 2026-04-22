@@ -67,6 +67,10 @@ const Payments = () => {
     const [wizardStep, setWizardStep] = useState(0);
     const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    // Free-text search inside the wizard's Select-orders step. Matches against
+    // every bit of info on the order — name, phone, tracking, product names,
+    // price. Reset alongside the rest of the wizard state.
+    const [orderSearch, setOrderSearch] = useState('');
     const [isViewNoteOpen, setIsViewNoteOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<PaymentNote | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -294,7 +298,7 @@ const Payments = () => {
             queryClient.invalidateQueries({ queryKey: ['payment-notes'] });
             queryClient.invalidateQueries({ queryKey: ['unpaid-livre-orders'] });
             toast({ title: 'Payment note generated', description: 'Selected orders have been linked to this note.' });
-            setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); setSelectedOrderIds(new Set());
+            setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); setSelectedOrderIds(new Set()); setOrderSearch('');
         },
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
@@ -873,7 +877,7 @@ const Payments = () => {
             )}
 
             {/* ─── WIZARD MODAL ─── */}
-            <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); setSelectedOrderIds(new Set()); } }}>
+            <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); setSelectedOrderIds(new Set()); setOrderSearch(''); } }}>
                 <DialogContent className="ant-surface max-w-3xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[90vh] overflow-y-auto custom-scrollbar">
                     <DialogHeader className="px-6 pt-6 pb-3 border-b border-ant-line">
                         <div className="flex items-center gap-2 mb-1">
@@ -1010,6 +1014,26 @@ const Payments = () => {
                         {wizardStep === 1 && selectedGroup && (() => {
                             const allOrders = selectedGroup.orders;
                             const allSelected = allOrders.length > 0 && allOrders.every(o => selectedOrderIds.has(o.id));
+                            // Free-text search across every bit of order info.
+                            const q = orderSearch.trim().toLowerCase();
+                            const matches = (o: typeof allOrders[number]) => {
+                                if (!q) return true;
+                                const trackingCodes = [
+                                    ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
+                                    ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
+                                    (o as { tracking_number?: string | null }).tracking_number,
+                                ].filter(Boolean) as string[];
+                                const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
+                                const hay = [
+                                    (o as { name?: string }).name,
+                                    (o as { phone?: string }).phone,
+                                    ...trackingCodes,
+                                    ...items,
+                                    String(o.price ?? ''),
+                                ].filter(Boolean).join(' ').toLowerCase();
+                                return hay.includes(q);
+                            };
+                            const visibleOrders = allOrders.filter(matches);
                             return (
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between gap-3">
@@ -1037,8 +1061,33 @@ const Payments = () => {
                                         </Button>
                                     </div>
 
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                                        <Input
+                                            value={orderSearch}
+                                            onChange={(e) => setOrderSearch(e.target.value)}
+                                            placeholder="Search by name, phone, tracking, product..."
+                                            className="h-9 pl-9 pr-8 rounded-xl border-ant-line bg-ant-paper text-[12px]"
+                                        />
+                                        {orderSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setOrderSearch('')}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md hover:bg-ant-line-soft flex items-center justify-center text-ant-mid"
+                                                aria-label="Clear search"
+                                            >
+                                                <SearchX className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+
                                     <div className="space-y-1.5 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                                        {allOrders.map((order) => {
+                                        {visibleOrders.length === 0 && (
+                                            <div className="font-serif-display text-[12px] text-ant-muted italic py-6 text-center">
+                                                No orders match "{orderSearch}"
+                                            </div>
+                                        )}
+                                        {visibleOrders.map((order) => {
                                             const isChecked = selectedOrderIds.has(order.id);
                                             const trackingCode = selectedGroup.kind === 'courier'
                                                 ? (order.courier_parcels?.[0]?.tracking_code || order.tracking_number || '')

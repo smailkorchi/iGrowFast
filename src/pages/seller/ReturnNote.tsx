@@ -64,6 +64,12 @@ const ReturnNote = () => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [wizardStep, setWizardStep] = useState(0);
     const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+    // Per-order selection for the new "Select orders" step. Initialized
+    // when the wizard moves from step 0 → step 1; user can uncheck lines.
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    // Free-text search inside the select-orders step. Matches any visible
+    // info — name, phone, tracking, product names, price.
+    const [orderSearch, setOrderSearch] = useState('');
     const [isViewNoteOpen, setIsViewNoteOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<ReturnNote | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -246,6 +252,28 @@ const ReturnNote = () => {
     const activeGroups = activeTab === 'courier' ? courierGroups : companyGroups;
     const selectedGroup = activeGroups.find(g => g.target_id === selectedProvider);
 
+    // Group the Review step and generate mutation operate on — only the
+    // lines the user has checked in the Select-orders step.
+    const filteredGroup = useMemo<TargetGroup | null>(() => {
+        if (!selectedGroup) return null;
+        const orders = selectedOrderIds.size === 0
+            ? selectedGroup.orders
+            : selectedGroup.orders.filter(o => selectedOrderIds.has(o.id));
+        let total_amount = 0;
+        let total_shipping = 0;
+        for (const o of orders) {
+            total_amount += Number(o.price || 0);
+            total_shipping += getReturnFeeForOrder(o);
+        }
+        return {
+            ...selectedGroup,
+            orders,
+            total_amount,
+            total_shipping,
+            net_amount: total_amount - total_shipping,
+        };
+    }, [selectedGroup, selectedOrderIds, getReturnFeeForOrder]);
+
     // ─── Generate return note (company or courier) ───
     const generateNoteMutation = useMutation({
         mutationFn: async (group: TargetGroup) => {
@@ -301,7 +329,7 @@ const ReturnNote = () => {
             queryClient.invalidateQueries({ queryKey: ['return-notes'] });
             queryClient.invalidateQueries({ queryKey: ['retourne-orders'] });
             toast({ title: 'Return note generated', description: 'All returned orders have been linked to this note.' });
-            setIsWizardOpen(false); setWizardStep(0); setSelectedProvider(null);
+            setIsWizardOpen(false); setWizardStep(0); setSelectedProvider(null); setSelectedOrderIds(new Set()); setOrderSearch('');
         },
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
@@ -596,7 +624,7 @@ const ReturnNote = () => {
                     </div>
                     <button
                         type="button"
-                        onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedProvider(null); }}
+                        onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedProvider(null); setSelectedOrderIds(new Set()); setOrderSearch(''); }}
                         disabled={!activeGroups.length}
                         className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[12px] font-semibold cursor-pointer shrink-0 transition-colors"
                     >
@@ -783,26 +811,34 @@ const ReturnNote = () => {
             </Tabs>
 
             {/* ─── WIZARD MODAL ─── */}
-            <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedProvider(null); } }}>
+            <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedProvider(null); setSelectedOrderIds(new Set()); setOrderSearch(''); } }}>
                 <DialogContent className="max-w-3xl p-0 border border-ant-line rounded-xl overflow-hidden max-h-[90vh] overflow-y-auto">
                     <DialogHeader className="p-5 pb-4">
                         <DialogTitle className="text-[15px] font-semibold text-ant-ink">
-                            {wizardStep === 0 ? 'Select Provider' : 'Review & Generate'}
+                            {wizardStep === 0
+                                ? 'Select Provider'
+                                : wizardStep === 1
+                                    ? 'Select Orders'
+                                    : 'Review & Generate'}
                         </DialogTitle>
                         <DialogDescription className="text-[11px] text-ant-mid">
-                            {wizardStep === 0 ? 'Choose a delivery provider to generate a return note for.' : 'Review the returned orders and confirm generation.'}
+                            {wizardStep === 0
+                                ? 'Choose a delivery provider to generate a return note for.'
+                                : wizardStep === 1
+                                    ? 'Pick which returned parcels to include in this note.'
+                                    : 'Review the returned orders and confirm generation.'}
                         </DialogDescription>
                     </DialogHeader>
 
                     {/* Step indicator */}
                     <div className="px-5 flex items-center gap-2 mb-2">
-                        {[0, 1].map(s => (
+                        {[0, 1, 2].map(s => (
                             <React.Fragment key={s}>
                                 <div className={cn("w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-semibold transition-all",
                                     wizardStep >= s ? "bg-ant-ink text-white" : "bg-ant-line text-ant-mid")}>
                                     {s + 1}
                                 </div>
-                                {s < 1 && <div className={cn("flex-1 h-0.5 rounded-full transition-colors", wizardStep > s ? "bg-ant-ink" : "bg-ant-line")} />}
+                                {s < 2 && <div className={cn("flex-1 h-0.5 rounded-full transition-colors", wizardStep > s ? "bg-ant-ink" : "bg-ant-line")} />}
                             </React.Fragment>
                         ))}
                     </div>
@@ -838,7 +874,12 @@ const ReturnNote = () => {
                                 <div className="flex justify-end gap-2 pt-3">
                                     <Button variant="outline" onClick={() => setIsWizardOpen(false)}
                                         className="rounded-md h-8 px-3 text-[11px] font-semibold border-ant-line">Cancel</Button>
-                                    <Button disabled={!selectedProvider} onClick={() => setWizardStep(1)}
+                                    <Button disabled={!selectedProvider} onClick={() => {
+                                        if (selectedGroup) {
+                                            setSelectedOrderIds(new Set(selectedGroup.orders.map(o => o.id)));
+                                        }
+                                        setWizardStep(1);
+                                    }}
                                         className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
                                         Next <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                                     </Button>
@@ -846,13 +887,157 @@ const ReturnNote = () => {
                             </div>
                         )}
 
-                        {wizardStep === 1 && selectedGroup && (
+                        {wizardStep === 1 && selectedGroup && (() => {
+                            // Free-text match across every bit of order info.
+                            const q = orderSearch.trim().toLowerCase();
+                            const matches = (o: ReturnOrder) => {
+                                if (!q) return true;
+                                const trackingCodes = [
+                                    ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
+                                    ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
+                                    o.tracking_number,
+                                ].filter(Boolean) as string[];
+                                const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
+                                const hay = [
+                                    o.name,
+                                    o.phone,
+                                    ...trackingCodes,
+                                    ...items,
+                                    String(o.price ?? ''),
+                                ].join(' ').toLowerCase();
+                                return hay.includes(q);
+                            };
+                            const visibleOrders = selectedGroup.orders.filter(matches);
+                            const allSelected = selectedGroup.orders.length > 0
+                                && selectedGroup.orders.every(o => selectedOrderIds.has(o.id));
+                            return (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3 p-3 bg-ant-light rounded-xl border border-ant-line">
+                                        <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="sm" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[12px] font-semibold text-ant-ink">{selectedGroup.target_name}</p>
+                                            <p className="text-[10px] text-ant-mid">
+                                                {selectedGroup.orders.length} orders available — {selectedOrderIds.size} selected
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <div className="relative flex-1">
+                                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                                            <Input
+                                                value={orderSearch}
+                                                onChange={(e) => setOrderSearch(e.target.value)}
+                                                placeholder="Search by name, phone, tracking, product..."
+                                                className="h-8 pl-8 pr-7 rounded-md border-ant-line bg-white text-[11px]"
+                                            />
+                                            {orderSearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOrderSearch('')}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded hover:bg-ant-light flex items-center justify-center text-ant-mid"
+                                                    aria-label="Clear search"
+                                                >
+                                                    <SearchX className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedOrderIds(allSelected
+                                                    ? new Set()
+                                                    : new Set(selectedGroup.orders.map(o => o.id)));
+                                            }}
+                                            className="flex items-center gap-2 text-[11px] font-semibold text-ant-ink hover:text-ant-ink/70 transition-colors shrink-0 px-2 h-8 rounded-md border border-ant-line bg-white"
+                                        >
+                                            <span className={cn(
+                                                'w-4 h-4 rounded border flex items-center justify-center transition-colors',
+                                                allSelected ? 'bg-ant-ink border-ant-ink' : 'border-ant-line bg-white',
+                                            )}>
+                                                {allSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                            </span>
+                                            {allSelected ? 'Deselect all' : `Select all (${selectedGroup.orders.length})`}
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+                                        {visibleOrders.length === 0 && (
+                                            <div className="text-[11px] text-ant-mid italic py-4 text-center">
+                                                No orders match "{orderSearch}"
+                                            </div>
+                                        )}
+                                        {visibleOrders.map((o) => {
+                                            const checked = selectedOrderIds.has(o.id);
+                                            const trackingCode =
+                                                o.courier_parcels?.[0]?.tracking_code
+                                                || o.parcels?.[0]?.tracking_code
+                                                || o.tracking_number;
+                                            return (
+                                                <button
+                                                    key={o.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedOrderIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(o.id)) next.delete(o.id);
+                                                            else next.add(o.id);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className={cn(
+                                                        'w-full p-2.5 rounded-lg border text-left flex items-center gap-2.5 transition-all',
+                                                        checked
+                                                            ? 'border-ant-ink/30 bg-ant-ink/[0.04]'
+                                                            : 'border-ant-line bg-white hover:border-ant-ink/15',
+                                                    )}
+                                                >
+                                                    <span className={cn(
+                                                        'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
+                                                        checked ? 'bg-ant-ink border-ant-ink' : 'border-ant-line bg-white',
+                                                    )}>
+                                                        {checked && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[11.5px] font-semibold text-ant-ink truncate">{o.name || 'No name'}</span>
+                                                            {trackingCode && (
+                                                                <span className="font-mono text-[10px] text-ant-mid truncate">{trackingCode}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-[10px] text-ant-mid mt-0.5 truncate">{o.phone || '—'}</div>
+                                                    </div>
+                                                    <div className="text-right shrink-0 tabular-nums">
+                                                        <div className="text-[11.5px] font-semibold text-ant-ink">{Number(o.price || 0).toFixed(2)}</div>
+                                                        <div className="text-[9.5px] text-ant-rose">−{getReturnFeeForOrder(o).toFixed(2)}</div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <Button variant="outline" onClick={() => setWizardStep(0)}
+                                            className="rounded-md h-8 px-3 text-[11px] font-semibold border-ant-line">Back</Button>
+                                        <Button
+                                            disabled={selectedOrderIds.size === 0}
+                                            onClick={() => setWizardStep(2)}
+                                            className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold disabled:opacity-50"
+                                        >
+                                            Next ({selectedOrderIds.size}) <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {wizardStep === 2 && filteredGroup && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-3 p-3 bg-ant-light rounded-xl border border-ant-line">
-                                    <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="sm" />
+                                    <EntityLogo kind={filteredGroup.kind} logoUrl={filteredGroup.logo_url} avatarUrl={filteredGroup.avatar_url} name={filteredGroup.target_name} size="sm" />
                                     <div>
-                                        <p className="text-[12px] font-semibold text-ant-ink">{selectedGroup.target_name}</p>
-                                        <p className="text-[10px] text-ant-mid">{selectedGroup.orders.length} returned orders to include</p>
+                                        <p className="text-[12px] font-semibold text-ant-ink">{filteredGroup.target_name}</p>
+                                        <p className="text-[10px] text-ant-mid">{filteredGroup.orders.length} returned orders to include</p>
                                     </div>
                                 </div>
 
@@ -866,7 +1051,7 @@ const ReturnNote = () => {
                                             <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Shipping</th>
                                             <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Net</th>
                                         </tr></thead>
-                                        <tbody>{selectedGroup.orders.map((o, i) => (
+                                        <tbody>{filteredGroup.orders.map((o, i) => (
                                             <tr key={o.id} className="border-b border-ant-line last:border-0 hover:bg-ant-light transition-colors">
                                                 <td className="px-3 py-2 text-[11px] text-ant-mid tabular-nums">{i + 1}</td>
                                                 <td className="px-3 py-2 text-[11px] font-semibold text-ant-ink">{o.name}</td>
@@ -883,24 +1068,24 @@ const ReturnNote = () => {
                                     <div className="grid grid-cols-3 gap-3 text-center">
                                         <div>
                                             <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Total Amount</span>
-                                            <span className="text-[15px] font-semibold text-ant-ink tabular-nums">{selectedGroup.total_amount.toFixed(2)}</span>
+                                            <span className="text-[15px] font-semibold text-ant-ink tabular-nums">{filteredGroup.total_amount.toFixed(2)}</span>
                                         </div>
                                         <div>
                                             <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Shipping Fees</span>
-                                            <span className="text-[15px] font-semibold text-ant-rose tabular-nums">-{selectedGroup.total_shipping.toFixed(2)}</span>
+                                            <span className="text-[15px] font-semibold text-ant-rose tabular-nums">-{filteredGroup.total_shipping.toFixed(2)}</span>
                                         </div>
                                         <div>
                                             <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Net Value</span>
-                                            <span className="text-[15px] font-semibold text-ant-green tabular-nums">{selectedGroup.net_amount.toFixed(2)}</span>
+                                            <span className="text-[15px] font-semibold text-ant-green tabular-nums">{filteredGroup.net_amount.toFixed(2)}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setWizardStep(0)}
+                                    <Button variant="outline" onClick={() => setWizardStep(1)}
                                         className="rounded-md h-8 px-3 text-[11px] font-semibold border-ant-line">Back</Button>
-                                    <Button onClick={() => generateNoteMutation.mutate(selectedGroup)}
-                                        disabled={generateNoteMutation.isPending}
+                                    <Button onClick={() => generateNoteMutation.mutate(filteredGroup)}
+                                        disabled={generateNoteMutation.isPending || filteredGroup.orders.length === 0}
                                         className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
                                         {generateNoteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
                                         Generate Return Note

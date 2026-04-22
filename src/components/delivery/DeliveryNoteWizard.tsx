@@ -29,7 +29,8 @@ import {
     ExternalLink,
     Download,
     Layers,
-    ListChecks
+    ListChecks,
+    X
 } from 'lucide-react';
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
@@ -173,6 +174,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>([]);
     const [currentProvider, setCurrentProvider] = useState<string>('');
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    // Free-text search inside the Select-orders step. Matches any visible
+    // order info — name, phone, tracking, product names + codes, city, price.
+    const [orderSearch, setOrderSearch] = useState('');
 
     // Update selectedProviderId when lockProviderId changes
     React.useEffect(() => {
@@ -750,6 +754,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setDeliveryNotes([]);
         setCurrentProvider('');
         setSelectedOrderIds(new Set());
+        setOrderSearch('');
     };
 
     const filteredProviders = useMemo(() => {
@@ -918,6 +923,29 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
                     const allOrders = Object.values(ordersGrouped as Record<string, OrderGroup>).flatMap(g => g.orders);
                     const allSelected = allOrders.length > 0 && allOrders.every(o => selectedOrderIds.has(o.id));
+                    // Free-text match against every piece of order info.
+                    const q = orderSearch.trim().toLowerCase();
+                    const matches = (order: WizardOrder) => {
+                        if (!q) return true;
+                        const itemLabels = (order.items || [])
+                            .map(i => [i.product?.name, i.product?.code].filter(Boolean).join(' '))
+                            .join(' ');
+                        const hay = [
+                            order.name,
+                            order.phone,
+                            order.address,
+                            order.city?.name,
+                            order.coliaty_old_tracking,
+                            order.ameex_old_tracking,
+                            String(order.price ?? ''),
+                            itemLabels,
+                        ].filter(Boolean).join(' ').toLowerCase();
+                        return hay.includes(q);
+                    };
+                    const filteredEntries = Object.entries(ordersGrouped as Record<string, OrderGroup>)
+                        .map(([providerId, g]) => [providerId, { ...g, orders: g.orders.filter(matches) }] as [string, OrderGroup])
+                        .filter(([, g]) => g.orders.length > 0);
+                    const visibleCount = filteredEntries.reduce((s, [, g]) => s + g.orders.length, 0);
                     return (
                         <>
                             <div className="bg-ant-ink p-8 text-white relative">
@@ -933,22 +961,53 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             </div>
 
                             <div className="p-8 space-y-4">
-                                <button
-                                    onClick={() => {
-                                        if (allSelected) {
-                                            setSelectedOrderIds(new Set());
-                                        } else {
-                                            setSelectedOrderIds(new Set(allOrders.map(o => o.id)));
-                                        }
-                                    }}
-                                    className="flex items-center gap-2 text-sm font-bold text-ant-ink hover:text-ant-ink/70 transition-colors"
-                                >
-                                    <Checkbox checked={allSelected} />
-                                    {allSelected ? 'Deselect All' : `Select All (${allOrders.length})`}
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                        <Input
+                                            value={orderSearch}
+                                            onChange={(e) => setOrderSearch(e.target.value)}
+                                            placeholder="Search by name, phone, tracking, product, city..."
+                                            className="h-10 pl-9 pr-9 rounded-xl border-slate-200 text-sm"
+                                        />
+                                        {orderSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setOrderSearch('')}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-400"
+                                                aria-label="Clear search"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            if (allSelected) {
+                                                setSelectedOrderIds(new Set());
+                                            } else {
+                                                setSelectedOrderIds(new Set(allOrders.map(o => o.id)));
+                                            }
+                                        }}
+                                        className="flex items-center gap-2 text-sm font-bold text-ant-ink hover:text-ant-ink/70 transition-colors shrink-0 px-3 h-10 rounded-xl border border-slate-200"
+                                    >
+                                        <Checkbox checked={allSelected} />
+                                        {allSelected ? 'Deselect all' : `Select all · ${allOrders.length}`}
+                                    </button>
+                                </div>
+                                {orderSearch && (
+                                    <div className="text-xs text-ant-muted">
+                                        {visibleCount} of {allOrders.length} orders match
+                                    </div>
+                                )}
 
                                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                    {Object.entries(ordersGrouped as Record<string, OrderGroup>).map(([providerId, { provider, orders }]) => (
+                                    {filteredEntries.length === 0 && (
+                                        <div className="text-center py-8 text-sm text-ant-muted italic">
+                                            No orders match "{orderSearch}"
+                                        </div>
+                                    )}
+                                    {filteredEntries.map(([providerId, { provider, orders }]) => (
                                         <div key={providerId}>
                                             {selectedProviderId === 'all' && (
                                                 <div className="flex items-center gap-2 py-2 px-1">
