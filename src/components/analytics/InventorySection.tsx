@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PackageOpen, AlertTriangle, Box } from 'lucide-react';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { LOW_STOCK_THRESHOLD } from '@/lib/analyticsDefinitions';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface InventorySectionProps {
     businessId: string;
@@ -15,6 +16,8 @@ interface InventorySectionProps {
 }
 
 export const InventorySection = ({ businessId, dateFilter }: InventorySectionProps) => {
+    const { deliveredPkgIds } = useStatusCategories();
+
     const { data: products, isLoading } = useQuery({
         queryKey: ['analytics-products-inv', businessId],
         queryFn: async () => {
@@ -33,11 +36,31 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         enabled: !!businessId,
     });
 
-    const { data: orderItems } = useQuery({
-        queryKey: ['analytics-order-items-inv', businessId],
+    // Row shape returned by the query. Supabase-generated types lag behind
+    // newer columns (`product_unit_cost_snapshot` was added after the types
+    // were last regenerated), so we cast the result through `unknown` to
+    // keep TS clean without losing structural typing. Same pattern used in
+    // the P&L section.
+    type InvOrderItemRow = {
+        id: string;
+        product_id: string | null;
+        quantity: number | null;
+        unit_price: number | string | null;
+        product_unit_cost_snapshot: number | string | null;
+        accessory_id: string | null;
+        accessory_quantity: number | null;
+        order_id: string;
+        orders: { date: string | null; order_status_id: string | null; package_status_id: string | null } | null;
+    };
+
+    const { data: orderItems } = useQuery<InvOrderItemRow[]>({
+        queryKey: ['analytics-order-items-inv-v2', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('order_items').select('id, product_id, quantity, unit_price, accessory_id, accessory_quantity, order_id, orders(date, order_status_id, package_status_id)').eq('DigiCom Business', businessId);
-            return data || [];
+            const { data } = await (supabase as any)
+                .from('order_items')
+                .select('id, product_id, quantity, unit_price, product_unit_cost_snapshot, accessory_id, accessory_quantity, order_id, orders(date, order_status_id, package_status_id)')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as InvOrderItemRow[];
         },
         enabled: !!businessId,
     });
@@ -51,21 +74,15 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         enabled: !!businessId,
     });
 
-    const { data: trnsPurchases } = useQuery({
-        queryKey: ['analytics-trns-purchase-inv', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('trns_purchase').select('id, product_id, quantity, sub_total, accessory_id, accessory_quantity, accessory_sub_total, transaction_id').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
         if (!products) return null;
 
+        const hasExplicitFilter = !!dateFilter.from || !!dateFilter.to;
         const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
+            // All-Time: everything passes. Explicit window: null-date rows
+            // are excluded so they don't leak into every filtered period.
+            if (!hasExplicitFilter) return true;
+            if (!dateStr) return false;
             const d = new Date(dateStr);
             return isWithinInterval(d, {
                 start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
@@ -88,17 +105,31 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         const stockValueAtSelling =
             products.reduce((s, p) => s + Number(p.stock || 0) * Number(p.selling_price || 0), 0);
 
+        // "Sold" = units from orders that were actually DELIVERED. Previously
+        // the loop counted every order_items row regardless of parent order
+        // status, so cancelled / fake / double / blacklisted rows inflated
+        // "units sold", per-product "sold", revenue and COGS on the Top
+        // Products table. Inventory performance numbers now match the P&L
+        // contract (delivered = category-strict).
         const productSales: Record<string, { name: string; image_url: string | null; sold: number; revenue: number; cost: number }> = {};
         (orderItems || []).forEach(item => {
-            const orderDate = (item as { orders?: { date?: string } }).orders?.date;
-            if (!isInRange(orderDate)) return;
+            const joined = item.orders;
+            if (!isInRange(joined?.date ?? null)) return;
+            const pkgId = joined?.package_status_id;
+            if (!pkgId || !deliveredPkgIds.has(pkgId)) return;
             const pid = item.product_id;
+            if (!pid) return;
             const product = products.find(p => p.id === pid);
             if (!product) return;
             if (!productSales[pid]) productSales[pid] = { name: product.name, image_url: product.image_url, sold: 0, revenue: 0, cost: 0 };
-            productSales[pid].sold += Number(item.quantity || 0);
-            productSales[pid].revenue += Number(item.quantity || 0) * Number(item.unit_price || 0);
-            productSales[pid].cost += Number(item.quantity || 0) * Number(product.cost_price || 0);
+            const qty = Number(item.quantity || 0);
+            // Snapshot COGS preferred (matches P&L). Falls back to current
+            // products.cost_price when the snapshot is missing on legacy rows.
+            const snap = Number(item.product_unit_cost_snapshot || 0);
+            const unitCost = snap > 0 ? snap : Number(product.cost_price || 0);
+            productSales[pid].sold += qty;
+            productSales[pid].revenue += qty * Number(item.unit_price || 0);
+            productSales[pid].cost += qty * unitCost;
         });
 
         const productPerformance = Object.values(productSales)
@@ -122,7 +153,7 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
             totalUnitsSold, productPerformance,
             totalTransactionValue, unpaidAmount,
         };
-    }, [products, accessories, orderItems, transactions, dateFilter]);
+    }, [products, accessories, orderItems, transactions, dateFilter, deliveredPkgIds]);
 
     return (
         <SectionWrapper

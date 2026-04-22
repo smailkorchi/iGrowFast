@@ -6,15 +6,11 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { UserCheck, Trophy } from 'lucide-react';
 import {
-    UserCheck, Trophy, DollarSign, CalendarCheck,
-    TrendingUp, Users, ShoppingBag, Award,
-} from 'lucide-react';
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, AreaChart, Area, Cell, Legend,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { eachDayOfInterval, startOfDay, endOfDay } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
@@ -23,13 +19,10 @@ import {
     inWindow,
     isAdminPullback,
     isDelivered,
-    isPaid,
     isRevenueOrder,
     placementTimestamp,
     pureRevenueForOrder,
 } from '@/lib/analyticsDefinitions';
-
-const BAR_COLORS = ['#141413', '#d97757', '#6a9bcc', '#788c5d', '#b0aea5', '#c96356', '#2a2926', '#8d8b84'];
 
 interface SellersSectionProps {
     businessId: string;
@@ -124,13 +117,11 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         // Commission from the authoritative view — sum commission_earned per seller
         // for rows whose (delivery) date falls in the window.
         const commissionBySeller = new Map<string, number>();
-        const deliveredCountBySeller = new Map<string, number>();
         (sellerEarnings || []).forEach(row => {
             if (!row.seller_id || !row.date) return;
             const d = new Date(row.date);
             if (Number.isNaN(d.getTime()) || !inWindow(d, windowStart, windowEnd)) return;
             commissionBySeller.set(row.seller_id, (commissionBySeller.get(row.seller_id) || 0) + Number(row.commission_earned || 0));
-            deliveredCountBySeller.set(row.seller_id, (deliveredCountBySeller.get(row.seller_id) || 0) + (row.delivered_count || 0));
         });
 
         const totalPaidToSellers = (sellerPayments || [])
@@ -145,7 +136,29 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             const d = new Date(p.date);
             return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
         }).length;
-        const expectedPresences = activeSellers.length * 26;
+        // Expected presences scales with the selected window.
+        // Morocco convention: 6-day working week (Mon-Sat). Sundays excluded.
+        // Previous behaviour hardcoded 26 days × active sellers regardless of
+        // window, which made "Today" read 0–4 % even with full attendance and
+        // pushed "YTD" / "All Time" over 100 %.
+        const clampedStart = dateFilter.from ? windowStart : null;
+        const clampedEnd = dateFilter.to ? windowEnd : null;
+        let workingDaysInWindow = 0;
+        if (clampedStart && clampedEnd && clampedEnd.getTime() >= clampedStart.getTime()) {
+            const days = eachDayOfInterval({ start: clampedStart, end: clampedEnd });
+            workingDaysInWindow = days.filter((d) => d.getDay() !== 0).length; // 0 = Sunday
+        } else {
+            // All-Time: take the span from the earliest presence to today.
+            const presenceDates = (presences || [])
+                .map((p) => (p.date ? new Date(p.date) : null))
+                .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
+            if (presenceDates.length > 0) {
+                const earliest = new Date(Math.min(...presenceDates.map((d) => d.getTime())));
+                const days = eachDayOfInterval({ start: startOfDay(earliest), end: endOfDay(new Date()) });
+                workingDaysInWindow = days.filter((d) => d.getDay() !== 0).length;
+            }
+        }
+        const expectedPresences = activeSellers.length * workingDaysInWindow;
         const attendanceRate = expectedPresences > 0 ? (totalPresences / expectedPresences) * 100 : 0;
 
         const sellerPerformance = sellers
@@ -191,35 +204,12 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         const avgOrdersPerSeller = activeSellers.length > 0 ? filtered.length / activeSellers.length : 0;
         const totalLiveCommission = sellerPerformance.reduce((s, sp) => s + sp.commission, 0);
 
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
-        const trendData = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = endOfMonth(month);
-            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
-            // Commission trend uses the view's date column (delivery-based) so it ties
-            // back to what actually gets paid out.
-            const monthCommissions = (sellerEarnings || []).reduce((sum, r) => {
-                if (!r.date) return sum;
-                const d = new Date(r.date);
-                if (Number.isNaN(d.getTime()) || !inWindow(d, mStart, mEnd)) return sum;
-                return sum + Number(r.commission_earned || 0);
-            }, 0);
-            return {
-                month: format(month, 'MMM yy'),
-                orders: monthOrders.length,
-                commissions: monthCommissions,
-            };
-        });
-
         return {
             totalSellers: sellers.length,
             activeSellers: activeSellers.length,
             totalPaidToSellers, totalPendingToSellers, totalLiveCommission, attendanceRate,
             topPerformer, avgOrdersPerSeller,
             sellerPerformance: sellerPerformance.slice(0, 10),
-            trendData,
         };
     }, [sellers, orders, sellerEarnings, sellerPayments, presences, dateFilter, deliveredPkgIds, paidOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 

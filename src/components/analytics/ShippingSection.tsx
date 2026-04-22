@@ -11,7 +11,6 @@ import {
     isAdminPullback,
     isDelivered,
     isReturned,
-    isShipped,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
@@ -22,7 +21,20 @@ import { Truck, Building2 } from 'lucide-react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, differenceInDays } from 'date-fns';
+import {
+    differenceInDays,
+    eachDayOfInterval,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    endOfMonth,
+    endOfWeek,
+    format,
+    startOfDay,
+    startOfMonth,
+    startOfWeek,
+    subMonths,
+} from 'date-fns';
 
 interface ShippingSectionProps {
     businessId: string;
@@ -69,24 +81,6 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         enabled: !!businessId,
     });
 
-    const { data: returnNotes } = useQuery({
-        queryKey: ['analytics-return-notes', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('company_return_notes').select('id, order_count, total_amount, created_at').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: paymentNotes } = useQuery({
-        queryKey: ['analytics-payment-notes', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('company_payment_notes').select('id, status, total_amount, net_amount, order_count, created_at').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
         if (!orders) return null;
         const ordersTyped = orders as unknown as AnalyticsOrder[];
@@ -96,19 +90,22 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
-        // Shipped = has a tracking number (locked rule §5).
-        const shippedOrders = filtered.filter(o => isShipped(o));
+        // "Shipped" = the parcel has a tracking code in company_parcels or
+        // courier_parcels. `orders.tracking_number` is never populated in
+        // production, so the old `isShipped(o)` helper always returned false
+        // and silently zeroed out every metric on this card. The real source
+        // is `trackedOrderIds` from `useTrackedOrders`.
+        const shippedOrders = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
         const totalShipments = shippedOrders.length;
 
         const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
         const returnedCount = filtered.filter(o => isReturned(o, returnedPkgIds)).length;
 
         // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
-        const pullback = tracked.filter(o =>
+        const pullback = shippedOrders.filter(o =>
             isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
         );
-        const deliveryDenom = tracked.length - pullback.length;
+        const deliveryDenom = shippedOrders.length - pullback.length;
         const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
         const returnRate = totalShipments > 0 ? (returnedCount / totalShipments) * 100 : 0;
 
@@ -128,7 +125,8 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             }, 0) / deliveredWithDates.length
             : 0;
 
-        // Stuck shipping — in-transit (shipped but not delivered) for > SHIPPING_STUCK_DAYS.
+        // Stuck shipping — tracked (handed off) but not yet delivered or
+        // returned, and more than SHIPPING_STUCK_DAYS since placement.
         const now = new Date();
         const stuckCount = shippedOrders.filter(o => {
             if (isDelivered(o, deliveredPkgIds) || isReturned(o, returnedPkgIds)) return false;
@@ -177,22 +175,69 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                 return { ...p, rate: denom > 0 ? (p.delivered / denom) * 100 : 0 };
             });
 
-        const pendingPayments = (paymentNotes || []).filter(p => p.status === 'unpaid').reduce((s, p) => s + Number(p.total_amount || 0), 0);
+        // ── Trend (adaptive: day / week / month) ──
+        // Auto-pick granularity from window length AND clamp each bucket's
+        // [start, end] to the user-selected range. Prior behaviour always
+        // used monthly buckets sampled at full calendar bounds, so a "Today"
+        // filter produced a single bucket summing the full month.
+        const allTimestamps: number[] = [];
+        ordersTyped.forEach(o => {
+            const t = placementTimestamp(o)?.getTime();
+            if (t) allTimestamps.push(t);
+        });
+        const earliest = allTimestamps.length
+            ? new Date(Math.min(...allTimestamps))
+            : subMonths(new Date(), 6);
+        const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
+        const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
+        const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
 
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
-        const trendData = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = endOfMonth(month);
-            const monthOrders = shippedOrders.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
+        type Granularity = 'daily' | 'weekly' | 'monthly';
+        const granularity: Granularity =
+            rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
+
+        let intervals: Date[];
+        let labelFormat: string;
+        if (granularity === 'monthly') {
+            intervals = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = 'MMM yy';
+        } else if (granularity === 'weekly') {
+            intervals = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+            labelFormat = 'MMM d';
+        } else {
+            intervals = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
+        }
+
+        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
+            let s: Date;
+            let e: Date;
+            if (granularity === 'monthly') {
+                s = startOfMonth(anchor);
+                e = endOfMonth(anchor);
+            } else if (granularity === 'weekly') {
+                s = startOfWeek(anchor, { weekStartsOn: 1 });
+                e = endOfWeek(anchor, { weekStartsOn: 1 });
+            } else {
+                s = startOfDay(anchor);
+                e = endOfDay(anchor);
+            }
+            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
+            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
+            return { start: s, end: e };
+        };
+
+        const trendData = intervals.map((anchor) => {
+            const { start, end } = bucketBounds(anchor);
+            const bucketOrders = shippedOrders.filter(o =>
+                inWindow(placementTimestamp(o), start, end),
+            );
+            const delivered = bucketOrders.filter(o => isDelivered(o, deliveredPkgIds));
             return {
-                month: format(month, 'MMM yy'),
-                shipped: monthOrders.length,
-                delivered: monthOrders.filter(o => isDelivered(o, deliveredPkgIds)).length,
-                cost: monthOrders
-                    .filter(o => isDelivered(o, deliveredPkgIds))
-                    .reduce((s, o) => s + Number(o.shipping_cost || 0), 0),
+                month: format(anchor, labelFormat),
+                shipped: bucketOrders.length,
+                delivered: delivered.length,
+                cost: delivered.reduce((s, o) => s + Number(o.shipping_cost || 0), 0),
             };
         });
 
@@ -209,16 +254,15 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             avgDeliveryDays,
             stuckCount,
             providerData,
-            pendingPayments,
             trendData,
         };
-    }, [orders, providers, couriers, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [orders, providers, couriers, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     return (
         <SectionWrapper
             id="shipping"
             title="Shipping & Delivery"
-            description="Delivery rate = delivered ÷ confirmed. Return rate = returned ÷ shipped. Stuck flagged after 5 days."
+            description="Delivery rate = delivered ÷ (shipped − admin pullbacks). Return rate = returned ÷ shipped. Stuck flagged after 5 days."
             icon={Truck}
             iconColor="text-ant-mid"
             loading={isLoading}
@@ -229,7 +273,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                 const topProvider = metrics.providerData[0];
                 const narrative = metrics.totalShipments === 0
                     ? 'No shipments in this period.'
-                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(1)}%).${
+                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} shipped parcels delivered (${metrics.deliveryRate.toFixed(1)}%).${
                           metrics.avgDeliveryDays > 0 ? ` Average ${metrics.avgDeliveryDays.toFixed(1)} days from order to delivery.` : ''
                       }${
                           metrics.returnRate > 10

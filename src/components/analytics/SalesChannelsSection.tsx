@@ -27,7 +27,20 @@ import { SiMessenger, SiShopee } from 'react-icons/si';
 import {
     Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+    differenceInDays,
+    eachDayOfInterval,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    endOfMonth,
+    endOfWeek,
+    format,
+    startOfDay,
+    startOfMonth,
+    startOfWeek,
+    subMonths,
+} from 'date-fns';
 
 const getChannelIcon = (name: string): ReactNode => {
     const n = name.toLowerCase();
@@ -112,13 +125,16 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             return raw ? raw.trim().toLowerCase() : 'direct';
         };
 
-        const channelBreakdown: Record<string, { orders: number; revenue: number; delivered: number }> = {};
+        // `converted` = orders that reached paid+delivered (matches the
+        // P&L revenue contract). The field was called `delivered` before
+        // even though it required paid too — rename to match reality.
+        const channelBreakdown: Record<string, { orders: number; revenue: number; converted: number }> = {};
         filtered.forEach(o => {
             const key = channelKeyFor(o);
-            if (!channelBreakdown[key]) channelBreakdown[key] = { orders: 0, revenue: 0, delivered: 0 };
+            if (!channelBreakdown[key]) channelBreakdown[key] = { orders: 0, revenue: 0, converted: 0 };
             channelBreakdown[key].orders++;
             if (isRevenueOrder(o, deliveredPkgIds, paidOrderIds)) {
-                channelBreakdown[key].delivered++;
+                channelBreakdown[key].converted++;
                 channelBreakdown[key].revenue += pureRevenueForOrder(o);
             }
         });
@@ -127,23 +143,71 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             .map(([name, data]) => ({
                 name,
                 ...data,
-                conversionRate: data.orders > 0 ? (data.delivered / data.orders) * 100 : 0,
+                conversionRate: data.orders > 0 ? (data.converted / data.orders) * 100 : 0,
             }))
             .sort((a, b) => b.orders - a.orders);
 
         const topChannel = channelData[0];
 
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+        // ── Trend (adaptive: day / week / month) ──
+        // Anchor the range to the earliest order timestamp on All-Time and
+        // clamp each bucket to the user's window. Prior behaviour always
+        // used monthly buckets with a fixed 6-month fallback, so "Today"
+        // filters produced a single unlabeled monthly point.
+        const allTimestamps: number[] = [];
+        ordersTyped.forEach(o => {
+            const t = placementTimestamp(o)?.getTime();
+            if (t) allTimestamps.push(t);
+        });
+        const earliest = allTimestamps.length
+            ? new Date(Math.min(...allTimestamps))
+            : subMonths(new Date(), 6);
+        const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
+        const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
+        const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
+
+        type Granularity = 'daily' | 'weekly' | 'monthly';
+        const granularity: Granularity =
+            rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
+
+        let intervals: Date[];
+        let labelFormat: string;
+        if (granularity === 'monthly') {
+            intervals = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = 'MMM yy';
+        } else if (granularity === 'weekly') {
+            intervals = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+            labelFormat = 'MMM d';
+        } else {
+            intervals = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
+        }
+
+        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
+            let s: Date;
+            let e: Date;
+            if (granularity === 'monthly') {
+                s = startOfMonth(anchor);
+                e = endOfMonth(anchor);
+            } else if (granularity === 'weekly') {
+                s = startOfWeek(anchor, { weekStartsOn: 1 });
+                e = endOfWeek(anchor, { weekStartsOn: 1 });
+            } else {
+                s = startOfDay(anchor);
+                e = endOfDay(anchor);
+            }
+            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
+            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
+            return { start: s, end: e };
+        };
+
         const topNames = channelData.slice(0, 5).map(c => c.name);
-        const trendData = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = endOfMonth(month);
-            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
-            const result: Record<string, string | number> = { month: format(month, 'MMM yy') };
+        const trendData = intervals.map((anchor) => {
+            const { start, end } = bucketBounds(anchor);
+            const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
+            const result: Record<string, string | number> = { month: format(anchor, labelFormat) };
             topNames.forEach(name => {
-                result[name] = monthOrders.filter(o => channelKeyFor(o) === name).length;
+                result[name] = bucketOrders.filter(o => channelKeyFor(o) === name).length;
             });
             return result;
         });
@@ -171,7 +235,16 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
                 const topShare = metrics.topChannel && totalOrdersViaChannels > 0
                     ? (metrics.topChannel.orders / totalOrdersViaChannels) * 100
                     : 0;
-                const bestConv = Math.max(...metrics.channelData.map((c) => c.conversionRate), 0);
+                // Gate "Best conversion" by a minimum order volume so a 1/1
+                // channel can't dominate the tile. Fall back to the raw max
+                // only when no channel has reached the threshold, and flag
+                // that case in the sub-label.
+                const BEST_CONV_MIN_ORDERS = 5;
+                const qualifiers = metrics.channelData.filter((c) => c.orders >= BEST_CONV_MIN_ORDERS);
+                const bestConv = qualifiers.length > 0
+                    ? Math.max(...qualifiers.map((c) => c.conversionRate), 0)
+                    : Math.max(...metrics.channelData.map((c) => c.conversionRate), 0);
+                const bestConvLowSample = qualifiers.length === 0 && metrics.channelData.length > 0;
                 const narrative = metrics.totalChannels === 0
                     ? 'No channel data for this period.'
                     : `${metrics.topChannel?.name || 'No top channel'} leads with ${metrics.topChannel?.orders || 0} orders (${topShare.toFixed(0)}% of all channel traffic). Across ${metrics.totalChannels} active channels, best conversion rate is ${bestConv.toFixed(1)}%.`;
@@ -186,7 +259,14 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
                         supporting={[
                             { label: 'Active channels', value: metrics.totalChannels.toString() },
                             { label: 'Top channel orders', value: (metrics.topChannel?.orders || 0).toLocaleString('fr-MA'), sub: `${topShare.toFixed(0)}% share` },
-                            { label: 'Best conversion', value: `${bestConv.toFixed(1)}%`, tone: 'positive' },
+                            {
+                                label: 'Best conversion',
+                                value: `${bestConv.toFixed(1)}%`,
+                                tone: 'positive',
+                                ...(bestConvLowSample
+                                    ? { sub: `low sample (<${BEST_CONV_MIN_ORDERS} orders)` }
+                                    : {}),
+                            },
                             { label: 'Total via channels', value: totalOrdersViaChannels.toLocaleString('fr-MA') },
                         ]}
                     >

@@ -13,8 +13,8 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Radar, User } from 'lucide-react';
-import { getPlatformSource } from '@/lib/campaignConstants';
-import { format, startOfDay, endOfDay, isWithinInterval, subDays } from 'date-fns';
+import { normalizeSource, pureRevenueForOrder } from '@/lib/analyticsDefinitions';
+import { differenceInCalendarDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
 interface MediaBuyersSectionProps {
     businessId: string;
@@ -37,12 +37,6 @@ type EntryRow = {
     leads: number | null;
     platform: string;
     created_by: string | null;
-};
-
-type CampaignRow = {
-    id: string;
-    created_by: string | null;
-    status: 'active' | 'draft' | 'deleted' | string;
 };
 
 type MBOrderItem = {
@@ -80,29 +74,14 @@ type SellerRow = {
 type ProductRow = { id: string; cost_price: number | null };
 type AccessoryRow = { id: string; cost_price: number | null };
 
-/** Product-line revenue only (no shipping). Accessories are cost-only — never in revenue. */
-function productRevenueExcludingShipping(o: MBOrderRow): number {
-    const items = o.order_items || [];
-    let sum = 0;
-    for (const oi of items) {
-        if (!oi?.product_id) continue;
-        const q = Number(oi.quantity) || 0;
-        if (q <= 0) continue;
-        sum += Number(oi.total_price || 0) || Number(oi.unit_price || 0) * q;
-    }
-    if (sum > 0) return sum;
-    const raw = Number(o.raw_price);
-    if (raw > 0) return raw;
-    const p = Number(o.price || 0);
-    const ship = Number(o.shipping_cost || 0);
-    if (o.include_delivery_in_total === false) return p;
-    return Math.max(0, p - ship);
-}
-
 export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectionProps) => {
     const { deliveredPkgIds } = useStatusCategories();
 
-    const rangeStart = dateFilter.from || subDays(new Date(), 30);
+    // For All-Time (no explicit filter), pass a very early date so the server
+    // query returns every entry. Earlier behaviour used a 30-day fallback,
+    // which truncated MB spend on All-Time while orders stayed unbounded,
+    // inflating ROAS.
+    const rangeStart = dateFilter.from || new Date('2020-01-01');
     const rangeEnd = dateFilter.to || new Date();
     const fromYmd = format(rangeStart, 'yyyy-MM-dd');
     const toYmd = format(rangeEnd, 'yyyy-MM-dd');
@@ -130,18 +109,6 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                 .gte('entry_date', fromYmd)
                 .lte('entry_date', toYmd);
             return (data || []) as unknown as EntryRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: campaigns } = useQuery({
-        queryKey: ['analytics-mb-campaigns', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('campaigns')
-                .select('id, created_by, status')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as unknown as CampaignRow[];
         },
         enabled: !!businessId,
     });
@@ -203,14 +170,38 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
     const metrics = useMemo(() => {
         if (!mediaBuyers || !entries || !orders) return null;
 
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
         const inWindow = (dateStr: string | null) => {
             if (!dateStr) return false;
             const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
+            return isWithinInterval(d, { start: windowStart, end: windowEnd });
         };
+
+        // Window day count — used to pro-rate salary-MBs' monthly salary_amount
+        // into an attributable cost for the selected period. All-Time is capped
+        // at the span from the earliest entry/order date to today.
+        const windowDays = (() => {
+            if (dateFilter.from && dateFilter.to) {
+                return Math.max(1, differenceInCalendarDays(windowEnd, windowStart) + 1);
+            }
+            const ts: number[] = [];
+            entries.forEach((e) => {
+                if (e.entry_date) {
+                    const t = new Date(e.entry_date).getTime();
+                    if (!Number.isNaN(t)) ts.push(t);
+                }
+            });
+            orders.forEach((o) => {
+                if (o.date) {
+                    const t = new Date(o.date).getTime();
+                    if (!Number.isNaN(t)) ts.push(t);
+                }
+            });
+            if (ts.length === 0) return 30;
+            const earliest = new Date(Math.min(...ts));
+            return Math.max(1, differenceInCalendarDays(new Date(), earliest) + 1);
+        })();
 
         const productCost = new Map<string, number>();
         (products || []).forEach((p) => productCost.set(p.id, Number(p.cost_price || 0)));
@@ -259,9 +250,12 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             return cogs;
         };
 
-        // Bucket delivered orders by (day, source) once. Each bucket carries aggregated
-        // revenue / cogs / shipping / seller-commission so per-MB attribution is a
-        // simple lookup keyed on the (date, source) pairs the MB actually ran.
+        // Bucket delivered orders by (day, normalized-source). Sources are
+        // normalized on BOTH sides via `normalizeSource` so `orders.source_name`
+        // ("facebook", "facebook ads", "Facebook") and entries' platform
+        // ("Facebook ads", "facebook") collapse to the same key. Previously
+        // only the entry side normalized — asymmetric and silent zero-match
+        // for any mismatched casing / suffix.
         type Bucket = {
             leads: number;
             delivered: number;
@@ -275,7 +269,9 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             if (!o.date || !o.source_name) return;
             if (!inWindow(o.date)) return;
             const d = format(new Date(o.date), 'yyyy-MM-dd');
-            const key = `${d}|${o.source_name.toLowerCase()}`;
+            const src = normalizeSource(o.source_name);
+            if (!src) return;
+            const key = `${d}|${src}`;
             const b = orderBucket.get(key) || {
                 leads: 0,
                 delivered: 0,
@@ -287,7 +283,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             b.leads += 1;
             if (isDeliveredForCommission(o, deliveredPkgIds)) {
                 b.delivered += 1;
-                b.revenue += productRevenueExcludingShipping(o);
+                b.revenue += pureRevenueForOrder(o as unknown as Parameters<typeof pureRevenueForOrder>[0]);
                 b.cogs += orderCogs(o);
                 b.shipping += Number(o.shipping_cost || 0);
                 b.sellerCommission += sellerCommissionForOrder(o);
@@ -295,24 +291,30 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             orderBucket.set(key, b);
         });
 
-        const campaignsByOwner = new Map<string, number>();
-        (campaigns || []).forEach((c) => {
-            if (!c.created_by) return;
-            campaignsByOwner.set(c.created_by, (campaignsByOwner.get(c.created_by) || 0) + 1);
+        // Build per-MB seenKeys first, then count global claimants per bucket so
+        // each MB gets a proportional share (1/N) when multiple MBs ran the
+        // same (day, platform). Previously every MB got 100 % of the bucket,
+        // which double-counted revenue and spending across the team totals.
+        const mbKeys = new Map<string, Set<string>>();
+        const claimantCount = new Map<string, number>();
+        mediaBuyers.forEach((mb) => {
+            const own = entries.filter((e) => e.created_by === mb.id);
+            const keys = new Set<string>();
+            own.forEach((e) => {
+                const src = normalizeSource(e.platform);
+                if (!src || !e.entry_date) return;
+                keys.add(`${e.entry_date}|${src}`);
+            });
+            mbKeys.set(mb.id, keys);
+            keys.forEach((k) => {
+                claimantCount.set(k, (claimantCount.get(k) || 0) + 1);
+            });
         });
 
         const perMB = mediaBuyers.map((mb) => {
             const own = entries.filter((e) => e.created_by === mb.id);
             const spend = own.reduce((s, e) => s + Number(e.spend || 0), 0);
-            const loggedLeads = own.reduce((s, e) => s + Number(e.leads || 0), 0);
-
-            // De-duplicate orders by (day, source) so multi-campaign same-day attribution
-            // doesn't double count — same convention as useMediaBuyerStats.
-            const seenKeys = new Set<string>();
-            own.forEach((e) => {
-                const src = getPlatformSource(e.platform);
-                seenKeys.add(`${e.entry_date}|${src.toLowerCase()}`);
-            });
+            const seenKeys = mbKeys.get(mb.id) || new Set<string>();
 
             let attributedOrders = 0;
             let attributedDelivered = 0;
@@ -323,41 +325,46 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             seenKeys.forEach((k) => {
                 const b = orderBucket.get(k);
                 if (!b) return;
-                attributedOrders += b.leads;
-                attributedDelivered += b.delivered;
-                revenue += b.revenue;
-                cogs += b.cogs;
-                shipping += b.shipping;
-                sellerCommission += b.sellerCommission;
+                const share = 1 / (claimantCount.get(k) || 1);
+                attributedOrders += b.leads * share;
+                attributedDelivered += b.delivered * share;
+                revenue += b.revenue * share;
+                cogs += b.cogs * share;
+                shipping += b.shipping * share;
+                sellerCommission += b.sellerCommission * share;
             });
 
-            // MB's own payout that is directly attributable to these campaigns.
-            // Commission-based MBs earn per delivered order; salary MBs are a flat
-            // overhead unrelated to campaign volume, so salary is excluded here.
-            const mbCommissionRate = mb.payment_type === 'commission' ? Number(mb.commission_price || 0) : 0;
-            const mbCommission = attributedDelivered * mbCommissionRate;
+            // MB's own payout attributable to this period.
+            // Commission MBs: rate × attributed delivered.
+            // Salary MBs: monthly salary pro-rated by calendar-day window overlap
+            //   (window_days / 30 × salary_amount). Covers the "all-in cost"
+            //   promise in the card description.
+            let mbCost = 0;
+            if (mb.payment_type === 'commission') {
+                mbCost = attributedDelivered * Number(mb.commission_price || 0);
+            } else if (Number(mb.salary_amount || 0) > 0) {
+                mbCost = (Number(mb.salary_amount || 0) * windowDays) / 30;
+            }
 
-            const netProfit = revenue - cogs - shipping - sellerCommission - mbCommission - spend;
-            const grossMargin = revenue - cogs - shipping - sellerCommission - mbCommission;
+            const netProfit = revenue - cogs - shipping - sellerCommission - mbCost - spend;
+            const grossMargin = revenue - cogs - shipping - sellerCommission - mbCost;
             const roas = spend > 0 ? revenue / spend : 0;
             const costPerDelivered = attributedDelivered > 0 ? spend / attributedDelivered : 0;
 
             return {
                 ...mb,
                 spend,
-                loggedLeads,
                 attributedOrders,
                 attributedDelivered,
                 revenue,
                 cogs,
                 shipping,
                 sellerCommission,
-                mbCommission,
+                mbCost,
                 grossMargin,
                 netProfit,
                 roas,
                 costPerDelivered,
-                campaignsRun: campaignsByOwner.get(mb.id) || 0,
             };
         });
 
@@ -368,7 +375,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
         const totalCogs = sorted.reduce((s, m) => s + m.cogs, 0);
         const totalShipping = sorted.reduce((s, m) => s + m.shipping, 0);
         const totalSellerCommission = sorted.reduce((s, m) => s + m.sellerCommission, 0);
-        const totalMbCommission = sorted.reduce((s, m) => s + m.mbCommission, 0);
+        const totalMbCost = sorted.reduce((s, m) => s + m.mbCost, 0);
         const totalNetProfit = sorted.reduce((s, m) => s + m.netProfit, 0);
         const totalDelivered = sorted.reduce((s, m) => s + m.attributedDelivered, 0);
         const overallRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
@@ -383,13 +390,13 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             totalCogs,
             totalShipping,
             totalSellerCommission,
-            totalMbCommission,
+            totalMbCost,
             totalNetProfit,
             totalDelivered,
             overallRoas,
             top,
         };
-    }, [mediaBuyers, entries, orders, campaigns, sellers, products, accessories, dateFilter, deliveredPkgIds]);
+    }, [mediaBuyers, entries, orders, sellers, products, accessories, dateFilter, deliveredPkgIds]);
 
     return (
         <SectionWrapper
@@ -408,10 +415,10 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                     : metrics.totalSpend === 0
                         ? `${metrics.activeMBs} media buyer${metrics.activeMBs === 1 ? '' : 's'} on roster, but no ad spend logged in this period.`
                         : metrics.totalNetProfit >= 0
-                            ? `${metrics.activeMBs} media buyer${metrics.activeMBs === 1 ? '' : 's'} drove ${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD in attributed revenue on ${Math.round(metrics.totalSpend).toLocaleString('fr-MA')} MAD spend (${metrics.overallRoas.toFixed(2)}x ROAS), netting ${Math.round(metrics.totalNetProfit).toLocaleString('fr-MA')} MAD after COGS, shipping, seller and buyer commissions.${
+                            ? `${metrics.activeMBs} media buyer${metrics.activeMBs === 1 ? '' : 's'} drove ${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD in attributed revenue on ${Math.round(metrics.totalSpend).toLocaleString('fr-MA')} MAD spend (${metrics.overallRoas.toFixed(2)}x ROAS), netting ${Math.round(metrics.totalNetProfit).toLocaleString('fr-MA')} MAD after COGS, shipping, seller commission, and buyer cost.${
                                   metrics.top ? ` ${metrics.top.name} leads with ${Math.round(metrics.top.netProfit).toLocaleString('fr-MA')} MAD net.` : ''
                               }`
-                            : `${metrics.activeMBs} media buyer${metrics.activeMBs === 1 ? '' : 's'} spent ${Math.round(metrics.totalSpend).toLocaleString('fr-MA')} MAD and returned ${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD (${metrics.overallRoas.toFixed(2)}x ROAS), but net is ${Math.round(metrics.totalNetProfit).toLocaleString('fr-MA')} MAD once COGS, shipping, seller and buyer commissions are removed. Campaigns need review.`;
+                            : `${metrics.activeMBs} media buyer${metrics.activeMBs === 1 ? '' : 's'} spent ${Math.round(metrics.totalSpend).toLocaleString('fr-MA')} MAD and returned ${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD (${metrics.overallRoas.toFixed(2)}x ROAS), but net is ${Math.round(metrics.totalNetProfit).toLocaleString('fr-MA')} MAD once COGS, shipping, seller commission, and buyer cost are removed. Campaigns need review.`;
 
                 return (
                     <SectionStory
@@ -426,7 +433,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                             { label: 'Revenue', value: `${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD`, tone: 'positive' },
                             { label: 'COGS + shipping', value: `${Math.round(metrics.totalCogs + metrics.totalShipping).toLocaleString('fr-MA')} MAD`, tone: 'warning' },
                             { label: 'Seller comm.', value: `${Math.round(metrics.totalSellerCommission).toLocaleString('fr-MA')} MAD`, tone: 'warning' },
-                            { label: 'Buyer comm.', value: `${Math.round(metrics.totalMbCommission).toLocaleString('fr-MA')} MAD`, tone: 'warning' },
+                            { label: 'Buyer cost', value: `${Math.round(metrics.totalMbCost).toLocaleString('fr-MA')} MAD`, tone: 'warning', sub: 'commission + pro-rated salary' },
                             { label: 'ROAS', value: `${metrics.overallRoas.toFixed(2)}x`, tone: metrics.overallRoas >= 2 ? 'positive' : metrics.overallRoas >= 1 ? 'warning' : 'negative' },
                         ]}
                     >
@@ -446,7 +453,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                                                     <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Revenue</th>
                                                     <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">COGS + ship</th>
                                                     <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Seller comm.</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Buyer comm.</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Buyer cost</th>
                                                     <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">ROAS</th>
                                                     <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Net profit</th>
                                                 </tr>
@@ -477,7 +484,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                                                                 {Math.round(m.spend).toLocaleString('fr-MA')}
                                                                 <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{m.attributedDelivered}</td>
+                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{Math.round(m.attributedDelivered)}</td>
                                                             <td className="py-1.5 text-right text-[11px] font-semibold text-ant-green tabular-nums">
                                                                 {Math.round(m.revenue).toLocaleString('fr-MA')}
                                                                 <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
@@ -491,7 +498,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                                                                 <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
                                                             <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">
-                                                                {Math.round(m.mbCommission).toLocaleString('fr-MA')}
+                                                                {Math.round(m.mbCost).toLocaleString('fr-MA')}
                                                                 <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
                                                             <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${roasTone}`}>

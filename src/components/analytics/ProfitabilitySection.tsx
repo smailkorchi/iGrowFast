@@ -5,6 +5,7 @@ import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     AnalyticsOrder,
     cogsForOrder,
+    deliveryTimestamp,
     inWindow,
     isProvisional,
     isRevenueOrder,
@@ -14,6 +15,7 @@ import {
     placementTimestamp,
     pureRevenueForOrder,
     returnFeeForOrder,
+    returnTimestamp,
     shippingCostForDelivered,
 } from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
@@ -27,7 +29,18 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-    format, startOfDay, endOfDay, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths,
+    differenceInDays,
+    eachDayOfInterval,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    endOfMonth,
+    endOfWeek,
+    format,
+    startOfDay,
+    startOfMonth,
+    startOfWeek,
+    subMonths,
 } from 'date-fns';
 
 // Ranked cost tones (darkest = biggest expense). Uses the locked palette — no rainbow.
@@ -210,12 +223,39 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         });
 
         // ── Orders classification ───────────────────────────────────────
-        // Revenue is anchored to placement date (per locked rule); date_deleted already filtered server-side.
-        const ordersInWindow = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
+        //
+        // TWO separate attribution rules so the P&L closes like a real monthly
+        // accounting period instead of a cohort snapshot:
+        //
+        //   • placedInWindow  — orders whose creation date is in the window.
+        //                       Used ONLY for the Conversion rate denominator.
+        //   • revenueOrders   — delivered + paid, anchored by delivery date
+        //                       (`date_livraison` fallback `updated_at`).
+        //   • provisionalOrders — delivered + unpaid, same delivery-date anchor.
+        //   • returnedOrders  — package category ∈ returned set, anchored by
+        //                       `updated_at` (when the status flipped).
+        //
+        // Rationale: revenue/COGS/shipping/return fees all accrue at delivery
+        // or return, never at placement. Expenses/ads/salaries stay on their
+        // own accrual dates (already handled below). Prior behaviour used
+        // placement date for everything on the order side, which silently
+        // omitted orders placed in month M−1 but delivered in month M.
+        const placedInWindow = ordersTyped.filter(o =>
+            inWindow(placementTimestamp(o), windowStart, windowEnd),
+        );
 
-        const revenueOrders = ordersInWindow.filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
-        const provisionalOrders = ordersInWindow.filter(o => isProvisional(o, deliveredPkgIds, unpaidOrderIds));
-        const returnedOrders = ordersInWindow.filter(o => isReturned(o, returnedPkgIds));
+        const revenueOrders = ordersTyped.filter(o =>
+            isRevenueOrder(o, deliveredPkgIds, paidOrderIds)
+            && inWindow(deliveryTimestamp(o), windowStart, windowEnd),
+        );
+        const provisionalOrders = ordersTyped.filter(o =>
+            isProvisional(o, deliveredPkgIds, unpaidOrderIds)
+            && inWindow(deliveryTimestamp(o), windowStart, windowEnd),
+        );
+        const returnedOrders = ordersTyped.filter(o =>
+            isReturned(o, returnedPkgIds)
+            && inWindow(returnTimestamp(o), windowStart, windowEnd),
+        );
 
         // ── Pure revenue (product-only, shipping stripped) ──────────────
         const totalRevenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
@@ -234,29 +274,27 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             0,
         );
 
-        // ── Owner expenses — pro-rate recurrent; count one-off if date in window ──
+        // ── Owner expenses — strict cash basis ──────────────────────────────
+        // Expense counts on the day its `date` falls in the window. Previously
+        // the `recurrent` flag triggered a monthly pro-rate (Σ amount × 1/30
+        // per day), but `expense_types` has no period metadata (daily / weekly
+        // / monthly / yearly) — the "monthly" assumption was hardcoded and
+        // inflated sub-monthly windows with phantom spend. Removing the guess
+        // gives the user the same math as non-recurrent: "what I posted in
+        // this window" = what they see. Data-driven pro-rating is still used
+        // for ads (real start/end) and media-buyer payouts (explicit payout_month).
         let totalExpenses = 0;
         const expenseByType = new Map<string, number>();
         (expenses || []).forEach(e => {
             const raw = Number(e.amount || 0);
             if (raw <= 0) return;
-            const eType = (e.expense_types as unknown as { name?: string | null; recurrent?: boolean | null } | null);
-            const isRecurrent = !!eType?.recurrent;
             const eDate = e.date ? new Date(e.date) : null;
-            let contrib = 0;
-            if (isRecurrent && eDate && !Number.isNaN(eDate.getTime())) {
-                // Expense represents a month of spend; pro-rate its month against window.
-                const mStart = startOfMonth(eDate);
-                const mEnd = endOfMonth(eDate);
-                contrib = raw * overlapFraction(mStart, mEnd, windowStart, windowEnd);
-            } else if (eDate && inWindow(eDate, windowStart, windowEnd)) {
-                contrib = raw;
-            }
-            if (contrib > 0) {
-                totalExpenses += contrib;
-                const name = (eType?.name?.trim()) || 'Uncategorized';
-                expenseByType.set(name, (expenseByType.get(name) || 0) + contrib);
-            }
+            if (!eDate || Number.isNaN(eDate.getTime())) return;
+            if (!inWindow(eDate, windowStart, windowEnd)) return;
+            totalExpenses += raw;
+            const eType = (e.expense_types as unknown as { name?: string | null; recurrent?: boolean | null } | null);
+            const name = (eType?.name?.trim()) || 'Uncategorized';
+            expenseByType.set(name, (expenseByType.get(name) || 0) + raw);
         });
 
         // ── Salaries (accrual) ───────────────────────────────────────────
@@ -316,92 +354,141 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             .filter(e => e.value > 0)
             .sort((a, b) => b.value - a.value);
 
-        // ── Trend (monthly) ──────────────────────────────────────────────
-        const rangeStart = dateFilter.from || (ordersInWindow.length > 0
-            ? new Date(Math.min(...ordersInWindow.map(o => placementTimestamp(o)?.getTime() ?? Date.now())))
-            : subMonths(new Date(), 6));
-        const rangeEnd = dateFilter.to || new Date();
+        // ── Trend ────────────────────────────────────────────────────────
+        // Auto-pick granularity (day / week / month) from the window length
+        // and clamp every bucket to the user's selected window. The old code
+        // always used monthly buckets, so a "Today" filter rendered a single
+        // bucket covering the entire month — the tooltip showed 8k MAD of
+        // monthly expenses while the top-line tile correctly showed today's
+        // 57 MAD. Clamping + adaptive granularity keeps the chart and the
+        // tiles on the same numbers.
+        const allOrderTimestamps: number[] = [];
+        ordersTyped.forEach(o => {
+            const p = placementTimestamp(o)?.getTime();
+            if (p) allOrderTimestamps.push(p);
+            const d = deliveryTimestamp(o)?.getTime();
+            if (d) allOrderTimestamps.push(d);
+        });
+        const earliest = allOrderTimestamps.length
+            ? new Date(Math.min(...allOrderTimestamps))
+            : subMonths(new Date(), 6);
+        const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
+        const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
+        const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
 
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
-        const trendData = months.map(month => {
-            const monthStart = startOfMonth(month);
-            const monthEnd = endOfMonth(month);
-            const monthLabel = format(month, 'MMM yy');
+        type Granularity = 'daily' | 'weekly' | 'monthly';
+        const granularity: Granularity =
+            rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
 
-            const revenueInMonth = revenueOrders.filter(o =>
-                inWindow(placementTimestamp(o), monthStart, monthEnd),
+        let intervals: Date[];
+        let labelFormat: string;
+        if (granularity === 'monthly') {
+            intervals = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = 'MMM yy';
+        } else if (granularity === 'weekly') {
+            intervals = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+            labelFormat = 'MMM d';
+        } else {
+            intervals = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
+        }
+
+        // Clamp each bucket's [start, end] to the user's window so edge
+        // buckets don't pull in out-of-scope rows.
+        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
+            let s: Date;
+            let e: Date;
+            if (granularity === 'monthly') {
+                s = startOfMonth(anchor);
+                e = endOfMonth(anchor);
+            } else if (granularity === 'weekly') {
+                s = startOfWeek(anchor, { weekStartsOn: 1 });
+                e = endOfWeek(anchor, { weekStartsOn: 1 });
+            } else {
+                s = startOfDay(anchor);
+                e = endOfDay(anchor);
+            }
+            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
+            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
+            return { start: s, end: e };
+        };
+
+        const trendData = intervals.map((anchor) => {
+            const { start, end } = bucketBounds(anchor);
+            const label = format(anchor, labelFormat);
+
+            // Revenue/COGS/shipping scoped by delivery date inside bucket.
+            const revenueInBucket = revenueOrders.filter((o) =>
+                inWindow(deliveryTimestamp(o), start, end),
             );
-            const returnedInMonth = returnedOrders.filter(o =>
-                inWindow(placementTimestamp(o), monthStart, monthEnd),
+            // Return fees scoped by return event inside bucket.
+            const returnedInBucket = returnedOrders.filter((o) =>
+                inWindow(returnTimestamp(o), start, end),
             );
 
-            const monthRevenue = revenueInMonth.reduce((s, o) => s + pureRevenueForOrder(o), 0);
-            const monthCogs = revenueInMonth.reduce(
+            const bRevenue = revenueInBucket.reduce((s, o) => s + pureRevenueForOrder(o), 0);
+            const bCogs = revenueInBucket.reduce(
                 (s, o) => s + cogsForOrder(o, productCost, accessoryCost),
                 0,
             );
-            const monthShipping = revenueInMonth.reduce(
+            const bShipping = revenueInBucket.reduce(
                 (s, o) => s + shippingCostForDelivered(o),
                 0,
             );
-            const monthReturnFees = returnedInMonth.reduce(
+            const bReturnFees = returnedInBucket.reduce(
                 (s, o) => s + returnFeeForOrder(o, returnFeeByCourierCity, returnFeeByCompanyCity),
                 0,
             );
 
-            const monthOther = (expenses || []).reduce((sum, e) => {
+            // Cash-basis: expense counts in the bucket it was posted.
+            const bOther = (expenses || []).reduce((sum, e) => {
                 const raw = Number(e.amount || 0);
                 if (raw <= 0) return sum;
-                const eType = (e.expense_types as unknown as { recurrent?: boolean | null } | null);
-                const isRecurrent = !!eType?.recurrent;
                 const eDate = e.date ? new Date(e.date) : null;
                 if (!eDate || Number.isNaN(eDate.getTime())) return sum;
-                if (isRecurrent) {
-                    const mS = startOfMonth(eDate);
-                    const mE = endOfMonth(eDate);
-                    return sum + raw * overlapFraction(mS, mE, monthStart, monthEnd);
-                }
-                return inWindow(eDate, monthStart, monthEnd) ? sum + raw : sum;
+                return inWindow(eDate, start, end) ? sum + raw : sum;
             }, 0);
 
-            const monthProductAds = (adsHistory || []).reduce((sum, a) => {
-                const s = a.start_date ? new Date(a.start_date) : null;
-                const e = a.end_date ? new Date(a.end_date) : s;
-                const frac = overlapFraction(s, e, monthStart, monthEnd);
+            const bProductAds = (adsHistory || []).reduce((sum, a) => {
+                const aS = a.start_date ? new Date(a.start_date) : null;
+                const aE = a.end_date ? new Date(a.end_date) : aS;
+                const frac = overlapFraction(aS, aE, start, end);
                 return frac > 0 ? sum + Number(a.amount || 0) * frac : sum;
             }, 0);
 
-            const monthGlobalAds = (campaignEntries || [])
-                .filter(ce => {
+            const bGlobalAds = (campaignEntries || [])
+                .filter((ce) => {
                     if (!ce.entry_date) return false;
                     const d = new Date(ce.entry_date);
-                    return !Number.isNaN(d.getTime()) && inWindow(d, monthStart, monthEnd);
+                    return !Number.isNaN(d.getTime()) && inWindow(d, start, end);
                 })
                 .reduce((s, ce) => s + Number(ce.spend || 0), 0);
 
-            const monthSellerSalaries = (sellerEarnings || [])
-                .filter(r => {
+            const bSellerSalaries = (sellerEarnings || [])
+                .filter((r) => {
                     if (!r.date) return false;
                     const d = new Date(r.date);
-                    return !Number.isNaN(d.getTime()) && inWindow(d, monthStart, monthEnd);
+                    return !Number.isNaN(d.getTime()) && inWindow(d, start, end);
                 })
                 .reduce((sum, r) => sum + Number(r.total_earned || 0), 0);
 
-            const monthMBSalaries = (mediabuyerPayments || []).reduce((sum, mp) => {
-                const frac = payoutMonthOverlap(mp.payout_month, monthStart, monthEnd);
+            const bMBSalaries = (mediabuyerPayments || []).reduce((sum, mp) => {
+                const frac = payoutMonthOverlap(mp.payout_month, start, end);
                 return frac > 0 ? sum + Number(mp.total_amount || 0) * frac : sum;
             }, 0);
 
-            const monthExpenses =
-                monthCogs + monthShipping + monthReturnFees + monthOther +
-                monthProductAds + monthGlobalAds + monthSellerSalaries + monthMBSalaries;
+            const bucketExpenses =
+                bCogs + bShipping + bReturnFees + bOther +
+                bProductAds + bGlobalAds + bSellerSalaries + bMBSalaries;
 
             return {
-                month: monthLabel,
-                revenue: monthRevenue,
-                expenses: monthExpenses,
-                profit: monthRevenue - monthExpenses,
+                month: label,
+                revenue: bRevenue,
+                expenses: bucketExpenses,
+                profit: bRevenue - bucketExpenses,
                 provisional: 0,
+                _start: start,
+                _end: end,
             };
         });
 
@@ -414,16 +501,22 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             provisionByOrderId.set(o.id, pure - cogs - ship);
         });
 
-        trendData.forEach((row, i) => {
-            const monthStart = startOfMonth(months[i]);
-            const monthEnd = endOfMonth(months[i]);
+        trendData.forEach((row) => {
             row.provisional = provisionalOrders
-                .filter(o => inWindow(placementTimestamp(o), monthStart, monthEnd))
+                .filter((o) => inWindow(deliveryTimestamp(o), row._start, row._end))
                 .reduce((s, o) => s + (provisionByOrderId.get(o.id) ?? 0), 0);
         });
 
         const provisionalRevenue = provisionalOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
         const provisionalProfit = Array.from(provisionByOrderId.values()).reduce((s, v) => s + v, 0);
+
+        // Conversion rate is a cohort metric: of orders PLACED in the window,
+        // how many have so far become paid+delivered? Numerator is drawn from
+        // `placedInWindow` (not from the delivery-bucketed `revenueOrders`)
+        // so numerator ⊆ denominator and the ratio can't exceed 100 %.
+        const convertedFromPlacedCohort = placedInWindow.filter(o =>
+            isRevenueOrder(o, deliveredPkgIds, paidOrderIds),
+        ).length;
 
         return {
             totalRevenue,
@@ -444,7 +537,10 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             expenseBreakdown,
             trendData,
             revenueOrderCount: revenueOrders.length,
-            totalOrderCount: ordersInWindow.length,
+            // Conversion denominator + numerator are both drawn from the
+            // placement cohort so the ratio is bounded 0..100 %.
+            totalOrderCount: placedInWindow.length,
+            convertedFromPlacedCohort,
             returnedOrderCount: returnedOrders.length,
             provisionalProfit,
             provisionalRevenue,
@@ -493,8 +589,8 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                     text: `ROI of ${metrics.roi.toFixed(0)}% is excellent. Double down on winning channels.`,
                 });
             }
-            if (metrics.revenueOrderCount > 0 && metrics.totalOrderCount > 0) {
-                const conversionRate = (metrics.revenueOrderCount / metrics.totalOrderCount) * 100;
+            if (metrics.convertedFromPlacedCohort > 0 && metrics.totalOrderCount > 0) {
+                const conversionRate = (metrics.convertedFromPlacedCohort / metrics.totalOrderCount) * 100;
                 if (conversionRate < 30) {
                     tips.push({
                         type: 'info',
@@ -521,7 +617,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                 const marginTone: 'positive' | 'warning' | 'negative' =
                     metrics.profitMargin >= 15 ? 'positive' : metrics.profitMargin >= 0 ? 'warning' : 'negative';
                 const conversionRate = metrics.totalOrderCount > 0
-                    ? (metrics.revenueOrderCount / metrics.totalOrderCount) * 100
+                    ? (metrics.convertedFromPlacedCohort / metrics.totalOrderCount) * 100
                     : 0;
                 const narrative = isProfit
                     ? `You kept ${metrics.profitMargin.toFixed(1)}% of revenue as net profit on ${metrics.revenueOrderCount} paid+delivered orders. ${
@@ -545,7 +641,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                             { label: 'Expenses', value: `${Math.round(metrics.allExpenses).toLocaleString('fr-MA')} MAD`, tone: 'negative' },
                             { label: 'Margin', value: `${metrics.profitMargin.toFixed(1)}%`, tone: marginTone },
                             { label: 'ROI', value: `${metrics.roi.toFixed(1)}%` },
-                            { label: 'Conversion', value: `${conversionRate.toFixed(1)}%`, sub: `${metrics.revenueOrderCount}/${metrics.totalOrderCount}` },
+                            { label: 'Conversion', value: `${conversionRate.toFixed(1)}%`, sub: `${metrics.convertedFromPlacedCohort}/${metrics.totalOrderCount} of placed cohort` },
                             ...(metrics.provisionalProfit > 0
                                 ? [{
                                       label: 'Provisional',

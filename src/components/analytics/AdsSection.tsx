@@ -21,7 +21,20 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, BarChart, Bar, Cell, Legend, ComposedChart, Line,
 } from 'recharts';
-import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+    differenceInDays,
+    eachDayOfInterval,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    endOfMonth,
+    endOfWeek,
+    format,
+    startOfDay,
+    startOfMonth,
+    startOfWeek,
+    subMonths,
+} from 'date-fns';
 import {
     AnalyticsOrder,
     adSpendInWindow,
@@ -268,7 +281,13 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             return platformBreakdown[platform];
         };
 
-        // Product ads → attribute orders + update buckets (spend pro-rated by window overlap)
+        // Product ads → attribute orders + update buckets (spend pro-rated by window overlap).
+        //
+        // Attribution window = intersection of the ad's active range AND the
+        // user-selected date window. Previously the matcher used only the
+        // ad's [start_date, end_date], so a "Today" filter that pro-rated
+        // spend to 1/30 of the ad amount still summed revenue from every
+        // order placed during the full 30-day ad run → inflated ROAS.
         filteredProductAds.forEach(ad => {
             const platform = ad.method || 'Other';
             const src = normalizeSource(ad.method);
@@ -276,12 +295,16 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             const cEnd = new Date(ad.end_date);
             cEnd.setHours(23, 59, 59, 999);
 
+            const matchStart = cStart.getTime() > windowStart.getTime() ? cStart : windowStart;
+            const matchEnd = cEnd.getTime() < windowEnd.getTime() ? cEnd : windowEnd;
+            if (matchEnd.getTime() < matchStart.getTime()) return;
+
             const b = bucket(platform);
             b.spend += adSpendInWindow(ad, windowStart, windowEnd);
             b.productCount++;
 
             orders.forEach(o => {
-                if (!matchProductAd(o, src, cStart, cEnd, ad.product_id)) return;
+                if (!matchProductAd(o, src, matchStart, matchEnd, ad.product_id)) return;
                 recordOrder(o);
                 if (!b.orderIds.has(o.id)) {
                     b.orderIds.add(o.id);
@@ -340,66 +363,134 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             }))
             .sort((a, b) => b.spend - a.spend);
 
-        // ── Monthly trend (combines both sources) ──
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+        // ── Trend (adaptive: day / week / month) ──
+        // Auto-pick granularity from window length AND clamp each bucket's
+        // [start, end] to the user-selected range. Prior behaviour always
+        // used monthly buckets and sampled full calendar months, so a "Today"
+        // filter produced a single monthly bucket summing the whole month.
+        // Anchor the trend to the earliest ad/order/entry timestamp when on
+        // All-Time instead of a fixed "last 6 months".
+        const allTimestamps: number[] = [];
+        (adsHistory || []).forEach(a => {
+            if (a.start_date) {
+                const t = new Date(a.start_date).getTime();
+                if (!Number.isNaN(t)) allTimestamps.push(t);
+            }
+        });
+        (campaignEntries || []).forEach(e => {
+            if (e.entry_date) {
+                const t = new Date(e.entry_date).getTime();
+                if (!Number.isNaN(t)) allTimestamps.push(t);
+            }
+        });
+        orders.forEach(o => {
+            const t = placementTimestamp(o)?.getTime();
+            if (t) allTimestamps.push(t);
+        });
+        const earliest = allTimestamps.length
+            ? new Date(Math.min(...allTimestamps))
+            : subMonths(new Date(), 6);
 
-        const trendData = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = endOfMonth(month);
+        const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
+        const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
+        const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
 
-            // Spend this month from both sources — product ads pro-rated by month overlap.
-            const monthProductAds = filteredProductAds.filter(a => {
+        type Granularity = 'daily' | 'weekly' | 'monthly';
+        const granularity: Granularity =
+            rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
+
+        let intervals: Date[];
+        let labelFormat: string;
+        if (granularity === 'monthly') {
+            intervals = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = 'MMM yy';
+        } else if (granularity === 'weekly') {
+            intervals = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+            labelFormat = 'MMM d';
+        } else {
+            intervals = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
+        }
+
+        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
+            let s: Date;
+            let e: Date;
+            if (granularity === 'monthly') {
+                s = startOfMonth(anchor);
+                e = endOfMonth(anchor);
+            } else if (granularity === 'weekly') {
+                s = startOfWeek(anchor, { weekStartsOn: 1 });
+                e = endOfWeek(anchor, { weekStartsOn: 1 });
+            } else {
+                s = startOfDay(anchor);
+                e = endOfDay(anchor);
+            }
+            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
+            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
+            return { start: s, end: e };
+        };
+
+        const trendData = intervals.map((anchor) => {
+            const { start: bStart, end: bEnd } = bucketBounds(anchor);
+
+            // Spend in bucket from both sources — product ads pro-rated by bucket overlap.
+            const bucketProductAds = (adsHistory || []).filter(a => {
                 const s = a.start_date ? new Date(a.start_date) : null;
                 const e = a.end_date ? new Date(a.end_date) : s;
-                return overlapFraction(s, e, mStart, mEnd) > 0;
+                return overlapFraction(s, e, bStart, bEnd) > 0;
             });
-            const monthEntries = filteredEntries.filter(e => {
+            const bucketEntries = (campaignEntries || []).filter(e => {
                 if (!e.entry_date) return false;
                 const d = new Date(e.entry_date);
-                return !Number.isNaN(d.getTime()) && inWindow(d, mStart, mEnd);
+                return !Number.isNaN(d.getTime()) && inWindow(d, bStart, bEnd);
             });
-            const monthSpend =
-                monthProductAds.reduce((s, a) => s + adSpendInWindow(a, mStart, mEnd), 0) +
-                monthEntries.reduce((s, e) => s + Number(e.spend || 0), 0);
+            const bucketSpend =
+                bucketProductAds.reduce((s, a) => s + adSpendInWindow(a, bStart, bEnd), 0) +
+                bucketEntries.reduce((s, e) => s + Number(e.spend || 0), 0);
 
-            // Revenue this month — dedupe orders across ad rows within the month.
-            const monthSeen = new Set<string>();
-            let monthRevenue = 0;
+            // Revenue in bucket — dedupe orders across ad rows. Attribution
+            // uses the intersection of the ad's range with the BUCKET bounds
+            // (same principle as the top-line fix: spend and revenue always
+            // scoped to the same period).
+            const bucketSeen = new Set<string>();
+            let bucketRevenue = 0;
 
-            monthProductAds.forEach(ad => {
+            bucketProductAds.forEach(ad => {
                 const src = normalizeSource(ad.method);
                 const cStart = new Date(ad.start_date);
                 const cEnd = new Date(ad.end_date);
                 cEnd.setHours(23, 59, 59, 999);
+                const mStart = cStart.getTime() > bStart.getTime() ? cStart : bStart;
+                const mEnd = cEnd.getTime() < bEnd.getTime() ? cEnd : bEnd;
+                if (mEnd.getTime() < mStart.getTime()) return;
+
                 orders.forEach(o => {
-                    if (!matchProductAd(o, src, cStart, cEnd, ad.product_id)) return;
-                    if (monthSeen.has(o.id)) return;
+                    if (!matchProductAd(o, src, mStart, mEnd, ad.product_id)) return;
+                    if (bucketSeen.has(o.id)) return;
                     const { isDelivered } = classify(o);
                     if (!isDelivered) return;
-                    monthSeen.add(o.id);
-                    monthRevenue += deliveredRevenueForOrder(o);
+                    bucketSeen.add(o.id);
+                    bucketRevenue += deliveredRevenueForOrder(o);
                 });
             });
 
-            monthEntries.forEach(entry => {
+            bucketEntries.forEach(entry => {
                 const src = normalizeSource(entry.platform);
                 orders.forEach(o => {
                     if (!matchGlobalEntry(o, src, entry.entry_date)) return;
-                    if (monthSeen.has(o.id)) return;
+                    if (bucketSeen.has(o.id)) return;
                     const { isDelivered } = classify(o);
                     if (!isDelivered) return;
-                    monthSeen.add(o.id);
-                    monthRevenue += deliveredRevenueForOrder(o);
+                    bucketSeen.add(o.id);
+                    bucketRevenue += deliveredRevenueForOrder(o);
                 });
             });
 
             return {
-                month: format(month, 'MMM yy'),
-                spend: monthSpend,
-                revenue: monthRevenue,
-                roas: monthSpend > 0 ? monthRevenue / monthSpend : 0,
+                month: format(anchor, labelFormat),
+                spend: bucketSpend,
+                revenue: bucketRevenue,
+                roas: bucketSpend > 0 ? bucketRevenue / bucketSpend : 0,
             };
         });
 

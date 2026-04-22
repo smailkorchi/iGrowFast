@@ -10,17 +10,31 @@ import {
     TrendingUp, Heart, BarChart3,
 } from 'lucide-react';
 import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, BarChart, Bar, Cell, Legend,
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+    differenceInDays,
+    eachDayOfInterval,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    endOfMonth,
+    endOfWeek,
+    format,
+    startOfDay,
+    startOfMonth,
+    startOfWeek,
+    subMonths,
+} from 'date-fns';
 import {
     AnalyticsOrder,
     inWindow,
+    isRevenueOrder,
     normalizePhone,
     placementTimestamp,
     pureRevenueForOrder,
 } from '@/lib/analyticsDefinitions';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 const COLORS = ['#141413', '#d97757', '#8d8b84', '#6a9bcc', '#788c5d', '#c96356', '#b0aea5', '#2a2926'];
 
@@ -30,6 +44,8 @@ interface CustomersSectionProps {
 }
 
 export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionProps) => {
+    const { deliveredPkgIds, paidOrderIds } = useStatusCategories();
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-customers', businessId],
         queryFn: async () => {
@@ -66,14 +82,20 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
 
         const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
+        // `orders` tracks every placed order (intent signal — drives repeat
+        // rate and orders-per-customer). `revenue` only accrues on paid +
+        // delivered orders so Avg LTV / Revenue tiles reconcile with the
+        // P&L revenue contract. Previously every order contributed revenue,
+        // including cancelled / fake / pending ones, which inflated LTV.
         const customerMap: Record<string, { orders: number; revenue: number }> = {};
         filtered.forEach(o => {
             const key = keyFor(o);
             if (!key) return;
             if (!customerMap[key]) customerMap[key] = { orders: 0, revenue: 0 };
             customerMap[key].orders++;
-            // Use pure product revenue so customer LTV ties back to P&L revenue (§1).
-            customerMap[key].revenue += pureRevenueForOrder(o);
+            if (isRevenueOrder(o, deliveredPkgIds, paidOrderIds)) {
+                customerMap[key].revenue += pureRevenueForOrder(o);
+            }
         });
 
         const customers = Object.values(customerMap);
@@ -102,35 +124,85 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
             .slice(0, 8)
             .map(([region, count]) => ({ region, count }));
 
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+        // ── Trend (adaptive: day / week / month) ──
+        // Auto-pick granularity by window length and clamp each bucket's
+        // [start, end] to the user-selected range. Anchor range to the
+        // earliest order timestamp on All-Time. Prior behaviour always used
+        // monthly buckets with a fixed 6-month fallback, so "Today" filters
+        // collapsed to a single monthly point.
+        const allTimestamps: number[] = [];
+        ordersTyped.forEach(o => {
+            const t = placementTimestamp(o)?.getTime();
+            if (t) allTimestamps.push(t);
+        });
+        const earliest = allTimestamps.length
+            ? new Date(Math.min(...allTimestamps))
+            : subMonths(new Date(), 6);
+        const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
+        const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
+        const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
 
-        // New/returning trend: walk months forward, tracking who was seen BEFORE this
-        // month plus the cumulative "seen" set across prior months in the range.
-        const seenInPriorMonths = new Set<string>(customersSeenBefore);
-        const trendData = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = endOfMonth(month);
-            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
+        type Granularity = 'daily' | 'weekly' | 'monthly';
+        const granularity: Granularity =
+            rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
+
+        let intervals: Date[];
+        let labelFormat: string;
+        if (granularity === 'monthly') {
+            intervals = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = 'MMM yy';
+        } else if (granularity === 'weekly') {
+            intervals = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+            labelFormat = 'MMM d';
+        } else {
+            intervals = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
+        }
+
+        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
+            let s: Date;
+            let e: Date;
+            if (granularity === 'monthly') {
+                s = startOfMonth(anchor);
+                e = endOfMonth(anchor);
+            } else if (granularity === 'weekly') {
+                s = startOfWeek(anchor, { weekStartsOn: 1 });
+                e = endOfWeek(anchor, { weekStartsOn: 1 });
+            } else {
+                s = startOfDay(anchor);
+                e = endOfDay(anchor);
+            }
+            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
+            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
+            return { start: s, end: e };
+        };
+
+        // New/returning trend: walk buckets forward, tracking who was seen
+        // BEFORE this bucket (from `customersSeenBefore`) plus the cumulative
+        // "seen" set across prior buckets in the range. The walk-order is
+        // what matters — granularity is irrelevant to the classification.
+        const seenInPriorBuckets = new Set<string>(customersSeenBefore);
+        const trendData = intervals.map((anchor) => {
+            const { start, end } = bucketBounds(anchor);
+            const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
 
             let newCount = 0;
             let returningCount = 0;
-            const monthCustomers = new Set<string>();
-            monthOrders.forEach(o => {
+            const bucketCustomers = new Set<string>();
+            bucketOrders.forEach(o => {
                 const key = keyFor(o);
-                if (!key || monthCustomers.has(key)) return;
-                monthCustomers.add(key);
-                if (seenInPriorMonths.has(key)) {
+                if (!key || bucketCustomers.has(key)) return;
+                bucketCustomers.add(key);
+                if (seenInPriorBuckets.has(key)) {
                     returningCount++;
                 } else {
                     newCount++;
-                    seenInPriorMonths.add(key);
+                    seenInPriorBuckets.add(key);
                 }
             });
 
             return {
-                month: format(month, 'MMM yy'),
+                month: format(anchor, labelFormat),
                 new: newCount,
                 returning: returningCount,
             };
@@ -142,7 +214,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
             newCustomersInWindow, returningCustomersInWindow,
             regionData, trendData,
         };
-    }, [orders, dateFilter]);
+    }, [orders, dateFilter, deliveredPkgIds, paidOrderIds]);
 
     return (
         <SectionWrapper

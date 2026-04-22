@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
-import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Users, Shield, ShoppingBag, Truck, Camera, Headphones,
@@ -27,12 +26,15 @@ const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
     'owner': Headphones,
 };
 
+// Intentionally does NOT accept `dateFilter`. "Users & Team" is a
+// current-state / administrative view. Membership, active flags, and recent
+// activity are assessed against a fixed 30-day window regardless of the
+// selected analytics period.
 interface UsersSectionProps {
     businessId: string;
-    dateFilter: DateFilter;
 }
 
-export const UsersSection = ({ businessId, dateFilter }: UsersSectionProps) => {
+export const UsersSection = ({ businessId }: UsersSectionProps) => {
     const { data: users, isLoading } = useQuery({
         queryKey: ['analytics-users', businessId],
         queryFn: async () => {
@@ -128,7 +130,7 @@ export const UsersSection = ({ businessId, dateFilter }: UsersSectionProps) => {
         <SectionWrapper
             id="users"
             title="Users & Team"
-            description="Active = flagged active AND activity in the last 30 days. Owner/admin exempt."
+            description="Current team state. Active = flagged active AND order / campaign activity in the last 30 days (not scoped to the analytics date filter). Owner / admin exempt."
             icon={Users}
             iconColor="text-ant-mid"
             loading={isLoading}

@@ -11,7 +11,6 @@ import {
     isFailed,
     isRateConfirmed,
     isRateTouched,
-    isShipped,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
@@ -69,7 +68,6 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         // "Order value" = raw order total for volume metrics (not pure revenue — see §1).
         const avgOrderValue = total > 0 ? filtered.reduce((s, o) => s + Number(o.price || 0), 0) / total : 0;
 
-        const shippedCount = filtered.filter(o => isShipped(o)).length;
         const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
         // Failed = cancelled + fake + double + blacklisted merged bucket (§4).
         const failedCount = filtered.filter(o => isFailed(o, cancelledIds)).length;
@@ -91,12 +89,16 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
         const failedRate = total > 0 ? (failedCount / total) * 100 : 0;
 
+        // "Today" and "This week" are absolute reference chips — always
+        // computed against ALL orders, never against the `filtered` window.
+        // If the user picks "Last month", they still want to see how many
+        // orders arrived today vs. in the past seven days for context.
         const today = new Date();
-        const todayOrders = filtered.filter(o => {
+        const todayOrders = ordersTyped.filter(o => {
             const ts = placementTimestamp(o);
             return ts && format(ts, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
         }).length;
-        const weekOrders = filtered.filter(o => {
+        const weekOrders = ordersTyped.filter(o => {
             const ts = placementTimestamp(o);
             return ts && isWithinInterval(ts, { start: subDays(today, 7), end: today });
         }).length;
@@ -141,20 +143,22 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
             .slice(0, 10)
             .map(([city, count]) => ({ city, count }));
 
-        // Funnel — New → Confirmed → Delivered → Failed (Shipped is an intermediate
-        // state covered under Shipping & Delivery, not a headline conversion stage).
+        // Funnel = success path only: Total → Confirmed → Delivered. The
+        // previous "New" stage (= total − touched) is zero for well-run
+        // businesses (every order gets called), which made the first bar
+        // empty and broke scaling. "Total" as the pool reads naturally and
+        // makes the drop-off visible. Failed stays as a parallel tile.
         const funnelData = [
-            { stage: 'New', count: total - rateTouchedCount },
+            { stage: 'Total orders', count: total },
             { stage: 'Confirmed', count: rateConfirmedCount },
             { stage: 'Delivered', count: deliveredCount },
-            { stage: 'Failed', count: failedCount },
         ];
 
         return {
             total,
             // Confirmed count = one-true-definition (yes was spoken).
             confirmedCount: rateConfirmedCount,
-            deliveredCount, shippedCount, failedCount,
+            deliveredCount, failedCount,
             confirmRate, deliveryRate, failedRate, avgOrderValue,
             todayOrders, weekOrders, trendData, topCities, funnelData,
         };
@@ -174,7 +178,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                     metrics.deliveryRate >= 50 ? 'positive' : metrics.deliveryRate >= 25 ? 'warning' : 'negative';
                 const narrative = metrics.total === 0
                     ? 'No orders in this period.'
-                    : `${metrics.total.toLocaleString('fr-MA')} orders came in. ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed (${metrics.confirmRate.toFixed(1)}% of touched) and ${metrics.deliveredCount.toLocaleString('fr-MA')} delivered (${metrics.deliveryRate.toFixed(1)}% of confirmed). ${
+                    : `${metrics.total.toLocaleString('fr-MA')} orders came in. ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed (${metrics.confirmRate.toFixed(1)}% of touched) and ${metrics.deliveredCount.toLocaleString('fr-MA')} delivered (${metrics.deliveryRate.toFixed(1)}% delivery rate). ${
                         metrics.failedRate > 20
                             ? `${metrics.failedRate.toFixed(0)}% failed — worth investigating.`
                             : metrics.deliveryRate >= 60
@@ -228,40 +232,56 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                                 <CardTitle className="text-[12px] font-semibold text-ant-ink">Order funnel</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-0">
-                                    {metrics.funnelData.map((stage, i) => {
-                                        const top = metrics.funnelData[0]?.count || 1;
-                                        const prev = i > 0 ? metrics.funnelData[i - 1].count : 0;
-                                        const widthPct = top > 0 ? (stage.count / top) * 100 : 0;
-                                        const convPct = i > 0 && prev > 0 ? (stage.count / prev) * 100 : null;
-                                        return (
-                                            <div key={stage.stage}>
-                                                {i > 0 && convPct !== null && (
-                                                    <div className="flex items-center gap-2 pl-[92px] py-0.5 text-[9px] text-ant-mid tabular-nums">
-                                                        <span className="w-px h-2.5 bg-ant-line" aria-hidden />
-                                                        <span>
-                                                            {convPct.toFixed(0)}% →
-                                                        </span>
+                                {(() => {
+                                    // Scale every bar to the widest stage so no
+                                    // bar can overflow when an upstream stage is
+                                    // smaller than a downstream one.
+                                    const maxCount = Math.max(
+                                        1,
+                                        ...metrics.funnelData.map((s) => s.count),
+                                    );
+                                    return (
+                                        <div className="space-y-3">
+                                            {metrics.funnelData.map((stage, i) => {
+                                                const prev = i > 0 ? metrics.funnelData[i - 1].count : null;
+                                                const widthPct = (stage.count / maxCount) * 100;
+                                                const convPct =
+                                                    prev !== null && prev > 0
+                                                        ? (stage.count / prev) * 100
+                                                        : null;
+                                                const prevLabel = i > 0 ? metrics.funnelData[i - 1].stage.toLowerCase() : '';
+                                                return (
+                                                    <div key={stage.stage} className="space-y-1">
+                                                        <div className="flex items-baseline justify-between gap-2">
+                                                            <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ant-mid">
+                                                                {stage.stage}
+                                                            </span>
+                                                            <span className="font-display text-[14px] font-semibold text-ant-ink tabular-nums leading-none">
+                                                                {stage.count.toLocaleString('fr-MA')}
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-2 rounded-full bg-ant-line-soft overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-ant-ink rounded-full transition-[width] duration-500"
+                                                                style={{ width: `${Math.max(widthPct, 1)}%` }}
+                                                            />
+                                                        </div>
+                                                        {convPct !== null && (
+                                                            <div className="text-[10px] text-ant-mid tabular-nums">
+                                                                <span className="font-semibold text-ant-ink">
+                                                                    {convPct.toFixed(1)}%
+                                                                </span>
+                                                                <span className="ml-1 italic font-serif text-ant-muted">
+                                                                    of {prevLabel}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
-                                                <div className="flex items-center gap-3 py-1">
-                                                    <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-ant-muted w-[80px] truncate">
-                                                        {stage.stage}
-                                                    </span>
-                                                    <div className="flex-1 h-4 rounded-sm bg-ant-line-soft overflow-hidden relative">
-                                                        <div
-                                                            className="h-full bg-ant-ink/70 rounded-sm transition-[width] duration-500"
-                                                            style={{ width: `${Math.max(widthPct, 1)}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-[12px] font-semibold text-ant-ink tabular-nums w-12 text-right">
-                                                        {stage.count.toLocaleString('fr-MA')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
                             </CardContent>
                         </Card>
 

@@ -44,7 +44,9 @@ type GranularityChoice = Granularity | 'auto';
 // Shape verified against public.orders via MCP.
 type SCCOrder = {
     id: string;
-    date: string | null;
+    date: string | null;               // placement timestamp (aka created_at)
+    date_livraison: string | null;     // when the parcel was delivered to the customer
+    updated_at: string | null;         // safety fallback for `date_livraison`
     price: number | null;
     shipping_cost: number | null;
     include_delivery_in_total: boolean | null;
@@ -68,7 +70,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
             const { data } = await supabase
                 .from('orders')
                 .select(
-                    'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label)',
+                    'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label)',
                 )
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
@@ -84,14 +86,22 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         }
         const ordersTyped = orders as unknown as SCCOrder[];
 
-        // "All Time" → span the real dataset, not an arbitrary last-30-days fallback.
-        const datedOrders = ordersTyped.filter((o) => !!o.date);
-        const earliest = datedOrders.length
-            ? datedOrders.reduce((min, o) => {
-                  const d = new Date(o.date!);
-                  return d.getTime() < min.getTime() ? d : min;
-              }, new Date())
-            : subDays(now, 30);
+        // "All Time" → span the real dataset. Use the earliest of placement or
+        // delivery timestamps so the chart covers every bucket we attribute to
+        // (orders line uses placement date, revenue line uses delivery date).
+        const timestamps: number[] = [];
+        ordersTyped.forEach((o) => {
+            if (o.date) {
+                const t = new Date(o.date).getTime();
+                if (!Number.isNaN(t)) timestamps.push(t);
+            }
+            const deliv = o.date_livraison ?? o.updated_at;
+            if (deliv) {
+                const t = new Date(deliv).getTime();
+                if (!Number.isNaN(t)) timestamps.push(t);
+            }
+        });
+        const earliest = timestamps.length ? new Date(Math.min(...timestamps)) : subDays(now, 30);
 
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(now);
@@ -122,12 +132,29 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         const isRevenue = (o: SCCOrder) => isDeliveredForCommission(o, deliveredPkgIds);
 
         const parse = (s: string | null | undefined) => (s ? new Date(s) : null);
+        // Revenue is attributed to when the money was realized — the delivery
+        // timestamp — not when the order was placed. Matches every other
+        // analytics surface (BusinessHealthSection, seller_daily_earnings, …).
+        // `updated_at` is a safety net for legacy rows missing `date_livraison`.
+        const revenueTimestamp = (o: SCCOrder) => parse(o.date_livraison ?? o.updated_at);
+        const placementTs = (o: SCCOrder) => parse(o.date);
         const inRange = (d: Date | null, from: Date, to: Date) =>
             d ? isWithinInterval(d, { start: from, end: to }) : false;
 
-        const currentOrders = ordersTyped.filter((o) => inRange(parse(o.date), rangeStart, rangeEnd));
-        const prevOrders = useComparison
-            ? ordersTyped.filter((o) => inRange(parse(o.date), prevRangeStart, prevRangeEnd))
+        // Two working sets — placement-bucketed for orders line, delivery-bucketed
+        // for revenue line. An order can appear in one window and not the other
+        // (e.g. placed in March, delivered in April).
+        const currentOrdersByPlacement = ordersTyped.filter((o) =>
+            inRange(placementTs(o), rangeStart, rangeEnd),
+        );
+        const currentDeliveriesInRange = ordersTyped.filter((o) =>
+            isRevenue(o) && inRange(revenueTimestamp(o), rangeStart, rangeEnd),
+        );
+        const prevOrdersByPlacement = useComparison
+            ? ordersTyped.filter((o) => inRange(placementTs(o), prevRangeStart, prevRangeEnd))
+            : [];
+        const prevDeliveriesInRange = useComparison
+            ? ordersTyped.filter((o) => isRevenue(o) && inRange(revenueTimestamp(o), prevRangeStart, prevRangeEnd))
             : [];
 
         let intervals: Date[];
@@ -163,22 +190,32 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
 
         const rows = intervals.map((date) => {
             const { start, end } = bucketBounds(date);
-            const curPeriod = currentOrders.filter((o) => inRange(parse(o.date), start, end));
-            const curRevenue = curPeriod.filter(isRevenue).reduce((s, o) => s + productRevenue(o), 0);
+            // Orders line: placement-bucketed (top-of-funnel volume).
+            const ordersInBucket = currentOrdersByPlacement.filter((o) =>
+                inRange(placementTs(o), start, end),
+            );
+            // Revenue line: delivery-bucketed (money realized on that day).
+            const deliveriesInBucket = currentDeliveriesInRange.filter((o) =>
+                inRange(revenueTimestamp(o), start, end),
+            );
+            const curRevenue = deliveriesInBucket.reduce((s, o) => s + productRevenue(o), 0);
 
             let prevOrdersCount = 0;
             let prevRevenue = 0;
             if (useComparison) {
                 const prevStart = subDays(start, prevOffsetDays);
                 const prevEnd = subDays(end, prevOffsetDays);
-                const prevPeriod = prevOrders.filter((o) => inRange(parse(o.date), prevStart, prevEnd));
-                prevOrdersCount = prevPeriod.length;
-                prevRevenue = prevPeriod.filter(isRevenue).reduce((s, o) => s + productRevenue(o), 0);
+                prevOrdersCount = prevOrdersByPlacement.filter((o) =>
+                    inRange(placementTs(o), prevStart, prevEnd),
+                ).length;
+                prevRevenue = prevDeliveriesInRange
+                    .filter((o) => inRange(revenueTimestamp(o), prevStart, prevEnd))
+                    .reduce((s, o) => s + productRevenue(o), 0);
             }
 
             return {
                 label: format(date, formatStr),
-                orders: curPeriod.length,
+                orders: ordersInBucket.length,
                 revenue: curRevenue,
                 prevOrders: prevOrdersCount,
                 prevRevenue,

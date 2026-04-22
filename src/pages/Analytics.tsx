@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 
 const SECTIONS = [
     { id: 'profitability', label: 'P&L', icon: DollarSign },
+    { id: 'business-health', label: 'Health', icon: Activity },
     { id: 'orders', label: 'Orders', icon: ShoppingBag },
     { id: 'ads', label: 'Ads', icon: Megaphone },
     { id: 'shipping', label: 'Shipping', icon: Truck },
@@ -31,7 +32,6 @@ const SECTIONS = [
     { id: 'couriers', label: 'Couriers', icon: Bike },
     { id: 'mediabuyers', label: 'Media Buyers', icon: Radar },
     { id: 'users', label: 'Users', icon: Users },
-    { id: 'business-health', label: 'Health', icon: Activity },
 ];
 
 const Analytics = () => {
@@ -150,7 +150,11 @@ const Analytics = () => {
             <nav className="sticky top-0 z-30 -mx-2 md:-mx-3 px-2 md:px-3 bg-ant-light/92 backdrop-blur-md border-b border-ant-line">
                 <div
                     ref={navScrollRef}
-                    className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2"
+                    // `flex-wrap` drops pills onto a second line on narrow
+                    // viewports instead of hiding the last ones behind a
+                    // horizontal scroll. `justify-between` spaces them to
+                    // fill the row evenly when they fit in one line.
+                    className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-1 py-2"
                 >
                     {SECTIONS.map((section, i) => {
                         const isActive = activeSection === section.id;
@@ -164,7 +168,7 @@ const Analytics = () => {
                                     scrollToSection(section.id);
                                 }}
                                 className={cn(
-                                    'group relative inline-flex items-center gap-1.5 rounded-full h-8 px-3 text-[11px] font-medium whitespace-nowrap shrink-0 transition-all border',
+                                    'group relative inline-flex items-center gap-1 rounded-full h-7 px-2.5 text-[11px] font-medium whitespace-nowrap shrink-0 transition-all border',
                                     isActive
                                         ? 'bg-ant-ink text-ant-light border-ant-ink'
                                         : 'bg-transparent text-ant-muted border-ant-line hover:border-ant-ink/30 hover:text-ant-ink',
@@ -172,7 +176,7 @@ const Analytics = () => {
                             >
                                 <span
                                     className={cn(
-                                        'tabular-nums text-[9.5px] font-semibold tracking-[0.1em]',
+                                        'tabular-nums text-[9px] font-semibold tracking-[0.08em]',
                                         isActive ? 'text-ant-orange' : 'text-ant-mid',
                                     )}
                                 >
@@ -189,6 +193,7 @@ const Analytics = () => {
             {/* Sections — scroll-margin so anchor jumps clear the sticky nav row */}
             <div className="space-y-4 [&>section]:scroll-mt-[160px]">
                 <ProfitabilitySection businessId={businessId} dateFilter={dateFilter} />
+                <BusinessHealthSection businessId={businessId} dateFilter={dateFilter} />
                 <OrdersSection businessId={businessId} dateFilter={dateFilter} />
                 <AdsSection businessId={businessId} dateFilter={dateFilter} />
                 <ShippingSection businessId={businessId} dateFilter={dateFilter} />
@@ -198,8 +203,7 @@ const Analytics = () => {
                 <SellersSection businessId={businessId} dateFilter={dateFilter} />
                 <CouriersSection businessId={businessId} dateFilter={dateFilter} />
                 <MediaBuyersSection businessId={businessId} dateFilter={dateFilter} />
-                <UsersSection businessId={businessId} dateFilter={dateFilter} />
-                <BusinessHealthSection businessId={businessId} dateFilter={dateFilter} />
+                <UsersSection businessId={businessId} />
             </div>
         </div>
     );

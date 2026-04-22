@@ -23,7 +23,18 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-    format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, differenceInDays,
+    differenceInDays,
+    eachDayOfInterval,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    endOfMonth,
+    endOfWeek,
+    format,
+    startOfDay,
+    startOfMonth,
+    startOfWeek,
+    subMonths,
 } from 'date-fns';
 
 interface BusinessHealthSectionProps {
@@ -59,12 +70,23 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
 
         const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
+        // Velocity = orders per day. Divide by the WINDOW length when the
+        // user picked an explicit window — otherwise a 30-day filter with
+        // orders clustered in the last 3 days would report 10× the real
+        // daily rate. All-Time falls back to the data span (min → max)
+        // because dividing by "years since Date(0)" would reach infinity.
         const datesWithOrders = filtered
             .map(o => placementTimestamp(o))
             .filter((d): d is Date => !!d);
-        const minDate = datesWithOrders.length > 0 ? new Date(Math.min(...datesWithOrders.map(d => d.getTime()))) : new Date();
-        const maxDate = datesWithOrders.length > 0 ? new Date(Math.max(...datesWithOrders.map(d => d.getTime()))) : new Date();
-        const daySpan = Math.max(1, differenceInDays(maxDate, minDate));
+        const hasExplicitWindow = !!dateFilter.from || !!dateFilter.to;
+        let daySpan = 1;
+        if (hasExplicitWindow) {
+            daySpan = Math.max(1, differenceInDays(windowEnd, windowStart) + 1);
+        } else if (datesWithOrders.length > 0) {
+            const minDate = new Date(Math.min(...datesWithOrders.map((d) => d.getTime())));
+            const maxDate = new Date(Math.max(...datesWithOrders.map((d) => d.getTime())));
+            daySpan = Math.max(1, differenceInDays(maxDate, minDate) + 1);
+        }
         const orderVelocity = filtered.length / daySpan;
 
         // ── Rates under the locked rules ────────────────────────────────
@@ -99,41 +121,91 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         // Failed orders merged bucket (cancelled/fake/blacklisted/double).
         const failedCount = filtered.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
 
-        // ── Monthly trend — revenue + confirm/delivery rate (no composite score).
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+        // ── Trend (adaptive: day / week / month) ──
+        // Auto-pick granularity from window length and clamp each bucket's
+        // [start, end] to the user-selected range. Anchor range to the
+        // earliest order timestamp on All-Time instead of a fixed 6-month
+        // fallback. Prior behaviour always used monthly buckets sampled
+        // at raw calendar bounds — "Today" filter rendered one monthly
+        // bucket summing the whole month.
+        const allTimestamps: number[] = [];
+        ordersTyped.forEach(o => {
+            const t = placementTimestamp(o)?.getTime();
+            if (t) allTimestamps.push(t);
+        });
+        const earliest = allTimestamps.length
+            ? new Date(Math.min(...allTimestamps))
+            : subMonths(new Date(), 6);
+        const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
+        const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
+        const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
 
-        const trendData = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = endOfMonth(month);
-            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
-            const monthRateTouched = monthOrders.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds));
-            const monthRateConfirmed = monthOrders.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds));
-            const monthDelivered = monthOrders.filter(o => isDelivered(o, deliveredPkgIds));
-            const monthTracked = monthOrders.filter(o => !!o.id && trackedOrderIds.has(o.id));
-            const monthPullback = monthTracked.filter(o =>
+        type Granularity = 'daily' | 'weekly' | 'monthly';
+        const granularity: Granularity =
+            rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
+
+        let intervals: Date[];
+        let labelFormat: string;
+        if (granularity === 'monthly') {
+            intervals = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = 'MMM yy';
+        } else if (granularity === 'weekly') {
+            intervals = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+            labelFormat = 'MMM d';
+        } else {
+            intervals = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+            labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
+        }
+
+        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
+            let s: Date;
+            let e: Date;
+            if (granularity === 'monthly') {
+                s = startOfMonth(anchor);
+                e = endOfMonth(anchor);
+            } else if (granularity === 'weekly') {
+                s = startOfWeek(anchor, { weekStartsOn: 1 });
+                e = endOfWeek(anchor, { weekStartsOn: 1 });
+            } else {
+                s = startOfDay(anchor);
+                e = endOfDay(anchor);
+            }
+            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
+            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
+            return { start: s, end: e };
+        };
+
+        const trendData = intervals.map((anchor) => {
+            const { start, end } = bucketBounds(anchor);
+            const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
+            const bTouched = bucketOrders.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds));
+            const bConfirmed = bucketOrders.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds));
+            const bDelivered = bucketOrders.filter(o => isDelivered(o, deliveredPkgIds));
+            const bTracked = bucketOrders.filter(o => !!o.id && trackedOrderIds.has(o.id));
+            const bPullback = bTracked.filter(o =>
                 isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
             );
-            const monthDeliveryDenom = monthTracked.length - monthPullback.length;
-            const monthRevenue = monthOrders
+            const bDeliveryDenom = bTracked.length - bPullback.length;
+            const bRevenue = bucketOrders
                 .filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds))
                 .reduce((s, o) => s + pureRevenueForOrder(o), 0);
 
             return {
-                month: format(month, 'MMM yy'),
-                revenue: monthRevenue,
-                confirmRate: monthRateTouched.length > 0 ? (monthRateConfirmed.length / monthRateTouched.length) * 100 : 0,
-                deliveryRate: monthDeliveryDenom > 0 ? (monthDelivered.length / monthDeliveryDenom) * 100 : 0,
+                month: format(anchor, labelFormat),
+                revenue: bRevenue,
+                confirmRate: bTouched.length > 0 ? (bConfirmed.length / bTouched.length) * 100 : 0,
+                deliveryRate: bDeliveryDenom > 0 ? (bDelivered.length / bDeliveryDenom) * 100 : 0,
             };
         });
 
         let revenueGrowth = 0;
         if (trendData.length >= 2) {
-            const lastMonth = trendData[trendData.length - 1].revenue;
-            const prevMonth = trendData[trendData.length - 2].revenue;
-            revenueGrowth = prevMonth > 0 ? ((lastMonth - prevMonth) / prevMonth) * 100 : 0;
+            const last = trendData[trendData.length - 1].revenue;
+            const prev = trendData[trendData.length - 2].revenue;
+            revenueGrowth = prev > 0 ? ((last - prev) / prev) * 100 : 0;
         }
+        const growthBucketLabel: 'day' | 'week' | 'month' =
+            granularity === 'daily' ? 'day' : granularity === 'weekly' ? 'week' : 'month';
 
         return {
             orderVelocity,
@@ -144,6 +216,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             hasConfirmTimeData: withConfDate.length > 0,
             failedCount,
             revenueGrowth,
+            growthBucketLabel,
             trendData,
             totalOrders: filtered.length,
             // Confirmed count = one-true-definition (yes was spoken).
@@ -195,7 +268,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
                             { label: 'Failed', value: metrics.failedCount.toLocaleString('fr-MA'), tone: metrics.failedCount > 0 ? 'negative' : 'neutral' },
                             { label: 'Velocity', value: `${metrics.orderVelocity.toFixed(1)}/day` },
                             { label: 'Revenue', value: `${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD` },
-                            { label: 'Growth', value: `${metrics.revenueGrowth >= 0 ? '+' : ''}${metrics.revenueGrowth.toFixed(1)}%`, tone: metrics.revenueGrowth >= 0 ? 'positive' : 'negative' },
+                            { label: 'Growth', value: `${metrics.revenueGrowth >= 0 ? '+' : ''}${metrics.revenueGrowth.toFixed(1)}%`, sub: `vs prior ${metrics.growthBucketLabel}`, tone: metrics.revenueGrowth >= 0 ? 'positive' : 'negative' },
                         ]}
                     >
                         <Card className="border border-ant-line shadow-none rounded-xl">

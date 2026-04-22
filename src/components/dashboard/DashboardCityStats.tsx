@@ -55,9 +55,13 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
     const metrics = useMemo(() => {
         if (!orders) return null;
 
+        const hasExplicitFilter = !!dateFilter.from || !!dateFilter.to;
         const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
+            // All-Time view lets everything through (null dates included).
+            if (!hasExplicitFilter) return true;
+            // Explicit window: null-date rows are excluded so they don't
+            // leak into every filtered period.
+            if (!dateStr) return false;
             const d = new Date(dateStr);
             return isWithinInterval(d, {
                 start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
@@ -95,7 +99,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
         };
 
         let totalOrders = 0;
-        let totalConfirmed = 0;
+        let totalDeliveryDenom = 0;  // tracked − admin-pullback, per Coliaty
         let totalDelivered = 0;
         let totalRevenue = 0;
 
@@ -119,7 +123,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                 );
                 if (!pullback) {
                     cityMap[cityName].deliveryDenom += 1;
-                    totalConfirmed += 1;
+                    totalDeliveryDenom += 1;
                 }
             }
 
@@ -167,7 +171,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             .slice(0, 3);
 
         const overallRate =
-            totalConfirmed > 0 ? Math.min(100, (totalDelivered / totalConfirmed) * 100) : 0;
+            totalDeliveryDenom > 0 ? Math.min(100, (totalDelivered / totalDeliveryDenom) * 100) : 0;
 
         return {
             cities: sortedByDelivered,
@@ -176,7 +180,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             problemCities,
             totalCities: sortedByDelivered.length,
             totalOrders,
-            totalConfirmed,
+            totalDeliveryDenom,
             totalDelivered,
             totalRevenue,
             overallRate,

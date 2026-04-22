@@ -79,9 +79,13 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         type SPProvider = { id: string; name: string; logo_url: string | null };
         type SPCourier = { id: string; name: string; avatar_url: string | null };
 
+        const hasExplicitFilter = !!dateFilter.from || !!dateFilter.to;
         const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
+            // All-Time view: let everything through (null-date rows are fine).
+            if (!hasExplicitFilter) return true;
+            // Explicit window: null-date rows are excluded. Previously they
+            // leaked into every filtered window and skewed the top-line chips.
+            if (!dateStr) return false;
             const d = new Date(dateStr);
             return isWithinInterval(d, {
                 start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
@@ -91,9 +95,11 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
 
         const isInShipLifecycle = (pkgId: string | null) =>
             !!pkgId && (shippedPkgIds.has(pkgId) || deliveredPkgIds.has(pkgId) || returnedPkgIds.has(pkgId));
-        const shipped = (orders as unknown as SPOrder[]).filter(
-            (o) => isInShipLifecycle(o.package_status_id) && isInRange(o.date),
-        );
+        // `filtered` = every in-window order (used for the Coliaty denominator
+        // so it matches DashboardKPICards). `shipped` = just the lifecycle
+        // subset (used for the header chips and the pipeline bar).
+        const filtered = (orders as unknown as SPOrder[]).filter((o) => isInRange(o.date));
+        const shipped = filtered.filter((o) => isInShipLifecycle(o.package_status_id));
 
         // Top-line funnel within the shipping lifecycle
         const delivered = shipped.filter(
@@ -211,9 +217,14 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             .filter((f) => f.kind === 'courier')
             .reduce((s, f) => s + f.total, 0);
 
-        // Overall delivery rate uses the same Coliaty formula scoped to the
-        // shipping-lifecycle set.
-        const overallTracked = shipped.filter((o) => !!o.id && trackedOrderIds.has(o.id));
+        // Overall delivery rate must reconcile with the top-of-page
+        // DashboardKPICards "Delivery Rate" tile. Both use the full Coliaty
+        // denominator — every tracked in-window order minus admin pullbacks —
+        // regardless of whether the current package_status happens to sit in
+        // the shipping-lifecycle set. Restricting the denom to lifecycle-only
+        // (as before) silently excluded ~14 tracked non-pullback orders for
+        // Golden Design Pub and inflated the rate from 82.2% to 92.3%.
+        const overallTracked = filtered.filter((o) => !!o.id && trackedOrderIds.has(o.id));
         const overallPullback = overallTracked.filter((o) =>
             isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
         );

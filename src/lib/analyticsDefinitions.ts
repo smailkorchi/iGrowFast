@@ -9,7 +9,9 @@
  * Core rules (excerpt):
  * - Revenue = paid AND delivered, product-only (shipping stripped).
  * - Confirmed = order_status category in confirmed set OR tracking_number set.
- * - Delivered = package category 'delivered' OR label contains livré/livre/delivered.
+ * - Delivered = `package_status_id` resolves to a delivered-category row in
+ *   `package_statuses` (single source of truth; label matching removed
+ *   2026-04-22 — see migration `seller_daily_earnings_category_only_delivered`).
  * - Returned orders contribute zero COGS (stock is restored server-side).
  * - Per-order ad share = spend ÷ delivered-order-count (equal split).
  * - Commission date anchor = delivery date (date_livraison, fallback updated_at).
@@ -421,10 +423,23 @@ export function deliveryTimestamp(order: AnalyticsOrder): Date | null {
     return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Placement timestamp (order creation). Used for revenue + volume metrics. */
+/** Placement timestamp (order creation). Used for cohort + volume metrics. */
 export function placementTimestamp(order: AnalyticsOrder): Date | null {
     if (!order.date) return null;
     const d = new Date(order.date);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Return-event timestamp — when the order's package was flipped to a returned
+ * category. No dedicated `returned_at` column exists; `updated_at` is the
+ * best available proxy (it bumps on any status change, and "returned" is a
+ * terminal state). Used to bucket return fees into the accounting period the
+ * loss actually occurred in.
+ */
+export function returnTimestamp(order: AnalyticsOrder): Date | null {
+    if (!order.updated_at) return null;
+    const d = new Date(order.updated_at);
     return Number.isNaN(d.getTime()) ? null : d;
 }
 

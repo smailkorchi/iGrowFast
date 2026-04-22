@@ -101,18 +101,15 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         const windowed = (orders as unknown as AnalyticsOrder[])
             .filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
+        // "Pending" is a current balance (not period-scoped): sum every
+        // unpaid courier_payment_note.total_shipping_fees, lifetime. All
+        // other metrics on this card are window-scoped by placement date.
+        // `paidByCourier` was also built here but never rendered — dropped.
         const pendingByCourier = new Map<string, number>();
         (paymentNotes || []).forEach((n) => {
             if (!n.courier_id) return;
             if (n.status !== 'paid') {
                 pendingByCourier.set(n.courier_id, (pendingByCourier.get(n.courier_id) || 0) + Number(n.total_shipping_fees || 0));
-            }
-        });
-        const paidByCourier = new Map<string, number>();
-        (paymentNotes || []).forEach((n) => {
-            if (!n.courier_id) return;
-            if (n.status === 'paid') {
-                paidByCourier.set(n.courier_id, (paidByCourier.get(n.courier_id) || 0) + Number(n.total_shipping_fees || 0));
             }
         });
 
@@ -136,7 +133,6 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
                 returned,
                 rate,
                 pendingPayment: pendingByCourier.get(c.id) || 0,
-                paidLifetime: paidByCourier.get(c.id) || 0,
             };
         });
 
@@ -155,7 +151,15 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         const overallRate = totalConfirmed > 0 ? (totalDelivered / totalConfirmed) * 100 : 0;
         const totalPending = Array.from(pendingByCourier.values()).reduce((s, v) => s + v, 0);
         const top = sorted[0];
-        const bestRate = Math.max(...sorted.map((s) => s.rate), 0);
+        // Gate "Best rate" by minimum shipment count so a courier with one
+        // lucky delivery can't claim 100 % and outrank a high-volume courier.
+        // Low-sample case falls back to the raw max with a flag in the tile.
+        const BEST_RATE_MIN_SHIPMENTS = 3;
+        const qualifiers = sorted.filter((s) => s.total >= BEST_RATE_MIN_SHIPMENTS);
+        const bestRate = qualifiers.length > 0
+            ? Math.max(...qualifiers.map((s) => s.rate), 0)
+            : Math.max(...sorted.map((s) => s.rate), 0);
+        const bestRateLowSample = qualifiers.length === 0 && sorted.length > 0;
 
         return {
             perCourier: sorted,
@@ -168,6 +172,8 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
             totalPending,
             top,
             bestRate,
+            bestRateLowSample,
+            bestRateMinShipments: BEST_RATE_MIN_SHIPMENTS,
         };
     }, [couriers, orders, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
@@ -175,7 +181,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         <SectionWrapper
             id="couriers"
             title="Couriers"
-            description="In-house couriers. Delivery rate = delivered ÷ confirmed (assigned to this courier)."
+            description="In-house couriers. Delivery rate = delivered ÷ (tracked − admin pullbacks), per courier."
             icon={Bike}
             iconColor="text-ant-mid"
             loading={isLoading}
@@ -203,7 +209,14 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
                             { label: 'Couriers', value: metrics.totalCouriers.toLocaleString('fr-MA'), sub: `${metrics.activeCouriers} active` },
                             { label: 'Shipments', value: metrics.totalShipments.toLocaleString('fr-MA') },
                             { label: 'Delivered', value: metrics.totalDelivered.toLocaleString('fr-MA'), tone: 'positive' },
-                            { label: 'Best rate', value: `${metrics.bestRate.toFixed(1)}%`, tone: 'positive' },
+                            {
+                                label: 'Best rate',
+                                value: `${metrics.bestRate.toFixed(1)}%`,
+                                tone: 'positive',
+                                ...(metrics.bestRateLowSample
+                                    ? { sub: `low sample (<${metrics.bestRateMinShipments} shipments)` }
+                                    : {}),
+                            },
                             { label: 'Pending payouts', value: `${Math.round(metrics.totalPending).toLocaleString('fr-MA')} MAD`, tone: metrics.totalPending > 0 ? 'warning' : 'neutral' },
                         ]}
                     >
