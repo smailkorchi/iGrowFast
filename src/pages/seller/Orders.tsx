@@ -166,6 +166,7 @@ const orderSchema = z.object({
     _reportedDate: z.string().optional(),
     coliaty_old_tracking: z.string().optional(),
     ameex_old_tracking: z.string().optional(),
+    quicklivraison_old_tracking: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -187,6 +188,16 @@ function orderCompanyIsAmeex(
     const row = companies.find((c) => c.id === companyId);
     const t = String(row?.provider_type || '').toLowerCase();
     return t === 'ameex' || t.includes('ameex');
+}
+
+function orderCompanyIsQuickLivraison(
+    companies: { id: string; provider_type?: string | null }[] | undefined,
+    companyId: string | null | undefined
+) {
+    if (!companyId || !companies?.length) return false;
+    const row = companies.find((c) => c.id === companyId);
+    const t = String(row?.provider_type || '').toLowerCase();
+    return t === 'quicklivraison' || t.includes('quicklivraison');
 }
 
 const SALES_SOURCES = [
@@ -316,6 +327,7 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     if (order?.tracking_number) codes.push(String(order.tracking_number));
     if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
     if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
+    if (order?.quicklivraison_old_tracking) codes.push(String(order.quicklivraison_old_tracking));
     for (const p of order?.parcels || []) {
         if (p?.tracking_code) codes.push(String(p.tracking_code));
     }
@@ -1221,7 +1233,8 @@ const Orders = () => {
             history_comment: '',
             _reportedDate: '',
             coliaty_old_tracking: '',
-            ameex_old_tracking: ''
+            ameex_old_tracking: '',
+            quicklivraison_old_tracking: ''
         }
     });
 
@@ -1280,6 +1293,7 @@ const Orders = () => {
             _reportedDate: '',
             coliaty_old_tracking: '',
             ameex_old_tracking: '',
+            quicklivraison_old_tracking: '',
         });
         setIsAddModalOpen(true);
 
@@ -1537,6 +1551,10 @@ const Orders = () => {
                         orderCompanyIsAmeex(companies, values.company_id) && values.replace
                             ? (values.ameex_old_tracking || '').trim() || null
                             : null,
+                    quicklivraison_old_tracking:
+                        orderCompanyIsQuickLivraison(companies, values.company_id) && values.replace
+                            ? (values.quicklivraison_old_tracking || '').trim() || null
+                            : null,
                     price: orderPrice,
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
@@ -1626,7 +1644,8 @@ const Orders = () => {
                     history_comment: '',
                     _reportedDate: '',
                     coliaty_old_tracking: '',
-                    ameex_old_tracking: ''
+                    ameex_old_tracking: '',
+                    quicklivraison_old_tracking: ''
                 });
             }, 0);
             toast({ title: "Order Created", description: "Successfully logged new order." });
@@ -1672,6 +1691,10 @@ const Orders = () => {
                 ameex_old_tracking:
                     orderCompanyIsAmeex(companies, values.company_id) && values.replace
                         ? (values.ameex_old_tracking || '').trim() || null
+                        : null,
+                quicklivraison_old_tracking:
+                    orderCompanyIsQuickLivraison(companies, values.company_id) && values.replace
+                        ? (values.quicklivraison_old_tracking || '').trim() || null
                         : null,
                 price: orderPrice,
                 raw_price: totalPrice,
@@ -2282,6 +2305,7 @@ const Orders = () => {
             company_id: order.company_id,
             coliaty_old_tracking: order.coliaty_old_tracking || '',
             ameex_old_tracking: order.ameex_old_tracking || '',
+            quicklivraison_old_tracking: order.quicklivraison_old_tracking || '',
             items: (() => {
                 const groupedItems: any[] = [];
                 order.items?.forEach((item: any) => {
@@ -2376,7 +2400,8 @@ const Orders = () => {
                                     history_comment: '',
                                     _reportedDate: '',
                                     coliaty_old_tracking: '',
-                                    ameex_old_tracking: ''
+                                    ameex_old_tracking: '',
+                                    quicklivraison_old_tracking: ''
                                 });
                                 setIsAddModalOpen(true);
                             }}
@@ -3194,7 +3219,8 @@ const Orders = () => {
                                 history_comment: '',
                                 _reportedDate: '',
                                 coliaty_old_tracking: '',
-                                ameex_old_tracking: ''
+                                ameex_old_tracking: '',
+                                quicklivraison_old_tracking: ''
                             });
                         }, 0);
                     }
@@ -3234,6 +3260,23 @@ const Orders = () => {
                                 toast({
                                     title: 'Missing tracking',
                                     description: 'Enter the previous parcel tracking number for AMEEX exchange.',
+                                    variant: 'destructive',
+                                });
+                                return;
+                            }
+
+                            if (
+                                orderCompanyIsQuickLivraison(companies, v.company_id) &&
+                                v.replace &&
+                                !(v.quicklivraison_old_tracking || '').trim()
+                            ) {
+                                form.setError('quicklivraison_old_tracking', {
+                                    type: 'manual',
+                                    message: 'Required for Quick Livraison exchange (echange_colis).',
+                                });
+                                toast({
+                                    title: 'Missing tracking',
+                                    description: 'Enter the previous parcel tracking number for Quick Livraison exchange.',
                                     variant: 'destructive',
                                 });
                                 return;
@@ -3828,6 +3871,32 @@ const Orders = () => {
                                                     )}
                                                 />
                                             )}
+                                        {form.watch('replace') &&
+                                            orderCompanyIsQuickLivraison(companies, form.watch('company_id')) && (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="quicklivraison_old_tracking"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-ant-orange/10/40 p-3">
+                                                            <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-ant-ink">
+                                                                Previous parcel tracking (Quick Livraison)
+                                                            </FormLabel>
+                                                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                                                Required for exchange: sent as Quick Livraison{' '}
+                                                                <code className="text-[10px]">echange_colis</code>.
+                                                            </p>
+                                                            <FormControl>
+                                                                <Input
+                                                                    placeholder="Old tracking number"
+                                                                    {...field}
+                                                                    className="h-11 rounded-xl border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink"
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            )}
                                     </div>
                                 </div>
 
@@ -4332,6 +4401,19 @@ const Orders = () => {
                                                         </p>
                                                         <p className="text-sm font-mono font-bold text-ant-ink break-all">
                                                             {String(selectedOrder.ameex_old_tracking).trim()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {String(selectedOrder.quicklivraison_old_tracking || '').trim() && (
+                                                <div className="flex items-start gap-3">
+                                                    <RefreshCcw className="w-3.5 h-3.5 text-ant-orange shrink-0 mt-0.5" />
+                                                    <div className="space-y-0.5 min-w-0">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid leading-none">
+                                                            Previous parcel tracking (Quick Livraison)
+                                                        </p>
+                                                        <p className="text-sm font-mono font-bold text-ant-ink break-all">
+                                                            {String(selectedOrder.quicklivraison_old_tracking).trim()}
                                                         </p>
                                                     </div>
                                                 </div>

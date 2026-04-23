@@ -32,6 +32,7 @@ type OrderForSearch = {
     tracking_number?: unknown;
     coliaty_old_tracking?: unknown;
     ameex_old_tracking?: unknown;
+    quicklivraison_old_tracking?: unknown;
     note?: unknown;
     delivery_note?: unknown;
     source_name?: unknown;
@@ -98,6 +99,7 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
         order?.tracking_number,
         order?.coliaty_old_tracking,
         order?.ameex_old_tracking,
+        order?.quicklivraison_old_tracking,
         order?.note,
         order?.delivery_note,
         order?.source_name,

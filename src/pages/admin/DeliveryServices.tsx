@@ -241,7 +241,9 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
     quicklivraison: [
         { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client" },
         { key: 'autoriser_essayage', label: "Autoriser l'essayage du produit par le client" },
-        { key: 'fragile', label: 'Fragile', hint: 'Quick Livraison applique +5 MAD pour les colis fragiles.' },
+        // Fragile intentionally omitted — QL's public API ignores `fragile` in any form.
+        // Their dashboard toggle applies the +5 MAD fee via an internal mechanism we can't
+        // reach via `/deliveries/store`. Manage fragile per-parcel from the QL dashboard.
     ],
 };
 
@@ -279,7 +281,6 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
         return {
             autorisation_ouverture_colis: !!row.quicklivraison_parcel_open,
             autoriser_essayage: !!row.quicklivraison_parcel_try_on,
-            fragile: !!row.quicklivraison_parcel_fragile,
         };
     }
     return {};
@@ -313,7 +314,7 @@ function flagsToProviderParcelUpdate(
         return {
             quicklivraison_parcel_open: !!flags.autorisation_ouverture_colis,
             quicklivraison_parcel_try_on: !!flags.autoriser_essayage,
-            quicklivraison_parcel_fragile: !!flags.fragile,
+            // quicklivraison_parcel_fragile intentionally not written — QL's API ignores fragile.
         };
     }
     return {};
@@ -2004,6 +2005,9 @@ function ProviderPermissionsModal({
                         'ozon_parcel_open',
                         'ozon_parcel_fragile',
                         'ozon_parcel_replace',
+                        'quicklivraison_parcel_open',
+                        'quicklivraison_parcel_try_on',
+                        'quicklivraison_parcel_fragile',
                     ].join(', ')
                 )
                 .eq('id', company.id)
@@ -2053,7 +2057,11 @@ function ProviderPermissionsModal({
     });
 
     const providerLabel =
-        providerSlug === 'ameex' ? 'AMEEX' : providerSlug === 'coliaty' ? 'Coliaty' : providerSlug === 'ozon' ? 'Ozon' : null;
+        providerSlug === 'ameex' ? 'AMEEX'
+        : providerSlug === 'coliaty' ? 'Coliaty'
+        : providerSlug === 'ozon' ? 'Ozon'
+        : providerSlug === 'quicklivraison' ? 'Quick Livraison'
+        : null;
 
     const canSave = !!company && !!rows && !!activeBusinessId && !loadingPerm && !permError;
 

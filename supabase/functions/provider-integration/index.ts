@@ -1320,19 +1320,24 @@ class QuickLivraisonAdapter {
         form.append('phone', phone);
         form.append('address', parcelData.receiver_address || parcelData.delivery_address || '');
         if (parcelData.delivery_note) form.append('note', String(parcelData.delivery_note));
-        // Flags — QL doc says boolean true/false
-        if (parcelData.open === 'YES' || parcelData.open === true || parcelData.open === 'true') {
-            form.append('open', 'true');
-        }
-        if (parcelData.try === 'YES' || parcelData.try_on === true || parcelData.try === true) {
-            form.append('try', 'true');
-        }
-        if (parcelData.replaceable) {
-            form.append('echange', 'true');
-            if (parcelData.old_tracking) form.append('echange_colis', String(parcelData.old_tracking));
-        }
+        // QL's API treats the *presence* of `open` / `try` / `fragile` fields as "true"
+        // regardless of value — `open=false` or `open=0` still prints the checkbox ticked.
+        // The ONLY way to disable these flags is to OMIT the field entirely.
+        // Tested empirically: open=false → ticked; field omitted → unticked.
+        const truthy = (v) => v === true || v === 'true' || v === 'YES' || v === '1' || v === 1;
+        if (truthy(parcelData.open)) form.append('open', 'true');
+        if (truthy(parcelData.try) || truthy(parcelData.try_on)) form.append('try', 'true');
+        if (truthy(parcelData.fragile)) form.append('fragile', 'true');
         if (parcelData.product_info) form.append('prd_name', String(parcelData.product_info));
         if (parcelData.product_qty) form.append('qte_prd', String(parcelData.product_qty));
+
+        // Exchange parcels can NOT go through the public API — /api/deliveries/store silently
+        // drops the `echange` flag regardless of value format (true/on/1/is_exchange/exchange).
+        // Confirmed empirically: the dashboard endpoint `/deliveries/store-ajax` with session
+        // auth is the only route that actually flags parcels as exchange.
+        if (parcelData.replaceable) {
+            return await this.createParcelViaDashboard(parcelData, districtId, phone);
+        }
 
         const url = `${this.baseUrl}/deliveries/store`;
         const body = form.toString();
@@ -1363,6 +1368,95 @@ class QuickLivraisonAdapter {
         return {
             tracking_code: data.tracking_number,
             external_id: data.tracking_number,
+            provider_response: data
+        };
+    }
+
+    async createParcelViaDashboard(parcelData, districtId, phone) {
+        console.log('=== QUICKLIVRAISON createParcel via DASHBOARD (exchange) ===');
+        await this.ensureSession();
+
+        // GET /deliveries/create → fresh form _token + pickup defaults for this tenant.
+        const r = await this.dashboardFetch('/deliveries/create');
+        if (r.status !== 200) {
+            throw new Error(`Quick Livraison: /deliveries/create HTTP ${r.status}`);
+        }
+        const html = await r.text();
+        const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/);
+        if (!tokenMatch) throw new Error("Quick Livraison: _token introuvable sur /deliveries/create.");
+        const formToken = tokenMatch[1];
+
+        // pickup_district_id is hardcoded by QL into an inline JS `.val(<id>)` in the create page.
+        // pickup_ville_id is the selected <option> of the select named pickup_ville_id.
+        let pickupDistrict = null;
+        const pdMatch = html.match(/name=['"]pickup_district_id['"][^\n]*?value=['"]?(\d+)['"]?/)
+            || html.match(/pickup_district_id['"]?\)\.html\("<option\s+value=['"]?(\d+)/)
+            || html.match(/pickup_district_id['"]?\)[^\)]*\.val\((\d+)\)/);
+        if (pdMatch) pickupDistrict = pdMatch[1];
+        let pickupVille = null;
+        const pvSel = html.match(/<select[^>]*name=['"]pickup_ville_id['"][\s\S]*?<\/select>/);
+        if (pvSel) {
+            const m = pvSel[0].match(/<option\s+value=['"](\d+)['"]\s+selected/);
+            if (m) pickupVille = m[1];
+            else {
+                const m2 = pvSel[0].match(/<option\s+value=['"](\d+)['"]/);
+                if (m2) pickupVille = m2[1];
+            }
+        }
+        if (!pickupDistrict) {
+            throw new Error('Quick Livraison: pickup_district_id introuvable sur /deliveries/create. Vérifiez la configuration de ramassage.');
+        }
+
+        const form = new FormData();
+        form.append('_token', formToken);
+        if (pickupVille) form.append('pickup_ville_id', pickupVille);
+        form.append('pickup_district_id', pickupDistrict);
+        form.append('district_id', String(districtId));
+        form.append('name', parcelData.receiver_name || parcelData.customer_name || '');
+        form.append('amount', String(parcelData.cash_on_delivery || parcelData.cod_amount || 0));
+        form.append('phone', phone);
+        form.append('address', parcelData.receiver_address || parcelData.delivery_address || '');
+        if (parcelData.delivery_note) form.append('note', String(parcelData.delivery_note));
+        // NEVER append is_stock: the dashboard uses HTML-checkbox convention — the mere
+        // presence of the field makes QL flag the parcel as stock-mode, hiding it from
+        // the BL/pickup queue. Omit entirely to keep it as a regular pickup parcel.
+        form.append('prd_name', String(parcelData.product_info || 'Produit'));
+        form.append('qte_prd', String(parcelData.product_qty || 1));
+
+        // Dashboard uses HTML-checkbox convention: field present = checked, absent = unchecked.
+        const truthy = (v) => v === true || v === 'true' || v === 'YES' || v === '1' || v === 1;
+        if (truthy(parcelData.open)) form.append('open', 'on');
+        if (truthy(parcelData.try) || truthy(parcelData.try_on)) form.append('try', 'on');
+        if (truthy(parcelData.fragile)) form.append('fragile', 'on');
+        form.append('echange', 'on');
+        if (parcelData.old_tracking) form.append('echange_colis', String(parcelData.old_tracking));
+
+        const res = await this.dashboardFetch('/deliveries/store-ajax', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': formToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': `${this.dashboardBaseUrl}/deliveries/create`,
+            },
+            body: form,
+            redirect: 'manual',
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch {
+            throw new Error(`Quick Livraison store-ajax non-JSON (HTTP ${res.status}): ${text.substring(0, 300)}`);
+        }
+        if (!data.success || !data.parcel_code) {
+            const err = data.errors ? JSON.stringify(data.errors) : (data.message || text.substring(0, 300));
+            throw new Error(`Quick Livraison store-ajax error: ${err}`);
+        }
+
+        console.log('=== QUICKLIVRAISON createParcel via DASHBOARD END ===');
+        return {
+            tracking_code: data.parcel_code,
+            external_id: data.parcel_code,
             provider_response: data
         };
     }

@@ -85,6 +85,7 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
         return {
             open: provider.quicklivraison_parcel_open ? 'YES' : 'NO',
             try: provider.quicklivraison_parcel_try_on ? 'YES' : 'NO',
+            fragile: !!provider.quicklivraison_parcel_fragile,
         };
     }
     return {} as Record<string, unknown>;
@@ -133,6 +134,7 @@ type WizardOrder = {
     replace: boolean | null;
     coliaty_old_tracking: string | null;
     ameex_old_tracking: string | null;
+    quicklivraison_old_tracking: string | null;
     items: WizardOrderItem[] | null;
     city: { id: string; name: string; zone_id: string | null } | null;
     company: WizardProvider | null;
@@ -369,6 +371,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             'AMEEX exchange requires the previous parcel tracking number on the order (exchange_code).'
                         );
                     }
+                    if (isQuickLivraison && order.replace && !String(order.quicklivraison_old_tracking || '').trim()) {
+                        throw new Error(
+                            'Quick Livraison exchange requires the previous parcel tracking number on the order (echange_colis).'
+                        );
+                    }
                     // Prepare parcel data
                     const parcelData = {
                         customer_name: order.name,
@@ -401,7 +408,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                               : isQuickLivraison
                                 ? {
                                       replaceable: !!order.replace,
-                                      old_tracking: '',
+                                      old_tracking: order.replace
+                                          ? String(order.quicklivraison_old_tracking || '').trim()
+                                          : '',
                                   }
                                 : Object.keys(permFields).length === 0
                                   ? { replaceable: order.replace || false }
@@ -946,6 +955,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             order.city?.name,
                             order.coliaty_old_tracking,
                             order.ameex_old_tracking,
+                            order.quicklivraison_old_tracking,
                             String(order.price ?? ''),
                             itemLabels,
                         ].filter(Boolean).join(' ').toLowerCase();
