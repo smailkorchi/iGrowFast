@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import { trackParcelWithFallback } from '@/lib/orders/syncOrderTracking';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 
@@ -137,18 +138,13 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 const providerColor = (data.statusColor || data.color) as string | undefined;
 
                 if (providerStatus) {
-                    const { data: matchedStatus } = await supabase
-                        .from('package_statuses')
-                        .select('id, label')
-                        .ilike('label', providerStatus)
-                        .maybeSingle();
-
+                    const matched = await matchPackageStatus(supabase, providerStatus);
                     await supabase
                         .from('company_parcels')
                         .update({
-                            status_id: matchedStatus?.id || null,
-                            status_label: providerStatus,
-                            status_color: providerColor ?? null,
+                            status_id: matched?.id ?? null,
+                            status_label: matched?.label ?? providerStatus,
+                            status_color: matched?.color ?? providerColor ?? null,
                         })
                         .eq('id', parcel.id);
                 }

@@ -206,9 +206,17 @@ const KNOWN_PROVIDERS = [
         baseUrl: 'https://api.ozonexpress.ma',
         description: 'Express delivery network with multipart parcel creation.',
     },
+    {
+        type: 'quicklivraison',
+        name: 'Quick Livraison',
+        logo: 'https://clients.quicklivraison.ma/public/assets/v2/img/Logo-light.png',
+        color: '#15803d',
+        baseUrl: 'https://clients.quicklivraison.ma/api',
+        description: 'Livraison rapide au Maroc. Suivi par polling (pas de webhook, pas de bon de ramassage API).',
+    },
 ];
 
-type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon';
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison';
 
 type ProviderPermissionRow = { key: string; label: string; hint?: string };
 
@@ -230,6 +238,11 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
         { key: 'fragile', label: 'Fragile' },
         { key: 'echange', label: 'Échange' },
     ],
+    quicklivraison: [
+        { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client" },
+        { key: 'autoriser_essayage', label: "Autoriser l'essayage du produit par le client" },
+        { key: 'fragile', label: 'Fragile', hint: 'Quick Livraison applique +5 MAD pour les colis fragiles.' },
+    ],
 };
 
 function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
@@ -238,6 +251,7 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'ameex' || t.includes('ameex')) return 'ameex';
     if (t === 'coliaty' || t.includes('coliaty')) return 'coliaty';
     if (t === 'ozon' || t.includes('ozon')) return 'ozon';
+    if (t === 'quicklivraison' || t.includes('quicklivraison')) return 'quicklivraison';
     return null;
 }
 
@@ -259,6 +273,13 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
             ouvrir_colis_autorise: Number(row.ozon_parcel_open) === 1,
             fragile: Number(row.ozon_parcel_fragile) === 1,
             echange: Number(row.ozon_parcel_replace) === 1,
+        };
+    }
+    if (slug === 'quicklivraison') {
+        return {
+            autorisation_ouverture_colis: !!row.quicklivraison_parcel_open,
+            autoriser_essayage: !!row.quicklivraison_parcel_try_on,
+            fragile: !!row.quicklivraison_parcel_fragile,
         };
     }
     return {};
@@ -286,6 +307,13 @@ function flagsToProviderParcelUpdate(
             ozon_parcel_open: flags.ouvrir_colis_autorise ? 1 : 2,
             ozon_parcel_fragile: flags.fragile ? 1 : 0,
             ozon_parcel_replace: flags.echange ? 1 : 0,
+        };
+    }
+    if (slug === 'quicklivraison') {
+        return {
+            quicklivraison_parcel_open: !!flags.autorisation_ouverture_colis,
+            quicklivraison_parcel_try_on: !!flags.autoriser_essayage,
+            quicklivraison_parcel_fragile: !!flags.fragile,
         };
     }
     return {};

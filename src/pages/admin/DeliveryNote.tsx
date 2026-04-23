@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
+import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import {
     FileText,
     Plus,
@@ -32,7 +33,8 @@ import {
     Phone,
     MapPin,
     CalendarClock,
-    Info
+    Info,
+    ExternalLink
 } from 'lucide-react';
 import {
     Card,
@@ -180,19 +182,14 @@ const DeliveryNote = () => {
                 const providerColor = result.data?.statusColor || result.data?.color;
 
                 if (providerStatus) {
-                    // map to internal status
-                    const { data: matchedStatus } = await supabase
-                        .from('package_statuses')
-                        .select('id')
-                        .ilike('label', providerStatus)
-                        .maybeSingle();
-
+                    // map to internal status (containment → RPC → ilike fallback)
+                    const matched = await matchPackageStatus(supabase, providerStatus);
                     await supabase
                         .from('company_parcels')
                         .update({
-                            status_id: matchedStatus?.id || null,
-                            status_label: providerStatus,
-                            status_color: providerColor
+                            status_id: matched?.id ?? null,
+                            status_label: matched?.label ?? providerStatus,
+                            status_color: matched?.color ?? providerColor ?? null,
                         })
                         .eq('id', parcel.id);
                 }
@@ -920,27 +917,21 @@ const DeliveryNote = () => {
                                 if (result.success && result.data && !Array.isArray(result.data) && (result.data.statusLabel || result.data.status)) {
                                     const providerStatus = result.data.statusLabel || result.data.status;
                                     const providerColor = result.data.statusColor || result.data.color;
-                                    let mappedStatusId = parcel.status_id;
 
-                                    // Map provider status to internal package_statuses
-                                    const { data: matchedStatus } = await supabase
-                                        .from('package_statuses')
-                                        .select('id')
-                                        .ilike('label', providerStatus)
-                                        .single();
-
-                                    if (matchedStatus) {
-                                        mappedStatusId = matchedStatus.id;
-                                    }
+                                    // Map provider status to internal package_statuses (containment → RPC → ilike fallback)
+                                    const matched = await matchPackageStatus(supabase, providerStatus);
+                                    const mappedStatusId = matched?.id ?? parcel.status_id ?? null;
+                                    const finalLabel = matched?.label ?? providerStatus;
+                                    const finalColor = matched?.color ?? providerColor ?? null;
 
                                     // Persist to database if status or color changed
-                                    if (mappedStatusId !== parcel.status_id || providerStatus !== parcel.status_label || providerColor !== parcel.status_color) {
+                                    if (mappedStatusId !== parcel.status_id || finalLabel !== parcel.status_label || finalColor !== parcel.status_color) {
                                         await supabase
                                             .from('company_parcels')
                                             .update({
                                                 status_id: mappedStatusId,
-                                                status_label: providerStatus,
-                                                status_color: providerColor,
+                                                status_label: finalLabel,
+                                                status_color: finalColor,
                                                 provider_response: result.data
                                             })
                                             .eq('id', parcel.id);
@@ -1877,6 +1868,34 @@ const DeliveryNote = () => {
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange" onClick={() => handlePrintLabels('Note')}>
                                             Bon de Livraison
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'quicklivraison' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[240px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('ticket')}>
+                                            Étiquettes (stickers)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('eticket')}>
+                                            E-Étiquettes
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange" onClick={() => handlePrintLabels('note')}>
+                                            Bon de Livraison (PDF)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="rounded-xl font-bold py-3 cursor-pointer"
+                                            onClick={() => window.open('https://clients.quicklivraison.ma', '_blank', 'noopener,noreferrer')}
+                                        >
+                                            <ExternalLink className="w-4 h-4 mr-2" /> Ouvrir Quick Livraison
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>

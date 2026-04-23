@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     Dialog,
@@ -47,6 +48,9 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'ozon_parcel_open',
     'ozon_parcel_fragile',
     'ozon_parcel_replace',
+    'quicklivraison_parcel_open',
+    'quicklivraison_parcel_try_on',
+    'quicklivraison_parcel_fragile',
     'logo_url',
     'color'
 ].join(', ');
@@ -77,6 +81,12 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
             replaceable: Number(provider.ozon_parcel_replace) === 1,
         };
     }
+    if (raw.includes('quicklivraison')) {
+        return {
+            open: provider.quicklivraison_parcel_open ? 'YES' : 'NO',
+            try: provider.quicklivraison_parcel_try_on ? 'YES' : 'NO',
+        };
+    }
     return {} as Record<string, unknown>;
 }
 
@@ -95,6 +105,9 @@ type WizardProvider = {
     ozon_parcel_open: number;
     ozon_parcel_fragile: number;
     ozon_parcel_replace: number;
+    quicklivraison_parcel_open: boolean;
+    quicklivraison_parcel_try_on: boolean;
+    quicklivraison_parcel_fragile: boolean;
     logo_url: string | null;
     color: string | null;
 };
@@ -345,6 +358,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const providerType = String(provider?.provider_type || '').toLowerCase();
                     const isColiaty = providerType.includes('coliaty');
                     const isAmeex = providerType.includes('ameex');
+                    const isQuickLivraison = providerType.includes('quicklivraison');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
@@ -384,9 +398,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                         ? String(order.ameex_old_tracking || '').trim()
                                         : '',
                                 }
-                              : Object.keys(permFields).length === 0
-                                ? { replaceable: order.replace || false }
-                                : {}),
+                              : isQuickLivraison
+                                ? {
+                                      replaceable: !!order.replace,
+                                      old_tracking: '',
+                                  }
+                                : Object.keys(permFields).length === 0
+                                  ? { replaceable: order.replace || false }
+                                  : {}),
                     };
 
                     // Call Edge Function
@@ -410,24 +429,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                     const result = await response.json();
 
-                    // Map provider status to our internal package_statuses
+                    // Map provider status to our internal package_statuses (containment → RPC → ilike fallback)
                     const providerStatus = result.data?.status || result.data?.label || result.data?.statusLabel || 'Nouveau';
                     const providerColor = result.data?.statusColor || result.data?.color;
-                    let mappedStatusId = null;
-
-                    // Try to find matching status in package_statuses table (non-blocking)
-                    try {
-                        const { data: matchedStatus } = await supabase
-                            .from('package_statuses')
-                            .select('id')
-                            .ilike('label', providerStatus)
-                            .maybeSingle();
-                        if (matchedStatus) {
-                            mappedStatusId = matchedStatus.id;
-                        }
-                    } catch (e) {
-                        console.warn('Could not map package status, continuing without:', e);
-                    }
+                    const matched = await matchPackageStatus(supabase, providerStatus);
+                    const mappedStatusId = matched?.id ?? null;
+                    // Prefer master label+color when mapping succeeded; keep raw otherwise.
+                    const finalStatusLabel = matched?.label ?? providerStatus;
+                    const finalStatusColor = matched?.color ?? providerColor ?? null;
 
                     // Save to database with mapped status_id and native color
                     const { data: parcel, error: parcelError } = await supabase
@@ -437,8 +446,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             order_id: order.id,
                             reference: result.data?.tracking_code || result.data?.reference || result.data?.bar_code || 'N/A',
                             tracking_code: result.data?.tracking_code || result.data?.reference || result.data?.bar_code,
-                            status_label: providerStatus,
-                            status_color: providerColor,
+                            status_label: finalStatusLabel,
+                            status_color: finalStatusColor,
                             external_id: result.data?.id || String(result.data?.external_id || ''),
                             provider_response: result.data,
                             status_id: mappedStatusId,

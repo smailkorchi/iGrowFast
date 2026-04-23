@@ -52,13 +52,14 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon'] as const;
+const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison'] as const;
 type ProviderKey = (typeof PROVIDER_ORDER)[number];
 
 const PROVIDER_LABELS: Record<ProviderKey, string> = {
     ameex: 'AMEEX',
     coliaty: 'Coliaty',
     ozon: 'Ozon',
+    quicklivraison: 'Quick Livraison',
 };
 
 type MasterCityRow = {
@@ -79,6 +80,7 @@ const citySchema = z.object({
     ameex_city_code: z.string().optional().nullable(),
     coliaty_city_name: z.string().optional().nullable(),
     ozon_city_id: z.string().optional().nullable(),
+    quicklivraison_city_id: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
@@ -89,6 +91,7 @@ const emptyCityForm: CityFormValues = {
     ameex_city_code: '',
     coliaty_city_name: '',
     ozon_city_id: '',
+    quicklivraison_city_id: '',
 };
 
 function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
@@ -98,12 +101,14 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
     const am = by('ameex');
     const co = by('coliaty');
     const oz = by('ozon');
+    const ql = by('quicklivraison');
     return {
         name: city.name,
         zone_id: city.zone_id || '',
         ameex_city_code: (am?.provider_city_id || am?.provider_city_name || '').trim() || '',
         coliaty_city_name: (co?.provider_city_name || '').trim() || '',
         ozon_city_id: (oz?.provider_city_id || '').trim() || '',
+        quicklivraison_city_id: (ql?.provider_city_id || '').trim() || '',
     };
 }
 
@@ -112,6 +117,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
         ameex: null,
         coliaty: null,
         ozon: null,
+        quicklivraison: null,
     };
     for (const pc of city.provider_cities || []) {
         const t = String(pc.provider_type || '').toLowerCase() as ProviderKey;
@@ -127,6 +133,10 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id || nm || null;
+        } else if (t === 'quicklivraison') {
+            const id = (pc.provider_city_id || '').trim();
+            const nm = (pc.provider_city_name || '').trim();
+            out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
         }
     }
     return out;
@@ -155,7 +165,7 @@ async function fetchAllMasterCities(): Promise<MasterCityRow[]> {
 async function syncProviderMappings(
     masterCityId: string,
     masterCityName: string,
-    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id'>
+    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id'>
 ) {
     const name = masterCityName.trim();
 
@@ -207,6 +217,16 @@ async function syncProviderMappings(
         });
     } else {
         await del('ozon');
+    }
+
+    const ql = (v.quicklivraison_city_id || '').trim();
+    if (ql) {
+        await upsert('quicklivraison', {
+            provider_city_id: ql,
+            provider_city_name: name || ql,
+        });
+    } else {
+        await del('quicklivraison');
     }
 }
 
@@ -367,6 +387,7 @@ const Cities = () => {
                 if (filterMapping === 'missing_ameex') return !hasProvider(city, 'ameex');
                 if (filterMapping === 'missing_coliaty') return !hasProvider(city, 'coliaty');
                 if (filterMapping === 'missing_ozon') return !hasProvider(city, 'ozon');
+                if (filterMapping === 'missing_quicklivraison') return !hasProvider(city, 'quicklivraison');
                 return true;
             });
         }
@@ -393,12 +414,14 @@ const Cities = () => {
         let ameex = 0;
         let coliaty = 0;
         let ozon = 0;
+        let quicklivraison = 0;
         for (const city of list) {
             if (city.zone_id) withHub++;
             if (allMap(city)) fullyMapped++;
             if (hasProv(city, 'ameex')) ameex++;
             if (hasProv(city, 'coliaty')) coliaty++;
             if (hasProv(city, 'ozon')) ozon++;
+            if (hasProv(city, 'quicklivraison')) quicklivraison++;
         }
         const total = list.length;
         return {
@@ -410,6 +433,7 @@ const Cities = () => {
             ameex,
             coliaty,
             ozon,
+            quicklivraison,
         };
     }, [cities]);
 
@@ -557,6 +581,10 @@ const Cities = () => {
                             <span className="font-medium text-ant-ink">Ozon</span>
                             <span className="tabular-nums text-ant-ink">{cityCatalogStats.ozon}</span>
                         </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
+                            <span className="font-medium text-ant-ink">Quick Livraison</span>
+                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.quicklivraison}</span>
+                        </span>
                     </div>
                 </div>
             )}
@@ -606,6 +634,7 @@ const Cities = () => {
                         <SelectItem value="missing_ameex" className="text-[12px]">Missing AMEEX</SelectItem>
                         <SelectItem value="missing_coliaty" className="text-[12px]">Missing Coliaty</SelectItem>
                         <SelectItem value="missing_ozon" className="text-[12px]">Missing Ozon</SelectItem>
+                        <SelectItem value="missing_quicklivraison" className="text-[12px]">Missing Quick Livraison</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -933,7 +962,7 @@ const Cities = () => {
                                                 Each carrier uses its own identifier for this city.
                                             </p>
                                         </div>
-                                        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                                             <FormField
                                                 control={form.control}
                                                 name="ameex_city_code"
@@ -987,6 +1016,27 @@ const Cities = () => {
                                                         <FormControl>
                                                             <input
                                                                 placeholder="City id"
+                                                                {...field}
+                                                                value={field.value || ''}
+                                                                className={inputClass}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage className="text-[10px] text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
+
+                                            <FormField
+                                                control={form.control}
+                                                name="quicklivraison_city_id"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                            Quick Livraison <span className="font-mono normal-case text-ant-mid/60">· district_id</span>
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <input
+                                                                placeholder="District id"
                                                                 {...field}
                                                                 value={field.value || ''}
                                                                 className={inputClass}

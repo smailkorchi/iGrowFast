@@ -1082,6 +1082,439 @@ class AmeexAdapter {
 
 }
 
+class QuickLivraisonAdapter {
+    constructor(credentials) {
+        this.apiKey = credentials.api_key || '';
+        this.baseUrl = credentials.api_base_url || 'https://clients.quicklivraison.ma/api';
+        this.dashboardBaseUrl = 'https://clients.quicklivraison.ma';
+        // Public PDF service — same token ships in QL's own dashboard JS for every tenant.
+        this.pdfBaseUrl = 'https://admin.quicklivraison.ma';
+        this.pdfToken = 'ilernguzhnugfierhgurehfuizelhfnozehfuzi';
+        // Dashboard credentials for bordereau flow (undocumented, scraped routes).
+        this.login = credentials.api_login || '';
+        this.password = credentials.api_password || '';
+        // Session state (per-invocation).
+        this.cookies = new Map();
+        this.csrfToken = null;
+    }
+
+    // ---- dashboard session helpers ----
+    parseSetCookie(res) {
+        const getAll = typeof res.headers.getSetCookie === 'function'
+            ? res.headers.getSetCookie.bind(res.headers)
+            : null;
+        const list = getAll ? getAll() : [res.headers.get('set-cookie')].filter(Boolean);
+        for (const raw of list) {
+            if (!raw) continue;
+            const [pair] = String(raw).split(';');
+            const eq = pair.indexOf('=');
+            if (eq > 0) this.cookies.set(pair.substring(0, eq).trim(), pair.substring(eq + 1).trim());
+        }
+    }
+    cookieHeader() {
+        return Array.from(this.cookies.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    }
+
+    async ensureSession() {
+        if (this.csrfToken && this.cookies.has('quicklivraison_session')) return;
+        if (!this.login || !this.password) {
+            throw new Error('Quick Livraison: api_login et api_password requis pour le flux bon de ramassage.');
+        }
+        // 1. GET login page → seed cookies + capture form _token
+        const r1 = await fetch(`${this.dashboardBaseUrl}/login`, { redirect: 'manual' });
+        this.parseSetCookie(r1);
+        const loginHtml = await r1.text();
+        const tokMatch = loginHtml.match(/name="_token"\s+value="([^"]+)"/);
+        if (!tokMatch) throw new Error('Quick Livraison: jeton CSRF introuvable sur la page login.');
+        const formToken = tokMatch[1];
+
+        // 2. POST credentials (expect 302 to /dashboard)
+        const body = new URLSearchParams();
+        body.set('email', this.login);
+        body.set('password', this.password);
+        body.set('_token', formToken);
+        const r2 = await fetch(`${this.dashboardBaseUrl}/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Cookie': this.cookieHeader(),
+                'Referer': `${this.dashboardBaseUrl}/login`,
+            },
+            body: body.toString(),
+            redirect: 'manual',
+        });
+        this.parseSetCookie(r2);
+        if (r2.status !== 302) {
+            throw new Error(`Quick Livraison login failed: HTTP ${r2.status}. Vérifiez api_login / api_password.`);
+        }
+        // 3. GET /dashboard to capture in-page CSRF used by XHR
+        const r3 = await fetch(`${this.dashboardBaseUrl}/dashboard`, {
+            headers: { 'Cookie': this.cookieHeader() },
+        });
+        this.parseSetCookie(r3);
+        const dashHtml = await r3.text();
+        const csrfMatch = dashHtml.match(/csrfToken\s*=\s*['"]([^'"]+)['"]/);
+        if (!csrfMatch) throw new Error('Quick Livraison: jeton CSRF introuvable sur le dashboard.');
+        this.csrfToken = csrfMatch[1];
+    }
+
+    async dashboardFetch(path, init) {
+        await this.ensureSession();
+        const opts = init || {};
+        const headers = new Headers(opts.headers || {});
+        headers.set('Cookie', this.cookieHeader());
+        if (!headers.has('Referer')) headers.set('Referer', `${this.dashboardBaseUrl}/dashboard`);
+        const res = await fetch(`${this.dashboardBaseUrl}${path}`, {
+            method: opts.method || 'GET',
+            headers,
+            body: opts.body,
+            redirect: opts.redirect || 'manual',
+        });
+        this.parseSetCookie(res);
+        return res;
+    }
+
+    async resolveMasterStatus(rawStatus, supabase) {
+        if (!rawStatus || !supabase) return null;
+        // 1) JSONB containment match (fast exact match)
+        const { data: exact } = await supabase
+            .from('package_statuses')
+            .select('code, label, color, category')
+            .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
+            .limit(1)
+            .maybeSingle();
+        if (exact) return exact;
+        // 2) RPC fallback (case-insensitive, diacritic-insensitive)
+        try {
+            const { data: rpcMatch } = await supabase.rpc('match_package_status', { p_status_value: rawStatus });
+            if (rpcMatch && rpcMatch[0]) return rpcMatch[0];
+        } catch (_) { /* RPC optional */ }
+        return null;
+    }
+
+    async normalizeTrackingPayload(data, trackingCode, supabase) {
+        const rawStatus = data.status_second || data.status || 'Unknown';
+
+        // Map current raw QL code → master package_statuses row (French label + color)
+        const master = await this.resolveMasterStatus(rawStatus, supabase);
+        const statusLabel = master?.label || rawStatus;
+        const statusColor = master?.color || null;
+
+        // Helper: resolve a milestone raw code to its master row (label + color + id + category)
+        const resolveEvent = async (rawCode) => {
+            const m = await this.resolveMasterStatus(rawCode, supabase);
+            return {
+                label: m?.label || rawCode,
+                color: m?.color || null,
+                statusId: m?.id || null,
+                category: m?.category || null,
+            };
+        };
+
+        // Milestones: each filled QL timestamp = a state transition. Resolve label+color via master.
+        const history = [];
+        const pushMilestone = async (date, rawCode) => {
+            if (!date) return;
+            const r = await resolveEvent(rawCode);
+            history.push({
+                status: rawCode,
+                statusLabel: r.label,
+                statusColor: r.color,
+                statusId: r.statusId,
+                category: r.category,
+                color: r.color, // UI-compatible alias used elsewhere (AMEEX shape)
+                date,
+                comment: ''
+            });
+        };
+        await pushMilestone(data.date_creation, 'NEW_PARCEL');
+        await pushMilestone(data.date_ramassage, 'PICKED_UP');
+        await pushMilestone(data.date_expedition, 'SENT');
+        await pushMilestone(data.date_livraison, 'DELIVERED');
+        history.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        // If the current status is NOT already represented by a milestone (e.g. WAITING_PICKUP,
+        // REFUSE, POSTPONED, etc.), append it so the timeline ends on the current state.
+        const milestoneCodes = new Set(['NEW_PARCEL', 'PICKED_UP', 'SENT', 'DELIVERED']);
+        if (statusLabel && statusLabel !== 'Unknown' && !milestoneCodes.has(rawStatus)) {
+            const lastDate = history[history.length - 1]?.date;
+            const modDate = data.date_derniere_modification || lastDate || new Date().toISOString();
+            history.push({
+                status: rawStatus,
+                statusLabel,
+                statusColor,
+                statusId: master?.id || null,
+                category: master?.category || null,
+                color: statusColor,
+                date: modDate,
+                comment: '',
+            });
+        }
+
+        return {
+            tracking_code: data.tracking_number || trackingCode,
+            status: rawStatus,
+            statusLabel,
+            statusColor,
+            status_code: master?.code || null,
+            status_category: master?.category || null,
+            history,
+            _original: data
+        };
+    }
+
+    async trackParcel(trackingCode, _externalId, supabase) {
+        if (!trackingCode) throw new Error('Tracking code required');
+        const response = await fetch(`${this.baseUrl}/getParcelDetails/${encodeURIComponent(trackingCode)}`, {
+            method: 'GET'
+        });
+        if (response.status === 404) return null;
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`QuickLivraison track error: ${errText}`);
+        }
+        const data = await response.json();
+        if (data && data.error) return null;
+        return await this.normalizeTrackingPayload(data, trackingCode, supabase);
+    }
+
+    async getParcelInfo(trackingCode, supabase) {
+        return this.trackParcel(trackingCode, undefined, supabase);
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== QUICKLIVRAISON createParcel START ===');
+        console.log('Input parcelData:', JSON.stringify(parcelData, null, 2));
+
+        let districtId = parcelData.district_id || parcelData.quicklivraison_city_id;
+        if (!districtId && parcelData.master_city_id && supabase) {
+            console.log('Resolving QuickLivraison district_id from master_city_id:', parcelData.master_city_id);
+            const { data: mapping } = await supabase
+                .from('provider_cities')
+                .select('provider_city_id')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'quicklivraison')
+                .single();
+            if (mapping?.provider_city_id) {
+                districtId = mapping.provider_city_id;
+                console.log('Resolved QuickLivraison district_id:', districtId);
+            }
+        }
+        if (!districtId) {
+            throw new Error('Quick Livraison district_id manquant. La ville doit être mappée pour QuickLivraison.');
+        }
+
+        // Phone normalization: QL validation says 9 digits without spaces or dashes.
+        // We accept 0XXXXXXXXX (10 digits) and strip leading 0 if API rejects, else pass as-is.
+        let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
+        if (phone.startsWith('212')) phone = '0' + phone.substring(3);
+        if (!/^0\d{9}$/.test(phone) && !/^\d{9}$/.test(phone)) {
+            throw new Error(`Format téléphone invalide pour Quick Livraison: "${phone}". Attendu 9 chiffres ou 0 + 9 chiffres.`);
+        }
+
+        const form = new URLSearchParams();
+        form.append('api_key', this.apiKey);
+        form.append('district_id', String(districtId));
+        form.append('name', parcelData.receiver_name || parcelData.customer_name || '');
+        form.append('amount', String(parcelData.cash_on_delivery || parcelData.cod_amount || 0));
+        form.append('phone', phone);
+        form.append('address', parcelData.receiver_address || parcelData.delivery_address || '');
+        if (parcelData.delivery_note) form.append('note', String(parcelData.delivery_note));
+        // Flags — QL doc says boolean true/false
+        if (parcelData.open === 'YES' || parcelData.open === true || parcelData.open === 'true') {
+            form.append('open', 'true');
+        }
+        if (parcelData.try === 'YES' || parcelData.try_on === true || parcelData.try === true) {
+            form.append('try', 'true');
+        }
+        if (parcelData.replaceable) {
+            form.append('echange', 'true');
+            if (parcelData.old_tracking) form.append('echange_colis', String(parcelData.old_tracking));
+        }
+        if (parcelData.product_info) form.append('prd_name', String(parcelData.product_info));
+        if (parcelData.product_qty) form.append('qte_prd', String(parcelData.product_qty));
+
+        const url = `${this.baseUrl}/deliveries/store`;
+        const body = form.toString();
+        console.log('QL request:', url, 'body:', body.replace(this.apiKey, '***'));
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body
+        });
+
+        const text = await response.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch {
+            throw new Error(`QuickLivraison returned non-JSON: ${text.substring(0, 300)}`);
+        }
+
+        if (!response.ok || data.error) {
+            const msg = data.error || data.message || text.substring(0, 300);
+            throw new Error(`QuickLivraison Error: ${msg}`);
+        }
+        if (!data.tracking_number) {
+            throw new Error(`QuickLivraison: tracking_number absent. Réponse: ${JSON.stringify(data).substring(0, 300)}`);
+        }
+
+        console.log('=== QUICKLIVRAISON createParcel END ===');
+        return {
+            tracking_code: data.tracking_number,
+            external_id: data.tracking_number,
+            provider_response: data
+        };
+    }
+
+    async createDeliveryNote() {
+        // GET /delevery-note/create → 302 redirect whose Location header carries the new BL ref.
+        const res = await this.dashboardFetch('/delevery-note/create');
+        if (res.status !== 302 && res.status !== 200) {
+            const txt = await res.text();
+            throw new Error(`Quick Livraison createDeliveryNote failed: ${res.status} ${txt.substring(0, 200)}`);
+        }
+        const loc = res.headers.get('location') || res.headers.get('Location') || '';
+        const m = loc.match(/BL-[0-9-]+/);
+        if (!m) throw new Error(`Quick Livraison: référence BL introuvable (Location=${loc}).`);
+        return {
+            reference: m[0],
+            provider_response: { location: loc }
+        };
+    }
+
+    async resolveParcelIds(trackingCodes, ref) {
+        const res = await this.dashboardFetch(`/DeliveryNote/ref/${ref}`);
+        if (!res.ok && res.status !== 200) {
+            throw new Error(`Quick Livraison: lecture BL ${ref} échouée (HTTP ${res.status}).`);
+        }
+        const html = await res.text();
+        const idMap = new Map();
+        for (const code of trackingCodes) {
+            const idx = html.indexOf(String(code));
+            if (idx < 0) continue;
+            // Internal numeric id appears as a quoted number within ~1.5KB before the tracking code.
+            const windowText = html.substring(Math.max(0, idx - 1500), idx);
+            const matches = windowText.match(/["']([0-9]{5,10})["']/g) || [];
+            if (matches.length === 0) continue;
+            const last = matches[matches.length - 1].replace(/['"]/g, '');
+            idMap.set(code, last);
+        }
+        return idMap;
+    }
+
+    async addParcelsToNote(deliveryNoteRef, parcelCodes) {
+        await this.ensureSession();
+        const codes = Array.isArray(parcelCodes) ? parcelCodes.filter(Boolean) : [];
+        if (codes.length === 0 || !deliveryNoteRef) {
+            return { success: true, reference: deliveryNoteRef, parcel_codes: codes, inserted_ids: [] };
+        }
+        if (!/^BL-/.test(deliveryNoteRef)) {
+            throw new Error('Quick Livraison: référence BL invalide (doit commencer par BL-).');
+        }
+
+        const idMap = await this.resolveParcelIds(codes, deliveryNoteRef);
+        const ids = [];
+        const missing = [];
+        for (const code of codes) {
+            const id = idMap.get(code);
+            if (id) ids.push(id); else missing.push(code);
+        }
+        if (ids.length === 0) {
+            throw new Error(`Quick Livraison: IDs internes introuvables pour ${missing.join(', ')}. Les colis doivent d'abord être créés chez QL.`);
+        }
+
+        const body = new URLSearchParams();
+        for (const id of ids) body.append('ids[]', id);
+        body.set('ref', deliveryNoteRef);
+        body.set('_token', this.csrfToken || '');
+
+        const res = await this.dashboardFetch('/DeliveryNote/insert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': this.csrfToken || '',
+                'Referer': `${this.dashboardBaseUrl}/DeliveryNote/ref/${deliveryNoteRef}`,
+                'Accept': 'application/json, text/plain, */*',
+            },
+            body: body.toString(),
+        });
+        const txt = await res.text();
+        let parsed = null;
+        try { parsed = JSON.parse(txt); } catch {}
+
+        if (res.status !== 200 && res.status !== 302) {
+            throw new Error(`Quick Livraison: /DeliveryNote/insert HTTP ${res.status}: ${txt.substring(0, 200)}`);
+        }
+        return {
+            success: true,
+            reference: deliveryNoteRef,
+            inserted_ids: ids,
+            missing,
+            message: parsed?.message || 'inserted',
+        };
+    }
+
+    async finalizeDeliveryNote(deliveryNoteRef) {
+        // Insert already persists on QL's side; no explicit finalize endpoint exists.
+        return { success: true, reference: deliveryNoteRef };
+    }
+
+    async deleteNote(reference) {
+        if (!reference || !/^BL-/.test(reference)) return { success: true, reference };
+        try {
+            const res = await this.dashboardFetch(`/DeliveryNote/${reference}/drop`);
+            return { success: res.status === 302 || res.ok, reference };
+        } catch (err) {
+            console.error('QL drop note error:', err);
+            return { success: false, reference, error: err.message };
+        }
+    }
+
+    async getPrintUrl(deliveryNoteRef, labelFormat, _printType, options) {
+        const fmt = String(labelFormat || '').toLowerCase();
+        const isRealBL = deliveryNoteRef && /^BL-/.test(String(deliveryNoteRef));
+
+        // --- Bordereau-level formats (require a real QL BL reference) ---
+        if (fmt === 'note' || fmt === 'bordereau' || fmt === 'bl' || fmt === 'bl-pdf') {
+            if (!isRealBL) {
+                throw new Error('Bordereau QL indisponible: ce bon n\'a pas de référence QL. Recréez-le après activation du flux dashboard.');
+            }
+            return `${this.pdfBaseUrl}/pdf-delivery-note?token=${encodeURIComponent(this.pdfToken)}&dn-ref=${encodeURIComponent(deliveryNoteRef)}`;
+        }
+        if (fmt === 'bl-tickets' || fmt === 'note-tickets') {
+            if (!isRealBL) throw new Error('Étiquettes du bon QL indisponibles: référence non-QL.');
+            return `${this.pdfBaseUrl}/pdf-delivery-note-tickets?token=${encodeURIComponent(this.pdfToken)}&dn-ref=${encodeURIComponent(deliveryNoteRef)}`;
+        }
+        if (fmt === 'bl-etickets' || fmt === 'note-etickets') {
+            if (!isRealBL) throw new Error('E-tickets du bon QL indisponibles: référence non-QL.');
+            return `${this.pdfBaseUrl}/pdf-delivery-note-etickets?token=${encodeURIComponent(this.pdfToken)}&dn-ref=${encodeURIComponent(deliveryNoteRef)}`;
+        }
+
+        // --- Parcel-level formats (work with or without a real BL) ---
+        const supabase = options?.supabase;
+        const noteId = options?.noteId;
+        if (!supabase || !noteId) {
+            throw new Error('Quick Livraison: note_id manquant pour impression parcel.');
+        }
+        const { data: parcels, error } = await supabase
+            .from('company_parcels')
+            .select('tracking_code')
+            .eq('company_delivery_note_id', noteId);
+        if (error) throw new Error(`Quick Livraison: lecture colis échouée (${error.message})`);
+        const codes = (parcels || [])
+            .map((p) => String(p.tracking_code || '').trim())
+            .filter(Boolean);
+        if (codes.length === 0) throw new Error('Quick Livraison: aucun colis avec tracking_code dans ce bon.');
+
+        const endpoint = (fmt === 'eticket' || fmt === 'e-ticket')
+            ? '/pdf-parcel-eticket'
+            : '/pdf-parcel-ticket';
+        return `${this.pdfBaseUrl}${endpoint}?token=${encodeURIComponent(this.pdfToken)}&parcel-code=${codes.join(',')}`;
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -1106,7 +1539,9 @@ Deno.serve(async (req) => {
             ? new ColiatyAdapter(provider)
             : type === 'ozon'
                 ? new OzonAdapter(provider)
-                : new AmeexAdapter(provider);
+                : type === 'quicklivraison'
+                    ? new QuickLivraisonAdapter(provider)
+                    : new AmeexAdapter(provider);
 
         // Adapter initialization
 
@@ -1115,15 +1550,20 @@ Deno.serve(async (req) => {
         switch (action) {
             case 'track_parcel':
                 console.log('Tracking parcel:', data.tracking_code);
-                result = await adapter.trackParcel(data.tracking_code, data.external_id);
+                result = await adapter.trackParcel(data.tracking_code, data.external_id, supabase);
                 break;
             case 'get_parcel_info':
                 console.log('Getting parcel info:', data.tracking_code);
-                result = await adapter.getParcelInfo(data.tracking_code);
+                result = await adapter.getParcelInfo(data.tracking_code, supabase);
                 break;
             case 'get_print_url': {
                 console.log('Getting print URL for:', data.delivery_note_ref, 'Format:', data.label_format, 'Type:', data.print_type);
-                const link = await adapter.getPrintUrl(data.delivery_note_ref, data.label_format, data.print_type);
+                const link = await adapter.getPrintUrl(
+                    data.delivery_note_ref,
+                    data.label_format,
+                    data.print_type,
+                    { supabase, noteId: data.note_id }
+                );
                 result = { print_html: link };
                 break;
             }

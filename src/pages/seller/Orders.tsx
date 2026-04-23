@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import {
     Plus,
     Search,
@@ -871,18 +872,13 @@ const Orders = () => {
                 const providerColor = result.data?.statusColor || result.data?.color;
 
                 if (providerStatus) {
-                    const { data: matchedStatus } = await supabase
-                        .from('package_statuses')
-                        .select('id, label')
-                        .ilike('label', providerStatus)
-                        .maybeSingle();
-
+                    const matched = await matchPackageStatus(supabase, providerStatus);
                     await supabase
                         .from('company_parcels')
                         .update({
-                            status_id: matchedStatus?.id || null,
-                            status_label: providerStatus,
-                            status_color: providerColor
+                            status_id: matched?.id ?? null,
+                            status_label: matched?.label ?? providerStatus,
+                            status_color: matched?.color ?? providerColor ?? null,
                         })
                         .eq('id', parcel.id);
                 }
