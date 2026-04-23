@@ -53,6 +53,9 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'quicklivraison_parcel_fragile',
     'vitex_parcel_fragile',
     'vitex_parcel_open',
+    'forcelog_parcel_fragile',
+    'forcelog_parcel_open',
+    'forcelog_parcel_carton',
     'logo_url',
     'color'
 ].join(', ');
@@ -96,6 +99,10 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
         // directly — no per-parcel overrides needed here.
         return {} as Record<string, unknown>;
     }
+    if (raw.includes('forcelog')) {
+        // Forcelog: fragile + carton + "Interdit d'ouvrir". Adapter reads flags from provider row.
+        return {} as Record<string, unknown>;
+    }
     return {} as Record<string, unknown>;
 }
 
@@ -119,6 +126,9 @@ type WizardProvider = {
     quicklivraison_parcel_fragile: boolean;
     vitex_parcel_fragile: boolean;
     vitex_parcel_open: boolean;
+    forcelog_parcel_fragile: boolean;
+    forcelog_parcel_open: boolean;
+    forcelog_parcel_carton: boolean;
     logo_url: string | null;
     color: string | null;
 };
@@ -145,6 +155,7 @@ type WizardOrder = {
     coliaty_old_tracking: string | null;
     ameex_old_tracking: string | null;
     quicklivraison_old_tracking: string | null;
+    forcelog_old_tracking: string | null;
     items: WizardOrderItem[] | null;
     city: { id: string; name: string; zone_id: string | null } | null;
     company: WizardProvider | null;
@@ -372,6 +383,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const isAmeex = providerType.includes('ameex');
                     const isQuickLivraison = providerType.includes('quicklivraison');
                     const isVitex = providerType.includes('vitex');
+                    const isForcelog = providerType.includes('forcelog');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
@@ -390,6 +402,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     if (isVitex && order.replace) {
                         throw new Error(
                             "Vitex n'accepte l'échange que si le colis précédent a le statut 'Livré' dans le dashboard Vitex. Désactivez l'échange sur cette commande ou créez-le manuellement côté Vitex."
+                        );
+                    }
+                    if (isForcelog && order.replace && !String(order.forcelog_old_tracking || '').trim()) {
+                        throw new Error(
+                            "Forcelog exchange requires the previous parcel tracking number on the order (forcelog_old_tracking)."
                         );
                     }
                     // Prepare parcel data
@@ -436,9 +453,18 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                             .filter((i) => i.quantity > 0)
                                             .reduce((sum, i) => sum + Number(i.quantity || 0), 0) || 1,
                                     }
-                                  : Object.keys(permFields).length === 0
-                                    ? { replaceable: order.replace || false }
-                                    : {}),
+                                  : isForcelog
+                                    ? {
+                                          // Forcelog: exchange supported. Adapter reads fragile/open/carton from provider row.
+                                          order_num: order.id,
+                                          district: '',
+                                          replace_parcel_code: order.replace
+                                              ? String(order.forcelog_old_tracking || '').trim()
+                                              : '',
+                                      }
+                                    : Object.keys(permFields).length === 0
+                                      ? { replaceable: order.replace || false }
+                                      : {}),
                     };
 
                     // Call Edge Function

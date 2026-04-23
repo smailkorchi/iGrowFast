@@ -182,6 +182,7 @@ const orderSchema = z.object({
     coliaty_old_tracking: z.string().optional(),
     ameex_old_tracking: z.string().optional(),
     quicklivraison_old_tracking: z.string().optional(),
+    forcelog_old_tracking: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -225,6 +226,16 @@ function orderCompanyIsVitex(
     return t === 'vitex' || t.includes('vitex');
 }
 
+function orderCompanyIsForcelog(
+    companies: { id: string; provider_type?: string | null }[] | undefined,
+    companyId: string | null | undefined
+) {
+    if (!companyId || !companies?.length) return false;
+    const row = companies.find((c) => c.id === companyId);
+    const t = String(row?.provider_type || '').toLowerCase();
+    return t === 'forcelog' || t.includes('forcelog');
+}
+
 function toOrderLineForRecords(item: OrderFormValues['items'][number]): OrderLineForRecords {
     return {
         product_id: item.product_id ?? null,
@@ -242,6 +253,7 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
     if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
     if (order?.quicklivraison_old_tracking) codes.push(String(order.quicklivraison_old_tracking));
+    if (order?.forcelog_old_tracking) codes.push(String(order.forcelog_old_tracking));
     for (const p of order?.parcels || []) {
         if (p?.tracking_code) codes.push(String(p.tracking_code));
     }
@@ -1201,7 +1213,8 @@ const Orders = () => {
             _reportedDate: '',
             coliaty_old_tracking: '',
             ameex_old_tracking: '',
-            quicklivraison_old_tracking: ''
+            quicklivraison_old_tracking: '',
+            forcelog_old_tracking: ''
         }
     });
 
@@ -1266,6 +1279,7 @@ const Orders = () => {
             coliaty_old_tracking: '',
             ameex_old_tracking: '',
             quicklivraison_old_tracking: '',
+            forcelog_old_tracking: ''
         });
         setIsAddModalOpen(true);
 
@@ -1492,6 +1506,10 @@ const Orders = () => {
                         orderCompanyIsQuickLivraison(companies, values.company_id) && values.replace
                             ? (values.quicklivraison_old_tracking || '').trim() || null
                             : null,
+                    forcelog_old_tracking:
+                        orderCompanyIsForcelog(companies, values.company_id) && values.replace
+                            ? (values.forcelog_old_tracking || '').trim() || null
+                            : null,
                     price: orderPrice,
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
@@ -1571,7 +1589,8 @@ const Orders = () => {
                     _reportedDate: '',
                     coliaty_old_tracking: '',
                     ameex_old_tracking: '',
-                    quicklivraison_old_tracking: ''
+                    quicklivraison_old_tracking: '',
+                    forcelog_old_tracking: ''
                 });
             }, 0);
             toast({ title: "Order Created", description: "Successfully logged new order." });
@@ -1621,6 +1640,10 @@ const Orders = () => {
                 quicklivraison_old_tracking:
                     orderCompanyIsQuickLivraison(companies, values.company_id) && values.replace
                         ? (values.quicklivraison_old_tracking || '').trim() || null
+                        : null,
+                forcelog_old_tracking:
+                    orderCompanyIsForcelog(companies, values.company_id) && values.replace
+                        ? (values.forcelog_old_tracking || '').trim() || null
                         : null,
                 price: orderPrice,
                 raw_price: totalPrice,
@@ -2025,6 +2048,7 @@ const Orders = () => {
             coliaty_old_tracking: order.coliaty_old_tracking || '',
             ameex_old_tracking: order.ameex_old_tracking || '',
             quicklivraison_old_tracking: order.quicklivraison_old_tracking || '',
+            forcelog_old_tracking: order.forcelog_old_tracking || '',
             items: (() => {
                 const groupedItems: any[] = [];
                 order.items?.forEach((item: any) => {
@@ -2149,7 +2173,8 @@ const Orders = () => {
             _reportedDate: '',
             coliaty_old_tracking: '',
             ameex_old_tracking: '',
-            quicklivraison_old_tracking: ''
+            quicklivraison_old_tracking: '',
+            forcelog_old_tracking: ''
         });
         setIsAddModalOpen(true);
     };
@@ -3312,7 +3337,8 @@ const Orders = () => {
                                 _reportedDate: '',
                                 coliaty_old_tracking: '',
                                 ameex_old_tracking: '',
-                                quicklivraison_old_tracking: ''
+                                quicklivraison_old_tracking: '',
+                                forcelog_old_tracking: ''
                             });
                         }, 0);
                     }
@@ -3369,6 +3395,23 @@ const Orders = () => {
                                 toast({
                                     title: 'Missing tracking',
                                     description: 'Enter the previous parcel tracking number for Quick Livraison exchange.',
+                                    variant: 'destructive',
+                                });
+                                return;
+                            }
+
+                            if (
+                                orderCompanyIsForcelog(companies, values.company_id) &&
+                                values.replace &&
+                                !(values.forcelog_old_tracking || '').trim()
+                            ) {
+                                form.setError('forcelog_old_tracking', {
+                                    type: 'manual',
+                                    message: 'Required for Forcelog exchange (parcel_replace_old).',
+                                });
+                                toast({
+                                    title: 'Missing tracking',
+                                    description: 'Enter the previous parcel tracking number (F-XXX) for Forcelog exchange.',
                                     variant: 'destructive',
                                 });
                                 return;
@@ -3989,6 +4032,32 @@ const Orders = () => {
                                                     )}
                                                 />
                                             )}
+                                        {form.watch('replace') &&
+                                            orderCompanyIsForcelog(companies, form.watch('company_id')) && (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="forcelog_old_tracking"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                            <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
+                                                                Previous parcel tracking (Forcelog)
+                                                            </FormLabel>
+                                                            <p className="text-[10px] text-ant-muted leading-snug">
+                                                                Required for exchange: sent as Forcelog{' '}
+                                                                <code className="text-[10px]">parcel_replace_old</code> (code F-XXX).
+                                                            </p>
+                                                            <FormControl>
+                                                                <Input
+                                                                    placeholder="F-…"
+                                                                    {...field}
+                                                                    className="h-11 rounded-xl border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink"
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            )}
                                     </div>
                                 </div>
 
@@ -4528,6 +4597,21 @@ const Orders = () => {
                                                         </p>
                                                         <p className="text-sm font-mono font-bold text-ant-ink break-all">
                                                             {String(selectedOrder.quicklivraison_old_tracking).trim()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {String(selectedOrder.forcelog_old_tracking || '').trim() && (
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-10 h-10 rounded-2xl bg-ant-orange/10 flex items-center justify-center text-ant-orange shrink-0 shadow-sm shadow-amber-500/10">
+                                                        <RefreshCcw className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="space-y-1 min-w-0">
+                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">
+                                                            Previous parcel tracking (Forcelog)
+                                                        </p>
+                                                        <p className="text-sm font-mono font-bold text-ant-ink break-all">
+                                                            {String(selectedOrder.forcelog_old_tracking).trim()}
                                                         </p>
                                                     </div>
                                                 </div>

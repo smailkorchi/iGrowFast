@@ -119,11 +119,14 @@ HTTP status is 400 on validation errors.
 
 ### 1.5 Get Parcel — `GET /customer/Parcels/GetParcel?Code={trackingCode}`
 
-**Response:**
+**⚠️ Limited scope:** This endpoint returns `{"GET-PARCEL": {"RESULT": "ERROR", "MESSAGE": "Parcel code Not Found"}}` for parcels created via the dashboard (`/Parcels/AddParcelAction`) — even when the parcel clearly exists and the tracking code is correct. The public API appears to only index parcels created via `POST /customer/Parcels/AddParcel`. For dashboard-created parcels (fragile, carton, exchange, or any flag that routes to dashboard creation) use §2.9 `Parcels/Tracking` instead.
+
+**Response envelope is also different from what the docs suggest** — the real shape is `{AUTH, GET-PARCEL: {RESULT, MESSAGE}}` on error, not `{RESULT, PARCEL}`. On success the PARCEL payload lives under `GET-PARCEL` key (not `PARCEL`).
+
 ```json
 {
-  "RESULT": "SUCCESS",
-  "PARCEL": {
+  "AUTH": { "RESULT": "SUCCESS", "MESSAGE": "Customer Authenticated, …" },
+  "GET-PARCEL": {
     "TRACKING_NUMBER": "F-CSA2SQU37XY6",
     "ORDER_NUM": "WLCD-00081",
     "RECEIVER": "Mohammed Ali",
@@ -131,10 +134,6 @@ HTTP status is 400 on validation errors.
     "CITY_NAME": "Casablanca",
     "ADDRESS": "Rue 1, Quartier X",
     "PRICE": "299.00",
-    "COMMENT": "",
-    "PRODUCT_NATURE": "",
-    "CAN_OPEN": "1",
-    "CREATION_TIME": "2026-04-23 21:45",
     "STATUS": "Livré",
     "SITUATION": "Payé",
     "DELIVERY_FEES": 30
@@ -213,9 +212,11 @@ Parse the `BL-XXX` reference from the URL. BL format: `BL-{YYMMDD}-{serial}-{ran
 Optional — used by the browser to persist edits to BL metadata. Not required for our integration (create + add parcels is sufficient).
 
 ### 2.4 Add Parcel to BL — `POST /index/DeliveryNotes/AddToNote/Ref/{ref}`
-**Body (form-urlencoded):** `parcelCode=F-CSA2SQU37XY6`
+**Body (form-urlencoded):** `parcels_code[]=F-CSA2SQU37XY6` (snake_case, repeat the key per parcel)
 
-Returns the updated BL HTML fragment. Parcels added to a BL cannot be deleted via §2.6 until removed from the BL.
+The field name is exactly `parcels_code[]` — do **not** confuse with `parcelsCode[]` (camelCase), which is the checkbox name on the standalone `ParcelsPickUp` page but NOT accepted here. The server silently ignores the wrong name while still returning a generic `dataTableReload("NoteNewParcels"); dataTableReload("NoteAddedParcels");` script, producing a false-positive success signal. The real success indicator is the notif line `smNotif("","Ajouté avec succès <b>F-XXX</b>","success")` — absence of that notif means the parcel was NOT linked.
+
+Parcels added to a BL cannot be deleted via §2.6 until removed from the BL.
 
 ### 2.5 Create Parcel (Dashboard) — `POST /index/Parcels/AddParcelAction`
 **Used when any of: exchange, fragile, carton, or custom `parcel_type` is required.**
@@ -264,7 +265,15 @@ Moves a finalized BL back to draft, allowing further add/remove operations.
 ### 2.10 Delete Parcel — `GET /index/Parcels/Delete/ParcelCode/{code}`
 **Requires parcel not to be in any BL.** Returns error otherwise.
 
-### 2.11 BL PDF Printing
+### 2.11 Parcel Tracking Timeline — `GET /index/Parcels/Tracking/ParcelCode/{code}`
+Session-gated. Returns `{TITLE, BODY, FOOTER}` where BODY is HTML containing a `vertical-timeline` list of status events. Each event node has:
+- `<div class="badge badge-statut" style="--color: #RRGGBB;">{French status label}</div>` (the LAST such badge in the event is the status; a prior one like "Non Payé" / "Payé" represents payment state).
+- `<div class="text-muted text-end col-4">{relative date}</div>` — e.g. `aujourd'hui à 23:13`.
+- `<div class='timeline-content'>…</div>` — optional free-text comment (e.g. city, notes).
+
+Used for polling tracking history instead of §1.5 Get Parcel, which cannot see dashboard-created parcels.
+
+### 2.12 BL PDF Printing
 All require the BL to be finalized (§2.7). All gated by session cookies.
 
 | Format | URL | Description |

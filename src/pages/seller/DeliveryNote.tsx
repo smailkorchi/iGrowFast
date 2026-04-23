@@ -1870,6 +1870,37 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'forcelog' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-white h-8 rounded-md px-3 text-[11px] font-semibold flex items-center gap-1.5">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-xl p-1 border border-ant-line shadow-none bg-white min-w-[240px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('a4')}>
+                                            Note A4 (une par page)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('a4x8')}>
+                                            Note A4 × 8
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('sticker')}>
+                                            Sticker (carré)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-blue-600" onClick={() => handlePrintLabels('bl')}>
+                                            Bon de Livraison (liste)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="rounded-xl font-bold py-3 cursor-pointer"
+                                            onClick={() => window.open('https://customer.forcelog.ma', '_blank', 'noopener,noreferrer')}
+                                        >
+                                            <ExternalLink className="w-4 h-4 mr-2" /> Ouvrir Forcelog
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             ) : (
                                 <Button
                                     className="bg-ant-ink hover:bg-ant-ink/90 text-white h-8 rounded-md px-3 text-[11px] font-semibold flex items-center gap-1.5"
@@ -1995,7 +2026,7 @@ const DeliveryNote = () => {
                                                     </span>
                                                     {sitInfo && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>{sitInfo.label}</span>}
                                                 </div>
-                                                {date && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(date), 'dd/MM/yyyy HH:mm')}</p>}
+                                                {date && (() => { const d = new Date(date); return Number.isFinite(d.getTime()) ? <p className="text-[10px] font-bold text-muted-foreground/50">{format(d, 'dd/MM/yyyy HH:mm')}</p> : <p className="text-[10px] font-bold text-muted-foreground/50">{date}</p>; })()}
 
                                                 {/* Location (hub / city) */}
                                                 {location && (

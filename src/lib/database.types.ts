@@ -3039,6 +3039,7 @@ export type Database = {
           delivery_note: string | null
           delivery_type: string | null
           "DigiCom Business": string | null
+          forcelog_old_tracking: string | null
           free_shipping: boolean | null
           id: string
           include_delivery_in_total: boolean
@@ -3094,6 +3095,7 @@ export type Database = {
           delivery_note?: string | null
           delivery_type?: string | null
           "DigiCom Business"?: string | null
+          forcelog_old_tracking?: string | null
           free_shipping?: boolean | null
           id?: string
           include_delivery_in_total?: boolean
@@ -3149,6 +3151,7 @@ export type Database = {
           delivery_note?: string | null
           delivery_type?: string | null
           "DigiCom Business"?: string | null
+          forcelog_old_tracking?: string | null
           free_shipping?: boolean | null
           id?: string
           include_delivery_in_total?: boolean
@@ -3668,6 +3671,9 @@ export type Database = {
           color: string | null
           created_at: string | null
           "DigiCom Business": string | null
+          forcelog_parcel_carton: boolean
+          forcelog_parcel_fragile: boolean
+          forcelog_parcel_open: boolean
           id: string
           logo_url: string | null
           name: string
@@ -3700,6 +3706,9 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
+          forcelog_parcel_carton?: boolean
+          forcelog_parcel_fragile?: boolean
+          forcelog_parcel_open?: boolean
           id?: string
           logo_url?: string | null
           name: string
@@ -3732,6 +3741,9 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
+          forcelog_parcel_carton?: boolean
+          forcelog_parcel_fragile?: boolean
+          forcelog_parcel_open?: boolean
           id?: string
           logo_url?: string | null
           name?: string

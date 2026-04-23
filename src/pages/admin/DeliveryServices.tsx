@@ -222,9 +222,17 @@ const KNOWN_PROVIDERS = [
         baseUrl: 'https://vitex.ma/clients-api',
         description: 'Réseau Vitex (Maroc). API REST Bearer + dashboard session pour options spéciales. Suivi par polling.',
     },
+    {
+        type: 'forcelog',
+        name: 'Forcelog',
+        logo: '/providers/Forcelog.png',
+        color: '#f2c024',
+        baseUrl: 'https://api.forcelog.ma',
+        description: 'Forcelog (Maroc). API REST X-API-Key + dashboard session pour fragile/carton/échange. Suivi temps réel via webhook natif.',
+    },
 ];
 
-type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex';
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog';
 
 type ProviderPermissionRow = { key: string; label: string; hint?: string };
 
@@ -260,6 +268,10 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
         // to be in status DELIVERED inside their dashboard before allowing replacement, which
         // is impossible to bootstrap before the first delivered Vitex parcel exists.
     ],
+    forcelog: [
+        { key: 'fragile', label: 'Fragile', hint: 'Facture +5 DH selon Forcelog. Route le colis via le flux dashboard.' },
+        { key: 'interdit_ouvrir_colis', label: "Interdit d'ouvrir le colis" },
+    ],
 };
 
 function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
@@ -270,6 +282,7 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'ozon' || t.includes('ozon')) return 'ozon';
     if (t === 'quicklivraison' || t.includes('quicklivraison')) return 'quicklivraison';
     if (t === 'vitex' || t.includes('vitex')) return 'vitex';
+    if (t === 'forcelog' || t.includes('forcelog')) return 'forcelog';
     return null;
 }
 
@@ -303,6 +316,12 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
         return {
             fragile: !!row.vitex_parcel_fragile,
             interdit_ouvrir_colis: !!row.vitex_parcel_open,
+        };
+    }
+    if (slug === 'forcelog') {
+        return {
+            fragile: !!row.forcelog_parcel_fragile,
+            interdit_ouvrir_colis: !!row.forcelog_parcel_open,
         };
     }
     return {};
@@ -343,6 +362,12 @@ function flagsToProviderParcelUpdate(
         return {
             vitex_parcel_fragile: !!flags.fragile,
             vitex_parcel_open: !!flags.interdit_ouvrir_colis,
+        };
+    }
+    if (slug === 'forcelog') {
+        return {
+            forcelog_parcel_fragile: !!flags.fragile,
+            forcelog_parcel_open: !!flags.interdit_ouvrir_colis,
         };
     }
     return {};
@@ -2038,6 +2063,8 @@ function ProviderPermissionsModal({
                         'quicklivraison_parcel_fragile',
                         'vitex_parcel_fragile',
                         'vitex_parcel_open',
+                        'forcelog_parcel_fragile',
+                        'forcelog_parcel_open',
                     ].join(', ')
                 )
                 .eq('id', company.id)

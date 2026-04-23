@@ -2004,6 +2004,602 @@ class VitexAdapter {
     }
 }
 
+class ForcelogAdapter {
+    constructor(credentials) {
+        this.providerId = credentials.id || null;
+        this.apiKey = credentials.api_key || '';
+        this.apiBaseUrl = credentials.api_base_url || 'https://api.forcelog.ma';
+        this.dashboardBaseUrl = 'https://customer.forcelog.ma';
+        // Dashboard login credentials (required for fragile/carton/exchange/BL/PDF operations).
+        this.login = credentials.api_login || '';
+        this.password = credentials.api_password || '';
+        // Per-provider permission flags (snapshot at construction time).
+        this.permFragile = credentials.forcelog_parcel_fragile === true;
+        this.permForbidOpen = credentials.forcelog_parcel_open === true;
+        // Dashboard session state (per-invocation).
+        this.cookies = new Map();
+        this.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+        // Preload cached session from DB (written by prior invocation).
+        const cached = credentials.session_cache || null;
+        if (cached && typeof cached === 'object' && cached.cookies && typeof cached.cookies === 'object') {
+            for (const [k, v] of Object.entries(cached.cookies)) {
+                if (typeof v === 'string') this.cookies.set(k, v);
+            }
+            this.cachedAt = cached.updated_at || null;
+        } else {
+            this.cachedAt = null;
+        }
+        // Short-lived in-adapter supabase client (service role) for session persistence.
+        this._supabase = null;
+    }
+
+    getSupabase() {
+        if (this._supabase) return this._supabase;
+        try {
+            const url = Deno.env.get('SUPABASE_URL');
+            const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+            if (url && key) {
+                this._supabase = createClient(url, key);
+            }
+        } catch (_) { /* service client unavailable */ }
+        return this._supabase;
+    }
+
+    async persistSession() {
+        if (!this.providerId) return;
+        const sb = this.getSupabase();
+        if (!sb) return;
+        const cookiesObj = Object.fromEntries(this.cookies.entries());
+        try {
+            await sb.from('providers').update({
+                session_cache: { cookies: cookiesObj, updated_at: new Date().toISOString() },
+            }).eq('id', this.providerId);
+        } catch (_) { /* best-effort persistence */ }
+    }
+
+    async clearPersistedSession() {
+        if (!this.providerId) return;
+        const sb = this.getSupabase();
+        if (!sb) return;
+        try {
+            await sb.from('providers').update({ session_cache: null }).eq('id', this.providerId);
+        } catch (_) { /* best-effort */ }
+    }
+
+    parseSetCookie(res) {
+        const getAll = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie.bind(res.headers) : null;
+        const list = getAll ? getAll() : [res.headers.get('set-cookie')].filter(Boolean);
+        for (const raw of list) {
+            if (!raw) continue;
+            const [pair] = String(raw).split(';');
+            const eq = pair.indexOf('=');
+            if (eq > 0) this.cookies.set(pair.substring(0, eq).trim(), pair.substring(eq + 1).trim());
+        }
+    }
+    cookieHeader() {
+        return Array.from(this.cookies.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    }
+
+    async ensureSession() {
+        // Short-circuit if cached cookies are present AND not stale (< 2h).
+        if (this.cookies.has('PHPSESSID')) {
+            if (!this.cachedAt) return;
+            const ageMs = Date.now() - new Date(this.cachedAt).getTime();
+            if (Number.isFinite(ageMs) && ageMs < 2 * 60 * 60 * 1000) return;
+            // Stale — force re-login by clearing cookies.
+            this.cookies.clear();
+            this.cachedAt = null;
+        }
+        if (!this.login || !this.password) {
+            throw new Error('Forcelog: api_login et api_password requis pour le flux dashboard.');
+        }
+        const body = new URLSearchParams();
+        body.set('login_email', this.login);
+        body.set('login_password', this.password);
+        const r = await fetch(`${this.dashboardBaseUrl}/index/login/action`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'User-Agent': this.userAgent,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': `${this.dashboardBaseUrl}/index/login`,
+                'Origin': this.dashboardBaseUrl,
+                'Accept': '*/*',
+            },
+            body: body.toString(),
+        });
+        this.parseSetCookie(r);
+        const text = await r.text();
+        if (!text.includes('connecté avec succès') && !text.includes('Vous êtes connecté')) {
+            const errMatch = text.match(/smNotif\(\s*""\s*,\s*"([^"]*)"\s*,\s*"error"/);
+            const msg = errMatch ? errMatch[1] : 'identifiants invalides';
+            throw new Error(`Forcelog login failed: ${msg}`);
+        }
+        if (!this.cookies.has('PHPSESSID')) {
+            throw new Error('Forcelog login: PHPSESSID introuvable après authentification.');
+        }
+        this.cachedAt = new Date().toISOString();
+        // Persist fresh cookies so the next edge function invocation reuses them (avoids rate-limit).
+        await this.persistSession();
+    }
+
+    async dashboardFetch(path, init, _retried) {
+        await this.ensureSession();
+        const opts = init || {};
+        const headers = new Headers(opts.headers || {});
+        headers.set('Cookie', this.cookieHeader());
+        headers.set('User-Agent', this.userAgent);
+        if (!headers.has('Referer')) headers.set('Referer', `${this.dashboardBaseUrl}/index/home`);
+        if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
+        const res = await fetch(`${this.dashboardBaseUrl}${path}`, {
+            method: opts.method || 'GET',
+            headers,
+            body: opts.body,
+            redirect: opts.redirect || 'manual',
+        });
+        this.parseSetCookie(res);
+        // If the server returned a login-redirect stub, cached session is stale → clear + retry once.
+        if (!_retried && res.ok) {
+            const peek = res.clone();
+            try {
+                const txt = await peek.text();
+                if (/window\.location\s*=\s*"[^"]*\/index\/login"/i.test(txt)) {
+                    this.cookies.clear();
+                    this.cachedAt = null;
+                    await this.clearPersistedSession();
+                    return this.dashboardFetch(path, init, true);
+                }
+            } catch (_) { /* body peek optional */ }
+        }
+        return res;
+    }
+
+    async apiFetch(path, method, jsonBody) {
+        const init = {
+            method: method || 'GET',
+            headers: {
+                'X-API-Key': this.apiKey,
+                'Accept': 'application/json',
+                'User-Agent': this.userAgent,
+            },
+        };
+        if (jsonBody !== undefined) {
+            init.headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(jsonBody);
+        }
+        const res = await fetch(`${this.apiBaseUrl}${path}`, init);
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch {
+            throw new Error(`Forcelog non-JSON response (HTTP ${res.status}): ${text.substring(0, 200)}`);
+        }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    async resolveMasterStatus(rawStatus, supabase) {
+        if (!rawStatus || !supabase) return null;
+        const { data: exact } = await supabase
+            .from('package_statuses')
+            .select('id, code, label, color, category')
+            .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
+            .limit(1)
+            .maybeSingle();
+        if (exact) return exact;
+        try {
+            const { data: rpcMatch } = await supabase.rpc('match_package_status', { p_status_value: rawStatus });
+            if (rpcMatch && rpcMatch[0]) return rpcMatch[0];
+        } catch (_) { /* RPC optional */ }
+        return null;
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== FORCELOG createParcel START ===');
+        // Resolve city: public API uses NAME, dashboard uses numeric ID.
+        let cityName = null;
+        let cityId = null;
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('provider_cities')
+                .select('provider_city_id, provider_city_name')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'forcelog')
+                .maybeSingle();
+            if (mapping) {
+                cityId = mapping.provider_city_id || null;
+                cityName = mapping.provider_city_name || null;
+            }
+        }
+        if (!cityName && parcelData.city_name) cityName = parcelData.city_name;
+        if (!cityName) {
+            throw new Error('Forcelog: ville non mappée. Mappez la ville (provider_cities) avant de créer un colis.');
+        }
+
+        // Phone normalization: MA 10 digits starting with 0.
+        let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
+        if (phone.startsWith('212')) phone = '0' + phone.substring(3);
+        if (!/^0\d{9}$/.test(phone)) {
+            throw new Error(`Forcelog: format téléphone invalide "${phone}". Attendu 10 chiffres commençant par 0.`);
+        }
+
+        // Decide path: dashboard if any special flag is active OR exchange requested, else public API.
+        const useFragile = this.permFragile === true;
+        const useForbidOpen = this.permForbidOpen === true;
+        const hasExchange = Boolean(parcelData.replace_parcel_code || parcelData.old_parcel_code);
+        const useDashboard = useFragile || useForbidOpen || hasExchange;
+
+        if (useDashboard) {
+            if (!cityId) {
+                throw new Error('Forcelog: city_id (numérique) requis pour le flux dashboard. Complétez provider_cities.provider_city_id pour cette ville.');
+            }
+            return await this.createParcelViaDashboard(parcelData, cityId, phone, { useFragile, useForbidOpen, hasExchange });
+        }
+
+        // Public API JSON.
+        const reqBody = {
+            ORDER_NUM: String(parcelData.order_num || parcelData.reference || '').substring(0, 20),
+            RECEIVER: String(parcelData.receiver_name || parcelData.customer_name || '').substring(0, 50),
+            PHONE: phone,
+            CITY: cityName,
+            ADDRESS: String(parcelData.receiver_address || parcelData.delivery_address || '').substring(0, 100),
+            COMMENT: String(parcelData.delivery_note || '').substring(0, 100),
+            PRODUCT_NATURE: String(parcelData.product_info || '').substring(0, 100),
+            COD: Number(parcelData.cash_on_delivery || parcelData.cod_amount || 0),
+            CAN_OPEN: 1,
+        };
+        const resp = await this.apiFetch('/customer/Parcels/AddParcel', 'POST', reqBody);
+        const addParcel = resp.data?.['ADD-PARCEL'];
+        if (!resp.ok || addParcel?.RESULT !== 'SUCCESS') {
+            const msg = addParcel?.MESSAGE || resp.data?.AUTH?.MESSAGE || JSON.stringify(resp.data).substring(0, 300);
+            throw new Error(`Forcelog: création échouée: ${msg}`);
+        }
+        const tracking = addParcel?.['NEW-PARCEL']?.TRACKING_NUMBER;
+        if (!tracking) {
+            throw new Error('Forcelog: TRACKING_NUMBER manquant dans la réponse.');
+        }
+        console.log('=== FORCELOG createParcel END (public) ===', tracking);
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: resp.data,
+        };
+    }
+
+    async createParcelViaDashboard(parcelData, cityId, phone, flags) {
+        console.log('=== FORCELOG createParcel via DASHBOARD ===');
+        await this.ensureSession();
+
+        const orderNum = String(parcelData.order_num || parcelData.reference || '');
+        const body = new URLSearchParams();
+        body.set('parcel_order_num', orderNum);
+        if (flags.hasExchange) {
+            body.set('parcel_replace', 'on');
+            body.set('parcel_replace_old', String(parcelData.replace_parcel_code || parcelData.old_parcel_code || ''));
+        }
+        body.set('parcel_type', 'SIMPLE_PARCEL');
+        body.set('parcel_open', flags.useForbidOpen ? 'NO' : 'YES');
+        body.set('parcel_receiver', String(parcelData.receiver_name || parcelData.customer_name || ''));
+        body.set('parcel_phone', phone);
+        body.set('parcel_city', String(cityId));
+        body.set('parcel_district', String(parcelData.district || parcelData.quartier || ''));
+        body.set('parcel_address', String(parcelData.receiver_address || parcelData.delivery_address || ''));
+        body.set('parcel_comment', String(parcelData.delivery_note || ''));
+        body.set('parcel_price', String(parcelData.cash_on_delivery || parcelData.cod_amount || 0));
+        body.set('parcel_product_type', String(parcelData.product_info || ''));
+        if (flags.useFragile) body.set('fragile_parcel', 'on');
+        body.set('carton_size', '0');
+
+        const res = await this.dashboardFetch('/index/Parcels/AddParcelAction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Accept': '*/*',
+                'Referer': `${this.dashboardBaseUrl}/index/Parcels/AddParcel`,
+                'Origin': this.dashboardBaseUrl,
+            },
+            body: body.toString(),
+        });
+        const text = await res.text();
+        // Error path: smNotif(...,"error")
+        const errMatch = text.match(/smNotif\(\s*""\s*,\s*"([^"]*)"\s*,\s*"error"/);
+        if (errMatch) {
+            throw new Error(`Forcelog dashboard create: ${errMatch[1]}`);
+        }
+        // Success path: smNotif(...,"Colis ajouté avec succès","success") — response has no tracking code inline.
+        if (!text.includes('Colis ajouté') && !text.includes('success')) {
+            throw new Error(`Forcelog dashboard create: réponse inattendue. ${text.substring(0, 300)}`);
+        }
+        // Lookup the freshly-created parcel via the pickup list (DT_RowId="parcel-F-XXX", CODE contains our order_num).
+        const tracking = await this.lookupLatestParcelTracking(orderNum, phone);
+        if (!tracking) {
+            throw new Error(`Forcelog dashboard create: colis créé côté Forcelog mais code de suivi introuvable dans la liste pickup (order_num=${orderNum}).`);
+        }
+        console.log('=== FORCELOG createParcel via DASHBOARD END ===', tracking);
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: { parcel_code: tracking },
+        };
+    }
+
+    async lookupLatestParcelTracking(orderNum, phone) {
+        // Query DataTables JSON endpoint for ParcelsPickUp, find row matching our order_num (primary) or phone (fallback).
+        const body = new URLSearchParams();
+        body.set('draw', '1');
+        body.set('start', '0');
+        body.set('length', '25');
+        const res = await this.dashboardFetch('/index/ParcelsPickUp/Json', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Accept': 'application/json',
+                'Referer': `${this.dashboardBaseUrl}/index/ParcelsPickUp`,
+                'Origin': this.dashboardBaseUrl,
+            },
+            body: body.toString(),
+        });
+        if (!res.ok) return null;
+        let parsed;
+        try { parsed = JSON.parse(await res.text()); } catch { return null; }
+        const rows = Array.isArray(parsed?.aaData) ? parsed.aaData : [];
+        const wantedOrderNum = String(orderNum || '').trim();
+        const wantedPhone = String(phone || '').trim();
+        // Primary: CODE cell contains our order_num (unique per creation).
+        for (const row of rows) {
+            const codeCell = String(row?.CODE || '');
+            if (wantedOrderNum && codeCell.includes(wantedOrderNum)) {
+                const m = String(row?.DT_RowId || '').match(/F-[A-Z0-9]+/);
+                if (m) return m[0];
+                const m2 = codeCell.match(/F-[A-Z0-9]+/);
+                if (m2) return m2[0];
+            }
+        }
+        // Fallback: newest row with matching phone.
+        for (const row of rows) {
+            if (wantedPhone && String(row?.PHONE || '').replace(/\D/g, '') === wantedPhone) {
+                const m = String(row?.DT_RowId || '').match(/F-[A-Z0-9]+/);
+                if (m) return m[0];
+            }
+        }
+        return null;
+    }
+
+    async trackParcel(trackingCode, _externalId, supabase) {
+        if (!trackingCode) throw new Error('Tracking code required');
+        // Public API (/customer/Parcels/GetParcel) can't see dashboard-created parcels — returns
+        // "Parcel code Not Found" even when the parcel exists. Scrape the dashboard tracking modal
+        // instead; it returns {TITLE, BODY, FOOTER} where BODY is an HTML timeline of status events.
+        const res = await this.dashboardFetch(
+            `/index/Parcels/Tracking/ParcelCode/${encodeURIComponent(trackingCode)}`,
+            { headers: { 'Accept': 'application/json' } }
+        );
+        if (!res.ok) return null;
+        const txt = await res.text();
+        let payload;
+        try { payload = JSON.parse(txt); } catch { return null; }
+        const body = String(payload?.BODY || '');
+        if (!body) return null;
+        // Convert Forcelog's relative French dates to ISO. Morocco is UTC+1 (no DST).
+        // Accepts: "aujourd'hui à HH:MM", "hier à HH:MM", "il y a N minutes/heures", "YYYY-MM-DD à HH:MM".
+        const frenchDateToIso = (raw) => {
+            const s = String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            if (!s) return '';
+            const nowMs = Date.now();
+            const tzOffsetMs = 60 * 60 * 1000; // UTC+1
+            const hmMatch = s.match(/(\d{1,2}):(\d{2})/);
+            const todayStr = new Date(nowMs + tzOffsetMs).toISOString().slice(0, 10);
+            if (s.startsWith("aujourd'hui") || s.startsWith('aujourdhui')) {
+                if (hmMatch) return `${todayStr}T${hmMatch[1].padStart(2, '0')}:${hmMatch[2]}:00+01:00`;
+                return new Date(nowMs).toISOString();
+            }
+            if (s.startsWith('hier')) {
+                const yest = new Date(nowMs + tzOffsetMs - 86400000).toISOString().slice(0, 10);
+                if (hmMatch) return `${yest}T${hmMatch[1].padStart(2, '0')}:${hmMatch[2]}:00+01:00`;
+                return new Date(nowMs - 86400000).toISOString();
+            }
+            const agoMatch = s.match(/il y a (\d+)\s*(minute|heure|jour)/);
+            if (agoMatch) {
+                const n = parseInt(agoMatch[1], 10);
+                const unitMs = agoMatch[2] === 'minute' ? 60000 : agoMatch[2] === 'heure' ? 3600000 : 86400000;
+                return new Date(nowMs - n * unitMs).toISOString();
+            }
+            const abs = s.match(/(\d{4})-(\d{2})-(\d{2})(?:\s*(?:à|a)\s*(\d{1,2}):(\d{2}))?/);
+            if (abs) {
+                const [, y, mo, d, h, mi] = abs;
+                const hh = (h || '00').padStart(2, '0');
+                const mm = (mi || '00').padStart(2, '0');
+                return `${y}-${mo}-${d}T${hh}:${mm}:00+01:00`;
+            }
+            return raw;
+        };
+        const events = [];
+        // Each event is a <div class="vertical-timeline-item vertical-timeline-element">…</div>.
+        const elRe = /<div class="vertical-timeline-item vertical-timeline-element">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
+        let m;
+        while ((m = elRe.exec(body)) !== null) {
+            const chunk = m[1];
+            const badges = [...chunk.matchAll(/<div class=["']badge badge-statut\s*["'] style=["']--color:\s*([^;"']+)\s*;?["']>([^<]+)<\/div>/g)];
+            if (badges.length === 0) continue;
+            const statusBadge = badges[badges.length - 1];
+            const color = (statusBadge[1] || '').trim();
+            const label = (statusBadge[2] || '').trim();
+            const dateM = chunk.match(/<div class="text-muted text-end col-4">([^<]+)<\/div>/);
+            const rawDate = dateM ? dateM[1].trim() : '';
+            const date = frenchDateToIso(rawDate);
+            const contentM = chunk.match(/<div class=['"]timeline-content['"]>([\s\S]*?)<\/div>/);
+            const comment = contentM ? contentM[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            if (label) events.push({ label, color, date, comment });
+        }
+        if (events.length === 0) return null;
+        // Latest event is the last one in the timeline (Forcelog renders chronologically top→bottom).
+        const latest = events[events.length - 1];
+        const master = await this.resolveMasterStatus(latest.label, supabase);
+        const history = events.map((e) => ({
+            status: e.label,
+            statusLabel: e.label,
+            statusColor: e.color || null,
+            statusId: null,
+            category: null,
+            color: e.color || null,
+            date: e.date,
+            comment: e.comment,
+        }));
+        return {
+            tracking_code: trackingCode,
+            status: latest.label,
+            statusLabel: master?.label || latest.label,
+            statusColor: master?.color || latest.color || null,
+            status_code: null,
+            status_category: master?.category || null,
+            history,
+        };
+    }
+
+    async getParcelInfo(trackingCode, supabase) {
+        return this.trackParcel(trackingCode, undefined, supabase);
+    }
+
+    async createDeliveryNote() {
+        const res = await this.dashboardFetch('/index/DeliveryNotes/AddNewAction', {
+            headers: { 'Referer': `${this.dashboardBaseUrl}/index/DeliveryNotes/AddNew` },
+        });
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error(`Forcelog createDeliveryNote HTTP ${res.status}: ${t.substring(0, 200)}`);
+        }
+        const text = await res.text();
+        const m = text.match(/BL-[0-9-]+/);
+        if (!m) {
+            throw new Error('Forcelog: référence BL introuvable après création.');
+        }
+        return { reference: m[0], provider_response: { html_length: text.length } };
+    }
+
+    async addParcelsToNote(deliveryNoteRef, parcelCodes) {
+        const codes = Array.isArray(parcelCodes) ? parcelCodes.filter(Boolean) : [];
+        if (!deliveryNoteRef) throw new Error('Forcelog: référence BL requise.');
+        if (codes.length === 0) {
+            return { success: true, reference: deliveryNoteRef, parcel_codes: [], inserted: 0 };
+        }
+        const inserted = [];
+        const failed = [];
+        for (const code of codes) {
+            // BL Edit page checkbox uses name="parcels_code[]" (snake_case) — verified empirically.
+            // The camelCase "parcelsCode[]" is silently ignored by AddToNote even though the server
+            // still returns the generic dataTableReload script (false-positive signal).
+            const body = new URLSearchParams();
+            body.append('parcels_code[]', code);
+            const res = await this.dashboardFetch(`/index/DeliveryNotes/AddToNote/Ref/${encodeURIComponent(deliveryNoteRef)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'Accept': '*/*',
+                    'Referer': `${this.dashboardBaseUrl}/index/DeliveryNotes/Edit/Ref/${encodeURIComponent(deliveryNoteRef)}`,
+                    'Origin': this.dashboardBaseUrl,
+                },
+                body: body.toString(),
+            });
+            const txt = await res.text();
+            if (/window\.location\s*=\s*"[^"]*\/index\/login"/i.test(txt)) {
+                failed.push({ code, error: 'Forcelog session expired (redirected to login)' });
+                continue;
+            }
+            const errMatch = txt.match(/smNotif\(\s*""\s*,\s*"([^"]*)"\s*,\s*"error"/);
+            if (errMatch) {
+                failed.push({ code, error: errMatch[1] });
+                continue;
+            }
+            // Require explicit "Ajouté avec succès <b>F-XXX</b>" notif containing the parcel code
+            // — dataTableReload alone is returned even on no-op requests.
+            const successRe = new RegExp(`smNotif\\(\\s*""\\s*,\\s*"[^"]*${code.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}[^"]*"\\s*,\\s*"success"`);
+            if (res.ok && successRe.test(txt)) {
+                inserted.push(code);
+            } else {
+                failed.push({ code, error: `HTTP ${res.status}: ${txt.substring(0, 200)}` });
+            }
+        }
+        if (inserted.length === 0 && failed.length > 0) {
+            throw new Error(`Forcelog: aucun colis ajouté. Échecs: ${JSON.stringify(failed).substring(0, 400)}`);
+        }
+        return { success: true, reference: deliveryNoteRef, parcel_codes: inserted, inserted: inserted.length, failed };
+    }
+
+    async finalizeDeliveryNote(deliveryNoteRef) {
+        if (!deliveryNoteRef) throw new Error('Forcelog: référence BL requise.');
+        const res = await this.dashboardFetch(`/index/DeliveryNotes/Save/Ref/${encodeURIComponent(deliveryNoteRef)}`, {
+            headers: { 'Referer': `${this.dashboardBaseUrl}/index/DeliveryNotes` },
+        });
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error(`Forcelog finalize HTTP ${res.status}: ${t.substring(0, 200)}`);
+        }
+        return { success: true, reference: deliveryNoteRef };
+    }
+
+    async deleteNote(reference) {
+        if (!reference || !/^BL-/.test(reference)) return { success: true, reference };
+        try {
+            const res = await this.dashboardFetch(`/index/DeliveryNotes/Delete/Ref/${encodeURIComponent(reference)}`, {
+                headers: { 'Referer': `${this.dashboardBaseUrl}/index/DeliveryNotes` },
+            });
+            return { success: res.ok || res.status === 302, reference };
+        } catch (err) {
+            return { success: false, reference, error: err.message };
+        }
+    }
+
+    async deleteParcel(parcelCode) {
+        if (!parcelCode) return { success: true };
+        try {
+            const res = await this.dashboardFetch(`/index/Parcels/Delete/ParcelCode/${encodeURIComponent(parcelCode)}`, {
+                headers: { 'Referer': `${this.dashboardBaseUrl}/index/ParcelsPickUp` },
+            });
+            return { success: res.ok || res.status === 302, parcel_code: parcelCode };
+        } catch (err) {
+            return { success: false, parcel_code: parcelCode, error: err.message };
+        }
+    }
+
+    async reopenNote(deliveryNoteRef) {
+        if (!deliveryNoteRef) throw new Error('Forcelog: référence BL requise.');
+        const res = await this.dashboardFetch(`/index/DeliveryNotes/Open/Ref/${encodeURIComponent(deliveryNoteRef)}/Type/InPg`, {
+            headers: { 'Referer': `${this.dashboardBaseUrl}/index/DeliveryNotes/Edit/Ref/${encodeURIComponent(deliveryNoteRef)}` },
+        });
+        return { success: res.ok, reference: deliveryNoteRef };
+    }
+
+    async getPrintUrl(deliveryNoteRef, labelFormat, _printType, _options) {
+        const fmt = String(labelFormat || '').toLowerCase();
+        const isRealBL = deliveryNoteRef && /^BL-/.test(String(deliveryNoteRef));
+        if (!isRealBL) {
+            throw new Error("Forcelog: référence BL manquante ou invalide pour l'impression.");
+        }
+        // Four Forcelog PDF formats, all session-gated.
+        let path;
+        if (fmt === 'a4' || fmt === 'note-a4') {
+            path = `/index/PDF/DeliveryNoteA4_NEW/Ref/${encodeURIComponent(deliveryNoteRef)}`;
+        } else if (fmt === 'a4x8' || fmt === 'a4-8' || fmt === 'note-a4x8' || fmt === 'labels-a4x8') {
+            path = `/index/PDF/DeliveryNoteA4_8_NEW/Ref/${encodeURIComponent(deliveryNoteRef)}`;
+        } else if (fmt === 'sticker' || fmt === 'stickers' || fmt === 'square' || fmt === 'note-stickers') {
+            path = `/index/PDF/DeliveryNoteSquare_NEW/Ref/${encodeURIComponent(deliveryNoteRef)}`;
+        } else {
+            // Default 'bl' / 'bordereau' / 'note' → main bon de livraison list PDF.
+            path = `/index/PDF/DeliveryNote/Ref/${encodeURIComponent(deliveryNoteRef)}`;
+        }
+        const res = await this.dashboardFetch(path, { redirect: 'follow' });
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error(`Forcelog PDF HTTP ${res.status}: ${t.substring(0, 200)}`);
+        }
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        return `data:application/pdf;base64,${base64}`;
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -2032,7 +2628,9 @@ Deno.serve(async (req) => {
                     ? new QuickLivraisonAdapter(provider)
                     : type === 'vitex'
                         ? new VitexAdapter(provider)
-                        : new AmeexAdapter(provider);
+                        : type === 'forcelog'
+                            ? new ForcelogAdapter(provider)
+                            : new AmeexAdapter(provider);
 
         // Adapter initialization
 

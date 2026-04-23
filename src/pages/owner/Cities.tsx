@@ -52,7 +52,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison', 'vitex'] as const;
+const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison', 'vitex', 'forcelog'] as const;
 type ProviderKey = (typeof PROVIDER_ORDER)[number];
 
 const PROVIDER_LABELS: Record<ProviderKey, string> = {
@@ -61,6 +61,7 @@ const PROVIDER_LABELS: Record<ProviderKey, string> = {
     ozon: 'Ozon',
     quicklivraison: 'Quick Livraison',
     vitex: 'VITEX',
+    forcelog: 'Forcelog',
 };
 
 type MasterCityRow = {
@@ -83,6 +84,7 @@ const citySchema = z.object({
     ozon_city_id: z.string().optional().nullable(),
     quicklivraison_city_id: z.string().optional().nullable(),
     vitex_city_id: z.string().optional().nullable(),
+    forcelog_city_id: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
@@ -95,6 +97,7 @@ const emptyCityForm: CityFormValues = {
     ozon_city_id: '',
     quicklivraison_city_id: '',
     vitex_city_id: '',
+    forcelog_city_id: '',
 };
 
 function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
@@ -106,6 +109,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
     const oz = by('ozon');
     const ql = by('quicklivraison');
     const vx = by('vitex');
+    const fl = by('forcelog');
     return {
         name: city.name,
         zone_id: city.zone_id || '',
@@ -114,6 +118,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
         ozon_city_id: (oz?.provider_city_id || '').trim() || '',
         quicklivraison_city_id: (ql?.provider_city_id || '').trim() || '',
         vitex_city_id: (vx?.provider_city_id || '').trim() || '',
+        forcelog_city_id: (fl?.provider_city_id || '').trim() || '',
     };
 }
 
@@ -124,6 +129,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
         ozon: null,
         quicklivraison: null,
         vitex: null,
+        forcelog: null,
     };
     for (const pc of city.provider_cities || []) {
         const t = String(pc.provider_type || '').toLowerCase() as ProviderKey;
@@ -144,6 +150,10 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
         } else if (t === 'vitex') {
+            const id = (pc.provider_city_id || '').trim();
+            const nm = (pc.provider_city_name || '').trim();
+            out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
+        } else if (t === 'forcelog') {
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
@@ -175,7 +185,7 @@ async function fetchAllMasterCities(): Promise<MasterCityRow[]> {
 async function syncProviderMappings(
     masterCityId: string,
     masterCityName: string,
-    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id'>
+    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id'>
 ) {
     const name = masterCityName.trim();
 
@@ -247,6 +257,16 @@ async function syncProviderMappings(
         });
     } else {
         await del('vitex');
+    }
+
+    const fl = (v.forcelog_city_id || '').trim();
+    if (fl) {
+        await upsert('forcelog', {
+            provider_city_id: fl,
+            provider_city_name: name || fl,
+        });
+    } else {
+        await del('forcelog');
     }
 }
 
@@ -991,7 +1011,7 @@ const Cities = () => {
                                                 Each carrier uses its own identifier for this city.
                                             </p>
                                         </div>
-                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
                                             <FormField
                                                 control={form.control}
                                                 name="ameex_city_code"
@@ -1083,6 +1103,27 @@ const Cities = () => {
                                                     <FormItem className="space-y-1.5">
                                                         <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
                                                             VITEX <span className="font-mono normal-case text-ant-mid/60">· city_id</span>
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <input
+                                                                placeholder="City id"
+                                                                {...field}
+                                                                value={field.value || ''}
+                                                                className={inputClass}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage className="text-[10px] text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
+
+                                            <FormField
+                                                control={form.control}
+                                                name="forcelog_city_id"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                            Forcelog <span className="font-mono normal-case text-ant-mid/60">· city_id</span>
                                                         </FormLabel>
                                                         <FormControl>
                                                             <input

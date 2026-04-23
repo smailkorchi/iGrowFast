@@ -78,12 +78,17 @@ Deno.serve(async (req: Request) => {
         const businessId = webhookConfig['DigiCom Business'];
 
         // ── 5. Extract tracking code (Coliaty=TRACKING, AMEEX=CODE) ─────
+        // Forcelog nests fields under `data` — extract defensively without disturbing flat providers.
+        const forcelogData = (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object')
+            ? payload.data
+            : null;
         const trackingCode =
             payload.CODE ||        // AMEEX
             payload.TRACKING ||    // Coliaty
             payload.tracking_number ||
             payload.barcode ||
-            payload.ref;
+            payload.ref ||
+            forcelogData?.parcel_code;  // Forcelog
 
         // Always log — even if no tracking code (so we can debug)
         const { data: logEntry } = await supabase.from('webhook_logs').insert({
@@ -139,15 +144,35 @@ Deno.serve(async (req: Request) => {
             return json({ status: 'logged', message: 'Order not found' });
         }
 
+        // Skip soft-deleted orders entirely — don't leak status updates into trashed rows.
+        // The parcel lookup above hits company_parcels.tracking_code without join, so deleted
+        // orders can still surface here.
+        const { data: orderMeta, error: orderMetaErr } = await supabase
+            .from('orders')
+            .select('id, date_deleted')
+            .eq('id', orderId)
+            .maybeSingle();
+
+        if (orderMetaErr || !orderMeta) {
+            if (logEntry) await supabase.from('webhook_logs').update({ error_message: `Order lookup failed: ${orderMetaErr?.message || 'not found'}` }).eq('id', logEntry.id);
+            return json({ status: 'logged', message: 'Order lookup failed' });
+        }
+        if (orderMeta.date_deleted) {
+            if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: 'Order is soft-deleted — skipped' }).eq('id', logEntry.id);
+            return json({ status: 'skipped', reason: 'order_deleted' });
+        }
+
         console.log(`[webhook] orderId=${orderId}`);
 
         // ── 7. Multi-candidate status matching ──────────────────────────
-        // Priority: AMEEX sub-status > AMEEX/Coliaty main status > generic
+        // Priority: AMEEX sub-status > AMEEX/Coliaty main status > generic > Forcelog (data.secondary_status > data.status)
         const statusCandidates = [
-            payload.STATUT_S,   // AMEEX sub-status (most precise)
-            payload.STATUT,     // AMEEX main status
-            payload.STATUS,     // Coliaty status
-            payload.status,     // generic fallback
+            payload.STATUT_S,            // AMEEX sub-status (most precise)
+            payload.STATUT,              // AMEEX main status
+            payload.STATUS,              // Coliaty status
+            payload.status,              // generic fallback
+            forcelogData?.secondary_status, // Forcelog sub-status (more precise)
+            forcelogData?.status,        // Forcelog primary code
         ].filter(Boolean);
 
         if (statusCandidates.length === 0) {
@@ -160,9 +185,12 @@ Deno.serve(async (req: Request) => {
         let matchedStatus: any = null;
         let matchedCandidate: string | null = null;
 
+        // AMEEX uses IN_PROGRESS as a container ("check the sub-status"); Forcelog uses it as a real in-transit state.
+        const isAmeexPayload = Boolean(payload.STATUT_S || payload.STATUT);
+
         for (const candidate of statusCandidates) {
-            // Skip bare IN_PROGRESS — AMEEX container, not a real status
-            if (candidate === 'IN_PROGRESS') continue;
+            // Skip bare IN_PROGRESS — AMEEX container, not a real status. Forcelog sends IN_PROGRESS as a real code.
+            if (candidate === 'IN_PROGRESS' && isAmeexPayload) continue;
 
             // Try RPC first (handles diacritics, case-insensitive)
             const { data: rpcMatch, error: rpcErr } = await supabase
@@ -206,20 +234,20 @@ Deno.serve(async (req: Request) => {
         console.log(`[webhook] matched: "${matchedCandidate}" → ${matchedStatus.label} (${matchedStatus.code}, cat=${matchedStatus.category})`);
 
         // ── 8. Regression guard ─────────────────────────────────────────
-        // Fetch current order status to prevent backward moves
+        // Fetch current order status to prevent backward moves. Deleted-order short-circuit
+        // above guarantees the row exists, so no date_deleted filter needed here.
         const { data: currentOrder } = await supabase
             .from('orders')
             .select('package_status_id')
             .eq('id', orderId)
-            .is('date_deleted', null)
-            .single();
+            .maybeSingle();
 
         if (currentOrder?.package_status_id) {
             const { data: currentPkgStatus } = await supabase
                 .from('package_statuses')
                 .select('category')
                 .eq('id', currentOrder.package_status_id)
-                .single();
+                .maybeSingle();
 
             if (currentPkgStatus) {
                 const currentCat = currentPkgStatus.category;
@@ -270,7 +298,8 @@ Deno.serve(async (req: Request) => {
             .from('orders')
             .update(updateData)
             .eq('id', orderId)
-            .eq('DigiCom Business', businessId);
+            .eq('DigiCom Business', businessId)
+            .is('date_deleted', null);
 
         if (updateError) {
             console.error('[webhook] order update failed:', updateError.message);
