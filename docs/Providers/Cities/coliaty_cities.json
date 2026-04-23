@@ -1,0 +1,7218 @@
+[
+  {
+    "city_id": 7736,
+    "city_name": "Adouz",
+    "city_code": "ADOZ",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7580,
+    "city_name": "Afourar",
+    "city_code": "afo",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8186,
+    "city_name": "Afra",
+    "city_code": "afr",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6602,
+    "city_name": "AGADIR",
+    "city_code": "AGA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 20,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8456,
+    "city_name": "Agdez Zagora",
+    "city_code": "agd",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8606,
+    "city_name": "Aghbalou",
+    "city_code": "agl",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9126,
+    "city_name": "Aghmat",
+    "city_code": "AGMT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7382,
+    "city_name": "Aghmat",
+    "city_code": "AGT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7814,
+    "city_name": "Aglmous",
+    "city_code": "AGLM",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6770,
+    "city_name": "Aglou",
+    "city_code": "agl",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9285,
+    "city_name": "Agouim-OUARZAZAT",
+    "city_code": "AGM",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7862,
+    "city_name": "Agourai",
+    "city_code": "AGR",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9450,
+    "city_name": "Aguelmous",
+    "city_code": "AGMS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8294,
+    "city_name": "Ahfir",
+    "city_code": "afr",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7868,
+    "city_name": "Ain Allah",
+    "city_code": "ALH",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9463,
+    "city_name": "ain allah",
+    "city_code": "AINLH",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7226,
+    "city_name": "Ain Aouda",
+    "city_code": "AUD",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7220,
+    "city_name": "Ain Atiq",
+    "city_code": "ATQ",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8348,
+    "city_name": "Ain Beni Mathar",
+    "city_code": "abm",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6974,
+    "city_name": "Ain Bida",
+    "city_code": "ABD",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7874,
+    "city_name": "Ain Bida",
+    "city_code": "Bida",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9473,
+    "city_name": "AIN BIDA FES",
+    "city_code": "ANF",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7880,
+    "city_name": "Ain Chgag",
+    "city_code": "ANCG",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7886,
+    "city_name": "Ain Chkef - FES",
+    "city_code": "CHF",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9138,
+    "city_name": "Ain defali",
+    "city_code": "ADF",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6962,
+    "city_name": "Ain Dorij",
+    "city_code": "ADJ",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6992,
+    "city_name": "Ain Harrouda",
+    "city_code": "AHD",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7892,
+    "city_name": "Ain Karma",
+    "city_code": "KRM",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9265,
+    "city_name": "Ain kerma",
+    "city_code": "ANK",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9487,
+    "city_name": "Ain Leuh",
+    "city_code": "ANLH",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9178,
+    "city_name": "AIN NA9BI",
+    "city_code": "ANB",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8300,
+    "city_name": "Ain Regada",
+    "city_code": "nrg",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7898,
+    "city_name": "Ain Taoujdate",
+    "city_code": "ATJ",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7682,
+    "city_name": "Ait Ali",
+    "city_code": "ALI",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6614,
+    "city_name": "Ait Amira",
+    "city_code": "AMR",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9484,
+    "city_name": "Ait Attab",
+    "city_code": "ATTB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9164,
+    "city_name": "Ait baha ",
+    "city_code": "ATB",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8432,
+    "city_name": "Ait Benhdou",
+    "city_code": "atd",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7826,
+    "city_name": "Ait IshaK",
+    "city_code": "ISHAQ",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9488,
+    "city_name": "Ait Kamara",
+    "city_code": "AKMR",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6608,
+    "city_name": "Ait Laaza",
+    "city_code": "ALZ",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6620,
+    "city_name": "Ait Meloul",
+    "city_code": "AML",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7340,
+    "city_name": "Ait Ourir",
+    "city_code": "ATR",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7664,
+    "city_name": "Ait Rbaa",
+    "city_code": "RBA",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7904,
+    "city_name": "Ait Yaazem",
+    "city_code": "AYZM",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8426,
+    "city_name": "Ait Zineb",
+    "city_code": "azb",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9102,
+    "city_name": "Ajdir- al houcaima",
+    "city_code": "AJD",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9320,
+    "city_name": "Akhfennir",
+    "city_code": "AKF",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6692,
+    "city_name": "Akka-Tata",
+    "city_code": "AKA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8306,
+    "city_name": "Aklim",
+    "city_code": "aklm",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9132,
+    "city_name": "Al aouamra",
+    "city_code": "LOAM",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8192,
+    "city_name": "Al Aruit",
+    "city_code": "art",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6908,
+    "city_name": "Al Hoceima",
+    "city_code": "AHC",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7196,
+    "city_name": "Al Kamouni",
+    "city_code": "KAMOUN",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8777,
+    "city_name": "Amizmiz",
+    "city_code": "amz",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6722,
+    "city_name": "Anza",
+    "city_code": "ANZA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9376,
+    "city_name": "ANZI-TIZNIT",
+    "city_code": "ANZ",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9303,
+    "city_name": "Aoufous",
+    "city_code": "AFS",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9382,
+    "city_name": "Aoulad jerar-TIZNIT",
+    "city_code": "WDJ",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6626,
+    "city_name": "Aoulouz",
+    "city_code": "ALO",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9456,
+    "city_name": "Arbaoua",
+    "city_code": "ARBA",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7442,
+    "city_name": "Asni",
+    "city_code": "ASN",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8474,
+    "city_name": "Assa",
+    "city_code": "ASA",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6860,
+    "city_name": "Assilah",
+    "city_code": "ASS",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6728,
+    "city_name": "Awrir",
+    "city_code": "AWR",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6998,
+    "city_name": "Azemmour",
+    "city_code": "AZM",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7748,
+    "city_name": "Azilal",
+    "city_code": "AZL",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8830,
+    "city_name": "Azro agadir",
+    "city_code": "AZRO",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7910,
+    "city_name": "Azrou IFRAN",
+    "city_code": "AZR",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6884,
+    "city_name": "Bab berred",
+    "city_code": "BBD",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6872,
+    "city_name": "Bab Taza",
+    "city_code": "BTZ",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8210,
+    "city_name": "Barichino",
+    "city_code": "brh",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7784,
+    "city_name": "Bejaad",
+    "city_code": "BAD",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9120,
+    "city_name": "Belaaguid",
+    "city_code": "BLG",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7394,
+    "city_name": "Belaaguid",
+    "city_code": "BLD",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6632,
+    "city_name": "Belfaa",
+    "city_code": "BLF",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7004,
+    "city_name": "Ben Ahmed - Settat",
+    "city_code": "BHD",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7472,
+    "city_name": "Ben Gruir",
+    "city_code": "BGR",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8722,
+    "city_name": "BEN SLIMAN",
+    "city_code": "BSL",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8264,
+    "city_name": "Ben Taieb oujda",
+    "city_code": "bnb",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9297,
+    "city_name": "Ben yakhelf",
+    "city_code": "BNY",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8162,
+    "city_name": "Beni Ansar",
+    "city_code": "BAR",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7586,
+    "city_name": "Beni Ayat",
+    "city_code": "BAT",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9200,
+    "city_name": "Beni Ensar",
+    "city_code": "BEN",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7532,
+    "city_name": "Beni Mellal",
+    "city_code": "BML",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9259,
+    "city_name": "Beni Oukil",
+    "city_code": "BNK",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8288,
+    "city_name": "Berkane",
+    "city_code": "bkn",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7010,
+    "city_name": "Berrchid",
+    "city_code": "BRH",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7658,
+    "city_name": "Bezaza",
+    "city_code": "BZZ",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7916,
+    "city_name": "Bhalil",
+    "city_code": "BHL",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6638,
+    "city_name": "Biogra",
+    "city_code": "BG",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7016,
+    "city_name": "BIR JDID",
+    "city_code": "BRJ",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8564,
+    "city_name": "Birkouate",
+    "city_code": "bkt",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6878,
+    "city_name": "Bni Ahmed - chefchaoun",
+    "city_code": "BNI",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6920,
+    "city_name": "Bni Bouayach",
+    "city_code": "BBY",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9491,
+    "city_name": "Bni Boufrah",
+    "city_code": "BBH",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8222,
+    "city_name": "Bni Chiker",
+    "city_code": "bch",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8330,
+    "city_name": "Bni Drar",
+    "city_code": "bdr",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9490,
+    "city_name": "Bni Hadifa",
+    "city_code": "BHDF",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8234,
+    "city_name": "Bni Sidel Jbel",
+    "city_code": "bdl",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7772,
+    "city_name": "Bonouar",
+    "city_code": "BNR",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8818,
+    "city_name": "bouaanan",
+    "city_code": "BNN",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8366,
+    "city_name": "Bouarfa",
+    "city_code": "brf",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8198,
+    "city_name": "Bouarg",
+    "city_code": "BOG",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7922,
+    "city_name": "Bouderbala",
+    "city_code": "BRL",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9469,
+    "city_name": "Boudinar",
+    "city_code": "BDNR",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8636,
+    "city_name": "Boudnib",
+    "city_code": "bdnb",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7928,
+    "city_name": "Boufakrane",
+    "city_code": "BKR",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8312,
+    "city_name": "Boughriba",
+    "city_code": "bghb",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8528,
+    "city_name": "Bouizakarne",
+    "city_code": "BZK",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8516,
+    "city_name": "Boujdour",
+    "city_code": "BJD",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7760,
+    "city_name": "Boujniba",
+    "city_code": "BJB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6938,
+    "city_name": "Boukedrane",
+    "city_code": "BKD",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9144,
+    "city_name": "Boukidarn - houcaima",
+    "city_code": "BKDT",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7934,
+    "city_name": "Boulemane",
+    "city_code": "BLMN",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8696,
+    "city_name": "Boulmane",
+    "city_code": "blm",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8408,
+    "city_name": "Boumaln",
+    "city_code": "bmlh",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8666,
+    "city_name": "Boumaln Dadas",
+    "city_code": "blmd",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8600,
+    "city_name": "Boumia",
+    "city_code": "bma",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7022,
+    "city_name": "Bouskoura",
+    "city_code": "BSK",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8716,
+    "city_name": "BOUZNIKA",
+    "city_code": "BZKN",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7940,
+    "city_name": "Bridia",
+    "city_code": "BRD",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9464,
+    "city_name": "Brikcha",
+    "city_code": "BRKC",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7028,
+    "city_name": "Casablanca",
+    "city_code": "CSA",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 6866,
+    "city_name": "Chefchaouen",
+    "city_code": "CFN",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9388,
+    "city_name": "Chellalat",
+    "city_code": "CHM",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7496,
+    "city_name": "Chemaia",
+    "city_code": "CMA",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7448,
+    "city_name": "Chichaoua",
+    "city_code": "CHA",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7346,
+    "city_name": "Chouiter",
+    "city_code": "CTR",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8522,
+    "city_name": "Dakhla",
+    "city_code": "DKL",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7034,
+    "city_name": "Dar Bouaza",
+    "city_code": "DBZ",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9471,
+    "city_name": "Dar Gueddari",
+    "city_code": "DGDR",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8282,
+    "city_name": "Dar Kebdani",
+    "city_code": "dkd",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8956,
+    "city_name": "dar ouled zidoh",
+    "city_code": "DOZ",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6644,
+    "city_name": "Dcheira",
+    "city_code": "DHR",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7520,
+    "city_name": "Demnate",
+    "city_code": "DMT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6890,
+    "city_name": "DERDARA",
+    "city_code": "DRD",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7040,
+    "city_name": "Deroua",
+    "city_code": "DRO",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7946,
+    "city_name": "Dkhissa",
+    "city_code": "DKSS",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9411,
+    "city_name": "DKHISSA-FES",
+    "city_code": "DKS",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7952,
+    "city_name": "Dlalha",
+    "city_code": "DLAL",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7406,
+    "city_name": "Douar Bouaaza",
+    "city_code": "DBZ",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7430,
+    "city_name": "Douar Soultan",
+    "city_code": "DST",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7958,
+    "city_name": "Douiyat - FES",
+    "city_code": "DTF",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6650,
+    "city_name": "Drarga",
+    "city_code": "DRG",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8258,
+    "city_name": "Driouich",
+    "city_code": "drc",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7046,
+    "city_name": "ECHEMMAIA",
+    "city_code": "ECHE",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7508,
+    "city_name": "El Aataouia",
+    "city_code": "ELT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9237,
+    "city_name": "El aroui",
+    "city_code": "EAR",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7544,
+    "city_name": "El Ayayta",
+    "city_code": "YAT",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7964,
+    "city_name": "El Baraka - Meknes",
+    "city_code": "RKS",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7802,
+    "city_name": "El Borj-KHENIFRA",
+    "city_code": "BORJ",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9243,
+    "city_name": "El bourouj- settat",
+    "city_code": "ELB",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7628,
+    "city_name": "El Bradia",
+    "city_code": "EBD",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7052,
+    "city_name": "El Jadida",
+    "city_code": "EJD",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7856,
+    "city_name": "El Kebab-KHENIFRA",
+    "city_code": "KEBAB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7502,
+    "city_name": "El Kelaa Des Sraghna",
+    "city_code": "KDS",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7694,
+    "city_name": "El Ksiba",
+    "city_code": "EKB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8540,
+    "city_name": "El Marssa Laayoune",
+    "city_code": "MRS",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7970,
+    "city_name": "El Menzel - Sefrou",
+    "city_code": "MZL",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7490,
+    "city_name": "El Yousoufia",
+    "city_code": "EYF",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8576,
+    "city_name": "Elghazoua",
+    "city_code": "zoua",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7976,
+    "city_name": "Elhajeb",
+    "city_code": "HJB",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9044,
+    "city_name": "Elkbab",
+    "city_code": "ELK",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8486,
+    "city_name": "Elouatya",
+    "city_code": "ety",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8630,
+    "city_name": "Erfoud",
+    "city_code": "arf",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8624,
+    "city_name": "Errachidia",
+    "city_code": "era",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8710,
+    "city_name": "errahma",
+    "city_code": "err",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8582,
+    "city_name": "Essaouira",
+    "city_code": "ess",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8492,
+    "city_name": "Essmara",
+    "city_code": "ESM",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8228,
+    "city_name": "Farkhana",
+    "city_code": "frn",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7718,
+    "city_name": "Feryata",
+    "city_code": "FERY",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7982,
+    "city_name": "Fes",
+    "city_code": "FS",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8372,
+    "city_name": "Figuig",
+    "city_code": "fgig",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6812,
+    "city_name": "Fnideq",
+    "city_code": "FDQ",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7730,
+    "city_name": "Fom Anser",
+    "city_code": "FAR",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7562,
+    "city_name": "Foum Oudi",
+    "city_code": "FOM",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7712,
+    "city_name": "Foum Zaouia",
+    "city_code": "FZAOU",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9479,
+    "city_name": "Foum Zguid",
+    "city_code": "FZG",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7622,
+    "city_name": "Fquih Ben Salah",
+    "city_code": "FBS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7988,
+    "city_name": "Ghafsai",
+    "city_code": "GFS",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8672,
+    "city_name": "Goulmima",
+    "city_code": "glm",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8468,
+    "city_name": "Guelmim",
+    "city_code": "GLM",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8390,
+    "city_name": "Guercif",
+    "city_code": "gerf",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8570,
+    "city_name": "Had Draa",
+    "city_code": "HDR",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9438,
+    "city_name": "HAD HRARA",
+    "city_code": "HDHR",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9108,
+    "city_name": "Had kourt",
+    "city_code": "HDK",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9465,
+    "city_name": "Had Msila",
+    "city_code": "HDM",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7058,
+    "city_name": "Had Soualem",
+    "city_code": "HSL",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7994,
+    "city_name": "Haj Kaddour",
+    "city_code": "HJK",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9444,
+    "city_name": "Haouzia",
+    "city_code": "HWZ",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7238,
+    "city_name": "Harhoura",
+    "city_code": "HRR",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7766,
+    "city_name": "Hattane-Khouribga",
+    "city_code": "HATAN",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6734,
+    "city_name": "Houara",
+    "city_code": "HOR",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9186,
+    "city_name": "Idaousmlal-tiznit",
+    "city_code": "IDST",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8402,
+    "city_name": "Idlsan",
+    "city_code": "ids",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8000,
+    "city_name": "Ifrane",
+    "city_code": "IFR",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9480,
+    "city_name": "Igherm",
+    "city_code": "IGH",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7700,
+    "city_name": "Ighram Laalam-Beni Mellal",
+    "city_code": "IGHRAM",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8438,
+    "city_name": "Ighrem Nougdal",
+    "city_code": "ign",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9114,
+    "city_name": "Ihdadn",
+    "city_code": "LHD",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7466,
+    "city_name": "Imintanoute",
+    "city_code": "ITN",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8690,
+    "city_name": "Imouzar Marmoucha",
+    "city_code": "imm",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8006,
+    "city_name": "Imouzzer-Kandar - FES",
+    "city_code": "IMK",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6914,
+    "city_name": "Imzouren",
+    "city_code": "IZM",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6656,
+    "city_name": "Inzegane",
+    "city_code": "IZG",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 6926,
+    "city_name": "issaguen",
+    "city_code": "ISG",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8612,
+    "city_name": "Itzer",
+    "city_code": "tzr",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8174,
+    "city_name": "Jaadar",
+    "city_code": "JAD",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7064,
+    "city_name": "Jemâa-Shaim",
+    "city_code": "JMS",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8342,
+    "city_name": "Jerada",
+    "city_code": "jrd",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6968,
+    "city_name": "Jorf El Melha",
+    "city_code": "JEM",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7850,
+    "city_name": "Kaf Nsour",
+    "city_code": "KAFNS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9036,
+    "city_name": "kafnsour",
+    "city_code": "KAF",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8414,
+    "city_name": "Kalaat MGouna",
+    "city_code": "KMG",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7676,
+    "city_name": "Kamoun",
+    "city_code": "KMN",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8240,
+    "city_name": "Kariat Arekmane",
+    "city_code": "krm",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8018,
+    "city_name": "Kariat Ba Mohamed",
+    "city_code": "KBM",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7670,
+    "city_name": "Kasba Tadla",
+    "city_code": "KSB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7256,
+    "city_name": "Kenitra",
+    "city_code": "KTR",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9158,
+    "city_name": "Khelallefa",
+    "city_code": "KHL",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6776,
+    "city_name": "Khemis Ait Amira",
+    "city_code": "kaa",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7070,
+    "city_name": "KHEMIS DES ZEMAMRA",
+    "city_code": "KHM",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6848,
+    "city_name": "Khemis Sahel",
+    "city_code": "SAHEL",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8024,
+    "city_name": "Khemisset",
+    "city_code": "KMS",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8030,
+    "city_name": "Khenichet",
+    "city_code": "KNC",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7316,
+    "city_name": "Khenichet",
+    "city_code": "KHT",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7796,
+    "city_name": "Khenifra",
+    "city_code": "KNF",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6902,
+    "city_name": "Khmis elmduiaq",
+    "city_code": "AME",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7754,
+    "city_name": "Khouribga",
+    "city_code": "KBG",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7574,
+    "city_name": "Kraza",
+    "city_code": "kraza",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9468,
+    "city_name": "Krona",
+    "city_code": "KRN",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6836,
+    "city_name": "Ksar El Kebir",
+    "city_code": "KEK",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6854,
+    "city_name": "Ksar Sghir",
+    "city_code": "KRSR",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8504,
+    "city_name": "Laayoun Port",
+    "city_code": "LYt",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8498,
+    "city_name": "Laayoune",
+    "city_code": "LYN",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8378,
+    "city_name": "Laayoune Charkiya",
+    "city_code": "lchy",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7364,
+    "city_name": "Lagoussem",
+    "city_code": "LGSS",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9326,
+    "city_name": "lahraouiyin",
+    "city_code": "LHR",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9028,
+    "city_name": "lahri",
+    "city_code": "LAH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8824,
+    "city_name": "lakhessas",
+    "city_code": "LKSS",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8150,
+    "city_name": "Lalla Mimouna",
+    "city_code": "LMN",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6842,
+    "city_name": "Laouamra",
+    "city_code": "LAARM",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6830,
+    "city_name": "Larache",
+    "city_code": "LRC",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7844,
+    "city_name": "Lehri-KHENIFRA",
+    "city_code": "LEHRI",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8728,
+    "city_name": "LGARA",
+    "city_code": "LGR",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7418,
+    "city_name": "Loudaya",
+    "city_code": "LDY",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9225,
+    "city_name": "Louizia",
+    "city_code": "LZA",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6662,
+    "city_name": "Lqliaa",
+    "city_code": "LQA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6806,
+    "city_name": "M Diq",
+    "city_code": "MDQ",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8036,
+    "city_name": "Maaziz",
+    "city_code": "MZZ",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8318,
+    "city_name": "Madagh",
+    "city_code": "mdh",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9231,
+    "city_name": "Mansouria",
+    "city_code": "MNS",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8204,
+    "city_name": "mariouari",
+    "city_code": "mrw",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7322,
+    "city_name": "Marrakech",
+    "city_code": "MRK",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 6800,
+    "city_name": "Martil",
+    "city_code": "MTL",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 6752,
+    "city_name": "MASSA",
+    "city_code": "MASSA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8042,
+    "city_name": "Mechra Bel Ksiri",
+    "city_code": "MBK",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7076,
+    "city_name": "Mediouna",
+    "city_code": "MDA",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7268,
+    "city_name": "Mehdia",
+    "city_code": "MDY",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8048,
+    "city_name": "Mejjat",
+    "city_code": "MJT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8054,
+    "city_name": "Meknes",
+    "city_code": "MKS",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7244,
+    "city_name": "Mers El Kheir",
+    "city_code": "MERS",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8648,
+    "city_name": "Merzouga",
+    "city_code": "mrz",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6980,
+    "city_name": "Mesmouda",
+    "city_code": "MSD",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7640,
+    "city_name": "Mghila",
+    "city_code": "MGH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8060,
+    "city_name": "Mhaya - Meknes",
+    "city_code": "MKN",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8276,
+    "city_name": "Midar",
+    "city_code": "mdr",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8588,
+    "city_name": "Midelt",
+    "city_code": "mdt",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9218,
+    "city_name": "Mirleft",
+    "city_code": "MRF",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8066,
+    "city_name": "Missour",
+    "city_code": "MSS",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8678,
+    "city_name": "Missour",
+    "city_code": "mssr",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7082,
+    "city_name": "Mohammedia",
+    "city_code": "MHD",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9020,
+    "city_name": "molay bouaza",
+    "city_code": "MOB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7088,
+    "city_name": "Moulay Abdellah",
+    "city_code": "MAB",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7838,
+    "city_name": "Moulay Bouazza Khenifra",
+    "city_code": "MOLB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8072,
+    "city_name": "Moulay Bousselham",
+    "city_code": "MLB",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8078,
+    "city_name": "Moulay Idriss Zerhoun",
+    "city_code": "MLZ",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8084,
+    "city_name": "Moulay Yacoub",
+    "city_code": "MLK",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7808,
+    "city_name": "Mrirt",
+    "city_code": "MRT",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7460,
+    "city_name": "Mzoudia",
+    "city_code": "MZD",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8156,
+    "city_name": "Nador",
+    "city_code": "NDR",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9249,
+    "city_name": "Nkoub-ZAGORA",
+    "city_code": "NKZ",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7094,
+    "city_name": "Nouaceur",
+    "city_code": "NCR",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9423,
+    "city_name": "Nouasser-belfaa",
+    "city_code": "NSB",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6824,
+    "city_name": "Ouad Laou",
+    "city_code": "ODL",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7388,
+    "city_name": "Ouahat Sidi Brahim",
+    "city_code": "CDB",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9172,
+    "city_name": "Oualed ghanem",
+    "city_code": "OlG",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8812,
+    "city_name": "oualidia",
+    "city_code": "OLD",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7832,
+    "city_name": "Ouaoumana",
+    "city_code": "OUAO",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8396,
+    "city_name": "Ouarzazat",
+    "city_code": "rzt",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 6944,
+    "city_name": "Ouazzane",
+    "city_code": "OZN",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8090,
+    "city_name": "Oued Amlil",
+    "city_code": "OML",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9338,
+    "city_name": "Oued Amlil-OUJDA ",
+    "city_code": "ODM",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8096,
+    "city_name": "Oued Jdida",
+    "city_code": "OJD",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7778,
+    "city_name": "Oued Zem",
+    "city_code": "OZM",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8102,
+    "city_name": "Ouisslan",
+    "city_code": "OSSLN",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8336,
+    "city_name": "Oujda",
+    "city_code": "ojd",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9486,
+    "city_name": "Oulad Abbou Settat",
+    "city_code": "OBS",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7592,
+    "city_name": "Oulad Ayad",
+    "city_code": "OAY",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6668,
+    "city_name": "Oulad Berhil",
+    "city_code": "OLB",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7604,
+    "city_name": "Oulad Borhmoun",
+    "city_code": "OBN",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8836,
+    "city_name": "Oulad frej",
+    "city_code": "OLF",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7646,
+    "city_name": "Oulad I3ich",
+    "city_code": "OLCH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7556,
+    "city_name": "Oulad Mrah",
+    "city_code": "LMH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9485,
+    "city_name": "Oulad Said Settat",
+    "city_code": "OSS",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8252,
+    "city_name": "Oulad Setout",
+    "city_code": "ldst",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8108,
+    "city_name": "Oulad Tayeb - FES",
+    "city_code": "OLT",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6674,
+    "city_name": "Oulad Teima",
+    "city_code": "OTM",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9291,
+    "city_name": "oulad yahya",
+    "city_code": "OLY",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7598,
+    "city_name": "Oulad Zidoh",
+    "city_code": "OZDH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7616,
+    "city_name": "Oulad Zmam",
+    "city_code": "OZM",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7526,
+    "city_name": "Ouled Hassoun",
+    "city_code": "ODH",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7538,
+    "city_name": "Ouled Moussa",
+    "city_code": "OLWMS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7400,
+    "city_name": "Ouled Yhya",
+    "city_code": "OLDY",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8114,
+    "city_name": "Oulmes",
+    "city_code": "OULM",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8753,
+    "city_name": "OUNAGHA",
+    "city_code": "ON",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6956,
+    "city_name": "Ounnana",
+    "city_code": "ONA",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7358,
+    "city_name": "Ourika",
+    "city_code": "ORK",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8120,
+    "city_name": "Outat El Haj",
+    "city_code": "OTH",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9483,
+    "city_name": "Ouzoud",
+    "city_code": "OZD",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7166,
+    "city_name": "Rabat",
+    "city_code": "RBT",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8796,
+    "city_name": "Ras El Ma - NADOR",
+    "city_code": "REM",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8126,
+    "city_name": "Ras El Ma-FES",
+    "city_code": "RSM",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9470,
+    "city_name": "Ras elaain settat",
+    "city_code": "RSL",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8132,
+    "city_name": "Ribate El Kheir",
+    "city_code": "REK",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8618,
+    "city_name": "Rich - Errachidia",
+    "city_code": "erch",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8642,
+    "city_name": "Rissani",
+    "city_code": "rss",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8138,
+    "city_name": "Rommani",
+    "city_code": "RMM",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9489,
+    "city_name": "Rouadi",
+    "city_code": "RDI",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8144,
+    "city_name": "Sabaâ Aïyoun - Meknes",
+    "city_code": "SBA",
+    "hub_id": 15,
+    "hub_name": "HUB Meknes",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9403,
+    "city_name": "Sabt Mzouda ",
+    "city_code": "SBM",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7100,
+    "city_name": "Safi",
+    "city_code": "SFI",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8324,
+    "city_name": "Saidia",
+    "city_code": "sda",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7172,
+    "city_name": "Sale",
+    "city_code": "SLE",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7178,
+    "city_name": "Sale El Jadida",
+    "city_code": "SEJ",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8759,
+    "city_name": "SBITT",
+    "city_code": "SBI",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6680,
+    "city_name": "Sebt El Guerdane",
+    "city_code": "SEG",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7106,
+    "city_name": "Sebt Gzoula",
+    "city_code": "SGL",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7610,
+    "city_name": "Sebt Oulad Nemma",
+    "city_code": "SON",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8735,
+    "city_name": "Sefrou",
+    "city_code": "Sfr",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8168,
+    "city_name": "Selouane",
+    "city_code": "SLN",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7112,
+    "city_name": "Settat",
+    "city_code": "STT",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7376,
+    "city_name": "Sidi Abdellah Ghiat",
+    "city_code": "SDG",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9356,
+    "city_name": "Sidi Abed",
+    "city_code": "SDB",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9370,
+    "city_name": "Sidi Addi",
+    "city_code": "SDD",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7550,
+    "city_name": "Sidi Aissa-Beni-Mellal",
+    "city_code": "AISSA",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7190,
+    "city_name": "Sidi Allal el Bahraoui",
+    "city_code": "SAB",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8765,
+    "city_name": "Sidi Allal Tazi",
+    "city_code": "sdt",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7292,
+    "city_name": "Sidi Allal Tazi",
+    "city_code": "ATZ",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7118,
+    "city_name": "Sidi Bennour",
+    "city_code": "SBR",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6758,
+    "city_name": "Sidi Bibi",
+    "city_code": "SBB",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7484,
+    "city_name": "Sidi Bou Othmane",
+    "city_code": "SBT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7250,
+    "city_name": "Sidi Bouknadel",
+    "city_code": "SBD",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7124,
+    "city_name": "Sidi Bouzid",
+    "city_code": "SBZ",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9332,
+    "city_name": "SIDI CHAFII-Rabat",
+    "city_code": "CDH",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9279,
+    "city_name": "Sidi Hajjaj - Settat",
+    "city_code": "SHS",
+    "hub_id": 14,
+    "hub_name": "Hub Settat - Berchid",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9462,
+    "city_name": "Sidi Harazem",
+    "city_code": "HRZM",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6710,
+    "city_name": "Sidi Ifni",
+    "city_code": "SIF",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7634,
+    "city_name": "Sidi Jaber",
+    "city_code": "SJB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7280,
+    "city_name": "Sidi Kacem",
+    "city_code": "SKM",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7454,
+    "city_name": "Sidi Lmoukhtar",
+    "city_code": "SLMT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7370,
+    "city_name": "Sidi Moussa MARRAKECH",
+    "city_code": "SDMS",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6986,
+    "city_name": "Sidi Redouane",
+    "city_code": "RDO",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7130,
+    "city_name": "Sidi Rehal",
+    "city_code": "SRL",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7274,
+    "city_name": "Sidi Slimane",
+    "city_code": "SSM",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7136,
+    "city_name": "Sidi Smail",
+    "city_code": "SIM",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7262,
+    "city_name": "Sidi Taibi",
+    "city_code": "STB",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7286,
+    "city_name": "Sidi Yahya El Gharb",
+    "city_code": "SYG",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8804,
+    "city_name": "Sidi Yahya Ousaad",
+    "city_code": "SYS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7232,
+    "city_name": "Sidi Yahya Zaer",
+    "city_code": "ZAER",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7424,
+    "city_name": "Sidi Zouine",
+    "city_code": "ZOUIN",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7214,
+    "city_name": "Skhirat",
+    "city_code": "SKT",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7478,
+    "city_name": "Skhour Rehamna",
+    "city_code": "SKHOR",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8420,
+    "city_name": "Skoura",
+    "city_code": "skr",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8546,
+    "city_name": "Smimou",
+    "city_code": "SMM",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7412,
+    "city_name": "Souihla",
+    "city_code": "SHL",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9212,
+    "city_name": "Souiria",
+    "city_code": "SRI",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7304,
+    "city_name": "Souk Elarbaa Du Gharb",
+    "city_code": "SQL",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9206,
+    "city_name": "souk sebt ",
+    "city_code": "SKB",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6818,
+    "city_name": "Stehat-Chefchaouen",
+    "city_code": "STH",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7790,
+    "city_name": "Tachrafat",
+    "city_code": "TACHR",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6740,
+    "city_name": "Taddart - AGADIR",
+    "city_code": "TDRT",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9417,
+    "city_name": "Taddart-Guercif",
+    "city_code": "TDG",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8270,
+    "city_name": "Taferssit",
+    "city_code": "tfrs",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6746,
+    "city_name": "Tafraoute",
+    "city_code": "TFR",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6782,
+    "city_name": "Tagadirt",
+    "city_code": "tgr",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8534,
+    "city_name": "Tagant Klimmi",
+    "city_code": "TGT",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9362,
+    "city_name": "taghazout",
+    "city_code": "TGZ",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7724,
+    "city_name": "Tagzert",
+    "city_code": "TAG",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7352,
+    "city_name": "Tahannaout",
+    "city_code": "THN",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9192,
+    "city_name": "Tahla",
+    "city_code": "THL",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6686,
+    "city_name": "Taliouine",
+    "city_code": "TLN",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8558,
+    "city_name": "Talmest",
+    "city_code": "TMS",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9152,
+    "city_name": "Tamaait",
+    "city_code": "TMA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8552,
+    "city_name": "Tamanart - SAFI",
+    "city_code": "TNR",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9477,
+    "city_name": "Tamanart - TATA",
+    "city_code": "TMTA",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7142,
+    "city_name": "Tamaris",
+    "city_code": "TAS",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7514,
+    "city_name": "Tamelelt",
+    "city_code": "TMLT",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7208,
+    "city_name": "Tamesna",
+    "city_code": "TSN",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7328,
+    "city_name": "Tamnsourt",
+    "city_code": "TMNS",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6764,
+    "city_name": "Tamraght",
+    "city_code": "TAMR",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7334,
+    "city_name": "Tamslouht",
+    "city_code": "TMSL",
+    "hub_id": 5,
+    "hub_name": "HUB MARRAKECH",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9467,
+    "city_name": "TAMSMAN",
+    "city_code": "tmsm",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8480,
+    "city_name": "Tan Tan",
+    "city_code": "TNT",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9482,
+    "city_name": "Tanant",
+    "city_code": "TNAN",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8360,
+    "city_name": "Tandrara",
+    "city_code": "tnd",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6788,
+    "city_name": "Tanger",
+    "city_code": "TGR",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7706,
+    "city_name": "Tanougha-Beni Mellal",
+    "city_code": "TANOUG",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9466,
+    "city_name": "TAOUIMA",
+    "city_code": "TMI",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8704,
+    "city_name": "Taounate",
+    "city_code": "Taou",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8384,
+    "city_name": "Taourirt",
+    "city_code": "tart",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6932,
+    "city_name": "targuist",
+    "city_code": "TRG",
+    "hub_id": 19,
+    "hub_name": "HUB AL HOCEïMA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6716,
+    "city_name": "Taroudannt",
+    "city_code": "TRN",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 6698,
+    "city_name": "Tata",
+    "city_code": "TT",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8354,
+    "city_name": "Taza",
+    "city_code": "taz",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 9344,
+    "city_name": "Tazarine",
+    "city_code": "TRZN",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8450,
+    "city_name": "Taznakht",
+    "city_code": "tzt",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9350,
+    "city_name": "Télouet",
+    "city_code": "Tlt",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9314,
+    "city_name": "Temanar",
+    "city_code": "TMN",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7202,
+    "city_name": "Temara",
+    "city_code": "TMR",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "center",
+      "ref": "A"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8741,
+    "city_name": "Temsia",
+    "city_code": "TMSI",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8510,
+    "city_name": "Terfaya",
+    "city_code": "TRF",
+    "hub_id": 11,
+    "hub_name": "HUB LAAYOUNE",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6794,
+    "city_name": "Tetouan",
+    "city_code": "TTN",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9478,
+    "city_name": "Tiddas",
+    "city_code": "TDS",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8444,
+    "city_name": "Tidli",
+    "city_code": "tdl",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8747,
+    "city_name": "tifelt",
+    "city_code": "tflt",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 7820,
+    "city_name": "Tighassaline ville",
+    "city_code": "TIGHS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9008,
+    "city_name": "tighsalin",
+    "city_code": "TGS",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9481,
+    "city_name": "Tikiouine",
+    "city_code": "TKN",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 25,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 9474,
+    "city_name": "Timahdite",
+    "city_code": "TMH",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7568,
+    "city_name": "Timolilt",
+    "city_code": "TMT",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8660,
+    "city_name": "Tinghir",
+    "city_code": "tng",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8654,
+    "city_name": "Tinjdad",
+    "city_code": "tnjd",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9475,
+    "city_name": "Tiss Taounat",
+    "city_code": "TSS",
+    "hub_id": 7,
+    "hub_name": "HUB FES",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7148,
+    "city_name": "Tit Melil",
+    "city_code": "TML",
+    "hub_id": 2,
+    "hub_name": "HUB CASABLANCA",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 6704,
+    "city_name": "Tiznit",
+    "city_code": "TZN",
+    "hub_id": 13,
+    "hub_name": "HUB AGADIR",
+    "category": {
+      "name": "region de region",
+      "ref": "C"
+    },
+    "fees": {
+      "delivered": 30,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8216,
+    "city_name": "Tiztoutine",
+    "city_code": "tzn",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7154,
+    "city_name": "Tnine Chtouka (el jadida)",
+    "city_code": "TNC",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9476,
+    "city_name": "Tnine Gharbia zemamra",
+    "city_code": "abgh",
+    "hub_id": 16,
+    "hub_name": "HUB EL JADIDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7742,
+    "city_name": "Wawizght",
+    "city_code": "WZH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 9394,
+    "city_name": "Wlad Oujih",
+    "city_code": "WLO",
+    "hub_id": 4,
+    "hub_name": "HUB RABAT",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7160,
+    "city_name": "Youssoufia",
+    "city_code": "YSF",
+    "hub_id": 12,
+    "hub_name": "HUB SAFI",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8462,
+    "city_name": "Zagora",
+    "city_code": "ZG",
+    "hub_id": 9,
+    "hub_name": "HUB OUARZAZAT",
+    "category": {
+      "name": "D",
+      "ref": "D"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 7
+    }
+  },
+  {
+    "city_id": 8594,
+    "city_name": "Zaida",
+    "city_code": "zda",
+    "hub_id": 10,
+    "hub_name": "HUB ERRACHIDIA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8246,
+    "city_name": "Zaio",
+    "city_code": "zaio",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 8771,
+    "city_name": "Zaouiat Cheikh",
+    "city_code": "ztch",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 7688,
+    "city_name": "Zawit Chikh",
+    "city_code": "ZWH",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 8180,
+    "city_name": "Zeghanghane",
+    "city_code": "ZGN",
+    "hub_id": 8,
+    "hub_name": "HUB OUJDA",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  },
+  {
+    "city_id": 6950,
+    "city_name": "Zoumi-Ouazzane",
+    "city_code": "ZOM",
+    "hub_id": 3,
+    "hub_name": "HUB TANGER",
+    "category": {
+      "name": "region",
+      "ref": "B"
+    },
+    "fees": {
+      "delivered": 35,
+      "returned": 0,
+      "refused": 5
+    }
+  },
+  {
+    "city_id": 7652,
+    "city_name": "Zwayr",
+    "city_code": "ZYR",
+    "hub_id": 6,
+    "hub_name": "HUB BENIMELLAL",
+    "category": {
+      "name": "E",
+      "ref": "E"
+    },
+    "fees": {
+      "delivered": 39,
+      "returned": 0,
+      "refused": 10
+    }
+  }
+]
