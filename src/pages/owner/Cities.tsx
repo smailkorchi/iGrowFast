@@ -52,7 +52,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison'] as const;
+const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison', 'vitex'] as const;
 type ProviderKey = (typeof PROVIDER_ORDER)[number];
 
 const PROVIDER_LABELS: Record<ProviderKey, string> = {
@@ -60,6 +60,7 @@ const PROVIDER_LABELS: Record<ProviderKey, string> = {
     coliaty: 'Coliaty',
     ozon: 'Ozon',
     quicklivraison: 'Quick Livraison',
+    vitex: 'VITEX',
 };
 
 type MasterCityRow = {
@@ -81,6 +82,7 @@ const citySchema = z.object({
     coliaty_city_name: z.string().optional().nullable(),
     ozon_city_id: z.string().optional().nullable(),
     quicklivraison_city_id: z.string().optional().nullable(),
+    vitex_city_id: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
@@ -92,6 +94,7 @@ const emptyCityForm: CityFormValues = {
     coliaty_city_name: '',
     ozon_city_id: '',
     quicklivraison_city_id: '',
+    vitex_city_id: '',
 };
 
 function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
@@ -102,6 +105,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
     const co = by('coliaty');
     const oz = by('ozon');
     const ql = by('quicklivraison');
+    const vx = by('vitex');
     return {
         name: city.name,
         zone_id: city.zone_id || '',
@@ -109,6 +113,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
         coliaty_city_name: (co?.provider_city_name || '').trim() || '',
         ozon_city_id: (oz?.provider_city_id || '').trim() || '',
         quicklivraison_city_id: (ql?.provider_city_id || '').trim() || '',
+        vitex_city_id: (vx?.provider_city_id || '').trim() || '',
     };
 }
 
@@ -118,6 +123,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
         coliaty: null,
         ozon: null,
         quicklivraison: null,
+        vitex: null,
     };
     for (const pc of city.provider_cities || []) {
         const t = String(pc.provider_type || '').toLowerCase() as ProviderKey;
@@ -134,6 +140,10 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id || nm || null;
         } else if (t === 'quicklivraison') {
+            const id = (pc.provider_city_id || '').trim();
+            const nm = (pc.provider_city_name || '').trim();
+            out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
+        } else if (t === 'vitex') {
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
@@ -165,7 +175,7 @@ async function fetchAllMasterCities(): Promise<MasterCityRow[]> {
 async function syncProviderMappings(
     masterCityId: string,
     masterCityName: string,
-    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id'>
+    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id'>
 ) {
     const name = masterCityName.trim();
 
@@ -227,6 +237,16 @@ async function syncProviderMappings(
         });
     } else {
         await del('quicklivraison');
+    }
+
+    const vx = (v.vitex_city_id || '').trim();
+    if (vx) {
+        await upsert('vitex', {
+            provider_city_id: vx,
+            provider_city_name: name || vx,
+        });
+    } else {
+        await del('vitex');
     }
 }
 
@@ -388,6 +408,7 @@ const Cities = () => {
                 if (filterMapping === 'missing_coliaty') return !hasProvider(city, 'coliaty');
                 if (filterMapping === 'missing_ozon') return !hasProvider(city, 'ozon');
                 if (filterMapping === 'missing_quicklivraison') return !hasProvider(city, 'quicklivraison');
+                if (filterMapping === 'missing_vitex') return !hasProvider(city, 'vitex');
                 return true;
             });
         }
@@ -415,6 +436,7 @@ const Cities = () => {
         let coliaty = 0;
         let ozon = 0;
         let quicklivraison = 0;
+        let vitex = 0;
         for (const city of list) {
             if (city.zone_id) withHub++;
             if (allMap(city)) fullyMapped++;
@@ -422,6 +444,7 @@ const Cities = () => {
             if (hasProv(city, 'coliaty')) coliaty++;
             if (hasProv(city, 'ozon')) ozon++;
             if (hasProv(city, 'quicklivraison')) quicklivraison++;
+            if (hasProv(city, 'vitex')) vitex++;
         }
         const total = list.length;
         return {
@@ -434,6 +457,7 @@ const Cities = () => {
             coliaty,
             ozon,
             quicklivraison,
+            vitex,
         };
     }, [cities]);
 
@@ -585,6 +609,10 @@ const Cities = () => {
                             <span className="font-medium text-ant-ink">Quick Livraison</span>
                             <span className="tabular-nums text-ant-ink">{cityCatalogStats.quicklivraison}</span>
                         </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
+                            <span className="font-medium text-ant-ink">VITEX</span>
+                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.vitex}</span>
+                        </span>
                     </div>
                 </div>
             )}
@@ -635,6 +663,7 @@ const Cities = () => {
                         <SelectItem value="missing_coliaty" className="text-[12px]">Missing Coliaty</SelectItem>
                         <SelectItem value="missing_ozon" className="text-[12px]">Missing Ozon</SelectItem>
                         <SelectItem value="missing_quicklivraison" className="text-[12px]">Missing Quick Livraison</SelectItem>
+                        <SelectItem value="missing_vitex" className="text-[12px]">Missing VITEX</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -962,7 +991,7 @@ const Cities = () => {
                                                 Each carrier uses its own identifier for this city.
                                             </p>
                                         </div>
-                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                                             <FormField
                                                 control={form.control}
                                                 name="ameex_city_code"
@@ -1037,6 +1066,27 @@ const Cities = () => {
                                                         <FormControl>
                                                             <input
                                                                 placeholder="District id"
+                                                                {...field}
+                                                                value={field.value || ''}
+                                                                className={inputClass}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage className="text-[10px] text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
+
+                                            <FormField
+                                                control={form.control}
+                                                name="vitex_city_id"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                            VITEX <span className="font-mono normal-case text-ant-mid/60">· city_id</span>
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <input
+                                                                placeholder="City id"
                                                                 {...field}
                                                                 value={field.value || ''}
                                                                 className={inputClass}

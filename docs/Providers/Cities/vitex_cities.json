@@ -1,0 +1,1752 @@
+[
+  {
+    "city_id": "4462",
+    "city_code": "MKR",
+    "city_name": "Marrakech "
+  },
+  {
+    "city_id": "4469",
+    "city_code": "CAS",
+    "city_name": "casablanca"
+  },
+  {
+    "city_id": "4475",
+    "city_code": "SET",
+    "city_name": "SETTAT"
+  },
+  {
+    "city_id": "4481",
+    "city_code": "MHD",
+    "city_name": "Mohammedia"
+  },
+  {
+    "city_id": "4487",
+    "city_code": "RAB",
+    "city_name": "Rabat"
+  },
+  {
+    "city_id": "4493",
+    "city_code": "SAL",
+    "city_name": "Sale"
+  },
+  {
+    "city_id": "4499",
+    "city_code": "KEN",
+    "city_name": "Kenitra"
+  },
+  {
+    "city_id": "4505",
+    "city_code": "DAK",
+    "city_name": "Dakhla"
+  },
+  {
+    "city_id": "4511",
+    "city_code": "LAAY",
+    "city_name": "Laayoune"
+  },
+  {
+    "city_id": "4517",
+    "city_code": "SAF",
+    "city_name": "Safi"
+  },
+  {
+    "city_id": "4523",
+    "city_code": "BOUJ",
+    "city_name": "Boujdour"
+  },
+  {
+    "city_id": "4529",
+    "city_code": "DAR",
+    "city_name": "Dar Bouazza"
+  },
+  {
+    "city_id": "4535",
+    "city_code": "ELJ",
+    "city_name": "El Jadida"
+  },
+  {
+    "city_id": "4541",
+    "city_code": "OUl",
+    "city_name": "Oualidia"
+  },
+  {
+    "city_id": "4547",
+    "city_code": "ESS",
+    "city_name": "Essaouira"
+  },
+  {
+    "city_id": "4553",
+    "city_code": "AMZ",
+    "city_name": "Amzmiz"
+  },
+  {
+    "city_id": "4559",
+    "city_code": "AGD",
+    "city_name": "Agadir"
+  },
+  {
+    "city_id": "4565",
+    "city_code": "AIM",
+    "city_name": "Ait Melloul"
+  },
+  {
+    "city_id": "4571",
+    "city_code": "BOI",
+    "city_name": "Bouizakarne"
+  },
+  {
+    "city_id": "4577",
+    "city_code": "MIR",
+    "city_name": "Mirleft"
+  },
+  {
+    "city_id": "4583",
+    "city_code": "SIF",
+    "city_name": "Sidi Ifni"
+  },
+  {
+    "city_id": "4589",
+    "city_code": "GUE",
+    "city_name": "Guelmim"
+  },
+  {
+    "city_id": "4595",
+    "city_code": "TAN",
+    "city_name": "TanTan"
+  },
+  {
+    "city_id": "4601",
+    "city_code": "LAT",
+    "city_name": "Laattaouia"
+  },
+  {
+    "city_id": "4607",
+    "city_code": "TER",
+    "city_name": "Terfaya"
+  },
+  {
+    "city_id": "4613",
+    "city_code": "AIN",
+    "city_name": "AinAouda"
+  },
+  {
+    "city_id": "4619",
+    "city_code": "ALH",
+    "city_name": "Al Hoceima"
+  },
+  {
+    "city_id": "4625",
+    "city_code": "BEN",
+    "city_name": "Beni Mellal"
+  },
+  {
+    "city_id": "4631",
+    "city_code": "FES",
+    "city_name": "Fes"
+  },
+  {
+    "city_id": "4637",
+    "city_code": "FNI",
+    "city_name": "Fnideq"
+  },
+  {
+    "city_id": "4643",
+    "city_code": "FBS",
+    "city_name": "Fquih Ben Salah"
+  },
+  {
+    "city_id": "4649",
+    "city_code": "INZ",
+    "city_name": "Inzegane"
+  },
+  {
+    "city_id": "4655",
+    "city_code": "KAS",
+    "city_name": "Kasba Tadla"
+  },
+  {
+    "city_id": "4661",
+    "city_code": "KHO",
+    "city_name": "Khouribga"
+  },
+  {
+    "city_id": "4667",
+    "city_code": "KSA",
+    "city_name": "Ksar El Kebir"
+  },
+  {
+    "city_id": "4673",
+    "city_code": "LAR",
+    "city_name": "Larache"
+  },
+  {
+    "city_id": "4679",
+    "city_code": "MDI",
+    "city_name": "MDiq"
+  },
+  {
+    "city_id": "4685",
+    "city_code": "MAR",
+    "city_name": "Martil"
+  },
+  {
+    "city_id": "4691",
+    "city_code": "MEK",
+    "city_name": "Meknes"
+  },
+  {
+    "city_id": "4697",
+    "city_code": "NAD",
+    "city_name": "Nador"
+  },
+  {
+    "city_id": "4703",
+    "city_code": "OUR",
+    "city_name": "Ouarzazat"
+  },
+  {
+    "city_id": "4709",
+    "city_code": "AIH",
+    "city_name": "Ain Harouda"
+  },
+  {
+    "city_id": "4715",
+    "city_code": "SAJ",
+    "city_name": "Sale El Jadida"
+  },
+  {
+    "city_id": "4721",
+    "city_code": "SKI",
+    "city_name": "Skhirat"
+  },
+  {
+    "city_id": "4727",
+    "city_code": "CAB",
+    "city_name": "Cabo Negro"
+  },
+  {
+    "city_id": "4733",
+    "city_code": "TAS",
+    "city_name": "Tamesna"
+  },
+  {
+    "city_id": "4739",
+    "city_code": "TAG",
+    "city_name": "Tanger"
+  },
+  {
+    "city_id": "4745",
+    "city_code": "TAZ",
+    "city_name": "Taza"
+  },
+  {
+    "city_id": "4751",
+    "city_code": "TEM",
+    "city_name": "Temara"
+  },
+  {
+    "city_id": "4757",
+    "city_code": "TET",
+    "city_name": "Tetouan"
+  },
+  {
+    "city_id": "4763",
+    "city_code": "SFR",
+    "city_name": "Sefrou"
+  },
+  {
+    "city_id": "4769",
+    "city_code": "AZR",
+    "city_name": "Azrou"
+  },
+  {
+    "city_id": "4775",
+    "city_code": "IFR",
+    "city_name": "Ifran"
+  },
+  {
+    "city_id": "4781",
+    "city_code": "IMK",
+    "city_name": "Imouzzer Kandar"
+  },
+  {
+    "city_id": "4787",
+    "city_code": "TRA",
+    "city_name": "Taroudant"
+  },
+  {
+    "city_id": "4793",
+    "city_code": "TMS",
+    "city_name": "Tamaris"
+  },
+  {
+    "city_id": "4799",
+    "city_code": "BSK",
+    "city_name": "Bouskoura"
+  },
+  {
+    "city_id": "4805",
+    "city_code": "ASN",
+    "city_name": "Asni"
+  },
+  {
+    "city_id": "4811",
+    "city_code": "NOU",
+    "city_name": "Nouaceur"
+  },
+  {
+    "city_id": "4817",
+    "city_code": "SBG",
+    "city_name": "Sebt Gzoula"
+  },
+  {
+    "city_id": "4823",
+    "city_code": "KHE",
+    "city_name": "KHENIFRA"
+  },
+  {
+    "city_id": "4829",
+    "city_code": "SDK",
+    "city_name": "Sidi Kacem"
+  },
+  {
+    "city_id": "4835",
+    "city_code": "SIL",
+    "city_name": "Sidi Sliman"
+  },
+  {
+    "city_id": "4841",
+    "city_code": "TML",
+    "city_name": "Tit Mellil"
+  },
+  {
+    "city_id": "4847",
+    "city_code": "ATQ",
+    "city_name": "Ain Attiq"
+  },
+  {
+    "city_id": "4853",
+    "city_code": "BSL",
+    "city_name": "Benslimane"
+  },
+  {
+    "city_id": "4859",
+    "city_code": "GCF",
+    "city_name": "Guercif"
+  },
+  {
+    "city_id": "4865",
+    "city_code": "AZE",
+    "city_name": "Azemmour"
+  },
+  {
+    "city_id": "4871",
+    "city_code": "MAL",
+    "city_name": "Moulay Abdellah"
+  },
+  {
+    "city_id": "4877",
+    "city_code": "MDT",
+    "city_name": "Midelt"
+  },
+  {
+    "city_id": "4883",
+    "city_code": "TAH",
+    "city_name": "Tahannaout"
+  },
+  {
+    "city_id": "4889",
+    "city_code": "CHF",
+    "city_name": "Chefchaouen"
+  },
+  {
+    "city_id": "4895",
+    "city_code": "KDS",
+    "city_name": "Kelaat des Sraghna"
+  },
+  {
+    "city_id": "4901",
+    "city_code": "YSA",
+    "city_name": "Youssoufia"
+  },
+  {
+    "city_id": "4907",
+    "city_code": "BGG",
+    "city_name": "Ben Guerir"
+  },
+  {
+    "city_id": "4913",
+    "city_code": "TNJ",
+    "city_name": "tinjdad"
+  },
+  {
+    "city_id": "4919",
+    "city_code": "RCH",
+    "city_name": "Riche"
+  },
+  {
+    "city_id": "4925",
+    "city_code": "HRH",
+    "city_name": "Harhoura"
+  },
+  {
+    "city_id": "4931",
+    "city_code": "HDS",
+    "city_name": "Had Soualem"
+  },
+  {
+    "city_id": "4937",
+    "city_code": "SIR",
+    "city_name": "Sidi Rehal"
+  },
+  {
+    "city_id": "4943",
+    "city_code": "OUZ",
+    "city_name": "Oued Zem"
+  },
+  {
+    "city_id": "4949",
+    "city_code": "ORI",
+    "city_name": "Ourika"
+  },
+  {
+    "city_id": "4955",
+    "city_code": "AOI",
+    "city_name": "Ait Ourir"
+  },
+  {
+    "city_id": "4961",
+    "city_code": "CHO",
+    "city_name": "choueitr"
+  },
+  {
+    "city_id": "4967",
+    "city_code": "SDG",
+    "city_name": "Souk Elarbaa Du Gharb"
+  },
+  {
+    "city_id": "4973",
+    "city_code": "BKN",
+    "city_name": "Bouknadel"
+  },
+  {
+    "city_id": "4979",
+    "city_code": "TAE",
+    "city_name": "Taounate"
+  },
+  {
+    "city_id": "4985",
+    "city_code": "TAO",
+    "city_name": "Taourirt"
+  },
+  {
+    "city_id": "4991",
+    "city_code": "BAB",
+    "city_name": "Bab Berred"
+  },
+  {
+    "city_id": "4997",
+    "city_code": "BNS",
+    "city_name": "Bni Nsar"
+  },
+  {
+    "city_id": "5003",
+    "city_code": "SEL",
+    "city_name": "Selouane"
+  },
+  {
+    "city_id": "5009",
+    "city_code": "TAR",
+    "city_name": "tamansourt"
+  },
+  {
+    "city_id": "5015",
+    "city_code": "BES",
+    "city_name": "Beni Ensar"
+  },
+  {
+    "city_id": "5021",
+    "city_code": "SDB",
+    "city_name": "Sidi Bennour"
+  },
+  {
+    "city_id": "5027",
+    "city_code": "OLT",
+    "city_name": "Oulad Teima"
+  },
+  {
+    "city_id": "5033",
+    "city_code": "ANZ",
+    "city_name": "Anza"
+  },
+  {
+    "city_id": "5039",
+    "city_code": "KHZ",
+    "city_name": "Khemis Zemamra"
+  },
+  {
+    "city_id": "5051",
+    "city_code": "ESM",
+    "city_name": "Essmara"
+  },
+  {
+    "city_id": "5057",
+    "city_code": "OUJ",
+    "city_name": "Oujda"
+  },
+  {
+    "city_id": "5063",
+    "city_code": "BRK",
+    "city_name": "Berkane"
+  },
+  {
+    "city_id": "5069",
+    "city_code": "OUA",
+    "city_name": "Ouazzane"
+  },
+  {
+    "city_id": "5075",
+    "city_code": "DRI",
+    "city_name": "Driouch"
+  },
+  {
+    "city_id": "5081",
+    "city_code": "SYL",
+    "city_name": "Sidi Yahya Lgharb"
+  },
+  {
+    "city_id": "5087",
+    "city_code": "RIS",
+    "city_name": "Rissani"
+  },
+  {
+    "city_id": "5093",
+    "city_code": "BOZ",
+    "city_name": "Bouznika"
+  },
+  {
+    "city_id": "5099",
+    "city_code": "BRC",
+    "city_name": "Berrchid"
+  },
+  {
+    "city_id": "5105",
+    "city_code": "BIR",
+    "city_name": "BIR JDID"
+  },
+  {
+    "city_id": "5111",
+    "city_code": "TIZ",
+    "city_name": "Tiznit"
+  },
+  {
+    "city_id": "5123",
+    "city_code": "SIB",
+    "city_name": "SidiBouzid"
+  },
+  {
+    "city_id": "5129",
+    "city_code": "THL",
+    "city_name": "Tahla"
+  },
+  {
+    "city_id": "5141",
+    "city_code": "TAD",
+    "city_name": "Tadart(region guercif)"
+  },
+  {
+    "city_id": "5153",
+    "city_code": "TAL",
+    "city_name": "Tala Youssef"
+  },
+  {
+    "city_id": "5165",
+    "city_code": "HIC",
+    "city_name": "Hichem Azghar"
+  },
+  {
+    "city_id": "5171",
+    "city_code": "AJD",
+    "city_name": "Ajdir (Region Taza)"
+  },
+  {
+    "city_id": "5177",
+    "city_code": "BNA",
+    "city_name": "Bni Bouayach"
+  },
+  {
+    "city_id": "5183",
+    "city_code": "DCH",
+    "city_name": "Dcheira"
+  },
+  {
+    "city_id": "5189",
+    "city_code": "AIT",
+    "city_name": "Ait Kamra"
+  },
+  {
+    "city_id": "5195",
+    "city_code": "BOR",
+    "city_name": "Bouarfa"
+  },
+  {
+    "city_id": "5201",
+    "city_code": "JER",
+    "city_name": "Jerada"
+  },
+  {
+    "city_id": "5207",
+    "city_code": "SAA",
+    "city_name": "Saaidia"
+  },
+  {
+    "city_id": "5213",
+    "city_code": "AHF",
+    "city_name": "Ahfir"
+  },
+  {
+    "city_id": "5219",
+    "city_code": "FIG",
+    "city_name": "Figuig"
+  },
+  {
+    "city_id": "5225",
+    "city_code": "TEN",
+    "city_name": "Tendrara"
+  },
+  {
+    "city_id": "5231",
+    "city_code": "BNI",
+    "city_name": "Bni Drar"
+  },
+  {
+    "city_id": "5237",
+    "city_code": "BNK",
+    "city_name": "Bni Wkil"
+  },
+  {
+    "city_id": "5243",
+    "city_code": "AKL",
+    "city_name": "Aklim"
+  },
+  {
+    "city_id": "5249",
+    "city_code": "CAP",
+    "city_name": "Cape de l'Eau"
+  },
+  {
+    "city_id": "5255",
+    "city_code": "ZAI",
+    "city_name": "Zaio"
+  },
+  {
+    "city_id": "5261",
+    "city_code": "ARO",
+    "city_name": "Aroui"
+  },
+  {
+    "city_id": "5267",
+    "city_code": "BNT",
+    "city_name": "Bntyeb"
+  },
+  {
+    "city_id": "5273",
+    "city_code": "TAF",
+    "city_name": "Tafrsit"
+  },
+  {
+    "city_id": "5285",
+    "city_code": "ERR",
+    "city_name": "Errachidia"
+  },
+  {
+    "city_id": "5291",
+    "city_code": "ARF",
+    "city_name": "Arfoud"
+  },
+  {
+    "city_id": "5297",
+    "city_code": "BOUD",
+    "city_name": "Boudnib"
+  },
+  {
+    "city_id": "5303",
+    "city_code": "MER",
+    "city_name": "Merzoga"
+  },
+  {
+    "city_id": "5309",
+    "city_code": "AOU",
+    "city_name": "Aoufous"
+  },
+  {
+    "city_id": "5315",
+    "city_code": "TIN",
+    "city_name": "Tinghir"
+  },
+  {
+    "city_id": "5321",
+    "city_code": "KEL",
+    "city_name": "Kelaat Megouna"
+  },
+  {
+    "city_id": "5327",
+    "city_code": "BOUL",
+    "city_name": "Boumalne Dades"
+  },
+  {
+    "city_id": "5333",
+    "city_code": "ZAG",
+    "city_name": "Zagora"
+  },
+  {
+    "city_id": "5339",
+    "city_code": "AGZ",
+    "city_name": "Agdz"
+  },
+  {
+    "city_id": "5345",
+    "city_code": "TZN",
+    "city_name": "Tazenakht"
+  },
+  {
+    "city_id": "5351",
+    "city_code": "JRF",
+    "city_name": "El jorf"
+  },
+  {
+    "city_id": "5357",
+    "city_code": "SIM",
+    "city_name": "Sidi Messaoud"
+  },
+  {
+    "city_id": "5363",
+    "city_code": "KHS",
+    "city_name": "Khemisset"
+  },
+  {
+    "city_id": "5369",
+    "city_code": "TIF",
+    "city_name": "Tiflet"
+  },
+  {
+    "city_id": "5375",
+    "city_code": "SAB",
+    "city_name": "Sidi Allal El Bahraoui"
+  },
+  {
+    "city_id": "5381",
+    "city_code": "MEC",
+    "city_name": "Mechra Bel Ksiri"
+  },
+  {
+    "city_id": "5387",
+    "city_code": "OLF",
+    "city_name": "Oulad Fraj"
+  },
+  {
+    "city_id": "5393",
+    "city_code": "OLY",
+    "city_name": "Oulad Ettayeb"
+  },
+  {
+    "city_id": "5399",
+    "city_code": "AIF",
+    "city_name": "Ain Chkef"
+  },
+  {
+    "city_id": "5405",
+    "city_code": "AAL",
+    "city_name": "Ain Allah"
+  },
+  {
+    "city_id": "5411",
+    "city_code": "REM",
+    "city_name": "Ras El Ma(region fes)"
+  },
+  {
+    "city_id": "5417",
+    "city_code": "SHZ",
+    "city_name": "Sidi Hrazem"
+  },
+  {
+    "city_id": "5423",
+    "city_code": "ASI",
+    "city_name": "Assilah"
+  },
+  {
+    "city_id": "5429",
+    "city_code": "KSS",
+    "city_name": "Ksar Sghir"
+  },
+  {
+    "city_id": "5435",
+    "city_code": "BTA",
+    "city_name": "Bab Taza"
+  },
+  {
+    "city_id": "5441",
+    "city_code": "OLA",
+    "city_name": "Ouad Laou"
+  },
+  {
+    "city_id": "5447",
+    "city_code": "IMZ",
+    "city_name": "Imzouren"
+  },
+  {
+    "city_id": "5453",
+    "city_code": "DRA",
+    "city_name": "Drarga"
+  },
+  {
+    "city_id": "5459",
+    "city_code": "TLN",
+    "city_name": "Taliouin"
+  },
+  {
+    "city_id": "5465",
+    "city_code": "AOL",
+    "city_name": "Aoulouz"
+  },
+  {
+    "city_id": "5471",
+    "city_code": "OUB",
+    "city_name": "Oulad Berhil"
+  },
+  {
+    "city_id": "5477",
+    "city_code": "BIO",
+    "city_name": "Biougra"
+  },
+  {
+    "city_id": "5483",
+    "city_code": "KAA",
+    "city_name": "Khmis Ait Amira"
+  },
+  {
+    "city_id": "5489",
+    "city_code": "SBB",
+    "city_name": "Sidi Bibi"
+  },
+  {
+    "city_id": "5495",
+    "city_code": "ASS",
+    "city_name": "Assa"
+  },
+  {
+    "city_id": "5501",
+    "city_code": "BNH",
+    "city_name": "Ben Hmed (region settat)"
+  },
+  {
+    "city_id": "5507",
+    "city_code": "DER",
+    "city_name": "Deroua"
+  },
+  {
+    "city_id": "5513",
+    "city_code": "EKS",
+    "city_name": "El Ksiba"
+  },
+  {
+    "city_id": "5519",
+    "city_code": "AFO",
+    "city_name": "Afourar"
+  },
+  {
+    "city_id": "5525",
+    "city_code": "AZL",
+    "city_name": "Azilal"
+  },
+  {
+    "city_id": "5531",
+    "city_code": "BEJ",
+    "city_name": "Bejaad"
+  },
+  {
+    "city_id": "5537",
+    "city_code": "MRI",
+    "city_name": "Mrirt"
+  },
+  {
+    "city_id": "5543",
+    "city_code": "EHJ",
+    "city_name": "El Hajeb"
+  },
+  {
+    "city_id": "5549",
+    "city_code": "BOF",
+    "city_name": "Boufakarane"
+  },
+  {
+    "city_id": "5555",
+    "city_code": "ATA",
+    "city_name": "Ain Taoujdate"
+  },
+  {
+    "city_id": "5561",
+    "city_code": "BOD",
+    "city_name": "Bouderbala"
+  },
+  {
+    "city_id": "5567",
+    "city_code": "TAML",
+    "city_name": "Tamelelt"
+  },
+  {
+    "city_id": "5573",
+    "city_code": "CHI",
+    "city_name": "Chichaoua"
+  },
+  {
+    "city_id": "5579",
+    "city_code": "DEM",
+    "city_name": "Demnate"
+  },
+  {
+    "city_id": "5585",
+    "city_code": "CHE",
+    "city_name": "Chemaia"
+  },
+  {
+    "city_id": "5591",
+    "city_code": "IMI",
+    "city_name": "Imintanoute"
+  },
+  {
+    "city_id": "5597",
+    "city_code": "MZO",
+    "city_name": "Mzoudia"
+  },
+  {
+    "city_id": "5603",
+    "city_code": "MOL",
+    "city_name": "Moulay Boazza"
+  },
+  {
+    "city_id": "5609",
+    "city_code": "MED",
+    "city_name": "Mediouna"
+  },
+  {
+    "city_id": "5615",
+    "city_code": "SMI",
+    "city_name": "SMIMOU"
+  },
+  {
+    "city_id": "5621",
+    "city_code": "ERCH",
+    "city_name": "Errich"
+  },
+  {
+    "city_id": "5627",
+    "city_code": "GUL",
+    "city_name": "Gulmima"
+  },
+  {
+    "city_id": "5633",
+    "city_code": "MIS",
+    "city_name": "Missour"
+  },
+  {
+    "city_id": "5639",
+    "city_code": "SOB",
+    "city_name": "Souk Sebt"
+  },
+  {
+    "city_id": "5645",
+    "city_code": "SBT",
+    "city_name": "Sidi Bou Othmane"
+  },
+  {
+    "city_id": "5651",
+    "city_code": "LOU",
+    "city_name": "Loudaya"
+  },
+  {
+    "city_id": "5657",
+    "city_code": "MOA",
+    "city_name": "Molay Abedlah"
+  },
+  {
+    "city_id": "5663",
+    "city_code": "HAO",
+    "city_name": "Haouzia"
+  },
+  {
+    "city_id": "5669",
+    "city_code": "BET",
+    "city_name": "BEN TAYEB"
+  },
+  {
+    "city_id": "5675",
+    "city_code": "OUN",
+    "city_name": "OUNAGHA"
+  },
+  {
+    "city_id": "5681",
+    "city_code": "HAD",
+    "city_name": "HAD DRAA"
+  },
+  {
+    "city_id": "5687",
+    "city_code": "JEA",
+    "city_name": "JEMAAT ASHIM"
+  },
+  {
+    "city_id": "5693",
+    "city_code": "TAMH",
+    "city_name": "TAMESLOUHT"
+  },
+  {
+    "city_id": "5699",
+    "city_code": "KAR",
+    "city_name": "Kariat Ba Mohamed"
+  },
+  {
+    "city_id": "5705",
+    "city_code": "SAN",
+    "city_name": "Sabaa Aiyoun"
+  },
+  {
+    "city_id": "5711",
+    "city_code": "MOD",
+    "city_name": "Moulay Driss Zerhoun"
+  },
+  {
+    "city_id": "5717",
+    "city_code": "MOY",
+    "city_name": "Moulay Yaacoub"
+  },
+  {
+    "city_id": "5723",
+    "city_code": "ROU",
+    "city_name": "Roumani"
+  },
+  {
+    "city_id": "5729",
+    "city_code": "SBO",
+    "city_name": "SOUK SEBT OULAD NEMMA"
+  },
+  {
+    "city_id": "5735",
+    "city_code": "BIN",
+    "city_name": "Bin El Ouidane"
+  },
+  {
+    "city_id": "5741",
+    "city_code": "BOM",
+    "city_name": "Boumia"
+  },
+  {
+    "city_id": "5747",
+    "city_code": "BOL",
+    "city_name": "Boulmane"
+  },
+  {
+    "city_id": "5753",
+    "city_code": "BOU",
+    "city_name": "Boujniba"
+  },
+  {
+    "city_id": "5759",
+    "city_code": "OLM",
+    "city_name": "Oulmes"
+  },
+  {
+    "city_id": "5765",
+    "city_code": "LAA",
+    "city_name": "Laayoune Cherkia"
+  },
+  {
+    "city_id": "5771",
+    "city_code": "SEB",
+    "city_name": "Sebt Ben Sassi"
+  },
+  {
+    "city_id": "5777",
+    "city_code": "OUI",
+    "city_name": "Ouidane"
+  },
+  {
+    "city_id": "5783",
+    "city_code": "SSM",
+    "city_name": "Sidi Smail"
+  },
+  {
+    "city_id": "5789",
+    "city_code": "TAFT",
+    "city_name": "TAFRAOUT"
+  },
+  {
+    "city_id": "5795",
+    "city_code": "MBS",
+    "city_name": "MOULAY BOUSELHAM"
+  },
+  {
+    "city_id": "5801",
+    "city_code": "OMS",
+    "city_name": "OULAD MOUSSA"
+  },
+  {
+    "city_id": "5807",
+    "city_code": "SYZ",
+    "city_name": "Sidi Yahya Zaer"
+  },
+  {
+    "city_id": "5813",
+    "city_code": "SAT",
+    "city_name": "SIDI ALLAL TAZI"
+  },
+  {
+    "city_id": "5819",
+    "city_code": "BHL",
+    "city_name": "BHALIL"
+  },
+  {
+    "city_id": "5825",
+    "city_code": "GHA",
+    "city_name": "Ghafsai"
+  },
+  {
+    "city_id": "5831",
+    "city_code": "GUI",
+    "city_name": "GUISSER"
+  },
+  {
+    "city_id": "5837",
+    "city_code": "MAN",
+    "city_name": "MANSOURIA"
+  },
+  {
+    "city_id": "5843",
+    "city_code": "STA",
+    "city_name": "Sidi Taibi"
+  },
+  {
+    "city_id": "5849",
+    "city_code": "OUT",
+    "city_name": "Outat El Haj"
+  },
+  {
+    "city_id": "5855",
+    "city_code": "ZAC",
+    "city_name": "Zaouiat Cheikh"
+  },
+  {
+    "city_id": "5861",
+    "city_code": "AGU",
+    "city_name": "Aguelmous"
+  },
+  {
+    "city_id": "5867",
+    "city_code": "BEL",
+    "city_name": "BELFAA"
+  },
+  {
+    "city_id": "5873",
+    "city_code": "GAR",
+    "city_name": "GARA"
+  },
+  {
+    "city_id": "5879",
+    "city_code": "AGA",
+    "city_name": "AGAFAY"
+  },
+  {
+    "city_id": "5885",
+    "city_code": "LAL",
+    "city_name": "LALA MIMOUNA"
+  },
+  {
+    "city_id": "5891",
+    "city_code": "SHJ",
+    "city_name": "Sidi Hajjaj"
+  },
+  {
+    "city_id": "5904",
+    "city_code": "jrm",
+    "city_name": "jorf el melha"
+  },
+  {
+    "city_id": "5910",
+    "city_code": "AINM",
+    "city_name": "Ain Mediouna"
+  },
+  {
+    "city_id": "5916",
+    "city_code": "STG",
+    "city_name": "Sebt El Guerdane"
+  },
+  {
+    "city_id": "5922",
+    "city_code": "EKB",
+    "city_name": "El Kbab"
+  },
+  {
+    "city_id": "5928",
+    "city_code": "Lgrb",
+    "city_name": "Laagreb"
+  },
+  {
+    "city_id": "5934",
+    "city_code": "Sdm",
+    "city_name": "Sidi moussa"
+  },
+  {
+    "city_id": "5952",
+    "city_code": "Blg",
+    "city_name": "Belaagid"
+  },
+  {
+    "city_id": "5958",
+    "city_code": "Smk",
+    "city_name": "Sid mokhtar"
+  },
+  {
+    "city_id": "5964",
+    "city_code": "Tmt",
+    "city_name": "Tamellalt"
+  },
+  {
+    "city_id": "5970",
+    "city_code": "BTG",
+    "city_name": "BNI TAJIT"
+  },
+  {
+    "city_id": "5976",
+    "city_code": "oml",
+    "city_name": "Oued Amlil"
+  },
+  {
+    "city_id": "5982",
+    "city_code": "tsl",
+    "city_name": "tassoultante"
+  },
+  {
+    "city_id": "5988",
+    "city_code": "rbk",
+    "city_name": "ribat lkhir"
+  },
+  {
+    "city_id": "6000",
+    "city_code": "SAG",
+    "city_name": "sidi abdallah ghiat"
+  },
+  {
+    "city_id": "6006",
+    "city_code": "CTA",
+    "city_name": "Chtouka Ait Baha"
+  },
+  {
+    "city_id": "6012",
+    "city_code": "TCT",
+    "city_name": "TNINE CHTOUKA"
+  },
+  {
+    "city_id": "6018",
+    "city_code": "TCK",
+    "city_name": "tnine chetouka"
+  },
+  {
+    "city_id": "6024",
+    "city_code": "MSA",
+    "city_name": "MASSA"
+  },
+  {
+    "city_id": "6030",
+    "city_code": "OYH",
+    "city_name": "OULAD YAHYA"
+  },
+  {
+    "city_id": "6037",
+    "city_code": "SKR",
+    "city_name": "SKHOUR RHAMNA"
+  },
+  {
+    "city_id": "6043",
+    "city_code": "TRG",
+    "city_name": "TARGUIST"
+  },
+  {
+    "city_id": "6049",
+    "city_code": "RGK",
+    "city_name": "Marrakech REG"
+  },
+  {
+    "city_id": "6055",
+    "city_code": "SOHL",
+    "city_name": "Souihla"
+  },
+  {
+    "city_id": "6061",
+    "city_code": "AKF",
+    "city_name": "AKHFENIR"
+  },
+  {
+    "city_id": "6067",
+    "city_code": "IGN",
+    "city_name": "Issagen"
+  },
+  {
+    "city_id": "6075",
+    "city_code": "ODZ",
+    "city_name": "OULAD ZIDOUH"
+  },
+  {
+    "city_id": "6081",
+    "city_code": "TGN",
+    "city_name": "TNINE GHERBIA"
+  },
+  {
+    "city_id": "6087",
+    "city_code": "AOR",
+    "city_name": "AOURIR"
+  },
+  {
+    "city_id": "6093",
+    "city_code": "LMR",
+    "city_name": "laaouamra"
+  },
+  {
+    "city_id": "6099",
+    "city_code": "MDR",
+    "city_name": "midar"
+  },
+  {
+    "city_id": "6105",
+    "city_code": "DKDN",
+    "city_name": "dar kabdani"
+  },
+  {
+    "city_id": "6111",
+    "city_code": "ANT",
+    "city_name": "ain bni mathar"
+  },
+  {
+    "city_id": "6117",
+    "city_code": "AGR",
+    "city_name": "Agourai"
+  },
+  {
+    "city_id": "6123",
+    "city_code": "JBG",
+    "city_name": "el jebha"
+  },
+  {
+    "city_id": "6129",
+    "city_code": "BNR",
+    "city_name": "beni drar"
+  },
+  {
+    "city_id": "6135",
+    "city_code": "OTIA",
+    "city_name": "El Ouatia"
+  },
+  {
+    "city_id": "6141",
+    "city_code": "TGT",
+    "city_name": "tagschicht"
+  },
+  {
+    "city_id": "6147",
+    "city_code": "LKS",
+    "city_name": "lakhssas"
+  },
+  {
+    "city_id": "6153",
+    "city_code": "ENCR",
+    "city_name": "ennouacer"
+  },
+  {
+    "city_id": "6159",
+    "city_code": "OLB",
+    "city_name": "oulad abou"
+  },
+  {
+    "city_id": "6165",
+    "city_code": "EBJ",
+    "city_name": "ELbrouj"
+  },
+  {
+    "city_id": "6171",
+    "city_code": "OSD",
+    "city_name": "oulad said"
+  },
+  {
+    "city_id": "6177",
+    "city_code": "SLD",
+    "city_name": "Sid laidi"
+  },
+  {
+    "city_id": "6183",
+    "city_code": "RSL",
+    "city_name": "ras lain"
+  },
+  {
+    "city_id": "6189",
+    "city_code": "TNK",
+    "city_name": "tnin bni khlouf"
+  },
+  {
+    "city_id": "6195",
+    "city_code": "DCI",
+    "city_name": "dar chafii"
+  },
+  {
+    "city_id": "6201",
+    "city_code": "TOF",
+    "city_name": "tlat oulad fini"
+  },
+  {
+    "city_id": "6207",
+    "city_code": "TOR",
+    "city_name": "tlat oulad fares"
+  },
+  {
+    "city_id": "6213",
+    "city_code": "TBA",
+    "city_name": "Tlat bougadra"
+  },
+  {
+    "city_id": "6219",
+    "city_code": "TST",
+    "city_name": "Talmest"
+  },
+  {
+    "city_id": "6225",
+    "city_code": "TNT",
+    "city_name": "Tnin lghyat"
+  },
+  {
+    "city_id": "6231",
+    "city_code": "GHZ",
+    "city_name": "Ghezoua"
+  },
+  {
+    "city_id": "6237",
+    "city_code": "TNR",
+    "city_name": "Tmanar"
+  },
+  {
+    "city_id": "6243",
+    "city_code": "TDZ",
+    "city_name": "Tidzi"
+  },
+  {
+    "city_id": "6249",
+    "city_code": "DLR",
+    "city_name": "Douar laarab"
+  },
+  {
+    "city_id": "6255",
+    "city_code": "TAT",
+    "city_name": "TATA"
+  },
+  {
+    "city_id": "6261",
+    "city_code": "IGM",
+    "city_name": "IGHREM"
+  },
+  {
+    "city_id": "6267",
+    "city_code": "AKA",
+    "city_name": "akka"
+  },
+  {
+    "city_id": "6273",
+    "city_code": "HKT",
+    "city_name": "Had Kourt"
+  },
+  {
+    "city_id": "6285",
+    "city_code": "BIH",
+    "city_name": "beni hmed (region chefchouen)"
+  },
+  {
+    "city_id": "6291",
+    "city_code": "ZGAN",
+    "city_name": "ZEGHANGHANE"
+  },
+  {
+    "city_id": "6297",
+    "city_code": "BRIN",
+    "city_name": "Brichino"
+  },
+  {
+    "city_id": "6303",
+    "city_code": "FRN",
+    "city_name": "Farkhana"
+  },
+  {
+    "city_id": "6309",
+    "city_code": "TOA",
+    "city_name": "Taouima"
+  },
+  {
+    "city_id": "6315",
+    "city_code": "ART",
+    "city_name": "Al aruit"
+  },
+  {
+    "city_id": "6321",
+    "city_code": "TZTN",
+    "city_name": "Tiztoutine"
+  },
+  {
+    "city_id": "6327",
+    "city_code": "BNKR",
+    "city_name": "Beni chiker"
+  },
+  {
+    "city_id": "6333",
+    "city_code": "KAST",
+    "city_name": "Kassita"
+  },
+  {
+    "city_id": "6339",
+    "city_code": "TZF",
+    "city_name": "Tlat azlaf"
+  },
+  {
+    "city_id": "6345",
+    "city_code": "TMSN",
+    "city_name": "Tamssamane"
+  },
+  {
+    "city_id": "6351",
+    "city_code": "BDR",
+    "city_name": "Boudinar"
+  },
+  {
+    "city_id": "6357",
+    "city_code": "KRN",
+    "city_name": "Krona"
+  },
+  {
+    "city_id": "6363",
+    "city_code": "AKNL",
+    "city_name": "Aknoul"
+  },
+  {
+    "city_id": "6369",
+    "city_code": "TSA",
+    "city_name": "TISSA"
+  },
+  {
+    "city_id": "6375",
+    "city_code": "KTN",
+    "city_name": "KARIAT ARKMANE"
+  },
+  {
+    "city_id": "6381",
+    "city_code": "GUO",
+    "city_name": "Guigou"
+  },
+  {
+    "city_id": "6387",
+    "city_code": "DTN",
+    "city_name": "DAR TOUNSI"
+  },
+  {
+    "city_id": "6393",
+    "city_code": "TLGT",
+    "city_name": "TALAGHET"
+  },
+  {
+    "city_id": "6399",
+    "city_code": "GMT",
+    "city_name": "GHEMAT"
+  },
+  {
+    "city_id": "6405",
+    "city_code": "LTKRS",
+    "city_name": "LALA TAKERKOUST"
+  },
+  {
+    "city_id": "6411",
+    "city_code": "MLY",
+    "city_name": "MOULAY BRAHIM"
+  },
+  {
+    "city_id": "6417",
+    "city_code": "hjk",
+    "city_name": "haj kedor"
+  },
+  {
+    "city_id": "6423",
+    "city_code": "TDS",
+    "city_name": "tidas"
+  },
+  {
+    "city_id": "6429",
+    "city_code": "MAZ",
+    "city_name": "maaziz"
+  },
+  {
+    "city_id": "6435",
+    "city_code": "AJR",
+    "city_name": "ain jouhra"
+  },
+  {
+    "city_id": "6441",
+    "city_code": "ASBT",
+    "city_name": "AIN SEBIT"
+  },
+  {
+    "city_id": "6447",
+    "city_code": "SKG",
+    "city_name": "SOUK LGOUR"
+  },
+  {
+    "city_id": "6453",
+    "city_code": "SKRA",
+    "city_name": "SKOURA"
+  },
+  {
+    "city_id": "6459",
+    "city_code": "IGRM",
+    "city_name": "IGHREM NOUGDAL"
+  },
+  {
+    "city_id": "6465",
+    "city_code": "TDM",
+    "city_name": "timdlin"
+  },
+  {
+    "city_id": "6471",
+    "city_code": "ATZ",
+    "city_name": "AIT ZINEB"
+  },
+  {
+    "city_id": "6478",
+    "city_code": "MZR",
+    "city_name": "IMOUZZER MERMOUCHA"
+  },
+  {
+    "city_id": "6484",
+    "city_code": "SJR",
+    "city_name": "Sidi Jaber"
+  },
+  {
+    "city_id": "6490",
+    "city_code": "hbr",
+    "city_name": "had bradia"
+  },
+  {
+    "city_id": "6496",
+    "city_code": "AON",
+    "city_name": "Aounate"
+  },
+  {
+    "city_id": "6502",
+    "city_code": "ERH",
+    "city_name": "ERRAHMA"
+  },
+  {
+    "city_id": "6508",
+    "city_code": "EMH",
+    "city_name": "El mhaya"
+  },
+  {
+    "city_id": "6514",
+    "city_code": "AKM",
+    "city_name": "Ain karma"
+  },
+  {
+    "city_id": "6520",
+    "city_code": "HDR",
+    "city_name": "HAD HRARA"
+  },
+  {
+    "city_id": "6526",
+    "city_code": "ACG",
+    "city_name": "Ain chegag"
+  },
+  {
+    "city_id": "6544",
+    "city_code": "OLG",
+    "city_name": "oulad ghanm"
+  },
+  {
+    "city_id": "6550",
+    "city_code": "MSYN",
+    "city_name": "Marsa Laayoune"
+  },
+  {
+    "city_id": "6562",
+    "city_code": "DLH",
+    "city_name": "Dlalha"
+  },
+  {
+    "city_id": "6568",
+    "city_code": "drk",
+    "city_name": "dar keddari"
+  },
+  {
+    "city_id": "6574",
+    "city_code": "KNCT",
+    "city_name": "khennichet"
+  },
+  {
+    "city_id": "6586",
+    "city_code": "OEJ",
+    "city_name": "Ouad Jedida"
+  },
+  {
+    "city_id": "6592",
+    "city_code": "IGK",
+    "city_name": "ighram nougdal"
+  },
+  {
+    "city_id": "6598",
+    "city_code": "MRF",
+    "city_name": "Mirleft"
+  },
+  {
+    "city_id": "6604",
+    "city_code": "EMZ",
+    "city_name": "El menzel"
+  },
+  {
+    "city_id": "6610",
+    "city_code": "odh",
+    "city_name": "oulad hassoune"
+  },
+  {
+    "city_id": "6616",
+    "city_code": "tkn",
+    "city_name": "tikiouine "
+  },
+  {
+    "city_id": "6622",
+    "city_code": "dyf",
+    "city_name": "oulad youssef(reg beni melal)"
+  },
+  {
+    "city_id": "6628",
+    "city_code": "JDR",
+    "city_name": "ajdir (region hoceima)"
+  },
+  {
+    "city_id": "6634",
+    "city_code": "HFD",
+    "city_name": "bni hdifa"
+  },
+  {
+    "city_id": "6640",
+    "city_code": "BNF",
+    "city_name": "bni boufrah"
+  },
+  {
+    "city_id": "6646",
+    "city_code": "RUD",
+    "city_name": "rouadi"
+  },
+  {
+    "city_id": "6658",
+    "city_code": "CRG",
+    "city_name": "CASA REG"
+  }
+]

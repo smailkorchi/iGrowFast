@@ -200,6 +200,16 @@ function orderCompanyIsQuickLivraison(
     return t === 'quicklivraison' || t.includes('quicklivraison');
 }
 
+function orderCompanyIsVitex(
+    companies: { id: string; provider_type?: string | null }[] | undefined,
+    companyId: string | null | undefined
+) {
+    if (!companyId || !companies?.length) return false;
+    const row = companies.find((c) => c.id === companyId);
+    const t = String(row?.provider_type || '').toLowerCase();
+    return t === 'vitex' || t.includes('vitex');
+}
+
 const SALES_SOURCES = [
     "whatsapp",
     "facebook",

@@ -214,9 +214,17 @@ const KNOWN_PROVIDERS = [
         baseUrl: 'https://clients.quicklivraison.ma/api',
         description: 'Livraison rapide au Maroc. Suivi par polling (pas de webhook, pas de bon de ramassage API).',
     },
+    {
+        type: 'vitex',
+        name: 'VITEX',
+        logo: '/providers/Vitex.png',
+        color: '#b12a6c',
+        baseUrl: 'https://vitex.ma/clients-api',
+        description: 'Réseau Vitex (Maroc). API REST Bearer + dashboard session pour options spéciales. Suivi par polling.',
+    },
 ];
 
-type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison';
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex';
 
 type ProviderPermissionRow = { key: string; label: string; hint?: string };
 
@@ -245,6 +253,13 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
         // Their dashboard toggle applies the +5 MAD fee via an internal mechanism we can't
         // reach via `/deliveries/store`. Manage fragile per-parcel from the QL dashboard.
     ],
+    vitex: [
+        { key: 'fragile', label: 'Fragile', hint: 'Facture +5 MAD selon Vitex. Route le colis via le flux dashboard.' },
+        { key: 'interdit_ouvrir_colis', label: "Interdit d'ouvrir le colis" },
+        // Exchange ("Colis à remplacer") intentionally omitted — Vitex requires the previous parcel
+        // to be in status DELIVERED inside their dashboard before allowing replacement, which
+        // is impossible to bootstrap before the first delivered Vitex parcel exists.
+    ],
 };
 
 function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
@@ -254,6 +269,7 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'coliaty' || t.includes('coliaty')) return 'coliaty';
     if (t === 'ozon' || t.includes('ozon')) return 'ozon';
     if (t === 'quicklivraison' || t.includes('quicklivraison')) return 'quicklivraison';
+    if (t === 'vitex' || t.includes('vitex')) return 'vitex';
     return null;
 }
 
@@ -281,6 +297,12 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
         return {
             autorisation_ouverture_colis: !!row.quicklivraison_parcel_open,
             autoriser_essayage: !!row.quicklivraison_parcel_try_on,
+        };
+    }
+    if (slug === 'vitex') {
+        return {
+            fragile: !!row.vitex_parcel_fragile,
+            interdit_ouvrir_colis: !!row.vitex_parcel_open,
         };
     }
     return {};
@@ -315,6 +337,12 @@ function flagsToProviderParcelUpdate(
             quicklivraison_parcel_open: !!flags.autorisation_ouverture_colis,
             quicklivraison_parcel_try_on: !!flags.autoriser_essayage,
             // quicklivraison_parcel_fragile intentionally not written — QL's API ignores fragile.
+        };
+    }
+    if (slug === 'vitex') {
+        return {
+            vitex_parcel_fragile: !!flags.fragile,
+            vitex_parcel_open: !!flags.interdit_ouvrir_colis,
         };
     }
     return {};
@@ -2008,6 +2036,8 @@ function ProviderPermissionsModal({
                         'quicklivraison_parcel_open',
                         'quicklivraison_parcel_try_on',
                         'quicklivraison_parcel_fragile',
+                        'vitex_parcel_fragile',
+                        'vitex_parcel_open',
                     ].join(', ')
                 )
                 .eq('id', company.id)
@@ -2061,6 +2091,7 @@ function ProviderPermissionsModal({
         : providerSlug === 'coliaty' ? 'Coliaty'
         : providerSlug === 'ozon' ? 'Ozon'
         : providerSlug === 'quicklivraison' ? 'Quick Livraison'
+        : providerSlug === 'vitex' ? 'VITEX'
         : null;
 
     const canSave = !!company && !!rows && !!activeBusinessId && !loadingPerm && !permError;

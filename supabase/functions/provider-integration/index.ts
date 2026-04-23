@@ -1609,6 +1609,401 @@ class QuickLivraisonAdapter {
     }
 }
 
+class VitexAdapter {
+    constructor(credentials) {
+        this.apiKey = credentials.api_key || '';
+        this.apiBaseUrl = credentials.api_base_url || 'https://vitex.ma/clients-api';
+        this.dashboardBaseUrl = 'https://vitex.ma';
+        // Dashboard login credentials (required for fragile/no-open/PDF/BL operations).
+        this.login = credentials.api_login || '';
+        this.password = credentials.api_password || '';
+        // business_id is the Vitex `current_business_id` required by dashboard parcel-create.
+        this.businessId = credentials.business_id || '';
+        // Per-provider permission flags (snapshot at construction time).
+        this.permFragile = credentials.vitex_parcel_fragile === true;
+        this.permForbidOpen = credentials.vitex_parcel_open === true;
+        // Dashboard session state (per-invocation).
+        this.cookies = new Map();
+        // Browser UA to dodge Cloudflare bot challenges.
+        this.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+    }
+
+    // ---- session helpers ----
+    parseSetCookie(res) {
+        const getAll = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie.bind(res.headers) : null;
+        const list = getAll ? getAll() : [res.headers.get('set-cookie')].filter(Boolean);
+        for (const raw of list) {
+            if (!raw) continue;
+            const [pair] = String(raw).split(';');
+            const eq = pair.indexOf('=');
+            if (eq > 0) this.cookies.set(pair.substring(0, eq).trim(), pair.substring(eq + 1).trim());
+        }
+    }
+    cookieHeader() {
+        return Array.from(this.cookies.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    }
+
+    async ensureSession() {
+        if (this.cookies.has('PHPSESSID') && this.cookies.has('_vitex_logged_in')) return;
+        if (!this.login || !this.password) {
+            throw new Error('Vitex: api_login et api_password requis pour le flux dashboard.');
+        }
+        // 1. Seed PHPSESSID
+        const r1 = await fetch(`${this.dashboardBaseUrl}/clients/login`, {
+            headers: { 'User-Agent': this.userAgent }
+        });
+        this.parseSetCookie(r1);
+        // 2. POST credentials — success returns 200 with inline JS redirect to /clients/home
+        const body = new URLSearchParams();
+        body.set('login_customers_email', this.login);
+        body.set('login_customers_password', this.password);
+        const r2 = await fetch(`${this.dashboardBaseUrl}/clients/login?action=login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': this.userAgent,
+                'Cookie': this.cookieHeader(),
+                'Referer': `${this.dashboardBaseUrl}/clients/login`,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: body.toString(),
+        });
+        this.parseSetCookie(r2);
+        const text = await r2.text();
+        if (!text.includes('showCustomSwal("success"') && !text.includes('Connexion réussie')) {
+            const errMatch = text.match(/showCustomSwal\("error",\s*"([^"]*)",\s*"([^"]*)"/);
+            const msg = errMatch ? `${errMatch[1]}: ${errMatch[2]}` : 'identifiants invalides';
+            throw new Error(`Vitex login failed: ${msg}`);
+        }
+        // Sentinel marker so ensureSession short-circuits.
+        this.cookies.set('_vitex_logged_in', '1');
+    }
+
+    async dashboardFetch(path, init) {
+        await this.ensureSession();
+        const opts = init || {};
+        const headers = new Headers(opts.headers || {});
+        headers.set('Cookie', this.cookieHeader());
+        headers.set('User-Agent', this.userAgent);
+        if (!headers.has('Referer')) headers.set('Referer', `${this.dashboardBaseUrl}/clients`);
+        const res = await fetch(`${this.dashboardBaseUrl}${path}`, {
+            method: opts.method || 'GET',
+            headers,
+            body: opts.body,
+            redirect: opts.redirect || 'manual',
+        });
+        this.parseSetCookie(res);
+        return res;
+    }
+
+    async apiFetch(path, jsonBody) {
+        const res = await fetch(`${this.apiBaseUrl}${path}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.apiKey}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': this.userAgent,
+            },
+            body: JSON.stringify(jsonBody || {}),
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch {
+            throw new Error(`Vitex non-JSON response (HTTP ${res.status}): ${text.substring(0, 200)}`);
+        }
+        if (!res.ok || data.status === 'error') {
+            const msg = data.message || data.error || text.substring(0, 300);
+            throw new Error(`Vitex API error: ${msg}`);
+        }
+        return data;
+    }
+
+    // ---- status mapping ----
+    async resolveMasterStatus(rawStatus, supabase) {
+        if (!rawStatus || !supabase) return null;
+        const { data: exact } = await supabase
+            .from('package_statuses')
+            .select('id, code, label, color, category')
+            .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
+            .limit(1)
+            .maybeSingle();
+        if (exact) return exact;
+        try {
+            const { data: rpcMatch } = await supabase.rpc('match_package_status', { p_status_value: rawStatus });
+            if (rpcMatch && rpcMatch[0]) return rpcMatch[0];
+        } catch (_) { /* RPC optional */ }
+        return null;
+    }
+
+    async normalizeTrackingPayload(events, trackingCode, supabase) {
+        // events is an array of { statut_code, statut_name, created_at } — chronological.
+        const history = [];
+        for (const ev of (events || [])) {
+            const raw = ev.statut_code || '';
+            const m = await this.resolveMasterStatus(raw, supabase);
+            history.push({
+                status: raw,
+                statusLabel: m?.label || ev.statut_name || raw,
+                statusColor: m?.color || null,
+                statusId: m?.id || null,
+                category: m?.category || null,
+                color: m?.color || null,
+                date: ev.created_at || '',
+                comment: '',
+            });
+        }
+        const last = history[history.length - 1] || null;
+        return {
+            tracking_code: trackingCode,
+            status: last?.status || null,
+            statusLabel: last?.statusLabel || null,
+            statusColor: last?.statusColor || null,
+            status_code: null,
+            status_category: last?.category || null,
+            history,
+            _original: events,
+        };
+    }
+
+    // ---- parcel operations ----
+    async createParcel(parcelData, supabase) {
+        console.log('=== VITEX createParcel START ===');
+        // Resolve district/city: Vitex public API uses city NAME; dashboard uses city_id.
+        let cityName = null;
+        let cityId = null;
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('provider_cities')
+                .select('provider_city_id, provider_city_name')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'vitex')
+                .single();
+            if (mapping) {
+                cityId = mapping.provider_city_id || null;
+                cityName = mapping.provider_city_name || null;
+            }
+        }
+        if (!cityName && parcelData.city_name) cityName = parcelData.city_name;
+        if (!cityName) {
+            throw new Error('Vitex: ville non mappée. Mappez la ville (provider_cities) avant de créer un colis.');
+        }
+
+        // Phone normalization: MA 10 digits starting with 0.
+        let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
+        if (phone.startsWith('212')) phone = '0' + phone.substring(3);
+        if (!/^0\d{9}$/.test(phone)) {
+            throw new Error(`Vitex: format téléphone invalide "${phone}". Attendu 10 chiffres commençant par 0.`);
+        }
+
+        // Decide path: dashboard if any special flag is active, else public API.
+        const useFragile = this.permFragile === true;
+        const useForbidOpen = this.permForbidOpen === true;
+        const useDashboard = useFragile || useForbidOpen;
+
+        if (useDashboard) {
+            if (!cityId) {
+                throw new Error('Vitex: city_id (numérique) requis pour le flux dashboard. Complétez provider_cities.provider_city_id.');
+            }
+            return await this.createParcelViaDashboard(parcelData, cityId, phone, { useFragile, useForbidOpen });
+        }
+
+        // Public API batch create.
+        const reqBody = {
+            parcels: [{
+                id: 1,
+                parcel_receiver: parcelData.receiver_name || parcelData.customer_name || '',
+                parcel_phone: phone,
+                parcel_price: String(parcelData.cash_on_delivery || parcelData.cod_amount || 0),
+                parcel_city: cityName,
+                parcel_address: parcelData.receiver_address || parcelData.delivery_address || '',
+                parcel_note: String(parcelData.delivery_note || ''),
+                marchandise: String(parcelData.product_info || ''),
+                parcel_product_qty: Number(parcelData.product_qty || 1),
+            }],
+        };
+        const resp = await this.apiFetch('/add-parcels', reqBody);
+        const successMap = resp?.data?.success || {};
+        const failedMap = resp?.data?.failed || {};
+        const tracking = successMap['1'];
+        if (!tracking) {
+            const err = failedMap['1'] || JSON.stringify(resp).substring(0, 300);
+            throw new Error(`Vitex: création échouée: ${err}`);
+        }
+        console.log('=== VITEX createParcel END (public) ===', tracking);
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: resp,
+        };
+    }
+
+    async createParcelViaDashboard(parcelData, cityId, phone, flags) {
+        console.log('=== VITEX createParcel via DASHBOARD ===');
+        if (!this.businessId) {
+            throw new Error('Vitex: business_id requis pour le flux dashboard (current_business_id).');
+        }
+        await this.ensureSession();
+
+        const body = new URLSearchParams();
+        body.set('current_business_id', String(this.businessId));
+        body.set('parcel_receiver', parcelData.receiver_name || parcelData.customer_name || '');
+        body.set('parcel_phone', phone);
+        body.set('parcel_city', String(cityId));
+        body.set('parcel_address', parcelData.receiver_address || parcelData.delivery_address || '');
+        body.set('parcel_prd_name', String(parcelData.product_info || 'Produit'));
+        body.set('parcel_prd_qty', String(parcelData.product_qty || 1));
+        body.set('parcel_note', String(parcelData.delivery_note || ''));
+        body.set('parcel_price', String(parcelData.cash_on_delivery || parcelData.cod_amount || 0));
+        // HTML-checkbox convention on Vitex dashboard: 1=on, 0=off. Both values accepted — presence matters only for URLs, form-encoded values are passed through.
+        body.set('parcel_is_fragile', flags.useFragile ? '1' : '0');
+        body.set('parcel_open', flags.useForbidOpen ? '1' : '0');
+        body.set('replacing_parcel_code', '');
+
+        const res = await this.dashboardFetch('/clients/parcels?action=add-action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Accept': '*/*',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': `${this.dashboardBaseUrl}/clients/parcels?action=add`,
+            },
+            body: body.toString(),
+        });
+        const text = await res.text();
+        if (!res.ok && res.status !== 200) {
+            throw new Error(`Vitex dashboard create HTTP ${res.status}: ${text.substring(0, 300)}`);
+        }
+        // Success inline JS: window.lastCreatedParcel = { code: "...", id: ..., isFragile: ... };
+        const codeMatch = text.match(/window\.lastCreatedParcel\s*=\s*\{\s*code:\s*"([^"]+)"/);
+        if (!codeMatch) {
+            const errMatch = text.match(/showCustomSwal\("error",\s*"([^"]*)",\s*"([^"]*)"/);
+            const msg = errMatch ? `${errMatch[1]}: ${errMatch[2]}` : text.substring(0, 300);
+            throw new Error(`Vitex dashboard create failed: ${msg}`);
+        }
+        const tracking = codeMatch[1];
+        console.log('=== VITEX createParcel via DASHBOARD END ===', tracking);
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: { parcel_code: tracking, raw_html_length: text.length },
+        };
+    }
+
+    async trackParcel(trackingCode, _externalId, supabase) {
+        if (!trackingCode) throw new Error('Tracking code required');
+        const resp = await this.apiFetch('/tracking', { tracking_number: trackingCode });
+        const events = Array.isArray(resp?.data) ? resp.data : [];
+        if (events.length === 0) return null;
+        return await this.normalizeTrackingPayload(events, trackingCode, supabase);
+    }
+
+    async getParcelInfo(trackingCode, supabase) {
+        return this.trackParcel(trackingCode, undefined, supabase);
+    }
+
+    async createDeliveryNote() {
+        // Dashboard session creates an empty BL we can later fill via add-to-delivery.
+        // GET /clients/delivery-note?action=create returns 302 with Location to the new edit URL.
+        const res = await this.dashboardFetch('/clients/delivery-note?action=create');
+        if (res.status !== 302 && res.status !== 200) {
+            const txt = await res.text();
+            throw new Error(`Vitex createDeliveryNote HTTP ${res.status}: ${txt.substring(0, 200)}`);
+        }
+        const loc = res.headers.get('location') || res.headers.get('Location') || '';
+        const m = loc.match(/BL-[0-9-]+/);
+        if (m) {
+            return { reference: m[0], provider_response: { location: loc } };
+        }
+        // If 200 (no redirect), try to extract ref from HTML.
+        const body = await res.text();
+        const m2 = body.match(/dn-ref=(BL-[0-9-]+)/);
+        if (m2) return { reference: m2[1], provider_response: { location: '' } };
+        throw new Error('Vitex: référence BL introuvable après création.');
+    }
+
+    async addParcelsToNote(deliveryNoteRef, parcelCodes) {
+        const codes = Array.isArray(parcelCodes) ? parcelCodes.filter(Boolean) : [];
+        if (!deliveryNoteRef) throw new Error('Vitex: référence BL requise.');
+        if (codes.length === 0) {
+            return { success: true, reference: deliveryNoteRef, parcel_codes: [], inserted: 0 };
+        }
+        const inserted = [];
+        const failed = [];
+        for (const code of codes) {
+            const path = `/clients/parcels-waiting-pick-up?action=add-to-delivery&dn-ref=${encodeURIComponent(deliveryNoteRef)}&parcel-code=${encodeURIComponent(code)}`;
+            const res = await this.dashboardFetch(path);
+            const txt = await res.text();
+            if (res.ok && txt.includes('ajouté avec succès')) {
+                inserted.push(code);
+            } else {
+                failed.push({ code, error: txt.substring(0, 200) });
+            }
+        }
+        if (inserted.length === 0 && failed.length > 0) {
+            throw new Error(`Vitex: aucun colis ajouté. Échecs: ${JSON.stringify(failed).substring(0, 400)}`);
+        }
+        return { success: true, reference: deliveryNoteRef, parcel_codes: inserted, inserted: inserted.length, failed };
+    }
+
+    async finalizeDeliveryNote(deliveryNoteRef) {
+        // Vitex transitions parcels to WAITING_PICKUP automatically on add-to-delivery. No explicit finalize.
+        return { success: true, reference: deliveryNoteRef };
+    }
+
+    async deleteNote(reference) {
+        if (!reference || !/^BL-/.test(reference)) return { success: true, reference };
+        try {
+            const res = await this.dashboardFetch(`/clients/delivery-note?action=delete&dn-ref=${encodeURIComponent(reference)}`);
+            return { success: res.ok || res.status === 302, reference };
+        } catch (err) {
+            console.error('Vitex deleteNote error:', err);
+            return { success: false, reference, error: err.message };
+        }
+    }
+
+    async deleteParcel(parcelCode) {
+        if (!parcelCode) return { success: true };
+        try {
+            const res = await this.dashboardFetch(`/clients/parcels?action=delete&parcel-code=${encodeURIComponent(parcelCode)}`);
+            return { success: res.ok || res.status === 302, parcel_code: parcelCode };
+        } catch (err) {
+            return { success: false, parcel_code: parcelCode, error: err.message };
+        }
+    }
+
+    async getPrintUrl(deliveryNoteRef, labelFormat, _printType, _options) {
+        const fmt = String(labelFormat || '').toLowerCase();
+        const isRealBL = deliveryNoteRef && /^BL-/.test(String(deliveryNoteRef));
+        if (!isRealBL) {
+            throw new Error("Vitex: référence BL manquante ou invalide pour l'impression.");
+        }
+        // Vitex PDFs are session-gated — fetch with cookies and return a data URL.
+        // Three formats: bordereau BL, stickers, e-stickers.
+        let path;
+        if (fmt === 'eticket' || fmt === 'e-ticket' || fmt === 'bl-etickets' || fmt === 'note-etickets') {
+            path = `/clients/pdf-delivery-note-etickets?dn-ref=${encodeURIComponent(deliveryNoteRef)}`;
+        } else if (fmt === 'ticket' || fmt === 'tickets' || fmt === 'bl-tickets' || fmt === 'note-tickets' || fmt === 'labels') {
+            path = `/clients/pdf-delivery-note-tickets?dn-ref=${encodeURIComponent(deliveryNoteRef)}`;
+        } else {
+            // Default + explicit 'note' / 'bl' / 'bordereau' → the main Bon de Livraison PDF.
+            path = `/clients/pdf-delivery-note?dn-ref=${encodeURIComponent(deliveryNoteRef)}`;
+        }
+        const res = await this.dashboardFetch(path, { redirect: 'follow' });
+        if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(`Vitex PDF HTTP ${res.status}: ${txt.substring(0, 200)}`);
+        }
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        return `data:application/pdf;base64,${base64}`;
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -1635,7 +2030,9 @@ Deno.serve(async (req) => {
                 ? new OzonAdapter(provider)
                 : type === 'quicklivraison'
                     ? new QuickLivraisonAdapter(provider)
-                    : new AmeexAdapter(provider);
+                    : type === 'vitex'
+                        ? new VitexAdapter(provider)
+                        : new AmeexAdapter(provider);
 
         // Adapter initialization
 

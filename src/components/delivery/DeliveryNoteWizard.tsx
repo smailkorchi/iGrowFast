@@ -51,6 +51,8 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'quicklivraison_parcel_open',
     'quicklivraison_parcel_try_on',
     'quicklivraison_parcel_fragile',
+    'vitex_parcel_fragile',
+    'vitex_parcel_open',
     'logo_url',
     'color'
 ].join(', ');
@@ -88,6 +90,12 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
             fragile: !!provider.quicklivraison_parcel_fragile,
         };
     }
+    if (raw.includes('vitex')) {
+        // Vitex: fragile + "Interdit d'ouvrir" (inverse of other providers' `open`).
+        // The adapter reads `vitex_parcel_fragile` / `vitex_parcel_open` from the provider row
+        // directly — no per-parcel overrides needed here.
+        return {} as Record<string, unknown>;
+    }
     return {} as Record<string, unknown>;
 }
 
@@ -109,6 +117,8 @@ type WizardProvider = {
     quicklivraison_parcel_open: boolean;
     quicklivraison_parcel_try_on: boolean;
     quicklivraison_parcel_fragile: boolean;
+    vitex_parcel_fragile: boolean;
+    vitex_parcel_open: boolean;
     logo_url: string | null;
     color: string | null;
 };
@@ -361,6 +371,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const isColiaty = providerType.includes('coliaty');
                     const isAmeex = providerType.includes('ameex');
                     const isQuickLivraison = providerType.includes('quicklivraison');
+                    const isVitex = providerType.includes('vitex');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
@@ -374,6 +385,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     if (isQuickLivraison && order.replace && !String(order.quicklivraison_old_tracking || '').trim()) {
                         throw new Error(
                             'Quick Livraison exchange requires the previous parcel tracking number on the order (echange_colis).'
+                        );
+                    }
+                    if (isVitex && order.replace) {
+                        throw new Error(
+                            "Vitex n'accepte l'échange que si le colis précédent a le statut 'Livré' dans le dashboard Vitex. Désactivez l'échange sur cette commande ou créez-le manuellement côté Vitex."
                         );
                     }
                     // Prepare parcel data
@@ -412,9 +428,17 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                           ? String(order.quicklivraison_old_tracking || '').trim()
                                           : '',
                                   }
-                                : Object.keys(permFields).length === 0
-                                  ? { replaceable: order.replace || false }
-                                  : {}),
+                                : isVitex
+                                  ? {
+                                        // Vitex: exchange is blocked upstream (throws above when order.replace=true).
+                                        // Adapter reads fragile/open from provider row columns directly; no per-parcel fields here.
+                                        product_qty: (order.items || [])
+                                            .filter((i) => i.quantity > 0)
+                                            .reduce((sum, i) => sum + Number(i.quantity || 0), 0) || 1,
+                                    }
+                                  : Object.keys(permFields).length === 0
+                                    ? { replaceable: order.replace || false }
+                                    : {}),
                     };
 
                     // Call Edge Function

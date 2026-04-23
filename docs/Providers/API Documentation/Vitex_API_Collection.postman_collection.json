@@ -1,0 +1,395 @@
+{
+	"info": {
+		"_postman_id": "vitex-api-collection",
+		"name": "Vitex API",
+		"description": "Collection complète de l'API Vitex pour la gestion des colis, inventaire, et bons de livraison.\n\nBase URL: https://vitex.ma/clients-api/\nAuthentification: Bearer Token",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{api_key}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://vitex.ma/clients-api"
+		},
+		{
+			"key": "api_key",
+			"value": "VOTRE_CLE_API_ICI"
+		}
+	],
+	"item": [
+		{
+			"name": "Données & Suivi",
+			"item": [
+				{
+					"name": "Liste des statuts",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/list-status",
+							"host": ["{{base_url}}"],
+							"path": ["list-status"]
+						},
+						"description": "Récupère la liste de tous les statuts de colis disponibles."
+					}
+				},
+				{
+					"name": "Liste des villes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/list-ville",
+							"host": ["{{base_url}}"],
+							"path": ["list-ville"]
+						},
+						"description": "Récupère la liste de toutes les villes actives avec leur ID, code et nom."
+					}
+				},
+				{
+					"name": "Suivi détaillé d'un colis",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tracking_number\": \"AGA1024105204MR\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tracking",
+							"host": ["{{base_url}}"],
+							"path": ["tracking"]
+						},
+						"description": "Retourne l'historique complet de suivi d'un colis avec tous les changements de statut."
+					}
+				},
+				{
+					"name": "Statut actuel d'un colis",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tracking_number\": \"AGA1024105204MR\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/parcelstatus",
+							"host": ["{{base_url}}"],
+							"path": ["parcelstatus"]
+						},
+						"description": "Retourne le statut actuel d'un colis spécifique."
+					}
+				},
+				{
+					"name": "Statuts par période",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date_start\": 1701705879,\n    \"date_end\": 1736279084\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/parcel-status-listing-bydate",
+							"host": ["{{base_url}}"],
+							"path": ["parcel-status-listing-bydate"]
+						},
+						"description": "Retourne les statuts de tous les colis dans une plage de dates (timestamps Unix)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Inventaire & Stock",
+			"item": [
+				{
+					"name": "Inventaire complet",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/inventory",
+							"host": ["{{base_url}}"],
+							"path": ["inventory"]
+						},
+						"description": "Retourne tout l'inventaire du client avec les quantités disponibles par hub."
+					}
+				},
+				{
+					"name": "Inventaire — Filtrer par entrepôt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"warehouse\": \"CASABLANCA\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/inventory",
+							"host": ["{{base_url}}"],
+							"path": ["inventory"]
+						},
+						"description": "Filtre l'inventaire par nom d'entrepôt."
+					}
+				},
+				{
+					"name": "Inventaire — Rechercher un produit",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_name\": \"T-Shirt\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/inventory",
+							"host": ["{{base_url}}"],
+							"path": ["inventory"]
+						},
+						"description": "Recherche dans l'inventaire par nom de produit (recherche partielle)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Création de colis",
+			"item": [
+				{
+					"name": "Ajouter un colis",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"parcels\": [\n        {\n            \"id\": 1,\n            \"parcel_receiver\": \"Mohammed Ali\",\n            \"parcel_phone\": \"0677667766\",\n            \"parcel_price\": \"220\",\n            \"parcel_city\": \"AGADIR\",\n            \"parcel_address\": \"Hay Dakhla\",\n            \"parcel_note\": \"Appeler avant livraison\",\n            \"marchandise\": \"Produits cosmétiques\",\n            \"parcel_product_qty\": 2\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/add-parcels",
+							"host": ["{{base_url}}"],
+							"path": ["add-parcels"]
+						},
+						"description": "Ajoute un ou plusieurs colis classiques. Maximum 100 colis par requête."
+					}
+				},
+				{
+					"name": "Ajouter un colis stock — Un produit",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"parcels\": [\n        {\n            \"id\": 1,\n            \"parcel_from_stock\": 1,\n            \"parcel_receiver\": \"Fatima Zahra\",\n            \"parcel_phone\": \"0661223344\",\n            \"parcel_price\": \"350\",\n            \"parcel_city\": \"CASABLANCA\",\n            \"parcel_address\": \"Maarif, Rue des Roses\",\n            \"warehouse\": \"CASABLANCA\",\n            \"products\": [\n                {\n                    \"product_name\": \"T-Shirt Premium\",\n                    \"product_variant_name\": \"Rouge - Taille M\",\n                    \"product_qty\": 2\n                }\n            ]\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/add-parcels",
+							"host": ["{{base_url}}"],
+							"path": ["add-parcels"]
+						},
+						"description": "Ajoute un colis depuis le stock avec un seul produit. Utilisez /inventory pour vérifier les noms exacts."
+					}
+				},
+				{
+					"name": "Ajouter un colis stock — Plusieurs produits",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"parcels\": [\n        {\n            \"id\": 1,\n            \"parcel_from_stock\": 1,\n            \"parcel_receiver\": \"Ahmed Benali\",\n            \"parcel_phone\": \"0655443322\",\n            \"parcel_price\": \"580\",\n            \"parcel_city\": \"AGADIR\",\n            \"parcel_address\": \"Hay Salam, Nr 45\",\n            \"warehouse\": \"AGADIR\",\n            \"products\": [\n                {\n                    \"product_name\": \"T-Shirt Premium\",\n                    \"product_variant_name\": \"Bleu - L\",\n                    \"product_qty\": 1\n                },\n                {\n                    \"product_name\": \"Pantalon Classique\",\n                    \"product_variant_name\": \"Noir - 42\",\n                    \"product_qty\": 1\n                }\n            ]\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/add-parcels",
+							"host": ["{{base_url}}"],
+							"path": ["add-parcels"]
+						},
+						"description": "Ajoute un colis depuis le stock avec plusieurs produits différents."
+					}
+				}
+			]
+		},
+		{
+			"name": "Bons de livraison",
+			"item": [
+				{
+					"name": "Créer un bon de livraison — Tous les colis",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/create-delivery-note",
+							"host": ["{{base_url}}"],
+							"path": ["create-delivery-note"]
+						},
+						"description": "Crée un bon de livraison avec tous les colis NEW_PARCEL non-stock du hub."
+					}
+				},
+				{
+					"name": "Créer un bon de livraison — Colis spécifiques",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tracking_codes\": [\"CAS0326733865MUC\", \"AGA1024105204MR\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/create-delivery-note",
+							"host": ["{{base_url}}"],
+							"path": ["create-delivery-note"]
+						},
+						"description": "Crée un bon de livraison avec des colis spécifiques uniquement."
+					}
+				},
+				{
+					"name": "Créer un bon de livraison stock — Par entrepôt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"warehouse\": \"CASABLANCA\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/create-delivery-note-stock",
+							"host": ["{{base_url}}"],
+							"path": ["create-delivery-note-stock"]
+						},
+						"description": "Crée un bon de livraison stock avec tous les colis stock NEW_PARCEL d'un entrepôt. Le stock est vérifié et déduit automatiquement."
+					}
+				},
+				{
+					"name": "Créer un bon de livraison stock — Colis spécifiques",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"warehouse\": \"CASABLANCA\",\n    \"tracking_codes\": [\"CAS0326733865MUC\", \"CAS0326733870AB\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/create-delivery-note-stock",
+							"host": ["{{base_url}}"],
+							"path": ["create-delivery-note-stock"]
+						},
+						"description": "Crée un bon de livraison stock avec des colis spécifiques. Le stock est vérifié avant l'ajout."
+					}
+				}
+			]
+		},
+		{
+			"name": "Test",
+			"item": [
+				{
+					"name": "Test API",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/test",
+							"host": ["{{base_url}}"],
+							"path": ["test"]
+						},
+						"description": "Vérifie que l'API est en ligne et fonctionne."
+					}
+				}
+			]
+		}
+	]
+}

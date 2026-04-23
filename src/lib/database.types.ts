@@ -1723,6 +1723,7 @@ export type Database = {
           courier_id: string | null
           courier_return_note_id: string | null
           created_at: string | null
+          delivered_at: string | null
           "DigiCom Business": string | null
           external_id: string | null
           id: string
@@ -1743,6 +1744,7 @@ export type Database = {
           courier_id?: string | null
           courier_return_note_id?: string | null
           created_at?: string | null
+          delivered_at?: string | null
           "DigiCom Business"?: string | null
           external_id?: string | null
           id?: string
@@ -1763,6 +1765,7 @@ export type Database = {
           courier_id?: string | null
           courier_return_note_id?: string | null
           created_at?: string | null
+          delivered_at?: string | null
           "DigiCom Business"?: string | null
           external_id?: string | null
           id?: string
@@ -2141,6 +2144,74 @@ export type Database = {
             columns: ["zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          address: string | null
+          city_name: string | null
+          created_at: string
+          "DigiCom Business": string
+          first_order_at: string | null
+          id: string
+          last_order_at: string | null
+          master_city_id: string | null
+          name: string | null
+          notes: string | null
+          phone: string
+          phone_normalized: string
+          source: string
+          tags: string[]
+          total_orders: number
+          total_spent: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city_name?: string | null
+          created_at?: string
+          "DigiCom Business": string
+          first_order_at?: string | null
+          id?: string
+          last_order_at?: string | null
+          master_city_id?: string | null
+          name?: string | null
+          notes?: string | null
+          phone: string
+          phone_normalized: string
+          source?: string
+          tags?: string[]
+          total_orders?: number
+          total_spent?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city_name?: string | null
+          created_at?: string
+          "DigiCom Business"?: string
+          first_order_at?: string | null
+          id?: string
+          last_order_at?: string | null
+          master_city_id?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: string
+          phone_normalized?: string
+          source?: string
+          tags?: string[]
+          total_orders?: number
+          total_spent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_master_city_id_fkey"
+            columns: ["master_city_id"]
+            isOneToOne: false
+            referencedRelation: "master_cities"
             referencedColumns: ["id"]
           },
         ]
@@ -2755,6 +2826,7 @@ export type Database = {
           id: string
           order_id: string
           product_id: string
+          product_unit_cost_snapshot: number | null
           quantity: number
           total_price: number | null
           unit_price: number
@@ -2769,6 +2841,7 @@ export type Database = {
           id?: string
           order_id: string
           product_id: string
+          product_unit_cost_snapshot?: number | null
           quantity?: number
           total_price?: number | null
           unit_price?: number
@@ -2783,6 +2856,7 @@ export type Database = {
           id?: string
           order_id?: string
           product_id?: string
+          product_unit_cost_snapshot?: number | null
           quantity?: number
           total_price?: number | null
           unit_price?: number
@@ -2982,6 +3056,7 @@ export type Database = {
           price: number | null
           processing: boolean | null
           published: boolean | null
+          quicklivraison_old_tracking: string | null
           raw_price: number | null
           replace: boolean | null
           reported_date: string | null
@@ -3036,6 +3111,7 @@ export type Database = {
           price?: number | null
           processing?: boolean | null
           published?: boolean | null
+          quicklivraison_old_tracking?: string | null
           raw_price?: number | null
           replace?: boolean | null
           reported_date?: string | null
@@ -3090,6 +3166,7 @@ export type Database = {
           price?: number | null
           processing?: boolean | null
           published?: boolean | null
+          quicklivraison_old_tracking?: string | null
           raw_price?: number | null
           replace?: boolean | null
           reported_date?: string | null
@@ -3598,7 +3675,12 @@ export type Database = {
           ozon_parcel_open: number
           ozon_parcel_replace: number
           provider_type: string | null
+          quicklivraison_parcel_fragile: boolean
+          quicklivraison_parcel_open: boolean
+          quicklivraison_parcel_try_on: boolean
           updated_at: string | null
+          vitex_parcel_fragile: boolean
+          vitex_parcel_open: boolean
         }
         Insert: {
           active?: boolean
@@ -3625,7 +3707,12 @@ export type Database = {
           ozon_parcel_open?: number
           ozon_parcel_replace?: number
           provider_type?: string | null
+          quicklivraison_parcel_fragile?: boolean
+          quicklivraison_parcel_open?: boolean
+          quicklivraison_parcel_try_on?: boolean
           updated_at?: string | null
+          vitex_parcel_fragile?: boolean
+          vitex_parcel_open?: boolean
         }
         Update: {
           active?: boolean
@@ -3652,7 +3739,12 @@ export type Database = {
           ozon_parcel_open?: number
           ozon_parcel_replace?: number
           provider_type?: string | null
+          quicklivraison_parcel_fragile?: boolean
+          quicklivraison_parcel_open?: boolean
+          quicklivraison_parcel_try_on?: boolean
           updated_at?: string | null
+          vitex_parcel_fragile?: boolean
+          vitex_parcel_open?: boolean
         }
         Relationships: [
           {
@@ -5280,10 +5372,7 @@ export type Database = {
         Returns: string
       }
       current_user_digicom_business_id: { Args: never; Returns: string }
-      delete_business: {
-        Args: { p_business_id: string }
-        Returns: undefined
-      }
+      delete_business: { Args: { p_business_id: string }; Returns: undefined }
       delete_open_company_delivery_note: {
         Args: { p_delivery_note_id: string }
         Returns: undefined
@@ -5324,7 +5413,12 @@ export type Database = {
       get_meta_app_secret: { Args: never; Returns: string }
       get_meta_oauth_state_secret: { Args: never; Returns: string }
       invoke_ozon_poll: { Args: { p_trigger?: string }; Returns: number }
+      invoke_quicklivraison_poll: {
+        Args: { p_trigger?: string }
+        Returns: number
+      }
       invoke_tracking_sync: { Args: { p_trigger?: string }; Returns: number }
+      invoke_vitex_poll: { Args: { p_trigger?: string }; Returns: number }
       is_owner: { Args: never; Returns: boolean }
       log_audit: { Args: { payload: Json }; Returns: string }
       match_package_status: {
@@ -5337,6 +5431,7 @@ export type Database = {
           label: string
         }[]
       }
+      normalize_phone_for_customer: { Args: { p: string }; Returns: string }
       purge_soft_deleted_orders: { Args: never; Returns: undefined }
       query_audit_logs: {
         Args: {
@@ -5355,6 +5450,10 @@ export type Database = {
         Args: { p_business_id: string; p_date?: string }
         Returns: number
       }
+      refresh_customer_from_orders: {
+        Args: { p_business_id: string; p_phone_normalized: string }
+        Returns: undefined
+      }
       remove_company_parcel_from_delivery_note: {
         Args: { p_delivery_note_id: string; p_parcel_id: string }
         Returns: undefined
@@ -5365,11 +5464,14 @@ export type Database = {
       }
       row_actor: { Args: never; Returns: Json }
       scrub_sensitive: { Args: { j: Json }; Returns: Json }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sum_order_units_for_seller_products: {
         Args: { p_order_id: string; p_seller_id: string }
         Returns: number
       }
       sync_imported_orders: { Args: { p_business_id: string }; Returns: Json }
+      unaccent: { Args: { "": string }; Returns: string }
       update_business_profile_fields: {
         Args: {
           p_business_email: string

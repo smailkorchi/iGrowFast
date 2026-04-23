@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 import {
     FileText,
     Plus,
@@ -112,6 +113,35 @@ const DeliveryNote = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
+
+    // Active package statuses — used to resolve a timeline event's icon + color from its raw provider status.
+    const { data: pkgStatuses } = useQuery({
+        queryKey: ['package-statuses-icons'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('package_statuses')
+                .select('id, code, label, color, icon, delivery_service_statuses')
+                .eq('active', true)
+                .eq('show_in_courier', true);
+            return (data || []) as Array<{ id: string; code: string; label: string; color: string | null; icon: string | null; delivery_service_statuses: string[] | null; }>;
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const matchPkgStatus = (rawStatus: string | undefined | null, statusLabel: string | undefined | null) => {
+        if (!pkgStatuses?.length) return null;
+        const candidates = [statusLabel, rawStatus].filter(Boolean).map(String);
+        for (const c of candidates) {
+            const lower = c.toLowerCase();
+            const byDss = pkgStatuses.find(ps => ps.delivery_service_statuses?.some(s => s.toLowerCase() === lower));
+            if (byDss) return byDss;
+            const byLabel = pkgStatuses.find(ps => ps.label.toLowerCase() === lower);
+            if (byLabel) return byLabel;
+            const byCode = pkgStatuses.find(ps => ps.code.toLowerCase() === lower);
+            if (byCode) return byCode;
+        }
+        return null;
+    };
 
     const handleTrackParcel = async (parcel: any) => {
         setTrackingParcel(parcel);
@@ -1899,6 +1929,34 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'vitex' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[240px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('ticket')}>
+                                            Tickets (stickers)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('eticket')}>
+                                            E-Tickets
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange" onClick={() => handlePrintLabels('note')}>
+                                            Bon de Livraison (PDF)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="rounded-xl font-bold py-3 cursor-pointer"
+                                            onClick={() => window.open('https://vitex.ma/clients', '_blank', 'noopener,noreferrer')}
+                                        >
+                                            <ExternalLink className="w-4 h-4 mr-2" /> Ouvrir VITEX
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             ) : (
                                 <Button
                                     className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
@@ -1979,12 +2037,17 @@ const DeliveryNote = () => {
                                     const city = (event.city as string) || '';
                                     const situation = (event.situation as string) || '';
                                     const scheduledDate = event.scheduledDate as string | undefined;
-                                    const statusColor = (event.color as string) || '#94a3b8';
+                                    const eventColor = (event.color as string) || '';
                                     const dataList = (event.data_list as any[]) || [];
                                     const location = [hub, city].filter(Boolean).join(' — ');
                                     const meaningfulDataList = dataList.filter((item: any) => item?.title && item.title !== 'Nombre de distributions');
                                     const sitInfo = situation ? situationMap[situation] : null;
                                     const isLast = idx === arr.length - 1;
+
+                                    // Resolve icon + color from DB package_statuses (mirrors ParcelTrackingDialog behavior).
+                                    const matched = matchPkgStatus(rawStatus, statusLabel);
+                                    const statusColor = matched?.color || eventColor || '#94a3b8';
+                                    const iconName = matched?.icon;
 
                                     return (
                                         <div key={idx} className="relative pb-6 last:pb-0 group">
@@ -1992,7 +2055,11 @@ const DeliveryNote = () => {
                                                 className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${isLast ? 'ring-2 ring-offset-2' : ''}`}
                                                 style={{ backgroundColor: isLast ? statusColor : '#f8fafc', color: isLast ? '#ffffff' : statusColor, ['--tw-ring-color' as any]: isLast ? `${statusColor}40` : undefined }}
                                             >
-                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : statusColor }} />
+                                                {iconName ? (
+                                                    <DynamicIcon name={iconName} className="w-3.5 h-3.5" />
+                                                ) : (
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : statusColor }} />
+                                                )}
                                             </div>
                                             <div className="space-y-1.5">
                                                 <div className="flex items-center gap-2 flex-wrap">
