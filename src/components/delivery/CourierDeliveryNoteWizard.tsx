@@ -570,7 +570,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[700px] rounded-2xl border-none p-0 overflow-hidden">
+            <DialogContent className="sm:max-w-[700px] grid-cols-[minmax(0,1fr)] rounded-2xl border-none p-0 overflow-hidden">
                 {step === 'courier' && (
                     <>
                         <div className="bg-ant-ink p-8 text-white relative">
@@ -851,11 +851,16 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                             {order.city?.name ? ` · ${order.city.name}` : ''}
                                                             {order.price != null ? ` · ${order.price} MAD` : ''}
                                                         </div>
-                                                        {order.items && order.items.length > 0 && (
-                                                            <div className="text-[10px] text-ant-mid mt-0.5 truncate">
-                                                                {order.items.filter(i => i.quantity > 0).map(i => `${i.product?.code || i.product?.name || 'P'} x${i.quantity}`).join(', ')}
-                                                            </div>
-                                                        )}
+                                                        {order.items && order.items.length > 0 && (() => {
+                                                            const activeItems = order.items.filter(i => i.quantity > 0);
+                                                            const totalUnits = activeItems.reduce((s, i) => s + i.quantity, 0);
+                                                            return (
+                                                                <div className="text-[10px] text-ant-mid mt-0.5 line-clamp-2 break-words">
+                                                                    <span className="font-semibold text-ant-ink/60 mr-1">{activeItems.length} item{activeItems.length > 1 ? 's' : ''} · {totalUnits} unit{totalUnits > 1 ? 's' : ''}:</span>
+                                                                    {activeItems.map(i => `${i.product?.code || i.product?.name || 'P'} x${i.quantity}`).join(', ')}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </button>
                                             ))}
