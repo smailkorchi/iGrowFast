@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Loader2, Truck, SearchX, Hash, Phone, MapPin, CalendarClock, Info } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -315,12 +315,17 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                                 )}
                                                             </div>
 
-                                                            {/* Date */}
-                                                            {date && (
-                                                                <p className="text-[10px] font-bold text-ant-muted/50">
-                                                                    {format(new Date(date), 'dd/MM/yyyy HH:mm')}
-                                                                </p>
-                                                            )}
+                                                            {/* Date — guard against unparseable strings from provider audits */}
+                                                            {(() => {
+                                                                if (!date) return null;
+                                                                const d = new Date(date);
+                                                                if (!isValid(d)) return null;
+                                                                return (
+                                                                    <p className="text-[10px] font-bold text-ant-muted/50">
+                                                                        {format(d, 'dd/MM/yyyy HH:mm')}
+                                                                    </p>
+                                                                );
+                                                            })()}
 
                                                             {/* Comment */}
                                                             {comment && (
@@ -358,12 +363,17 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                             )}
 
                                                             {/* Scheduled date */}
-                                                            {scheduledDate && (
-                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-ant-blue/70">
-                                                                    <CalendarClock className="w-3 h-3 shrink-0" />
-                                                                    <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
-                                                                </div>
-                                                            )}
+                                                            {(() => {
+                                                                if (!scheduledDate) return null;
+                                                                const d = new Date(scheduledDate);
+                                                                if (!isValid(d)) return null;
+                                                                return (
+                                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-ant-blue/70">
+                                                                        <CalendarClock className="w-3 h-3 shrink-0" />
+                                                                        <span>Programmé: {format(d, 'dd/MM/yyyy')}</span>
+                                                                    </div>
+                                                                );
+                                                            })()}
 
                                                             {/* Data list items */}
                                                             {meaningfulDataList.length > 0 && (

@@ -1957,6 +1957,35 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'sendit' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[260px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('a4')}>
+                                            Tickets
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="rounded-xl font-bold py-3 cursor-pointer"
+                                            onClick={() => window.open('https://app.sendit.ma/deliveries', '_blank', 'noopener,noreferrer')}
+                                        >
+                                            <ExternalLink className="w-4 h-4 mr-2" /> Impression thermique (Sendit)
+                                        </DropdownMenuItem>
+                                        {selectedNote?.reference && /^PI/.test(selectedNote.reference) ? (
+                                            <DropdownMenuItem
+                                                className="rounded-xl font-bold py-3 cursor-pointer"
+                                                onClick={() => window.open('https://app.sendit.ma/pickups', '_blank', 'noopener,noreferrer')}
+                                            >
+                                                <ExternalLink className="w-4 h-4 mr-2" /> Bon de ramassage (Sendit)
+                                            </DropdownMenuItem>
+                                        ) : null}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             ) : noteDetails?.provider?.provider_type === 'forcelog' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>

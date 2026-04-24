@@ -82,13 +82,17 @@ Deno.serve(async (req: Request) => {
         const forcelogData = (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object')
             ? payload.data
             : null;
+        // Sendit payload shape is TBD — handle both wrapped (payload.data) and flat (payload.code).
+        // Sendit delivery codes start with "D" (e.g. "DH1D31F9029"), distinguishable from Forcelog's "F-XXX".
         const trackingCode =
             payload.CODE ||        // AMEEX
             payload.TRACKING ||    // Coliaty
             payload.tracking_number ||
             payload.barcode ||
             payload.ref ||
-            forcelogData?.parcel_code;  // Forcelog
+            forcelogData?.parcel_code ||  // Forcelog
+            payload.code ||                // Sendit (flat)
+            forcelogData?.code;            // Sendit (wrapped in data)
 
         // Always log — even if no tracking code (so we can debug)
         const { data: logEntry } = await supabase.from('webhook_logs').insert({
@@ -166,13 +170,22 @@ Deno.serve(async (req: Request) => {
 
         // ── 7. Multi-candidate status matching ──────────────────────────
         // Priority: AMEEX sub-status > AMEEX/Coliaty main status > generic > Forcelog (data.secondary_status > data.status)
+        // Sendit uses camelCase keys — `newStatus` for forward flow, `statusReturn` for returns.
+        // `statusReturn === 'NA'` means no return event; skip it (filter below drops literal 'NA' too).
+        const skipSenditNA = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'NA' ? null : v);
         const statusCandidates = [
-            payload.STATUT_S,            // AMEEX sub-status (most precise)
-            payload.STATUT,              // AMEEX main status
-            payload.STATUS,              // Coliaty status
-            payload.status,              // generic fallback
-            forcelogData?.secondary_status, // Forcelog sub-status (more precise)
-            forcelogData?.status,        // Forcelog primary code
+            payload.STATUT_S,                         // AMEEX sub-status (most precise)
+            payload.STATUT,                           // AMEEX main status
+            payload.STATUS,                           // Coliaty status
+            skipSenditNA(payload.statusReturn),       // Sendit return-flow (camelCase, flat)
+            payload.newStatus,                        // Sendit forward-flow (camelCase, flat)
+            payload.status,                           // generic / legacy snake_case
+            payload.status_return,                    // legacy snake_case return
+            forcelogData?.secondary_status,           // Forcelog sub-status (more precise)
+            forcelogData?.status,                     // Forcelog primary code
+            forcelogData?.status_return,              // legacy wrapped return
+            skipSenditNA(forcelogData?.statusReturn), // Sendit wrapped return (defensive)
+            forcelogData?.newStatus,                  // Sendit wrapped forward (defensive)
         ].filter(Boolean);
 
         if (statusCandidates.length === 0) {

@@ -3062,6 +3062,7 @@ export type Database = {
           replace: boolean | null
           reported_date: string | null
           seller_id: string | null
+          sendit_old_tracking: string | null
           shipping_cost: number | null
           source_id: string | null
           source_name: string | null
@@ -3118,6 +3119,7 @@ export type Database = {
           replace?: boolean | null
           reported_date?: string | null
           seller_id?: string | null
+          sendit_old_tracking?: string | null
           shipping_cost?: number | null
           source_id?: string | null
           source_name?: string | null
@@ -3174,6 +3176,7 @@ export type Database = {
           replace?: boolean | null
           reported_date?: string | null
           seller_id?: string | null
+          sendit_old_tracking?: string | null
           shipping_cost?: number | null
           source_id?: string | null
           source_name?: string | null
@@ -3684,6 +3687,12 @@ export type Database = {
           quicklivraison_parcel_fragile: boolean
           quicklivraison_parcel_open: boolean
           quicklivraison_parcel_try_on: boolean
+          sendit_allow_try: boolean
+          sendit_pickup_address: string | null
+          sendit_pickup_district_id: number | null
+          sendit_pickup_name: string | null
+          sendit_pickup_phone: string | null
+          session_cache: Json | null
           updated_at: string | null
           vitex_parcel_fragile: boolean
           vitex_parcel_open: boolean
@@ -3719,6 +3728,12 @@ export type Database = {
           quicklivraison_parcel_fragile?: boolean
           quicklivraison_parcel_open?: boolean
           quicklivraison_parcel_try_on?: boolean
+          sendit_allow_try?: boolean
+          sendit_pickup_address?: string | null
+          sendit_pickup_district_id?: number | null
+          sendit_pickup_name?: string | null
+          sendit_pickup_phone?: string | null
+          session_cache?: Json | null
           updated_at?: string | null
           vitex_parcel_fragile?: boolean
           vitex_parcel_open?: boolean
@@ -3754,6 +3769,12 @@ export type Database = {
           quicklivraison_parcel_fragile?: boolean
           quicklivraison_parcel_open?: boolean
           quicklivraison_parcel_try_on?: boolean
+          sendit_allow_try?: boolean
+          sendit_pickup_address?: string | null
+          sendit_pickup_district_id?: number | null
+          sendit_pickup_name?: string | null
+          sendit_pickup_phone?: string | null
+          session_cache?: Json | null
           updated_at?: string | null
           vitex_parcel_fragile?: boolean
           vitex_parcel_open?: boolean
@@ -5668,3 +5689,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

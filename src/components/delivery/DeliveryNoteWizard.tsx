@@ -56,6 +56,8 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'forcelog_parcel_fragile',
     'forcelog_parcel_open',
     'forcelog_parcel_carton',
+    'sendit_allow_try',
+    'sendit_pickup_district_id',
     'logo_url',
     'color'
 ].join(', ');
@@ -103,6 +105,10 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
         // Forcelog: fragile + carton + "Interdit d'ouvrir". Adapter reads flags from provider row.
         return {} as Record<string, unknown>;
     }
+    if (raw.includes('sendit')) {
+        // Sendit: allow_open + allow_try + pickup_district_id are on the provider row, the adapter reads them.
+        return {} as Record<string, unknown>;
+    }
     return {} as Record<string, unknown>;
 }
 
@@ -129,6 +135,8 @@ type WizardProvider = {
     forcelog_parcel_fragile: boolean;
     forcelog_parcel_open: boolean;
     forcelog_parcel_carton: boolean;
+    sendit_allow_try: boolean;
+    sendit_pickup_district_id: number | null;
     logo_url: string | null;
     color: string | null;
 };
@@ -156,6 +164,7 @@ type WizardOrder = {
     ameex_old_tracking: string | null;
     quicklivraison_old_tracking: string | null;
     forcelog_old_tracking: string | null;
+    sendit_old_tracking: string | null;
     items: WizardOrderItem[] | null;
     city: { id: string; name: string; zone_id: string | null } | null;
     company: WizardProvider | null;
@@ -384,6 +393,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const isQuickLivraison = providerType.includes('quicklivraison');
                     const isVitex = providerType.includes('vitex');
                     const isForcelog = providerType.includes('forcelog');
+                    const isSendit = providerType.includes('sendit');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
@@ -407,6 +417,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     if (isForcelog && order.replace && !String(order.forcelog_old_tracking || '').trim()) {
                         throw new Error(
                             "Forcelog exchange requires the previous parcel tracking number on the order (forcelog_old_tracking)."
+                        );
+                    }
+                    if (isSendit && order.replace && !String(order.sendit_old_tracking || '').trim()) {
+                        throw new Error(
+                            "Sendit exchange requires the previous parcel tracking number on the order (sendit_old_tracking)."
                         );
                     }
                     // Prepare parcel data
@@ -462,9 +477,18 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                               ? String(order.forcelog_old_tracking || '').trim()
                                               : '',
                                       }
-                                    : Object.keys(permFields).length === 0
-                                      ? { replaceable: order.replace || false }
-                                      : {}),
+                                    : isSendit
+                                      ? {
+                                            // Sendit: exchange supported via option_exchange + delivery_exchange_id (adapter reads replace_parcel_code).
+                                            order_num: order.id,
+                                            reference: String(order.id).substring(0, 50),
+                                            replace_parcel_code: order.replace
+                                                ? String(order.sendit_old_tracking || '').trim()
+                                                : '',
+                                        }
+                                      : Object.keys(permFields).length === 0
+                                        ? { replaceable: order.replace || false }
+                                        : {}),
                     };
 
                     // Call Edge Function
@@ -663,6 +687,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
 
             console.log('✅ Edge Function Success. Updating local DB...');
+
+            // Sendit-specific: on first add, the adapter upgrades the draft reference
+            // (SENDIT-DRAFT-...) to the real pickup code (PXXXXXXX). Sync our local record.
+            try {
+                const addJson = await addResponse.clone().json();
+                const newRef = addJson?.data?.reference as string | undefined;
+                const prevRef = addJson?.data?.previous_reference as string | undefined;
+                if (addJson?.data?.changed_reference && newRef && prevRef && newRef !== prevRef) {
+                    console.log(`🔄 Sendit reference upgraded: ${prevRef} → ${newRef}`);
+                    await supabase
+                        .from('company_delivery_notes')
+                        .update({ reference: newRef, external_id: newRef })
+                        .eq('id', deliveryNoteId);
+                    deliveryNoteRef = newRef;
+                    externalId = newRef;
+                }
+            } catch (_) { /* non-Sendit responses have no body to parse here */ }
 
             // 3. Update database records
             // Update parcels with delivery note ID
@@ -1006,6 +1047,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             order.coliaty_old_tracking,
                             order.ameex_old_tracking,
                             order.quicklivraison_old_tracking,
+                            order.forcelog_old_tracking,
+                            order.sendit_old_tracking,
                             String(order.price ?? ''),
                             itemLabels,
                         ].filter(Boolean).join(' ').toLowerCase();

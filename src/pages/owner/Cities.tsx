@@ -52,7 +52,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison', 'vitex', 'forcelog'] as const;
+const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison', 'vitex', 'forcelog', 'sendit'] as const;
 type ProviderKey = (typeof PROVIDER_ORDER)[number];
 
 const PROVIDER_LABELS: Record<ProviderKey, string> = {
@@ -62,6 +62,7 @@ const PROVIDER_LABELS: Record<ProviderKey, string> = {
     quicklivraison: 'Quick Livraison',
     vitex: 'VITEX',
     forcelog: 'Forcelog',
+    sendit: 'Sendit',
 };
 
 type MasterCityRow = {
@@ -85,6 +86,7 @@ const citySchema = z.object({
     quicklivraison_city_id: z.string().optional().nullable(),
     vitex_city_id: z.string().optional().nullable(),
     forcelog_city_id: z.string().optional().nullable(),
+    sendit_city_id: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
@@ -98,6 +100,7 @@ const emptyCityForm: CityFormValues = {
     quicklivraison_city_id: '',
     vitex_city_id: '',
     forcelog_city_id: '',
+    sendit_city_id: '',
 };
 
 function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
@@ -110,6 +113,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
     const ql = by('quicklivraison');
     const vx = by('vitex');
     const fl = by('forcelog');
+    const se = by('sendit');
     return {
         name: city.name,
         zone_id: city.zone_id || '',
@@ -119,6 +123,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
         quicklivraison_city_id: (ql?.provider_city_id || '').trim() || '',
         vitex_city_id: (vx?.provider_city_id || '').trim() || '',
         forcelog_city_id: (fl?.provider_city_id || '').trim() || '',
+        sendit_city_id: (se?.provider_city_id || '').trim() || '',
     };
 }
 
@@ -130,6 +135,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
         quicklivraison: null,
         vitex: null,
         forcelog: null,
+        sendit: null,
     };
     for (const pc of city.provider_cities || []) {
         const t = String(pc.provider_type || '').toLowerCase() as ProviderKey;
@@ -145,15 +151,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id || nm || null;
-        } else if (t === 'quicklivraison') {
-            const id = (pc.provider_city_id || '').trim();
-            const nm = (pc.provider_city_name || '').trim();
-            out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
-        } else if (t === 'vitex') {
-            const id = (pc.provider_city_id || '').trim();
-            const nm = (pc.provider_city_name || '').trim();
-            out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
-        } else if (t === 'forcelog') {
+        } else if (t === 'quicklivraison' || t === 'vitex' || t === 'forcelog' || t === 'sendit') {
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id ? `${id}${nm ? ` · ${nm}` : ''}` : nm || null;
@@ -185,7 +183,7 @@ async function fetchAllMasterCities(): Promise<MasterCityRow[]> {
 async function syncProviderMappings(
     masterCityId: string,
     masterCityName: string,
-    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id'>
+    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id'>
 ) {
     const name = masterCityName.trim();
 
@@ -267,6 +265,16 @@ async function syncProviderMappings(
         });
     } else {
         await del('forcelog');
+    }
+
+    const se = (v.sendit_city_id || '').trim();
+    if (se) {
+        await upsert('sendit', {
+            provider_city_id: se,
+            provider_city_name: name || se,
+        });
+    } else {
+        await del('sendit');
     }
 }
 
@@ -1011,7 +1019,7 @@ const Cities = () => {
                                                 Each carrier uses its own identifier for this city.
                                             </p>
                                         </div>
-                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
                                             <FormField
                                                 control={form.control}
                                                 name="ameex_city_code"
@@ -1128,6 +1136,27 @@ const Cities = () => {
                                                         <FormControl>
                                                             <input
                                                                 placeholder="City id"
+                                                                {...field}
+                                                                value={field.value || ''}
+                                                                className={inputClass}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage className="text-[10px] text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
+
+                                            <FormField
+                                                control={form.control}
+                                                name="sendit_city_id"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                            Sendit <span className="font-mono normal-case text-ant-mid/60">· district_id</span>
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <input
+                                                                placeholder="District id"
                                                                 {...field}
                                                                 value={field.value || ''}
                                                                 className={inputClass}

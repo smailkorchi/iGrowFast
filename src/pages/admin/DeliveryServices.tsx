@@ -230,9 +230,17 @@ const KNOWN_PROVIDERS = [
         baseUrl: 'https://api.forcelog.ma',
         description: 'Forcelog (Maroc). API REST X-API-Key + dashboard session pour fragile/carton/échange. Suivi temps réel via webhook natif.',
     },
+    {
+        type: 'sendit',
+        name: 'Sendit',
+        logo: '/providers/Sendit.jpg',
+        color: '#5e72b8',
+        baseUrl: 'https://app.sendit.ma/api/v1',
+        description: 'Sendit (Maroc). API REST Bearer + ramassage (/pickups) comme BL. Suivi temps réel via webhook natif.',
+    },
 ];
 
-type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog';
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit';
 
 type ProviderPermissionRow = { key: string; label: string; hint?: string };
 
@@ -272,6 +280,12 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
         { key: 'fragile', label: 'Fragile', hint: 'Facture +5 DH selon Forcelog. Route le colis via le flux dashboard.' },
         { key: 'interdit_ouvrir_colis', label: "Interdit d'ouvrir le colis" },
     ],
+    sendit: [
+        // `autorisation_ouverture_colis` omitted — Sendit's API silently hardcodes allow_open=1 regardless
+        // of the value sent (confirmed via POST + PUT with int/bool/string/omitted). Showing the toggle
+        // would mislead sellers since flipping it has no effect on the printed label or stored delivery.
+        { key: 'autoriser_essayage', label: "Autoriser l'essayage du produit par le client" },
+    ],
 };
 
 function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
@@ -283,6 +297,7 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'quicklivraison' || t.includes('quicklivraison')) return 'quicklivraison';
     if (t === 'vitex' || t.includes('vitex')) return 'vitex';
     if (t === 'forcelog' || t.includes('forcelog')) return 'forcelog';
+    if (t === 'sendit' || t.includes('sendit')) return 'sendit';
     return null;
 }
 
@@ -322,6 +337,12 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
         return {
             fragile: !!row.forcelog_parcel_fragile,
             interdit_ouvrir_colis: !!row.forcelog_parcel_open,
+        };
+    }
+    if (slug === 'sendit') {
+        // `sendit_allow_open` column dropped — Sendit's API ignored it. Toggle kept only for allow_try.
+        return {
+            autoriser_essayage: !!row.sendit_allow_try,
         };
     }
     return {};
@@ -368,6 +389,13 @@ function flagsToProviderParcelUpdate(
         return {
             forcelog_parcel_fragile: !!flags.fragile,
             forcelog_parcel_open: !!flags.interdit_ouvrir_colis,
+        };
+    }
+    if (slug === 'sendit') {
+        // `sendit_allow_open` intentionally omitted — Sendit's API ignores the field and always stores
+        // allow_open=1. Not writing the DB column prevents stale toggle state from accumulating.
+        return {
+            sendit_allow_try: !!flags.autoriser_essayage,
         };
     }
     return {};
@@ -2043,6 +2071,11 @@ function ProviderPermissionsModal({
     const titleName = company?.name || courier?.name || 'Delivery';
 
     const [flags, setFlags] = useState<Record<string, boolean>>({});
+    const [senditPickupDistrictId, setSenditPickupDistrictId] = useState<number | null>(null);
+    const [senditPickupOptions, setSenditPickupOptions] = useState<Array<{ id: number; name: string; price: string | null }>>([]);
+    const [senditPickupName, setSenditPickupName] = useState('');
+    const [senditPickupPhone, setSenditPickupPhone] = useState('');
+    const [senditPickupAddress, setSenditPickupAddress] = useState('');
 
     const { data: permRow, isLoading: loadingPerm, isError: permError, error: permErr } = useQuery({
         queryKey: ['provider_permissions', company?.id, activeBusinessId],
@@ -2065,6 +2098,11 @@ function ProviderPermissionsModal({
                         'vitex_parcel_open',
                         'forcelog_parcel_fragile',
                         'forcelog_parcel_open',
+                        'sendit_allow_try',
+                        'sendit_pickup_district_id',
+                        'sendit_pickup_name',
+                        'sendit_pickup_phone',
+                        'sendit_pickup_address',
                     ].join(', ')
                 )
                 .eq('id', company.id)
@@ -2079,7 +2117,42 @@ function ProviderPermissionsModal({
     useEffect(() => {
         if (!isOpen || !providerSlug || !permRow) return;
         setFlags(mapProviderRowToFlags(providerSlug, permRow));
+        if (providerSlug === 'sendit') {
+            const v = permRow.sendit_pickup_district_id;
+            setSenditPickupDistrictId(typeof v === 'number' ? v : v ? parseInt(String(v), 10) || null : null);
+            setSenditPickupName(String(permRow.sendit_pickup_name || ''));
+            setSenditPickupPhone(String(permRow.sendit_pickup_phone || ''));
+            setSenditPickupAddress(String(permRow.sendit_pickup_address || ''));
+        } else {
+            setSenditPickupDistrictId(null);
+            setSenditPickupName('');
+            setSenditPickupPhone('');
+            setSenditPickupAddress('');
+        }
     }, [isOpen, providerSlug, permRow]);
+
+    // Load pickup-enabled Sendit districts (only when modal is open for a Sendit provider).
+    useEffect(() => {
+        let cancelled = false;
+        if (!isOpen || providerSlug !== 'sendit') {
+            setSenditPickupOptions([]);
+            return () => { cancelled = true; };
+        }
+        (async () => {
+            // Query provider_cities for distinct Sendit districts, then pick pickup-capable by
+            // checking the provider_city_id list against our seed file? Simpler: fetch everything
+            // and let the adapter validate server-side. For UX, we only show pickup-capable.
+            // We'll call a small RPC-less inline query joining against a static list isn't possible,
+            // so we fall back to the seed: call edge function or list all and filter client-side.
+            // Pragmatic path: use a bundled static list generated at build time.
+            const mod = await import('@/data/sendit_pickup_districts.json').catch(() => null as any);
+            if (cancelled) return;
+            if (mod && Array.isArray(mod.default)) {
+                setSenditPickupOptions(mod.default);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isOpen, providerSlug]);
 
     useEffect(() => {
         if (permError && isOpen) {
@@ -2094,7 +2167,13 @@ function ProviderPermissionsModal({
     const savePermissions = useMutation({
         mutationFn: async () => {
             if (!company?.id || !activeBusinessId || !providerSlug) throw new Error('Missing context');
-            const patch = flagsToProviderParcelUpdate(providerSlug, flags);
+            const patch: Record<string, unknown> = { ...flagsToProviderParcelUpdate(providerSlug, flags) };
+            if (providerSlug === 'sendit') {
+                patch.sendit_pickup_district_id = senditPickupDistrictId;
+                patch.sendit_pickup_name = senditPickupName.trim() || null;
+                patch.sendit_pickup_phone = senditPickupPhone.trim() || null;
+                patch.sendit_pickup_address = senditPickupAddress.trim() || null;
+            }
             const { error } = await supabase
                 .from(PROVIDERS_TABLE)
                 .update(patch as any)
@@ -2183,6 +2262,75 @@ function ProviderPermissionsModal({
                                         />
                                     </div>
                                 ))}
+                                {providerSlug === 'sendit' ? (
+                                    <div className="flex flex-col gap-3 py-4 border-t border-ant-line">
+                                        <div>
+                                            <p className="text-sm font-bold text-ant-ink leading-snug">District de ramassage</p>
+                                            <p className="text-xs font-medium text-ant-ink/45 mt-1.5 leading-relaxed">
+                                                District où Sendit vient récupérer les colis (l'entrepôt vendeur). Obligatoire pour créer un colis.
+                                            </p>
+                                        </div>
+                                        <select
+                                            className="w-full h-11 rounded-xl border border-ant-line bg-white px-3 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50"
+                                            value={senditPickupDistrictId ?? ''}
+                                            onChange={(e) => setSenditPickupDistrictId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            disabled={!canSave}
+                                        >
+                                            <option value="">— Sélectionner un district —</option>
+                                            {senditPickupOptions.map((d) => (
+                                                <option key={d.id} value={d.id}>{d.name}{d.price ? ` (${d.price} DH)` : ''}</option>
+                                            ))}
+                                        </select>
+
+                                        <div className="pt-2">
+                                            <p className="text-sm font-bold text-ant-ink leading-snug">Nom du ramassage</p>
+                                            <p className="text-xs font-medium text-ant-ink/45 mt-1.5 leading-relaxed">
+                                                Nom affiché sur le bon de ramassage Sendit (ex: entrepôt, boutique).
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            className="w-full h-11 rounded-xl border border-ant-line bg-white px-3 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50"
+                                            placeholder="DigiCom - Entrepôt Agadir"
+                                            value={senditPickupName}
+                                            onChange={(e) => setSenditPickupName(e.target.value)}
+                                            maxLength={100}
+                                            disabled={!canSave}
+                                        />
+
+                                        <div className="pt-2">
+                                            <p className="text-sm font-bold text-ant-ink leading-snug">Téléphone de ramassage</p>
+                                            <p className="text-xs font-medium text-ant-ink/45 mt-1.5 leading-relaxed">
+                                                Numéro contacté par le livreur Sendit (10 chiffres, format 0XXXXXXXXX).
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="tel"
+                                            className="w-full h-11 rounded-xl border border-ant-line bg-white px-3 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50"
+                                            placeholder="0612345678"
+                                            value={senditPickupPhone}
+                                            onChange={(e) => setSenditPickupPhone(e.target.value)}
+                                            maxLength={30}
+                                            disabled={!canSave}
+                                        />
+
+                                        <div className="pt-2">
+                                            <p className="text-sm font-bold text-ant-ink leading-snug">Adresse de ramassage</p>
+                                            <p className="text-xs font-medium text-ant-ink/45 mt-1.5 leading-relaxed">
+                                                Adresse complète où le livreur Sendit doit passer.
+                                            </p>
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            className="w-full rounded-xl border border-ant-line bg-white px-3 py-2 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50 resize-none"
+                                            placeholder="Avenue 18 Novembre, Immeuble A, Agadir"
+                                            value={senditPickupAddress}
+                                            onChange={(e) => setSenditPickupAddress(e.target.value)}
+                                            maxLength={200}
+                                            disabled={!canSave}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
                         )}
                     </div>

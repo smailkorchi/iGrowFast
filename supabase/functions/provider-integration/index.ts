@@ -2600,6 +2600,385 @@ class ForcelogAdapter {
     }
 }
 
+class SenditAdapter {
+    constructor(credentials) {
+        this.apiBaseUrl = credentials.api_base_url || 'https://app.sendit.ma/api/v1';
+        this.publicKey = credentials.api_public_key || '';
+        this.secretKey = credentials.api_secret_key || '';
+        this.pickupDistrictId = credentials.sendit_pickup_district_id || null;
+        // allow_open hardcoded to 1: Sendit's API ignores the field and always stores 1 regardless of
+        // what we send (verified across POST/PUT with int/bool/string/omitted). Keep DB column unused.
+        this.allowOpen = 1;
+        this.allowTry = credentials.sendit_allow_try === true ? 1 : 0;
+        // Pickup contact (required by Sendit POST /pickups). Stored on the provider row
+        // via the admin Permissions modal. Fallback to businesses row if not set.
+        this.pickupName = (credentials.sendit_pickup_name || '').toString().trim() || null;
+        this.pickupPhone = (credentials.sendit_pickup_phone || '').toString().trim() || null;
+        this.pickupAddress = (credentials.sendit_pickup_address || '').toString().trim() || null;
+        this.businessId = credentials['DigiCom Business'] || null;
+        this.token = null;
+    }
+
+    async fetchPickupContact(supabase) {
+        // Prefer provider-row overrides (sendit_pickup_name/phone/address set in admin UI).
+        if (this.pickupName && this.pickupPhone && this.pickupAddress) {
+            return {
+                name: this.pickupName.substring(0, 100),
+                phone: this.pickupPhone.substring(0, 30),
+                address: this.pickupAddress.substring(0, 200),
+            };
+        }
+        // Fallback to the business row (name, business_phone, legal_address + legal_city).
+        let fallback = { name: 'DigiCom', phone: '0000000000', address: 'Adresse non renseignée' };
+        if (supabase && this.businessId) {
+            const { data } = await supabase
+                .from('businesses')
+                .select('name, business_phone, legal_address, legal_city')
+                .eq('id', this.businessId)
+                .maybeSingle();
+            const rawPhone = String(data?.business_phone || '').replace(/\D/g, '');
+            const phone = /^0\d{9}$/.test(rawPhone)
+                ? rawPhone
+                : rawPhone
+                    ? (rawPhone.startsWith('212') ? '0' + rawPhone.substring(3) : rawPhone)
+                    : '0000000000';
+            const addressParts = [data?.legal_address, data?.legal_city].filter(Boolean).map(String);
+            fallback = {
+                name: (data?.name || 'DigiCom').toString(),
+                phone,
+                address: addressParts.join(', ') || 'Adresse non renseignée',
+            };
+        }
+        return {
+            name: (this.pickupName || fallback.name).substring(0, 100),
+            phone: (this.pickupPhone || fallback.phone).substring(0, 30),
+            address: (this.pickupAddress || fallback.address).substring(0, 200),
+        };
+    }
+
+    async ensureToken() {
+        if (this.token) return;
+        if (!this.publicKey || !this.secretKey) {
+            throw new Error('Sendit: clé publique et clé privée requises.');
+        }
+        const r = await fetch(`${this.apiBaseUrl}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ public_key: this.publicKey, secret_key: this.secretKey }),
+        });
+        const t = await r.text();
+        let j;
+        try { j = JSON.parse(t); } catch { throw new Error(`Sendit login: réponse invalide (HTTP ${r.status}): ${t.substring(0, 200)}`); }
+        if (!r.ok || !j?.success || !j?.data?.token) {
+            throw new Error(`Sendit login échoué: ${j?.message || t.substring(0, 200)}`);
+        }
+        this.token = j.data.token;
+    }
+
+    async apiFetch(path, method, jsonBody, _retried) {
+        await this.ensureToken();
+        const init = {
+            method: method || 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Accept': 'application/json',
+            },
+        };
+        if (jsonBody !== undefined) {
+            init.headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(jsonBody);
+        }
+        const res = await fetch(`${this.apiBaseUrl}${path}`, init);
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch {
+            return { ok: res.ok, status: res.status, data: null, raw: text };
+        }
+        // 401 → token expired, re-login once
+        if (res.status === 401 && !_retried) {
+            this.token = null;
+            return this.apiFetch(path, method, jsonBody, true);
+        }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    async resolveMasterStatus(rawStatus, supabase) {
+        if (!rawStatus || !supabase) return null;
+        try {
+            const { data: rpcMatch } = await supabase.rpc('match_package_status', { p_status_value: rawStatus });
+            if (rpcMatch && rpcMatch[0]) return rpcMatch[0];
+        } catch (_) { /* RPC optional */ }
+        const { data: exact } = await supabase
+            .from('package_statuses')
+            .select('id, code, label, color, category')
+            .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
+            .limit(1)
+            .maybeSingle();
+        return exact || null;
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== SENDIT createParcel START ===');
+        if (!this.pickupDistrictId) {
+            throw new Error('Sendit: district de ramassage non configuré. Renseignez-le dans la page Delivery Services (Permissions).');
+        }
+        // Resolve destination district
+        let districtId = null;
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('provider_cities')
+                .select('provider_city_id')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'sendit')
+                .maybeSingle();
+            if (mapping?.provider_city_id) {
+                const n = parseInt(mapping.provider_city_id, 10);
+                if (Number.isFinite(n)) districtId = n;
+            }
+        }
+        if (!districtId) {
+            throw new Error('Sendit: district de destination introuvable pour cette ville. Mappez-la dans la page Cities.');
+        }
+
+        // Phone normalization (0XXXXXXXXX, 10 digits starting with 0).
+        let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
+        if (phone.startsWith('212')) phone = '0' + phone.substring(3);
+        if (!/^0\d{9}$/.test(phone)) {
+            throw new Error(`Sendit: format téléphone invalide "${phone}". Attendu 10 chiffres commençant par 0.`);
+        }
+
+        const amount = Number(parcelData.cash_on_delivery || parcelData.cod_amount || 0);
+        const body = {
+            pickup_district_id: this.pickupDistrictId,
+            district_id: districtId,
+            name: String(parcelData.receiver_name || parcelData.customer_name || '').substring(0, 100),
+            amount: amount,
+            address: String(parcelData.receiver_address || parcelData.delivery_address || '').substring(0, 200),
+            phone,
+            comment: String(parcelData.delivery_note || '').substring(0, 200),
+            reference: String(parcelData.order_num || parcelData.reference || '').substring(0, 50),
+            allow_open: this.allowOpen,
+            allow_try: this.allowTry,
+            // Stock management disabled per project policy.
+            products_from_stock: 0,
+        };
+
+        // Exchange mode — Sendit uses delivery_exchange_id pointing at the old parcel code.
+        if (parcelData.replace_parcel_code || parcelData.old_parcel_code) {
+            body.option_exchange = 1;
+            body.delivery_exchange_id = String(parcelData.replace_parcel_code || parcelData.old_parcel_code);
+        }
+
+        const resp = await this.apiFetch('/deliveries', 'POST', body);
+        if (!resp.ok || !resp.data?.success || !resp.data?.data?.code) {
+            const msg = resp.data?.message || resp.data?.error || JSON.stringify(resp.data || resp.raw || {}).substring(0, 300);
+            throw new Error(`Sendit: création échouée (HTTP ${resp.status}): ${msg}`);
+        }
+        const tracking = resp.data.data.code;
+        console.log('=== SENDIT createParcel END ===', tracking);
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: resp.data.data,
+        };
+    }
+
+    async trackParcel(trackingCode, _externalId, supabase) {
+        if (!trackingCode) throw new Error('Tracking code required');
+        const resp = await this.apiFetch(`/deliveries/${encodeURIComponent(trackingCode)}`, 'GET');
+        if (!resp.ok || !resp.data?.success || !resp.data?.data) return null;
+        const d = resp.data.data;
+        const rawStatus = d.status || '';
+        const master = await this.resolveMasterStatus(rawStatus, supabase);
+        // Sendit returns `audits` — an array of {event, user, created_at, data: {...}}.
+        // Build history entries from audits where data.status is present and distinct.
+        const audits = Array.isArray(d.audits) ? d.audits : [];
+        const history = [];
+        let lastStatus = null;
+        for (const a of audits) {
+            const s = a?.data?.status;
+            if (!s || s === lastStatus) continue;
+            lastStatus = s;
+            const entryMaster = await this.resolveMasterStatus(s, supabase);
+            history.push({
+                status: s,
+                statusLabel: entryMaster?.label || s,
+                statusColor: entryMaster?.color || null,
+                statusId: entryMaster?.id || null,
+                category: entryMaster?.category || null,
+                color: entryMaster?.color || null,
+                date: a?.created_at || '',
+                comment: a?.event || '',
+            });
+        }
+        // Fallback: if audits don't include status, at least surface the latest.
+        if (history.length === 0 && rawStatus) {
+            history.push({
+                status: rawStatus,
+                statusLabel: master?.label || rawStatus,
+                statusColor: master?.color || null,
+                statusId: master?.id || null,
+                category: master?.category || null,
+                color: master?.color || null,
+                date: d.last_action_at || '',
+                comment: '',
+            });
+        }
+        return {
+            tracking_code: trackingCode,
+            status: rawStatus,
+            statusLabel: master?.label || rawStatus,
+            statusColor: master?.color || null,
+            status_code: null,
+            status_category: master?.category || null,
+            history,
+        };
+    }
+
+    async getParcelInfo(trackingCode, supabase) {
+        return this.trackParcel(trackingCode, undefined, supabase);
+    }
+
+    async createDeliveryNote() {
+        // Sendit's POST /pickups requires parcel codes at creation time. We can't create an
+        // empty pickup, so return a placeholder draft reference. The real pickup (P-XXXXXXX)
+        // is created by the first addParcelsToNote call, which will swap the reference on
+        // the delivery_notes row via the wizard client.
+        const draft = `SENDIT-DRAFT-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+        return { reference: draft, provider_response: { draft: true } };
+    }
+
+    async addParcelsToNote(deliveryNoteRef, parcelCodes, supabase) {
+        const codes = Array.isArray(parcelCodes) ? parcelCodes.filter(Boolean) : [];
+        if (!deliveryNoteRef) throw new Error('Sendit: référence BL requise.');
+        if (codes.length === 0) {
+            return { success: true, reference: deliveryNoteRef, parcel_codes: [], inserted: 0 };
+        }
+        const isDraft = /^SENDIT-DRAFT-/i.test(deliveryNoteRef);
+
+        if (isDraft) {
+            // First add → create a real pickup with all codes in one shot.
+            const contact = await this.fetchPickupContact(supabase);
+            const body = {
+                district_id: this.pickupDistrictId,
+                name: contact.name,
+                phone: contact.phone,
+                address: contact.address,
+                note: '',
+                deliveries: codes.join(','),
+            };
+            const resp = await this.apiFetch('/pickups', 'POST', body);
+            // Sendit wraps: {success, message, data: {code, ...}}. Some endpoints also return
+            // the bare object — handle both.
+            const newCode = resp.data?.data?.code || resp.data?.code;
+            if (!resp.ok || !newCode) {
+                const msg = resp.data?.message || resp.data?.error || JSON.stringify(resp.data || {}).substring(0, 300);
+                throw new Error(`Sendit: création pickup échouée (HTTP ${resp.status}): ${msg}`);
+            }
+            return {
+                success: true,
+                reference: newCode,
+                parcel_codes: codes,
+                inserted: codes.length,
+                previous_reference: deliveryNoteRef,  // client should update external_id
+                changed_reference: true,
+            };
+        }
+
+        // Real pickup exists — read current codes, merge with new, PUT.
+        const getResp = await this.apiFetch(`/pickups/${encodeURIComponent(deliveryNoteRef)}`, 'GET');
+        if (!getResp.ok) {
+            throw new Error(`Sendit: pickup ${deliveryNoteRef} introuvable (HTTP ${getResp.status}).`);
+        }
+        const pickupObj = getResp.data?.data || getResp.data || {};
+        const current = pickupObj?.deliveries || {};
+        const existingCodes = Object.keys(current);
+        const merged = Array.from(new Set([...existingCodes, ...codes]));
+        const putResp = await this.apiFetch(`/pickups/${encodeURIComponent(deliveryNoteRef)}`, 'PUT', {
+            deliveries: merged.join(','),
+        });
+        if (!putResp.ok) {
+            const msg = putResp.data?.message || JSON.stringify(putResp.data || {}).substring(0, 300);
+            throw new Error(`Sendit: mise à jour pickup échouée (HTTP ${putResp.status}): ${msg}`);
+        }
+        return {
+            success: true,
+            reference: deliveryNoteRef,
+            parcel_codes: codes,
+            inserted: codes.length,
+        };
+    }
+
+    async finalizeDeliveryNote(deliveryNoteRef) {
+        // Sendit has no explicit finalize endpoint — pickups are picked up by warehouse staff.
+        // If the ref is still a draft (no parcels were added), return a soft failure.
+        if (/^SENDIT-DRAFT-/i.test(deliveryNoteRef)) {
+            return { success: false, reference: deliveryNoteRef, error: 'Aucun colis ajouté — ramassage non créé côté Sendit.' };
+        }
+        return { success: true, reference: deliveryNoteRef };
+    }
+
+    async deleteNote(reference) {
+        if (!reference || /^SENDIT-DRAFT-/i.test(reference)) {
+            // Draft — nothing to delete server-side.
+            return { success: true, reference };
+        }
+        try {
+            const resp = await this.apiFetch(`/pickups/${encodeURIComponent(reference)}`, 'DELETE');
+            return { success: !!(resp.ok && resp.data?.success), reference };
+        } catch (err) {
+            return { success: false, reference, error: err.message };
+        }
+    }
+
+    async deleteParcel(parcelCode) {
+        if (!parcelCode) return { success: true };
+        try {
+            const resp = await this.apiFetch(`/deliveries/${encodeURIComponent(parcelCode)}`, 'DELETE');
+            return { success: !!(resp.ok && resp.data?.success), parcel_code: parcelCode };
+        } catch (err) {
+            return { success: false, parcel_code: parcelCode, error: err.message };
+        }
+    }
+
+    async getPrintUrl(deliveryNoteRef, _labelFormat, _printType, _options) {
+        // Sendit exposes only A4 label batch printing via the API (`POST /deliveries/getlabels`).
+        // Thermal 10×10 and BL pickup-form PDFs are dashboard-only; open the dashboard instead.
+        const opts = _options || {};
+        let codes = Array.isArray(opts.parcel_codes) ? opts.parcel_codes.filter(Boolean) : [];
+
+        // If no codes passed, try fetching from the Sendit pickup (real ref) or our local DB (draft).
+        if (codes.length === 0 && deliveryNoteRef && !/^SENDIT-DRAFT-/i.test(deliveryNoteRef)) {
+            const r = await this.apiFetch(`/pickups/${encodeURIComponent(deliveryNoteRef)}`, 'GET');
+            const pickup = r.data?.data || r.data || {};
+            if (r.ok && pickup?.deliveries) codes = Object.keys(pickup.deliveries);
+        }
+        if (codes.length === 0 && opts.supabase && opts.noteId) {
+            // Fallback: load parcel codes from our local DB for this delivery note.
+            const { data: localParcels } = await opts.supabase
+                .from('company_parcels')
+                .select('tracking_code')
+                .eq('company_delivery_note_id', opts.noteId);
+            codes = (localParcels || []).map((p) => p.tracking_code).filter(Boolean);
+        }
+        if (codes.length === 0) {
+            throw new Error('Sendit: aucun colis à imprimer.');
+        }
+        const resp = await this.apiFetch('/deliveries/getlabels', 'POST', {
+            codesToPrint: codes.join(','),
+            printFormat: 1,
+        });
+        // Sendit's getlabels response doesn't use the standard wrapper — it returns
+        // `{filePrint: true, fileUrl}` at the top level. Accept both shapes.
+        const fileUrl = resp.data?.fileUrl || resp.data?.data?.fileUrl;
+        if (!resp.ok || !fileUrl) {
+            const msg = resp.data?.message || JSON.stringify(resp.data || {}).substring(0, 300);
+            throw new Error(`Sendit: impression échouée (HTTP ${resp.status}): ${msg}`);
+        }
+        return fileUrl;
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -2630,7 +3009,9 @@ Deno.serve(async (req) => {
                         ? new VitexAdapter(provider)
                         : type === 'forcelog'
                             ? new ForcelogAdapter(provider)
-                            : new AmeexAdapter(provider);
+                            : type === 'sendit'
+                                ? new SenditAdapter(provider)
+                                : new AmeexAdapter(provider);
 
         // Adapter initialization
 
@@ -2668,7 +3049,7 @@ Deno.serve(async (req) => {
             case 'add_parcels_to_delivery_note':
                 console.log('Adding parcels to delivery note:', data.delivery_note_ref);
                 console.log('Parcel codes:', data.parcel_codes);
-                result = await adapter.addParcelsToNote(data.delivery_note_ref, data.parcel_codes);
+                result = await adapter.addParcelsToNote(data.delivery_note_ref, data.parcel_codes, supabase);
                 console.log('Parcels added:', JSON.stringify(result, null, 2));
                 break;
             case 'finalize_delivery_note':

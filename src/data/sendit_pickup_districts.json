@@ -1,0 +1,292 @@
+[
+  {
+    "id": 54,
+    "name": "Agadir",
+    "price": "35"
+  },
+  {
+    "id": 87,
+    "name": "Ain Attig",
+    "price": "39"
+  },
+  {
+    "id": 86,
+    "name": "Ain El Aouda",
+    "price": "39"
+  },
+  {
+    "id": 495,
+    "name": "Bassatine El Menzeh",
+    "price": "39"
+  },
+  {
+    "id": 115,
+    "name": "Beni Mellal",
+    "price": "35"
+  },
+  {
+    "id": 64,
+    "name": "Benslimane",
+    "price": "35"
+  },
+  {
+    "id": 42,
+    "name": "Berrechid",
+    "price": "35"
+  },
+  {
+    "id": 38,
+    "name": "Bouskoura-Centre",
+    "price": "29"
+  },
+  {
+    "id": 538,
+    "name": "Bouskoura-Ouled Saleh",
+    "price": "29"
+  },
+  {
+    "id": 537,
+    "name": "Bouskoura-Ville Verte",
+    "price": "29"
+  },
+  {
+    "id": 49,
+    "name": "Bouznika",
+    "price": "35"
+  },
+  {
+    "id": 46,
+    "name": "Casablanca - Autres quartiers",
+    "price": "19"
+  },
+  {
+    "id": 123,
+    "name": "Chichaoua",
+    "price": "39"
+  },
+  {
+    "id": 40,
+    "name": "Dar Bouaza",
+    "price": "29"
+  },
+  {
+    "id": 261,
+    "name": "Deroua",
+    "price": "29"
+  },
+  {
+    "id": 371,
+    "name": "El Aarjate",
+    "price": "45"
+  },
+  {
+    "id": 352,
+    "name": "El Mansouria",
+    "price": "35"
+  },
+  {
+    "id": 55,
+    "name": "El jadida",
+    "price": "35"
+  },
+  {
+    "id": 39,
+    "name": "Errahma",
+    "price": "29"
+  },
+  {
+    "id": 139,
+    "name": "Fes",
+    "price": "35"
+  },
+  {
+    "id": 69,
+    "name": "Fnideq",
+    "price": "39"
+  },
+  {
+    "id": 366,
+    "name": "Harhoura",
+    "price": "39"
+  },
+  {
+    "id": 148,
+    "name": "Inzegane",
+    "price": "35"
+  },
+  {
+    "id": 155,
+    "name": "Kenitra",
+    "price": "35"
+  },
+  {
+    "id": 158,
+    "name": "Khouribga",
+    "price": "35"
+  },
+  {
+    "id": 56,
+    "name": "Marrakech",
+    "price": "35"
+  },
+  {
+    "id": 71,
+    "name": "Martil",
+    "price": "39"
+  },
+  {
+    "id": 44,
+    "name": "Mediouna",
+    "price": "29"
+  },
+  {
+    "id": 167,
+    "name": "Meknes",
+    "price": "35"
+  },
+  {
+    "id": 365,
+    "name": "Mers El Kheir",
+    "price": "39"
+  },
+  {
+    "id": 41,
+    "name": "Mohammedia",
+    "price": "29"
+  },
+  {
+    "id": 572,
+    "name": "Mohammedia - Al Massira",
+    "price": "29"
+  },
+  {
+    "id": 571,
+    "name": "Mohammedia - Al Wahda",
+    "price": "29"
+  },
+  {
+    "id": 576,
+    "name": "Mohammedia - Alia",
+    "price": "29"
+  },
+  {
+    "id": 574,
+    "name": "Mohammedia - Hassania",
+    "price": "29"
+  },
+  {
+    "id": 575,
+    "name": "Mohammedia - Hay Wafa",
+    "price": "29"
+  },
+  {
+    "id": 570,
+    "name": "Mohammedia - Kasbah",
+    "price": "29"
+  },
+  {
+    "id": 573,
+    "name": "Mohammedia - Nassim",
+    "price": "29"
+  },
+  {
+    "id": 569,
+    "name": "Mohammedia - Parc",
+    "price": "29"
+  },
+  {
+    "id": 45,
+    "name": "Nouacer",
+    "price": "29"
+  },
+  {
+    "id": 266,
+    "name": "Ouislane",
+    "price": "45"
+  },
+  {
+    "id": 73,
+    "name": "Oujda",
+    "price": "35"
+  },
+  {
+    "id": 53,
+    "name": "Rabat",
+    "price": "35"
+  },
+  {
+    "id": 188,
+    "name": "Safi",
+    "price": "35"
+  },
+  {
+    "id": 191,
+    "name": "Sala El Jadida",
+    "price": "39"
+  },
+  {
+    "id": 190,
+    "name": "Sale",
+    "price": "35"
+  },
+  {
+    "id": 43,
+    "name": "Settat",
+    "price": "35"
+  },
+  {
+    "id": 200,
+    "name": "Sidi Allal El Bahraoui",
+    "price": "45"
+  },
+  {
+    "id": 233,
+    "name": "Sidi Bouknadel",
+    "price": "39"
+  },
+  {
+    "id": 205,
+    "name": "Sidi Kacem",
+    "price": "45"
+  },
+  {
+    "id": 206,
+    "name": "Sidi Slimane",
+    "price": "45"
+  },
+  {
+    "id": 208,
+    "name": "Skhirat",
+    "price": "39"
+  },
+  {
+    "id": 212,
+    "name": "Tamesna",
+    "price": "39"
+  },
+  {
+    "id": 52,
+    "name": "Tanger",
+    "price": "35"
+  },
+  {
+    "id": 81,
+    "name": "Taza",
+    "price": "39"
+  },
+  {
+    "id": 220,
+    "name": "Temara",
+    "price": "35"
+  },
+  {
+    "id": 222,
+    "name": "Tetouan",
+    "price": "39"
+  },
+  {
+    "id": 225,
+    "name": "Tit Melil",
+    "price": "29"
+  }
+]
