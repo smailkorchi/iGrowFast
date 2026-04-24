@@ -116,6 +116,7 @@ type WaThreadsRealtimeRow = {
   last_message_status: string | null;
   last_message_sender_jid: string | null;
   message_count: number | null;
+  unread_count: number | null;
   updated_at: string | null;
 };
 
@@ -2404,20 +2405,11 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         };
       });
 
-      // Apply unread from chat_settings where available
-      const withUnread = enriched.map(chat => {
-        const s = chatSettings[chat.remoteJid];
-        if (!s?.last_read_at || !chat.lastMessage) return chat;
-        if (chat.lastMessage.messageTimestamp > s.last_read_at && !chat.lastMessage.key.fromMe) {
-          return { ...chat, unreadCount: Math.max(chat.unreadCount, 1) };
-        }
-        return chat;
-      });
-
-      setChats(withUnread);
+      // unread_count is authoritative from wa_threads. No local overrides.
+      setChats(enriched);
     } catch (e) { console.error(e); }
     finally { setLoadingChats(false); }
-  }, [instanceName, businessId, chatSettings]);
+  }, [instanceName, businessId]);
 
   // Ref latest fetchChats/scrollToBottom so the realtime-subscription effect below
   // can call the current version without resubscribing when unrelated deps change.
@@ -2642,6 +2634,12 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             status: t.last_message_status || 'sent',
           } : null;
           chat.updatedAt = t.last_message_at || t.updated_at || chat.updatedAt;
+
+          // Authoritative unread count — driven by message status; matches
+          // phone because Evolution fires status=READ when read on any device.
+          // If this chat is currently open, keep showing 0 (user is reading).
+          const isCurrentlyOpen = selectedChatRef.current?.dbConvId === t.id;
+          chat.unreadCount = isCurrentlyOpen ? 0 : (t.unread_count ?? 0);
 
           updated[idx] = chat;
           if (t.last_message_at) {
@@ -2960,10 +2958,14 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     setContextMenu(null);
     setSidePanel('none');
 
-    // Mark chat as read — clear unread badge locally + persist read timestamp + reset DB count
+    // Mark chat as read — single authoritative RPC that flips every incoming
+    // unread row to status='read' (trigger decrements wa_threads.unread_count)
+    // and bumps per-user last_read_at. Phone read-receipt fires below.
     setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
     if (chat.dbConvId) {
-      db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', chat.dbConvId).then(() => {});
+      (db.rpc as unknown as (name: string, params: Record<string, unknown>) => Promise<unknown>)(
+        'wa_mark_thread_read', { p_thread_id: chat.dbConvId }
+      ).catch(() => {});
     }
     const nowTs = Math.floor(Date.now() / 1000);
     setChatSettings(prev => ({
@@ -3962,11 +3964,13 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                 <button
                   onClick={() => {
                     scrollToBottom();
-                    // Clear unread badge on this chat
+                    // Clear unread via canonical RPC (trigger keeps counter in sync)
                     if (selectedChat) {
                       setChats(prev => prev.map(c => c.remoteJid === selectedChat.remoteJid ? { ...c, unreadCount: 0 } : c));
                       if (selectedChat.dbConvId) {
-                        db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', selectedChat.dbConvId).then(() => {});
+                        (db.rpc as unknown as (name: string, params: Record<string, unknown>) => Promise<unknown>)(
+                          'wa_mark_thread_read', { p_thread_id: selectedChat.dbConvId }
+                        ).catch(() => {});
                       }
                     }
                   }}

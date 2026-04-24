@@ -96,10 +96,11 @@ export function WhatsAppUnreadCard({ businessId, restrictToInstanceIds, inboxPat
     if (!businessId) return;
     const channel = supabase
       .channel(`dash-wa-unread-${businessId}`)
+      // wa_threads is the physical table; views never fire realtime events.
       .on('postgres_changes', {
-        event: '*',
+        event: 'UPDATE',
         schema: 'public',
-        table: 'whatsapp_conversations',
+        table: 'wa_threads',
         filter: `business_id=eq.${businessId}`,
       }, () => { load(); })
       .subscribe();

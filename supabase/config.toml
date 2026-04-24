@@ -3,3 +3,14 @@ project_id = "zjkqprrfbibjoslvlmxf"
 [auth]
 password_requirements = "lower_upper_letters_digits"
 minimum_password_length = 8
+
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = true
+verify_enabled = true

@@ -211,6 +211,23 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Fire-and-forget: kick wa-worker immediately so this event drains within
+  // a few hundred ms instead of waiting up to 30s for the cron. The worker
+  // is idempotent + concurrency-safe (SKIP LOCKED), so racing with cron is
+  // fine. We don't await — the response to Evolution must stay fast.
+  try {
+    const workerUrl = (Deno.env.get("SUPABASE_URL") ?? "") + "/functions/v1/wa-worker";
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    // EdgeRuntime.waitUntil keeps the fetch alive after we respond.
+    (globalThis as any).EdgeRuntime?.waitUntil?.(
+      fetch(workerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: "{}",
+      }).catch(() => {})
+    );
+  } catch { /* best effort */ }
+
   return new Response(JSON.stringify({ ok: true, queued: true }), {
     status: 200, headers: { ...cors, "Content-Type": "application/json" },
   });

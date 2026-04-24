@@ -225,7 +225,7 @@ export default function WhatsAppManager() {
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'whatsapp_sync_jobs',
+        table: 'wa_sync_jobs',
         filter: `business_id=eq.${businessId}`,
       }, (payload) => {
         const job = payload.new as WaSyncJobRow | undefined;
