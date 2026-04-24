@@ -4440,6 +4440,1524 @@ export type Database = {
           },
         ]
       }
+      wa_auto_replies: {
+        Row: {
+          active_hours_end: string | null
+          active_hours_start: string | null
+          active_weekdays: number[] | null
+          business_id: string
+          cooldown_seconds: number
+          created_at: string
+          id: string
+          instance_id: string | null
+          is_active: boolean
+          media_id: string | null
+          reply_message: string
+          trigger_kind: string
+          trigger_value: string
+        }
+        Insert: {
+          active_hours_end?: string | null
+          active_hours_start?: string | null
+          active_weekdays?: number[] | null
+          business_id: string
+          cooldown_seconds?: number
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean
+          media_id?: string | null
+          reply_message: string
+          trigger_kind: string
+          trigger_value: string
+        }
+        Update: {
+          active_hours_end?: string | null
+          active_hours_start?: string | null
+          active_weekdays?: number[] | null
+          business_id?: string
+          cooldown_seconds?: number
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean
+          media_id?: string | null
+          reply_message?: string
+          trigger_kind?: string
+          trigger_value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_auto_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "wa_media"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contacts: {
+        Row: {
+          blocked_at: string | null
+          business_id: string
+          created_at: string
+          custom_name: string | null
+          first_seen_at: string
+          id: string
+          is_blocked: boolean
+          is_business: boolean
+          last_seen_at: string
+          phone_e164: string | null
+          primary_lid: string | null
+          profile_pic_fetched_at: string | null
+          profile_pic_url: string | null
+          updated_at: string
+          whatsapp_name: string | null
+        }
+        Insert: {
+          blocked_at?: string | null
+          business_id: string
+          created_at?: string
+          custom_name?: string | null
+          first_seen_at?: string
+          id?: string
+          is_blocked?: boolean
+          is_business?: boolean
+          last_seen_at?: string
+          phone_e164?: string | null
+          primary_lid?: string | null
+          profile_pic_fetched_at?: string | null
+          profile_pic_url?: string | null
+          updated_at?: string
+          whatsapp_name?: string | null
+        }
+        Update: {
+          blocked_at?: string | null
+          business_id?: string
+          created_at?: string
+          custom_name?: string | null
+          first_seen_at?: string
+          id?: string
+          is_blocked?: boolean
+          is_business?: boolean
+          last_seen_at?: string
+          phone_e164?: string | null
+          primary_lid?: string | null
+          profile_pic_fetched_at?: string | null
+          profile_pic_url?: string | null
+          updated_at?: string
+          whatsapp_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_group_participants: {
+        Row: {
+          contact_id: string | null
+          group_id: string
+          id: string
+          jid: string
+          joined_at: string
+          left_at: string | null
+          role: string
+        }
+        Insert: {
+          contact_id?: string | null
+          group_id: string
+          id?: string
+          jid: string
+          joined_at?: string
+          left_at?: string | null
+          role?: string
+        }
+        Update: {
+          contact_id?: string | null
+          group_id?: string
+          id?: string
+          jid?: string
+          joined_at?: string
+          left_at?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_group_participants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_group_participants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_group_participants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_group_participants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "wa_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_group_participants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_groups: {
+        Row: {
+          business_id: string
+          created_at: string
+          creation_ts: string | null
+          description: string | null
+          group_jid: string
+          id: string
+          instance_id: string
+          invite_code: string | null
+          is_announce: boolean
+          is_community: boolean
+          is_locked: boolean
+          owner_jid: string | null
+          participant_count: number
+          profile_pic_url: string | null
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          creation_ts?: string | null
+          description?: string | null
+          group_jid: string
+          id?: string
+          instance_id: string
+          invite_code?: string | null
+          is_announce?: boolean
+          is_community?: boolean
+          is_locked?: boolean
+          owner_jid?: string | null
+          participant_count?: number
+          profile_pic_url?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          creation_ts?: string | null
+          description?: string | null
+          group_jid?: string
+          id?: string
+          instance_id?: string
+          invite_code?: string | null
+          is_announce?: boolean
+          is_community?: boolean
+          is_locked?: boolean
+          owner_jid?: string | null
+          participant_count?: number
+          profile_pic_url?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_instances: {
+        Row: {
+          business_id: string
+          created_at: string
+          evo_instance_id: string
+          evo_token: string
+          id: string
+          last_event_at: string | null
+          name: string
+          owner_lid: string | null
+          owner_phone_e164: string | null
+          paired_at: string | null
+          profile_pic_url: string | null
+          status: string
+          status_changed_at: string | null
+          status_reason: string | null
+          updated_at: string
+          webhook_secret: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          evo_instance_id: string
+          evo_token: string
+          id?: string
+          last_event_at?: string | null
+          name: string
+          owner_lid?: string | null
+          owner_phone_e164?: string | null
+          paired_at?: string | null
+          profile_pic_url?: string | null
+          status?: string
+          status_changed_at?: string | null
+          status_reason?: string | null
+          updated_at?: string
+          webhook_secret?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          evo_instance_id?: string
+          evo_token?: string
+          id?: string
+          last_event_at?: string | null
+          name?: string
+          owner_lid?: string | null
+          owner_phone_e164?: string | null
+          paired_at?: string | null
+          profile_pic_url?: string | null
+          status?: string
+          status_changed_at?: string | null
+          status_reason?: string | null
+          updated_at?: string
+          webhook_secret?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_jid_aliases: {
+        Row: {
+          business_id: string
+          contact_id: string
+          first_seen_at: string
+          id: string
+          is_primary: boolean
+          jid: string
+          jid_kind: string
+          last_seen_at: string
+        }
+        Insert: {
+          business_id: string
+          contact_id: string
+          first_seen_at?: string
+          id?: string
+          is_primary?: boolean
+          jid: string
+          jid_kind: string
+          last_seen_at?: string
+        }
+        Update: {
+          business_id?: string
+          contact_id?: string
+          first_seen_at?: string
+          id?: string
+          is_primary?: boolean
+          jid?: string
+          jid_kind?: string
+          last_seen_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_jid_aliases_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_jid_aliases_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_jid_aliases_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_jid_aliases_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_labels: {
+        Row: {
+          business_id: string
+          color: string
+          created_at: string
+          evo_label_id: string | null
+          id: string
+          instance_id: string | null
+          name: string
+          predefined_id: string | null
+        }
+        Insert: {
+          business_id: string
+          color?: string
+          created_at?: string
+          evo_label_id?: string | null
+          id?: string
+          instance_id?: string | null
+          name: string
+          predefined_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          color?: string
+          created_at?: string
+          evo_label_id?: string | null
+          id?: string
+          instance_id?: string | null
+          name?: string
+          predefined_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_labels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_media: {
+        Row: {
+          business_id: string
+          cdn_url: string | null
+          cdn_url_expires_at: string | null
+          created_at: string
+          download_attempts: number
+          download_error: string | null
+          download_failed_at: string | null
+          duration_seconds: number | null
+          evo_direct_path: string | null
+          evo_media_key: string | null
+          evo_message_id: string | null
+          file_name: string | null
+          file_size_bytes: number | null
+          height: number | null
+          id: string
+          mime_type: string
+          sha256: string | null
+          storage_bucket: string
+          storage_path: string | null
+          thumbnail_storage_path: string | null
+          uploaded_at: string | null
+          width: number | null
+        }
+        Insert: {
+          business_id: string
+          cdn_url?: string | null
+          cdn_url_expires_at?: string | null
+          created_at?: string
+          download_attempts?: number
+          download_error?: string | null
+          download_failed_at?: string | null
+          duration_seconds?: number | null
+          evo_direct_path?: string | null
+          evo_media_key?: string | null
+          evo_message_id?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          height?: number | null
+          id?: string
+          mime_type: string
+          sha256?: string | null
+          storage_bucket?: string
+          storage_path?: string | null
+          thumbnail_storage_path?: string | null
+          uploaded_at?: string | null
+          width?: number | null
+        }
+        Update: {
+          business_id?: string
+          cdn_url?: string | null
+          cdn_url_expires_at?: string | null
+          created_at?: string
+          download_attempts?: number
+          download_error?: string | null
+          download_failed_at?: string | null
+          duration_seconds?: number | null
+          evo_direct_path?: string | null
+          evo_media_key?: string | null
+          evo_message_id?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          height?: number | null
+          id?: string
+          mime_type?: string
+          sha256?: string | null
+          storage_bucket?: string
+          storage_path?: string | null
+          thumbnail_storage_path?: string | null
+          uploaded_at?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_media_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_messages: {
+        Row: {
+          business_id: string
+          contact_id: string | null
+          deleted_at: string | null
+          deleted_by_user_id: string | null
+          direction: string
+          edited_at: string | null
+          edited_text: string | null
+          forward_score: number
+          id: string
+          instance_id: string
+          is_forwarded: boolean
+          media_id: string | null
+          message_kind: string
+          raw_payload: Json | null
+          received_at: string
+          reply_to_message_id: string | null
+          reply_to_text: string | null
+          reply_to_wa_id: string | null
+          status: string
+          status_changed_at: string | null
+          text_content: string | null
+          thread_id: string
+          wa_from_me: boolean
+          wa_message_id: string
+          wa_remote_jid: string
+          wa_sender_jid: string | null
+          wa_timestamp: string
+        }
+        Insert: {
+          business_id: string
+          contact_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          direction: string
+          edited_at?: string | null
+          edited_text?: string | null
+          forward_score?: number
+          id?: string
+          instance_id: string
+          is_forwarded?: boolean
+          media_id?: string | null
+          message_kind: string
+          raw_payload?: Json | null
+          received_at?: string
+          reply_to_message_id?: string | null
+          reply_to_text?: string | null
+          reply_to_wa_id?: string | null
+          status?: string
+          status_changed_at?: string | null
+          text_content?: string | null
+          thread_id: string
+          wa_from_me: boolean
+          wa_message_id: string
+          wa_remote_jid: string
+          wa_sender_jid?: string | null
+          wa_timestamp: string
+        }
+        Update: {
+          business_id?: string
+          contact_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          direction?: string
+          edited_at?: string | null
+          edited_text?: string | null
+          forward_score?: number
+          id?: string
+          instance_id?: string
+          is_forwarded?: boolean
+          media_id?: string | null
+          message_kind?: string
+          raw_payload?: Json | null
+          received_at?: string
+          reply_to_message_id?: string | null
+          reply_to_text?: string | null
+          reply_to_wa_id?: string | null
+          status?: string
+          status_changed_at?: string | null
+          text_content?: string | null
+          thread_id?: string
+          wa_from_me?: boolean
+          wa_message_id?: string
+          wa_remote_jid?: string
+          wa_sender_jid?: string | null
+          wa_timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_deleted_by_user_id_fkey"
+            columns: ["deleted_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "wa_media"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_quick_replies: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          media_id: string | null
+          message: string
+          shortcut: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          media_id?: string | null
+          message: string
+          shortcut: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          media_id?: string | null
+          message?: string
+          shortcut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_quick_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_quick_replies_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_quick_replies_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "wa_media"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_reactions: {
+        Row: {
+          emoji: string
+          message_id: string
+          reacted_at: string
+          reactor_contact_id: string | null
+          reactor_jid: string
+        }
+        Insert: {
+          emoji: string
+          message_id: string
+          reacted_at?: string
+          reactor_contact_id?: string | null
+          reactor_jid: string
+        }
+        Update: {
+          emoji?: string
+          message_id?: string
+          reacted_at?: string
+          reactor_contact_id?: string | null
+          reactor_jid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_reactions_reactor_contact_id_fkey"
+            columns: ["reactor_contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_reactions_reactor_contact_id_fkey"
+            columns: ["reactor_contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_reactions_reactor_contact_id_fkey"
+            columns: ["reactor_contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_sync_jobs: {
+        Row: {
+          business_id: string
+          completed_at: string | null
+          created_at: string
+          current_phase: string | null
+          error_message: string | null
+          id: string
+          instance_id: string
+          kind: string
+          max_retries: number
+          metadata: Json
+          phase_cursor: Json
+          retry_count: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: string | null
+          error_message?: string | null
+          id?: string
+          instance_id: string
+          kind: string
+          max_retries?: number
+          metadata?: Json
+          phase_cursor?: Json
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: string | null
+          error_message?: string | null
+          id?: string
+          instance_id?: string
+          kind?: string
+          max_retries?: number
+          metadata?: Json
+          phase_cursor?: Json
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_sync_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_thread_labels: {
+        Row: {
+          applied_at: string
+          label_id: string
+          thread_id: string
+        }
+        Insert: {
+          applied_at?: string
+          label_id: string
+          thread_id: string
+        }
+        Update: {
+          applied_at?: string
+          label_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_thread_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "wa_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_thread_pinned: {
+        Row: {
+          message_id: string
+          pinned_at: string
+          pinned_by_user_id: string | null
+          thread_id: string
+        }
+        Insert: {
+          message_id: string
+          pinned_at?: string
+          pinned_by_user_id?: string | null
+          thread_id: string
+        }
+        Update: {
+          message_id?: string
+          pinned_at?: string
+          pinned_by_user_id?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_thread_pinned_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_pinned_by_user_id_fkey"
+            columns: ["pinned_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_threads: {
+        Row: {
+          business_id: string
+          contact_id: string | null
+          created_at: string
+          group_id: string | null
+          id: string
+          instance_id: string
+          kind: string
+          last_message_at: string | null
+          last_message_direction: string | null
+          last_message_id: string | null
+          last_message_kind: string | null
+          last_message_preview: string | null
+          last_message_sender_jid: string | null
+          last_message_status: string | null
+          message_count: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          contact_id?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          instance_id: string
+          kind: string
+          last_message_at?: string | null
+          last_message_direction?: string | null
+          last_message_id?: string | null
+          last_message_kind?: string | null
+          last_message_preview?: string | null
+          last_message_sender_jid?: string | null
+          last_message_status?: string | null
+          message_count?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          contact_id?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          instance_id?: string
+          kind?: string
+          last_message_at?: string | null
+          last_message_direction?: string | null
+          last_message_id?: string | null
+          last_message_kind?: string | null
+          last_message_preview?: string | null
+          last_message_sender_jid?: string | null
+          last_message_status?: string | null
+          message_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "wa_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_last_message_fk"
+            columns: ["last_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_last_message_fk"
+            columns: ["last_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_last_message_fk"
+            columns: ["last_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_user_instance_access: {
+        Row: {
+          business_id: string
+          granted_at: string
+          granted_by: string | null
+          instance_id: string
+          scope: string
+          user_id: string
+        }
+        Insert: {
+          business_id: string
+          granted_at?: string
+          granted_by?: string | null
+          instance_id?: string
+          scope?: string
+          user_id: string
+        }
+        Update: {
+          business_id?: string
+          granted_at?: string
+          granted_by?: string | null
+          instance_id?: string
+          scope?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_user_instance_access_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_instance_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_instance_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_user_starred: {
+        Row: {
+          message_id: string
+          starred_at: string
+          user_id: string
+        }
+        Insert: {
+          message_id: string
+          starred_at?: string
+          user_id: string
+        }
+        Update: {
+          message_id?: string
+          starred_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_user_starred_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_starred_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_starred_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_starred_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_user_thread_state: {
+        Row: {
+          draft_text: string | null
+          draft_updated_at: string | null
+          internal_note: string | null
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          last_read_at: string | null
+          last_read_message_id: string | null
+          muted_until: string | null
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          draft_text?: string | null
+          draft_updated_at?: string | null
+          internal_note?: string | null
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          muted_until?: string | null
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          draft_text?: string | null
+          draft_updated_at?: string | null
+          internal_note?: string | null
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          muted_until?: string | null
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_webhook_events: {
+        Row: {
+          event_type: string
+          evo_instance_name: string | null
+          id: string
+          idempotency_key: string
+          instance_id: string | null
+          max_retries: number
+          next_retry_at: string | null
+          payload: Json
+          processed_at: string | null
+          processing_error: string | null
+          received_at: string
+          retry_count: number
+        }
+        Insert: {
+          event_type: string
+          evo_instance_name?: string | null
+          id?: string
+          idempotency_key: string
+          instance_id?: string | null
+          max_retries?: number
+          next_retry_at?: string | null
+          payload: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          received_at?: string
+          retry_count?: number
+        }
+        Update: {
+          event_type?: string
+          evo_instance_name?: string | null
+          id?: string
+          idempotency_key?: string
+          instance_id?: string | null
+          max_retries?: number
+          next_retry_at?: string | null
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          received_at?: string
+          retry_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_webhook_events_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_webhook_events_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_webhook_events_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_logs: {
         Row: {
           created_at: string | null
@@ -4484,850 +6002,6 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "providers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_auto_replies: {
-        Row: {
-          active: boolean
-          business_id: string
-          created_at: string
-          id: string
-          instance_id: string | null
-          media_url: string | null
-          reply_message: string
-          trigger_keyword: string | null
-          trigger_type: string
-        }
-        Insert: {
-          active?: boolean
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          media_url?: string | null
-          reply_message: string
-          trigger_keyword?: string | null
-          trigger_type?: string
-        }
-        Update: {
-          active?: boolean
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          media_url?: string | null
-          reply_message?: string
-          trigger_keyword?: string | null
-          trigger_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_auto_replies_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_auto_replies_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_chat_labels: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          instance_id: string | null
-          label_id: string
-          remote_jid: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          label_id: string
-          remote_jid: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          label_id?: string
-          remote_jid?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_chat_labels_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_chat_labels_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_chat_labels_label_id_fkey"
-            columns: ["label_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_labels"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_chat_settings: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          instance_id: string | null
-          is_archived: boolean
-          is_blocked: boolean
-          is_favorited: boolean
-          is_muted: boolean
-          is_pinned: boolean
-          last_read_at: number | null
-          muted_until: string | null
-          remote_jid: string
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          is_archived?: boolean
-          is_blocked?: boolean
-          is_favorited?: boolean
-          is_muted?: boolean
-          is_pinned?: boolean
-          last_read_at?: number | null
-          muted_until?: string | null
-          remote_jid: string
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          is_archived?: boolean
-          is_blocked?: boolean
-          is_favorited?: boolean
-          is_muted?: boolean
-          is_pinned?: boolean
-          last_read_at?: number | null
-          muted_until?: string | null
-          remote_jid?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_chat_settings_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_chat_settings_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_contacts: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          instance_id: string | null
-          name: string | null
-          phone_number: string
-          profile_pic: string | null
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          name?: string | null
-          phone_number: string
-          profile_pic?: string | null
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          name?: string | null
-          phone_number?: string
-          profile_pic?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_contacts_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_contacts_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_conversations: {
-        Row: {
-          business_id: string
-          contact_id: string | null
-          created_at: string | null
-          display_name: string | null
-          group_id: string | null
-          id: string
-          instance_id: string
-          jid: string
-          last_message_content: string | null
-          last_message_direction: string | null
-          last_message_id: string | null
-          last_message_status: string | null
-          last_message_ts: string | null
-          last_message_type: string | null
-          lid_jid: string | null
-          message_count: number | null
-          phone_jid: string | null
-          profile_pic: string | null
-          type: string
-          unread_count: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          business_id: string
-          contact_id?: string | null
-          created_at?: string | null
-          display_name?: string | null
-          group_id?: string | null
-          id?: string
-          instance_id: string
-          jid: string
-          last_message_content?: string | null
-          last_message_direction?: string | null
-          last_message_id?: string | null
-          last_message_status?: string | null
-          last_message_ts?: string | null
-          last_message_type?: string | null
-          lid_jid?: string | null
-          message_count?: number | null
-          phone_jid?: string | null
-          profile_pic?: string | null
-          type?: string
-          unread_count?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          business_id?: string
-          contact_id?: string | null
-          created_at?: string | null
-          display_name?: string | null
-          group_id?: string | null
-          id?: string
-          instance_id?: string
-          jid?: string
-          last_message_content?: string | null
-          last_message_direction?: string | null
-          last_message_id?: string | null
-          last_message_status?: string | null
-          last_message_ts?: string | null
-          last_message_type?: string | null
-          lid_jid?: string | null
-          message_count?: number | null
-          phone_jid?: string | null
-          profile_pic?: string | null
-          type?: string
-          unread_count?: number | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_conversations_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_fast_replies: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          message: string
-          shortcut: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          message: string
-          shortcut: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          message?: string
-          shortcut?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_fast_replies_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_group_participants: {
-        Row: {
-          business_id: string
-          created_at: string | null
-          display_name: string | null
-          group_id: string
-          id: string
-          participant_jid: string
-          role: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string | null
-          display_name?: string | null
-          group_id: string
-          id?: string
-          participant_jid: string
-          role?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string | null
-          display_name?: string | null
-          group_id?: string
-          id?: string
-          participant_jid?: string
-          role?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_group_participants_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_groups: {
-        Row: {
-          business_id: string
-          created_at: string | null
-          creation_ts: number | null
-          description: string | null
-          group_jid: string
-          id: string
-          instance_id: string
-          invite_code: string | null
-          is_announce: boolean | null
-          is_community: boolean | null
-          is_restrict: boolean | null
-          owner_jid: string | null
-          participant_count: number | null
-          profile_pic: string | null
-          subject: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          business_id: string
-          created_at?: string | null
-          creation_ts?: number | null
-          description?: string | null
-          group_jid: string
-          id?: string
-          instance_id: string
-          invite_code?: string | null
-          is_announce?: boolean | null
-          is_community?: boolean | null
-          is_restrict?: boolean | null
-          owner_jid?: string | null
-          participant_count?: number | null
-          profile_pic?: string | null
-          subject?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          business_id?: string
-          created_at?: string | null
-          creation_ts?: number | null
-          description?: string | null
-          group_jid?: string
-          id?: string
-          instance_id?: string
-          invite_code?: string | null
-          is_announce?: boolean | null
-          is_community?: boolean | null
-          is_restrict?: boolean | null
-          owner_jid?: string | null
-          participant_count?: number | null
-          profile_pic?: string | null
-          subject?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_groups_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_instances: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          instance_name: string
-          phone_number: string | null
-          profile_pic: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_name: string
-          phone_number?: string | null
-          profile_pic?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_name?: string
-          phone_number?: string | null
-          profile_pic?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_instances_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_jid_mappings: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          instance_id: string
-          lid_jid: string
-          phone_jid: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_id: string
-          lid_jid: string
-          phone_jid: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_id?: string
-          lid_jid?: string
-          phone_jid?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_jid_mappings_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_jid_mappings_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_labels: {
-        Row: {
-          business_id: string
-          color: string
-          created_at: string
-          id: string
-          instance_id: string | null
-          name: string
-          whatsapp_label_id: string | null
-        }
-        Insert: {
-          business_id: string
-          color?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          name: string
-          whatsapp_label_id?: string | null
-        }
-        Update: {
-          business_id?: string
-          color?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          name?: string
-          whatsapp_label_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_labels_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_labels_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_messages: {
-        Row: {
-          business_id: string
-          contact_id: string | null
-          content: string | null
-          conversation_id: string | null
-          created_at: string
-          direction: string
-          id: string
-          instance_id: string
-          media_url: string | null
-          message_id: string
-          raw_key: Json | null
-          remote_jid: string
-          sender_jid: string | null
-          status: string
-          type: string
-        }
-        Insert: {
-          business_id: string
-          contact_id?: string | null
-          content?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          direction: string
-          id?: string
-          instance_id: string
-          media_url?: string | null
-          message_id: string
-          raw_key?: Json | null
-          remote_jid: string
-          sender_jid?: string | null
-          status?: string
-          type?: string
-        }
-        Update: {
-          business_id?: string
-          contact_id?: string | null
-          content?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          direction?: string
-          id?: string
-          instance_id?: string
-          media_url?: string | null
-          message_id?: string
-          raw_key?: Json | null
-          remote_jid?: string
-          sender_jid?: string | null
-          status?: string
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_messages_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_pinned_messages: {
-        Row: {
-          business_id: string
-          content: string | null
-          created_at: string
-          id: string
-          instance_id: string | null
-          message_id: string
-          pinned_by: string | null
-          remote_jid: string
-        }
-        Insert: {
-          business_id: string
-          content?: string | null
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          message_id: string
-          pinned_by?: string | null
-          remote_jid: string
-        }
-        Update: {
-          business_id?: string
-          content?: string | null
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          message_id?: string
-          pinned_by?: string | null
-          remote_jid?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_pinned_messages_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_pinned_messages_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_starred_messages: {
-        Row: {
-          business_id: string
-          content: string | null
-          created_at: string
-          id: string
-          instance_id: string | null
-          message_id: string
-          remote_jid: string
-        }
-        Insert: {
-          business_id: string
-          content?: string | null
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          message_id: string
-          remote_jid: string
-        }
-        Update: {
-          business_id?: string
-          content?: string | null
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          message_id?: string
-          remote_jid?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_starred_messages_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_starred_messages_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_sync_jobs: {
-        Row: {
-          business_id: string
-          completed_at: string | null
-          created_at: string
-          current_phase: number
-          error_message: string | null
-          id: string
-          instance_id: string
-          instance_name: string
-          max_retries: number
-          phase_cursors: Json
-          phases: Json
-          retry_count: number
-          started_at: string | null
-          status: string
-          sync_metadata: Json
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          completed_at?: string | null
-          created_at?: string
-          current_phase?: number
-          error_message?: string | null
-          id?: string
-          instance_id: string
-          instance_name: string
-          max_retries?: number
-          phase_cursors?: Json
-          phases?: Json
-          retry_count?: number
-          started_at?: string | null
-          status?: string
-          sync_metadata?: Json
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          completed_at?: string | null
-          created_at?: string
-          current_phase?: number
-          error_message?: string | null
-          id?: string
-          instance_id?: string
-          instance_name?: string
-          max_retries?: number
-          phase_cursors?: Json
-          phases?: Json
-          retry_count?: number
-          started_at?: string | null
-          status?: string
-          sync_metadata?: Json
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_sync_jobs_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_sync_jobs_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_user_instances: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          instance_id: string | null
-          scope: string
-          user_id: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          scope: string
-          user_id: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          instance_id?: string | null
-          scope?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_user_instances_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_user_instances_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_user_instances_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -5381,8 +6055,1371 @@ export type Database = {
           },
         ]
       }
+      wa_v_legacy_contacts: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          name: string | null
+          phone_number: string | null
+          profile_pic: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_v_legacy_conversations: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          display_name: string | null
+          group_id: string | null
+          id: string | null
+          instance_id: string | null
+          jid: string | null
+          last_message_content: string | null
+          last_message_direction: string | null
+          last_message_id: string | null
+          last_message_status: string | null
+          last_message_ts: string | null
+          last_message_type: string | null
+          lid_jid: string | null
+          message_count: number | null
+          phone_jid: string | null
+          profile_pic: string | null
+          type: string | null
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "wa_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_v_legacy_instances: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_name: string | null
+          phone_number: string | null
+          profile_pic: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_name?: string | null
+          phone_number?: string | null
+          profile_pic?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_name?: string | null
+          phone_number?: string | null
+          profile_pic?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_v_legacy_messages: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          content: string | null
+          conversation_id: string | null
+          created_at: string | null
+          direction: string | null
+          id: string | null
+          instance_id: string | null
+          media_url: string | null
+          message_id: string | null
+          raw_key: Json | null
+          remote_jid: string | null
+          sender_jid: string | null
+          status: string | null
+          type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_v_thread_with_state: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          display_name: string | null
+          draft_text: string | null
+          group_id: string | null
+          instance_id: string | null
+          is_archived: boolean | null
+          is_muted: boolean | null
+          is_pinned: boolean | null
+          kind: string | null
+          last_message_at: string | null
+          last_message_direction: string | null
+          last_message_id: string | null
+          last_message_kind: string | null
+          last_message_preview: string | null
+          last_message_sender_jid: string | null
+          last_message_status: string | null
+          last_read_at: string | null
+          last_read_message_id: string | null
+          message_count: number | null
+          muted_until: string | null
+          phone_e164: string | null
+          primary_lid: string | null
+          profile_pic_url: string | null
+          thread_id: string | null
+          unread_count: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "wa_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_last_message_fk"
+            columns: ["last_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_last_message_fk"
+            columns: ["last_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_last_message_fk"
+            columns: ["last_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_auto_replies: {
+        Row: {
+          active: boolean | null
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          media_url: string | null
+          reply_message: string | null
+          trigger_keyword: string | null
+          trigger_type: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_id?: string | null
+          media_url?: never
+          reply_message?: string | null
+          trigger_keyword?: string | null
+          trigger_type?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_id?: string | null
+          media_url?: never
+          reply_message?: string | null
+          trigger_keyword?: string | null
+          trigger_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_auto_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_chat_labels: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          label_id: string | null
+          remote_jid: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_thread_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "wa_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_thread_labels_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_chat_settings: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          is_archived: boolean | null
+          is_blocked: boolean | null
+          is_favorited: boolean | null
+          is_muted: boolean | null
+          is_pinned: boolean | null
+          last_read_at: number | null
+          muted_until: string | null
+          remote_jid: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_contacts: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          name: string | null
+          phone_number: string | null
+          profile_pic: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversations: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          display_name: string | null
+          group_id: string | null
+          id: string | null
+          instance_id: string | null
+          jid: string | null
+          last_message_content: string | null
+          last_message_direction: string | null
+          last_message_id: string | null
+          last_message_status: string | null
+          last_message_ts: string | null
+          last_message_type: string | null
+          lid_jid: string | null
+          message_count: number | null
+          phone_jid: string | null
+          profile_pic: string | null
+          type: string | null
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "wa_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_fast_replies: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          message: string | null
+          shortcut: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          message?: string | null
+          shortcut?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          message?: string | null
+          shortcut?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_quick_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_group_participants: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          display_name: string | null
+          group_id: string | null
+          id: string | null
+          participant_jid: string | null
+          role: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_group_participants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "wa_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_group_participants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_groups: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          creation_ts: string | null
+          description: string | null
+          group_jid: string | null
+          id: string | null
+          instance_id: string | null
+          invite_code: string | null
+          is_announce: boolean | null
+          is_community: boolean | null
+          is_restrict: boolean | null
+          owner_jid: string | null
+          participant_count: number | null
+          profile_pic: string | null
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          creation_ts?: string | null
+          description?: string | null
+          group_jid?: string | null
+          id?: string | null
+          instance_id?: string | null
+          invite_code?: string | null
+          is_announce?: boolean | null
+          is_community?: boolean | null
+          is_restrict?: boolean | null
+          owner_jid?: string | null
+          participant_count?: number | null
+          profile_pic?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          creation_ts?: string | null
+          description?: string | null
+          group_jid?: string | null
+          id?: string | null
+          instance_id?: string | null
+          invite_code?: string | null
+          is_announce?: boolean | null
+          is_community?: boolean | null
+          is_restrict?: boolean | null
+          owner_jid?: string | null
+          participant_count?: number | null
+          profile_pic?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_instances: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_name: string | null
+          phone_number: string | null
+          profile_pic: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_name?: string | null
+          phone_number?: string | null
+          profile_pic?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_name?: string | null
+          phone_number?: string | null
+          profile_pic?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_jid_mappings: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          lid_jid: string | null
+          phone_jid: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_jid_aliases_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_labels: {
+        Row: {
+          business_id: string | null
+          color: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          name: string | null
+          whatsapp_label_id: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_id?: string | null
+          name?: string | null
+          whatsapp_label_id?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_id?: string | null
+          name?: string | null
+          whatsapp_label_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_labels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          content: string | null
+          conversation_id: string | null
+          created_at: string | null
+          direction: string | null
+          id: string | null
+          instance_id: string | null
+          media_url: string | null
+          message_id: string | null
+          raw_key: Json | null
+          remote_jid: string | null
+          sender_jid: string | null
+          status: string | null
+          type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_messages_thread_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_pinned_messages: {
+        Row: {
+          business_id: string | null
+          content: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          message_id: string | null
+          pinned_by: string | null
+          remote_jid: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "wa_v_legacy_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_starred_messages: {
+        Row: {
+          business_id: string | null
+          content: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          message_id: string | null
+          remote_jid: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_threads_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_starred_message_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_starred_message_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_starred_message_id_fkey"
+            columns: ["id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_sync_jobs: {
+        Row: {
+          business_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          current_phase: number | null
+          error_message: string | null
+          id: string | null
+          instance_id: string | null
+          instance_name: string | null
+          max_retries: number | null
+          phase_cursors: Json | null
+          phases: Json | null
+          retry_count: number | null
+          started_at: string | null
+          status: string | null
+          sync_metadata: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_phase?: never
+          error_message?: string | null
+          id?: string | null
+          instance_id?: string | null
+          instance_name?: never
+          max_retries?: number | null
+          phase_cursors?: Json | null
+          phases?: never
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          sync_metadata?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_phase?: never
+          error_message?: string | null
+          id?: string | null
+          instance_id?: string | null
+          instance_name?: never
+          max_retries?: number | null
+          phase_cursors?: Json | null
+          phases?: never
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          sync_metadata?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_sync_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_legacy_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_user_instances: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          scope: string | null
+          user_id: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: never
+          instance_id?: string | null
+          scope?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: never
+          instance_id?: string | null
+          scope?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_user_instance_access_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_user_instance_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      _wa_thread_by_jid: {
+        Args: { p_business_id: string; p_instance_id: string; p_jid: string }
+        Returns: string
+      }
       audit_log_dispatch_geo: { Args: never; Returns: undefined }
       audit_log_reap_geo: { Args: never; Returns: undefined }
       check_expired_licenses: { Args: never; Returns: undefined }
@@ -5409,25 +7446,6 @@ export type Database = {
       delete_open_company_delivery_note: {
         Args: { p_delivery_note_id: string }
         Returns: undefined
-      }
-      get_chat_list: {
-        Args: { p_instance_id: string }
-        Returns: {
-          contact_id: string
-          conv_type: string
-          conversation_id: string
-          display_name: string
-          group_id: string
-          jid: string
-          last_message_content: string
-          last_message_direction: string
-          last_message_id: string
-          last_message_status: string
-          last_message_ts: string
-          last_message_type: string
-          profile_pic: string
-          unread_count: number
-        }[]
       }
       get_daily_attribution_progress: {
         Args: { p_business_id: string; p_date?: string }
@@ -5497,14 +7515,11 @@ export type Database = {
       }
       row_actor: { Args: never; Returns: Json }
       scrub_sensitive: { Args: { j: Json }; Returns: Json }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
       sum_order_units_for_seller_products: {
         Args: { p_order_id: string; p_seller_id: string }
         Returns: number
       }
       sync_imported_orders: { Args: { p_business_id: string }; Returns: Json }
-      unaccent: { Args: { "": string }; Returns: string }
       update_business_profile_fields: {
         Args: {
           p_business_email: string
@@ -5541,6 +7556,135 @@ export type Database = {
           p_token_expires_at?: string
         }
         Returns: string
+      }
+      wa_classify_message_kind: {
+        Args: { p_message_type: string }
+        Returns: string
+      }
+      wa_classify_status: { Args: { p_evo_status: string }; Returns: string }
+      wa_dispatch_event: {
+        Args: {
+          p_event_type: string
+          p_evo_instance_name: string
+          p_payload: Json
+        }
+        Returns: undefined
+      }
+      wa_ingest_chat: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_connection: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_contact: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: string
+      }
+      wa_ingest_group: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: string
+      }
+      wa_ingest_group_participant: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_label: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: string
+      }
+      wa_ingest_label_assoc: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_message: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: string
+      }
+      wa_ingest_message_delete: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_message_edit: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_message_status: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_ingest_reaction: {
+        Args: { p_instance_id: string; p_payload: Json }
+        Returns: undefined
+      }
+      wa_invoke_edge: {
+        Args: { p_body?: Json; p_function_name: string }
+        Returns: number
+      }
+      wa_jid_kind: { Args: { p_jid: string }; Returns: string }
+      wa_jid_local: { Args: { p_jid: string }; Returns: string }
+      wa_mark_thread_read: {
+        Args: { p_message_id?: string; p_thread_id: string }
+        Returns: undefined
+      }
+      wa_message_preview: {
+        Args: { p_kind: string; p_text: string }
+        Returns: string
+      }
+      wa_normalize_phone: { Args: { p_jid: string }; Returns: string }
+      wa_resolve_contact: {
+        Args: {
+          p_alt_jid?: string
+          p_business_id: string
+          p_jid: string
+          p_profile_pic_url?: string
+          p_push_name?: string
+        }
+        Returns: string
+      }
+      wa_resolve_thread: {
+        Args: {
+          p_contact_id?: string
+          p_group_id?: string
+          p_instance_id: string
+          p_kind: string
+        }
+        Returns: string
+      }
+      wa_set_thread_pref: {
+        Args: {
+          p_archived?: boolean
+          p_draft?: string
+          p_muted?: boolean
+          p_muted_until?: string
+          p_pinned?: boolean
+          p_thread_id: string
+        }
+        Returns: undefined
+      }
+      wa_status_rank: { Args: { p_status: string }; Returns: number }
+      wa_toggle_star: {
+        Args: { p_message_id: string; p_star: boolean }
+        Returns: undefined
+      }
+      wa_user_business_id: { Args: never; Returns: string }
+      wa_user_can_see_instance: {
+        Args: { p_instance_id: string }
+        Returns: boolean
+      }
+      wa_user_role: { Args: never; Returns: string }
+      wa_worker_claim_batch: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          event_type: string
+          evo_instance_name: string
+          id: string
+          instance_id: string
+          max_retries: number
+          payload: Json
+          retry_count: number
+        }[]
       }
     }
     Enums: {
@@ -5689,5 +7833,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.90.0 (currently installed v2.84.2)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

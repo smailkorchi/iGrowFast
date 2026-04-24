@@ -63,7 +63,7 @@ type WaMessageBody = {
     contextInfo?: WaContextInfo;
 };
 
-/** whatsapp_messages row shape verified via MCP. */
+/** Legacy row shape kept so downstream handlers don't need rewriting. */
 type WaMessageRow = {
     id: string;
     business_id: string;
@@ -81,6 +81,86 @@ type WaMessageRow = {
     conversation_id: string | null;
     sender_jid: string | null;
 };
+
+/** Raw `wa_messages` row from Supabase Realtime (physical table). */
+type WaMessagesRealtimeRow = {
+  id: string;
+  business_id: string;
+  instance_id: string;
+  thread_id: string | null;
+  contact_id: string | null;
+  wa_message_id: string;
+  wa_remote_jid: string;
+  wa_sender_jid: string | null;
+  direction: string;
+  message_kind: string | null;
+  text_content: string | null;
+  status: string | null;
+  wa_timestamp: string;
+  received_at: string | null;
+};
+
+/** Raw `wa_threads` row from Supabase Realtime. */
+type WaThreadsRealtimeRow = {
+  id: string;
+  business_id: string;
+  instance_id: string;
+  kind: string;
+  contact_id: string | null;
+  group_id: string | null;
+  last_message_id: string | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  last_message_kind: string | null;
+  last_message_direction: string | null;
+  last_message_status: string | null;
+  last_message_sender_jid: string | null;
+  message_count: number | null;
+  updated_at: string | null;
+};
+
+// Reverse wa_classify_message_kind — UI downstream expects Evolution's
+// messageType naming.
+function kindToLegacyType(kind: string | null | undefined): string {
+  switch (kind) {
+    case 'text':        return 'conversation';
+    case 'image':       return 'imageMessage';
+    case 'video':       return 'videoMessage';
+    case 'audio':       return 'audioMessage';
+    case 'document':    return 'documentMessage';
+    case 'sticker':     return 'stickerMessage';
+    case 'location':    return 'locationMessage';
+    case 'contact':     return 'contactMessage';
+    case 'reaction':    return 'reactionMessage';
+    case 'poll':        return 'pollCreationMessage';
+    case 'list':        return 'listMessage';
+    case 'button':      return 'buttonsMessage';
+    case 'interactive': return 'interactiveMessage';
+    case 'album':       return 'albumMessage';
+    default:            return 'conversation';
+  }
+}
+
+function mapWaMessageRow(raw: WaMessagesRealtimeRow): WaMessageRow {
+  return {
+    id: raw.id,
+    business_id: raw.business_id,
+    instance_id: raw.instance_id,
+    contact_id: raw.contact_id,
+    remote_jid: raw.wa_remote_jid,
+    message_id: raw.wa_message_id,
+    type: kindToLegacyType(raw.message_kind),
+    content: raw.text_content,
+    media_url: null, // fetched lazily through evolution-client when needed
+    // wa_messages uses 'in'/'out'; downstream code expects 'incoming'/'outgoing'
+    direction: raw.direction === 'in' ? 'incoming' : raw.direction === 'out' ? 'outgoing' : raw.direction,
+    status: raw.status || 'sent',
+    created_at: raw.wa_timestamp || raw.received_at || new Date().toISOString(),
+    raw_key: null,
+    conversation_id: raw.thread_id,
+    sender_jid: raw.wa_sender_jid,
+  };
+}
 
 /** whatsapp_conversations row shape verified via MCP. */
 type WaConversationRow = {
@@ -423,8 +503,11 @@ function Avatar({ name, size = 49, jid, picUrl, instanceName }: {
     // Already cached
     if (_avatarCache.has(cacheKey)) { setPic(_avatarCache.get(cacheKey)!); return; }
 
-    // No pic URL available — keep existing cache if we have one, don't overwrite with null
-    if (!picUrl || !instanceName) {
+    // Need at least an instance + a JID/phone to attempt any fetch.
+    // Owner avatars use synthetic keys like `owner_<instanceName>` where jid
+    // isn't a real JID — skip lazy fetch for those.
+    const isOwnerKey = cacheKey.startsWith('owner_');
+    if (!instanceName || isOwnerKey || (!picUrl && !jid)) {
       if (!_avatarCache.has(cacheKey)) _avatarCache.set(cacheKey, null);
       return;
     }
@@ -433,8 +516,13 @@ function Avatar({ name, size = 49, jid, picUrl, instanceName }: {
     const doFetch = async () => {
       let promise = _avatarInflight.get(cacheKey);
       if (!promise) {
-        // Proxy the profilePicUrl through our edge function (server-side fetch, returns base64)
-        promise = whatsappService.invokeClient('proxy-image', { instanceName, url: picUrl })
+        // Prefer the already-known URL. Otherwise ask the edge function to
+        // resolve it from Evolution by JID/number — it also persists the
+        // URL to wa_contacts so the next user skips the roundtrip.
+        const body = picUrl
+          ? { instanceName, url: picUrl }
+          : { instanceName, jid };
+        promise = whatsappService.invokeClient('proxy-image', body)
           .then((d: { base64?: string } | null) => d?.base64 || null)
           .catch(() => null)
           .finally(() => _avatarInflight.delete(cacheKey));
@@ -446,7 +534,7 @@ function Avatar({ name, size = 49, jid, picUrl, instanceName }: {
     };
     doFetch();
     return () => { cancelled = true; };
-  }, [cacheKey, picUrl, instanceName]);
+  }, [cacheKey, picUrl, instanceName, jid]);
 
   if (pic) {
     return <img src={pic} alt="" className="rounded-full object-cover flex-shrink-0"
@@ -821,9 +909,10 @@ function DocumentBubble({ msgKey, instanceName, fileName, mimetype, fileSize, pa
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chatProfilePic, ownerPic, chatName, onStar, onReply, onReact, onDelete, onForward, onTogglePin }: {
+function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chatProfilePic, ownerPic, chatName, showTail = true, onStar, onReply, onReact, onDelete, onForward, onTogglePin }: {
   msg: EvolutionMessage; isStarred: boolean; isPinned: boolean; reactions?: string[];
   instanceName: string; chatProfilePic?: string | null; ownerPic?: string | null; chatName?: string;
+  showTail?: boolean;
   onStar: (msgId: string) => void;
   onReply: (msg: EvolutionMessage) => void;
   onReact: (msgKey: { remoteJid: string; fromMe: boolean; id: string }, reaction: string) => void;
@@ -910,19 +999,21 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
   };
 
   return (
-    <div className={`flex flex-col ${isOut ? 'items-end' : 'items-start'} mb-[2px] px-[63px] group`} data-msg-id={msg.key.id}>
+    <div className={`flex flex-col ${isOut ? 'items-end' : 'items-start'} ${showTail ? 'mt-[8px]' : 'mt-[2px]'} px-[63px] group`} data-msg-id={msg.key.id}>
       <div className="relative">
         <div
           className={`relative max-w-[500px] px-[9px] pt-[6px] pb-[8px] rounded-[7.5px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
-            isOut ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
-          }`}
+            isOut ? 'bg-[#005c4b] text-[#e9edef]' : 'bg-[#202c33] text-[#e9edef]'
+          } ${showTail ? (isOut ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
           onMouseEnter={() => setShowHover(true)}
           onMouseLeave={() => setShowHover(false)}
           onContextMenu={(e) => { e.preventDefault(); setShowCtxMenu({ x: e.clientX, y: e.clientY }); }}
         >
-          <span className={`absolute top-0 w-[8px] h-[13px] ${isOut ? '-right-[8px]' : '-left-[8px]'}`}
-            style={{ background: isOut ? '#005c4b' : '#202c33', clipPath: isOut ? 'polygon(0 0, 0 100%, 100% 0)' : 'polygon(100% 0, 0 0, 100% 100%)' }}
-          />
+          {showTail && (
+            <span className={`absolute top-0 w-[8px] h-[13px] ${isOut ? '-right-[8px]' : '-left-[8px]'}`}
+              style={{ background: isOut ? '#005c4b' : '#202c33', clipPath: isOut ? 'polygon(0 0, 0 100%, 100% 0)' : 'polygon(100% 0, 0 0, 100% 100%)' }}
+            />
+          )}
           {/* Hover chevron */}
           {showHover && !showCtxMenu && (
             <button onClick={(e) => { e.stopPropagation(); setShowCtxMenu({ x: e.clientX, y: e.clientY }); }}
@@ -999,15 +1090,47 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
             const urlMatch = text.match(URL_REGEX);
             return urlMatch ? <LinkPreviewCard url={urlMatch[0]} isOut={isOut} /> : null;
           })()}
-          {text && t !== 'documentMessage' && <span className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words"><LinkifyText text={text} /></span>}
-          {/* Hide default timestamp for audio — VoiceNotePlayer renders its own */}
-          {t !== 'audioMessage' && t !== 'documentMessage' && t !== 'imageMessage' && t !== 'videoMessage' && (
-            <span className="float-right mt-[4px] ml-[8px] flex items-center gap-[2px]">
-              {isStarred && <Star className="w-3 h-3 text-[#f7c948] fill-[#f7c948]" />}
-              <span className="text-[11px] text-[#ffffff99] leading-[15px]">{formatTime(msg.messageTimestamp)}</span>
-              {isOut && <StatusTicks status={status} />}
-            </span>
-          )}
+          {(() => {
+            // The bubble's own timestamp only renders for plain text messages
+            // (media types render their own inside the media component).
+            const hasBubbleTimestamp =
+              t !== 'audioMessage' && t !== 'documentMessage' &&
+              t !== 'imageMessage' && t !== 'videoMessage';
+
+            // Estimated width of the inline timestamp+ticks block. Used as an
+            // invisible phantom at the end of the text to reserve space on the
+            // last line, preventing the classic WhatsApp-caption-wrap bug
+            // where the timestamp gets pushed onto its own line below.
+            //   ~50px "09:00 PM"
+            //  +30px for the double-tick icon when outgoing
+            //  +14px for a starred star icon
+            //  +10px of breathing room
+            const tsWidth = 50 + (isOut ? 30 : 0) + (isStarred ? 14 : 0) + 10;
+
+            return (
+              <>
+                {text && t !== 'documentMessage' && (
+                  <span className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
+                    <LinkifyText text={text} />
+                    {hasBubbleTimestamp && (
+                      <span
+                        aria-hidden="true"
+                        className="inline-block align-baseline"
+                        style={{ width: `${tsWidth}px`, height: '1px' }}
+                      />
+                    )}
+                  </span>
+                )}
+                {hasBubbleTimestamp && (
+                  <span className="absolute bottom-[4px] right-[8px] flex items-center gap-[2px] pointer-events-none select-none">
+                    {isStarred && <Star className="w-3 h-3 text-[#f7c948] fill-[#f7c948]" />}
+                    <span className="text-[11px] text-[#ffffff99] leading-[15px]">{formatTime(msg.messageTimestamp)}</span>
+                    {isOut && <StatusTicks status={status} />}
+                  </span>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Reactions display (below bubble, like WhatsApp) */}
@@ -1277,9 +1400,9 @@ function NewChatPanel({ instanceName, onSelectContact, onClose }: { instanceName
 
 // ── Lists Panel (WhatsApp-style side panel) ─────────────────────────────────
 
-function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId, instanceId, onUpdate, onClose }: {
+function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId, instanceId, instanceName, onUpdate, onClose }: {
   labels: Label[]; chatLabelsMap: Record<string, string[]>; chats: EvolutionChat[];
-  selectedChatJid?: string; businessId: string; instanceId?: string | null; onUpdate: () => void; onClose: () => void;
+  selectedChatJid?: string; businessId: string; instanceId?: string | null; instanceName?: string | null; onUpdate: () => void; onClose: () => void;
 }) {
   const [view, setView] = useState<'overview' | 'editor' | 'picker'>('overview');
   const [editingLabel, setEditingLabel] = useState<Label | null>(null);
@@ -1441,7 +1564,7 @@ function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId,
           {pickerChats.map(c => (
             <button key={c.remoteJid} onClick={() => addMember(c.remoteJid)}
               className="w-full flex items-center gap-[13px] px-[13px] py-[10px] hover:bg-[#202c33] transition-colors">
-              <Avatar name={c.pushName || '?'} jid={c.remoteJid} picUrl={c.profilePicUrl} />
+              <Avatar name={c.pushName || '?'} jid={c.remoteJid} picUrl={c.profilePicUrl} instanceName={instanceName || undefined} />
               <div className="text-left border-b border-[#222d34] flex-1 py-[10px]">
                 <div className="text-[17px] text-[#e9edef]">{c.pushName || c.remoteJid}</div>
               </div>
@@ -1504,7 +1627,7 @@ function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId,
           {editorMembers.map(jid => (
             <div key={jid} className="flex items-center gap-[13px] py-[10px] px-1 group">
               <Avatar name={getChatName(jid)} jid={jid}
-                picUrl={chats.find(c => c.remoteJid === jid)?.profilePicUrl} />
+                picUrl={chats.find(c => c.remoteJid === jid)?.profilePicUrl} instanceName={instanceName || undefined} />
               <div className="flex-1 border-b border-[#222d34] py-[6px]">
                 <div className="text-[17px] text-[#e9edef]">{getChatName(jid)}</div>
               </div>
@@ -2316,10 +2439,10 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       currentInstanceId = instData?.id || null;
 
     channel = supabase.channel(`whatsapp_inbox_rt_${instanceName}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_messages' }, (payload) => {
         // Optimistically update chat list preview + order from the realtime payload
         if (payload.new) {
-          const nm = payload.new as WaMessageRow;
+          const nm = mapWaMessageRow(payload.new as WaMessagesRealtimeRow);
           // Skip messages from other instances
           if (currentInstanceId && nm.instance_id !== currentInstanceId) return;
           const jid = nm.remote_jid;
@@ -2358,7 +2481,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         // For messages: append the new message directly instead of reloading everything
         const current = selectedChatRef.current;
         if (current && payload.new) {
-          const newMsg = payload.new as WaMessageRow;
+          const newMsg = mapWaMessageRow(payload.new as WaMessagesRealtimeRow);
           // Match by conversation UUID first, then JID, then cross-JID
           let matchesCurrent = false;
           if (current.dbConvId && newMsg.conversation_id) {
@@ -2451,10 +2574,10 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
           }
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_messages' }, (payload) => {
         // Update message ticks in the thread in realtime
         if (payload.new) {
-          const updated = payload.new as WaMessageRow;
+          const updated = mapWaMessageRow(payload.new as WaMessagesRealtimeRow);
           if (currentInstanceId && updated.instance_id !== currentInstanceId) return;
           const msgId = updated.message_id;
           const newStatus = updated.status; // 'sent' | 'delivered' | 'read'
@@ -2488,79 +2611,53 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
           }
         }
       })
-      // Subscribe to conversation updates (handles chat list refresh from webhook-driven conversation upserts)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversations' }, (payload) => {
-        if (payload.new) {
-          const conv = payload.new as WaConversationRow;
-          if (currentInstanceId && conv.instance_id !== currentInstanceId) return;
+      // Subscribe to thread metadata (last_message_*, reorder on new activity).
+      // wa_threads carries no JID/display_name/pic — those live in
+      // wa_contacts/wa_groups. The UI already has them in local state, so on
+      // UPDATE we patch lastMessage + reorder by dbConvId (thread.id). On
+      // INSERT (brand-new thread) we do a full refresh to pull the fresh
+      // contact/group details joined in by fetchChats.
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_threads' }, (payload) => {
+        if (!payload.new) return;
+        const t = payload.new as WaThreadsRealtimeRow;
+        if (currentInstanceId && t.instance_id !== currentInstanceId) return;
 
-          // Resolve display name
-          const map = lidToPhoneRef.current;
-          let displayName = conv.display_name || '';
-          if (!displayName) {
-            if (conv.jid.includes('@s.whatsapp.net')) displayName = '+' + conv.jid.split('@')[0];
-            else if (conv.jid.includes('@lid')) {
-              const phoneJid = map[conv.jid] || conv.phone_jid;
-              displayName = phoneJid ? '+' + phoneJid.split('@')[0] : '#' + conv.jid.split('@')[0];
-            } else displayName = conv.jid.split('@')[0];
+        setChats(prev => {
+          const idx = prev.findIndex(c => c.dbConvId === t.id);
+          if (idx === -1) return prev; // unknown thread — INSERT handler below will refresh
+
+          const updated = [...prev];
+          const chat = { ...updated[idx] };
+
+          const ts = t.last_message_at
+            ? Math.floor(new Date(t.last_message_at).getTime() / 1000)
+            : chat.lastMessage?.messageTimestamp || 0;
+
+          chat.lastMessage = t.last_message_id ? {
+            key: { id: t.last_message_id, fromMe: t.last_message_direction === 'out' },
+            pushName: t.last_message_direction === 'out' ? 'You' : chat.pushName,
+            messageType: kindToLegacyType(t.last_message_kind),
+            message: { conversation: t.last_message_preview || undefined },
+            messageTimestamp: ts,
+            status: t.last_message_status || 'sent',
+          } : null;
+          chat.updatedAt = t.last_message_at || t.updated_at || chat.updatedAt;
+
+          updated[idx] = chat;
+          if (t.last_message_at) {
+            const [item] = updated.splice(idx, 1);
+            updated.unshift(item);
           }
-
-          const ts = conv.last_message_ts ? Math.floor(new Date(conv.last_message_ts).getTime() / 1000) : 0;
-          const chatType: EvolutionChat['type'] = (conv.type === 'group' || conv.type === 'broadcast') ? conv.type : 'individual';
-          const chatEntry: EvolutionChat = {
-            id: conv.jid,
-            remoteJid: conv.jid,
-            dbConvId: conv.id, // critical: include UUID for reliable matching
-            pushName: displayName,
-            profilePicUrl: conv.profile_pic || null,
-            updatedAt: conv.last_message_ts || conv.updated_at || '',
-            type: chatType,
-            groupId: conv.group_id || null,
-            lastMessage: conv.last_message_id ? {
-              key: { id: conv.last_message_id, fromMe: conv.last_message_direction === 'outgoing' },
-              pushName: conv.last_message_direction === 'outgoing' ? 'You' : displayName,
-              messageType: conv.last_message_type || 'conversation',
-              message: { conversation: conv.last_message_content || undefined },
-              messageTimestamp: ts,
-              status: conv.last_message_status || 'sent',
-            } : null,
-            unreadCount: conv.unread_count || 0,
-          };
-
-          setChats(prev => {
-            // Match by conversation UUID first, then by JID, then by phone/lid cross-ref
-            let idx = prev.findIndex(c => c.dbConvId === conv.id);
-            if (idx === -1) idx = prev.findIndex(c => c.remoteJid === conv.jid);
-            if (idx === -1 && conv.phone_jid) idx = prev.findIndex(c => c.remoteJid === conv.phone_jid);
-            if (idx === -1 && conv.lid_jid) idx = prev.findIndex(c => c.remoteJid === conv.lid_jid);
-
-            if (idx >= 0) {
-              const updated = [...prev];
-              // Preserve existing profile pic if the update doesn't have one
-              if (!chatEntry.profilePicUrl && updated[idx].profilePicUrl) {
-                chatEntry.profilePicUrl = updated[idx].profilePicUrl;
-              }
-              // If this is the currently open chat, force unread to 0
-              const isCurrentChat = selectedChatRef.current?.dbConvId === conv.id
-                || selectedChatRef.current?.remoteJid === conv.jid;
-              if (isCurrentChat) {
-                chatEntry.unreadCount = 0;
-                // Reset in DB too (fire-and-forget)
-                if ((conv.unread_count || 0) > 0) {
-                  db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', conv.id).then(() => {});
-                }
-              }
-              updated[idx] = { ...updated[idx], ...chatEntry };
-              if (conv.last_message_ts) {
-                const [item] = updated.splice(idx, 1);
-                updated.unshift(item);
-              }
-              return updated;
-            }
-            // New conversation — prepend
-            return [chatEntry, ...prev];
-          });
-        }
+          return updated;
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_threads' }, (payload) => {
+        if (!payload.new) return;
+        const t = payload.new as WaThreadsRealtimeRow;
+        if (currentInstanceId && t.instance_id !== currentInstanceId) return;
+        // New thread — the joined contact/group details aren't in the raw row.
+        // Pull the fresh list which includes the new thread already enriched.
+        fetchChatsRef.current();
       })
       .subscribe();
     })(); // end async IIFE
@@ -2874,9 +2971,9 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       [chat.remoteJid]: { ...prev[chat.remoteJid], remote_jid: chat.remoteJid, last_read_at: nowTs } as ChatSettings,
     }));
     if (businessId) {
-      db.from('whatsapp_chat_settings').upsert(
-        { business_id: businessId, instance_id: instanceId, remote_jid: chat.remoteJid, last_read_at: nowTs },
-        { onConflict: 'business_id, instance_id, remote_jid' }
+      // View's INSTEAD OF INSERT trigger handles (user_id, thread_id) conflict internally
+      db.from('whatsapp_chat_settings').insert(
+        { business_id: businessId, instance_id: instanceId, remote_jid: chat.remoteJid, last_read_at: nowTs }
       ).then(() => {});
     }
     // Also send read receipt to WhatsApp (best-effort, doesn't affect our unread tracking)
@@ -2971,36 +3068,13 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       const realId = result?.key?.id || optId;
       const now = new Date().toISOString();
 
-      // 4. Update optimistic with real ID
+      // 4. Update optimistic with real ID so webhook echo deduplicates
       setMessages(prev => prev.map(m => m.id === optId ? { ...m, id: realId, key: { ...m.key, id: realId } } : m));
 
-      // 5. Write to DB (webhook doesn't fire for API-sent messages)
+      // Server-side echo in evolution-client already wrote the row into wa_messages
+      // via wa_dispatch_event. Re-fetch after a beat to pick up media URL that the
+      // real webhook will have populated.
       if (instanceId && businessId) {
-        // Fetch from Evolution API to get the real audio URL
-        let mediaUrl: string | null = null;
-        try {
-          const msgData = await whatsappService.findMessages(instanceName, chatJid, 1);
-          const latest = msgData?.messages?.records?.[0] || msgData?.records?.[0];
-          if (latest?.key?.id === realId && latest?.message?.audioMessage?.url) {
-            mediaUrl = latest.message.audioMessage.url;
-          }
-        } catch { /* best effort */ }
-
-        await db.from('whatsapp_messages').upsert({
-          business_id: businessId, instance_id: instanceId,
-          conversation_id: convId || null, remote_jid: chatJid,
-          message_id: realId, type: 'audioMessage',
-          content: '[Voice message]', media_url: mediaUrl,
-          direction: 'outgoing', status: 'sent', created_at: now,
-        }, { onConflict: 'message_id' });
-        if (convId) {
-          await db.from('whatsapp_conversations').update({
-            last_message_content: '[Voice message]', last_message_type: 'audioMessage',
-            last_message_direction: 'outgoing', last_message_ts: now, last_message_status: 'sent', updated_at: now,
-          }).eq('id', convId);
-        }
-
-        // Reload to get proper audio player rendering
         setTimeout(() => {
           const c = selectedChatRef.current;
           if (c) fetchMessages(c.remoteJid, c.dbConvId);
@@ -3072,37 +3146,12 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       const realId = result?.key?.id || optId;
       const now = new Date().toISOString();
 
-      // 4. Update optimistic with real ID
+      // 4. Update optimistic with real ID so webhook echo deduplicates
       setMessages(prev => prev.map(m => m.id === optId ? { ...m, id: realId, key: { ...m.key, id: realId } } : m));
 
-      // 5. Write to DB (webhook doesn't fire for API-sent messages)
+      // Server-side echo in evolution-client already wrote the row into wa_messages.
+      // Re-fetch after a beat to pick up media URL once the real webhook lands.
       if (instanceId && businessId) {
-        // Fetch from Evolution API to get the real media URL
-        let mediaUrl: string | null = null;
-        try {
-          const msgData = await whatsappService.findMessages(instanceName, chatJid, 1);
-          const latest = msgData?.messages?.records?.[0] || msgData?.records?.[0];
-          if (latest?.key?.id === realId) {
-            const m = latest.message || {};
-            mediaUrl = m.imageMessage?.url || m.videoMessage?.url || m.documentMessage?.url || null;
-          }
-        } catch { /* best effort */ }
-
-        await db.from('whatsapp_messages').upsert({
-          business_id: businessId, instance_id: instanceId,
-          conversation_id: convId || null, remote_jid: chatJid,
-          message_id: realId, type: msgType,
-          content: contentPreview, media_url: mediaUrl,
-          direction: 'outgoing', status: 'sent', created_at: now,
-        }, { onConflict: 'message_id' });
-        if (convId) {
-          await db.from('whatsapp_conversations').update({
-            last_message_content: listPreview, last_message_type: msgType,
-            last_message_direction: 'outgoing', last_message_ts: now, last_message_status: 'sent', updated_at: now,
-          }).eq('id', convId);
-        }
-
-        // Reload to get proper rendering
         setTimeout(() => {
           const c = selectedChatRef.current;
           if (c) fetchMessages(c.remoteJid, c.dbConvId);
@@ -3134,9 +3183,8 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       ...prev,
       [jid]: { ...prev[jid], remote_jid: jid, [field]: value } as ChatSettings,
     }));
-    await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, instance_id: instanceId, remote_jid: jid, [field]: value },
-      { onConflict: 'business_id, instance_id, remote_jid' }
+    await db.from('whatsapp_chat_settings').insert(
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, [field]: value }
     );
     loadMetadata();
   };
@@ -3167,9 +3215,8 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     if (!businessId) return;
     setChatSettings(prev => ({ ...prev, [jid]: { ...prev[jid], remote_jid: jid, is_archived: true } as ChatSettings }));
     if (selectedChat?.remoteJid === jid) setSelectedChat(null);
-    await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_archived: true },
-      { onConflict: 'business_id, instance_id, remote_jid' }
+    await db.from('whatsapp_chat_settings').insert(
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_archived: true }
     );
     loadMetadata();
     toast({ title: 'Chat archived' });
@@ -3179,9 +3226,8 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     if (!businessId) return;
     setChatSettings(prev => ({ ...prev, [jid]: { ...prev[jid], remote_jid: jid, is_blocked: true } as ChatSettings }));
     if (selectedChat?.remoteJid === jid) setSelectedChat(null);
-    await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_blocked: true },
-      { onConflict: 'business_id, instance_id, remote_jid' }
+    await db.from('whatsapp_chat_settings').insert(
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_blocked: true }
     );
     loadMetadata();
     toast({ title: 'Contact blocked' });
@@ -3191,9 +3237,8 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     if (!businessId) return;
     setChatSettings(prev => ({ ...prev, [jid]: { ...prev[jid], remote_jid: jid, is_archived: true } as ChatSettings }));
     if (selectedChat?.remoteJid === jid) setSelectedChat(null);
-    await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_archived: true },
-      { onConflict: 'business_id, instance_id, remote_jid' }
+    await db.from('whatsapp_chat_settings').insert(
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_archived: true }
     );
     // Also clean up labels
     await db.from('whatsapp_chat_labels').delete().eq('business_id', businessId).eq('remote_jid', jid);
@@ -3337,37 +3382,12 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       // Extract real message ID from API response (Evolution returns the key)
       const realMsgId = apiResult?.key?.id || `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-      // Persist to DB immediately — this is the primary write, not a fallback
-      // The webhook may also write this message (deduped by message_id)
+      // Server-side echo in evolution-client wrote the row into wa_messages
+      // via wa_dispatch_event before returning. Refresh will see it immediately.
+      // Webhook arrives later and UPSERTs the same (instance_id, wa_message_id) —
+      // monotonic status guard handles out-of-order acks.
       if (instanceId && businessId) {
-        const now = new Date().toISOString();
-        await db.from('whatsapp_messages').upsert({
-          business_id: businessId,
-          instance_id: instanceId,
-          conversation_id: convId || null,
-          remote_jid: selectedChat.remoteJid,
-          message_id: realMsgId,
-          type: 'conversation',
-          content: sentText,
-          direction: 'outgoing',
-          status: 'sent',
-          created_at: now,
-        }, { onConflict: 'message_id' });
-
-        // Update conversation last_message
-        if (convId) {
-          await db.from('whatsapp_conversations').update({
-            last_message_id: realMsgId,
-            last_message_content: sentText,
-            last_message_type: 'conversation',
-            last_message_direction: 'outgoing',
-            last_message_ts: now,
-            last_message_status: 'sent',
-            updated_at: now,
-          }).eq('id', convId);
-        }
-
-        // Update optimistic message with real ID so dedup works when webhook arrives
+        // Update optimistic message with real ID so webhook echo deduplicates
         setMessages(prev => prev.map(m =>
           m.id === optimisticMsg.id ? { ...m, id: realMsgId, key: { ...m.key, id: realMsgId } } : m
         ));
@@ -3631,6 +3651,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             selectedChatJid={selectedChat?.remoteJid}
             businessId={businessId}
             instanceId={instanceId}
+            instanceName={instanceName}
             onUpdate={loadMetadata}
             onClose={() => setSidePanel('none')}
           />
@@ -3908,16 +3929,26 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                       <div className="flex justify-center my-[12px]">
                         <span className="bg-[#182229] text-[#8696a0] text-[12.5px] px-[12px] py-[5px] rounded-[7.5px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">{group.label}</span>
                       </div>
-                      {group.messages.map((msg) => (
-                        <MessageBubble key={msg.id} msg={msg} isStarred={starredMsgIds.has(msg.key.id)}
-                          instanceName={instanceName!} chatProfilePic={selectedChat?.profilePicUrl} ownerPic={instanceProfile.profilePicUrl}
-                          chatName={selectedChat?.pushName || ''}
-                          reactions={reactionsMap[msg.key.id]}
-                          onStar={toggleStar} onReply={handleReply} onReact={handleReact}
-                          onDelete={handleDeleteMessage} onForward={handleForward}
-                          isPinned={pinnedMessage?.message_id === msg.key.id}
-                          onTogglePin={handleTogglePin} />
-                      ))}
+                      {group.messages.map((msg, i) => {
+                        // A bubble shows its tail (and extra top margin) when it
+                        // starts a new consecutive-same-sender run, matching real
+                        // WhatsApp. Grouping resets on sender change or > 60s gap.
+                        const prev = i > 0 ? group.messages[i - 1] : null;
+                        const sameSender = prev && prev.key.fromMe === msg.key.fromMe;
+                        const closeInTime = prev && (msg.messageTimestamp - prev.messageTimestamp) <= 60;
+                        const showTail = !prev || !sameSender || !closeInTime;
+                        return (
+                          <MessageBubble key={msg.id} msg={msg} isStarred={starredMsgIds.has(msg.key.id)}
+                            instanceName={instanceName!} chatProfilePic={selectedChat?.profilePicUrl} ownerPic={instanceProfile.profilePicUrl}
+                            chatName={selectedChat?.pushName || ''}
+                            reactions={reactionsMap[msg.key.id]}
+                            showTail={showTail}
+                            onStar={toggleStar} onReply={handleReply} onReact={handleReact}
+                            onDelete={handleDeleteMessage} onForward={handleForward}
+                            isPinned={pinnedMessage?.message_id === msg.key.id}
+                            onTogglePin={handleTogglePin} />
+                        );
+                      })}
                     </div>
                   ))
                 )}

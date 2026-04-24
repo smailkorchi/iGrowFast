@@ -1,0 +1,5 @@
+project_id = "zjkqprrfbibjoslvlmxf"
+
+[auth]
+password_requirements = "lower_upper_letters_digits"
+minimum_password_length = 8

@@ -134,17 +134,17 @@ export const whatsappService = {
     return this.invokeClient('handle-label', { instanceName, number, labelId, action });
   },
 
-  // ── Server-side sync (via evolution-sync edge function) ────────────
+  // ── Server-side sync (via evolution-sync-v2 edge function) ─────────
   async startSync(instanceId: string, instanceName: string, businessId: string, mode?: 'full' | 'essentials') {
-    const { data, error } = await supabase.functions.invoke('evolution-sync', {
-      body: { action: 'start', instance_id: instanceId, instance_name: instanceName, business_id: businessId, mode },
+    const { data, error } = await supabase.functions.invoke('evolution-sync-v2', {
+      body: { action: 'start', instance_id: instanceId, business_id: businessId, mode },
     });
     if (error) throw new Error(error.message);
     return data;
   },
 
   async cancelSync(jobId: string) {
-    const { data, error } = await supabase.functions.invoke('evolution-sync', {
+    const { data, error } = await supabase.functions.invoke('evolution-sync-v2', {
       body: { action: 'cancel', job_id: jobId },
     });
     if (error) throw new Error(error.message);
@@ -152,8 +152,8 @@ export const whatsappService = {
   },
 
   async retrySync(jobId: string) {
-    const { data, error } = await supabase.functions.invoke('evolution-sync', {
-      body: { action: 'retry', job_id: jobId },
+    const { data, error } = await supabase.functions.invoke('evolution-sync-v2', {
+      body: { action: 'continue', job_id: jobId },
     });
     if (error) throw new Error(error.message);
     return data;

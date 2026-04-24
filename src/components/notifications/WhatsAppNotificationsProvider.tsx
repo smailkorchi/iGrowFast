@@ -11,7 +11,7 @@ import { WhatsAppNotificationStack } from './WhatsAppNotificationCard';
 // All column types below verified via MCP against the live schema.
 const db = supabase as unknown as SupabaseClient;
 
-// whatsapp_messages row (INSERT payload)
+// Mapped row — code downstream keeps the legacy shape.
 type WaMessageRow = {
   message_id: string;
   conversation_id: string | null;
@@ -24,6 +24,62 @@ type WaMessageRow = {
   created_at: string;
   business_id: string;
 };
+
+// Raw `wa_messages` row delivered by Supabase Realtime (physical table).
+type WaMessagesRealtimeRow = {
+  id: string;
+  business_id: string;
+  instance_id: string;
+  thread_id: string | null;
+  contact_id: string | null;
+  wa_message_id: string;
+  wa_remote_jid: string;
+  wa_sender_jid: string | null;
+  direction: string;
+  message_kind: string | null;
+  text_content: string | null;
+  status: string | null;
+  wa_timestamp: string;
+  received_at: string | null;
+};
+
+// Reverse of wa_classify_message_kind — gives us Evolution-style messageType
+// for the UI code that expects legacy shapes.
+function kindToLegacyType(kind: string | null | undefined): string {
+  switch (kind) {
+    case 'text':        return 'conversation';
+    case 'image':       return 'imageMessage';
+    case 'video':       return 'videoMessage';
+    case 'audio':       return 'audioMessage';
+    case 'document':    return 'documentMessage';
+    case 'sticker':     return 'stickerMessage';
+    case 'location':    return 'locationMessage';
+    case 'contact':     return 'contactMessage';
+    case 'reaction':    return 'reactionMessage';
+    case 'poll':        return 'pollCreationMessage';
+    case 'list':        return 'listMessage';
+    case 'button':      return 'buttonsMessage';
+    case 'interactive': return 'interactiveMessage';
+    case 'album':       return 'albumMessage';
+    default:            return 'conversation';
+  }
+}
+
+function mapWaMessageRow(raw: WaMessagesRealtimeRow): WaMessageRow {
+  return {
+    message_id: raw.wa_message_id,
+    conversation_id: raw.thread_id,
+    remote_jid: raw.wa_remote_jid,
+    instance_id: raw.instance_id,
+    sender_jid: raw.wa_sender_jid,
+    // wa_messages uses 'in'/'out'; downstream code expects 'incoming'/'outgoing'
+    direction: raw.direction === 'in' ? 'incoming' : raw.direction === 'out' ? 'outgoing' : raw.direction,
+    type: kindToLegacyType(raw.message_kind),
+    content: raw.text_content,
+    created_at: raw.wa_timestamp || raw.received_at || new Date().toISOString(),
+    business_id: raw.business_id,
+  };
+}
 
 type WaConversationRow = {
   id: string;
@@ -276,7 +332,7 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
             {
               event: '*',
               schema: 'public',
-              table: 'whatsapp_sync_jobs',
+              table: 'wa_sync_jobs',
               filter: `business_id=eq.${businessId}`,
             },
             (payload: { new?: { instance_id?: string; status?: string }; old?: { instance_id?: string } }) => {
@@ -312,11 +368,11 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'whatsapp_messages',
+            table: 'wa_messages',
             filter: `business_id=eq.${businessId}`,
           },
-          async (payload: RealtimePostgresInsertPayload<WaMessageRow>) => {
-            const row = payload.new;
+          async (payload: RealtimePostgresInsertPayload<WaMessagesRealtimeRow>) => {
+            const row = payload.new ? mapWaMessageRow(payload.new) : null;
             log('event recv', { msg_id: row?.message_id, dir: row?.direction, inst: row?.instance_id });
             if (!row) return;
 
