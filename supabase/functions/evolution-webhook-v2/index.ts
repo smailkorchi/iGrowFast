@@ -206,8 +206,10 @@ Deno.serve(async (req) => {
         status: 200, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
+    // Real DB error → return 5xx so Evolution retries. Silent 200s on enqueue
+    // failure would lose the event forever.
     return new Response(JSON.stringify({ ok: false, error: insErr.message }), {
-      status: 200, headers: { ...cors, "Content-Type": "application/json" },
+      status: 503, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 

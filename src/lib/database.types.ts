@@ -125,89 +125,6 @@ export type Database = {
           },
         ]
       }
-      ai_keys: {
-        Row: {
-          api_key: string
-          base_url: string | null
-          created_at: string | null
-          "DigiCom Business": string | null
-          id: string
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          api_key: string
-          base_url?: string | null
-          created_at?: string | null
-          "DigiCom Business"?: string | null
-          id?: string
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          api_key?: string
-          base_url?: string | null
-          created_at?: string | null
-          "DigiCom Business"?: string | null
-          id?: string
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_keys_business_fkey"
-            columns: ["DigiCom Business"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ai_models: {
-        Row: {
-          ai_key_id: string | null
-          concurrency_limit: number | null
-          created_at: string | null
-          "DigiCom Business": string | null
-          id: string
-          name: string
-          type: string
-        }
-        Insert: {
-          ai_key_id?: string | null
-          concurrency_limit?: number | null
-          created_at?: string | null
-          "DigiCom Business"?: string | null
-          id?: string
-          name: string
-          type: string
-        }
-        Update: {
-          ai_key_id?: string | null
-          concurrency_limit?: number | null
-          created_at?: string | null
-          "DigiCom Business"?: string | null
-          id?: string
-          name?: string
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_models_ai_key_id_fkey"
-            columns: ["ai_key_id"]
-            isOneToOne: false
-            referencedRelation: "ai_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ai_models_business_fkey"
-            columns: ["DigiCom Business"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ameex_cities: {
         Row: {
           ameex_city_id: string
@@ -4498,14 +4415,14 @@ export type Database = {
             foreignKeyName: "wa_auto_replies_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_auto_replies_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -4520,6 +4437,60 @@ export type Database = {
             columns: ["media_id"]
             isOneToOne: false
             referencedRelation: "wa_media"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_avatar_fetch_queue: {
+        Row: {
+          attempts: number
+          business_id: string
+          contact_id: string
+          enqueued_at: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          next_try_at: string
+          priority: number
+          processed_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          business_id: string
+          contact_id: string
+          enqueued_at?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_try_at?: string
+          priority?: number
+          processed_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          business_id?: string
+          contact_id?: string
+          enqueued_at?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_try_at?: string
+          priority?: number
+          processed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_avatar_fetch_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_avatar_fetch_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -4626,13 +4597,6 @@ export type Database = {
             foreignKeyName: "wa_group_participants_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_group_participants_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
@@ -4719,14 +4683,14 @@ export type Database = {
             foreignKeyName: "wa_groups_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_groups_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -4853,13 +4817,6 @@ export type Database = {
             foreignKeyName: "wa_jid_aliases_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_jid_aliases_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
@@ -4908,14 +4865,14 @@ export type Database = {
             foreignKeyName: "wa_labels_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_labels_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -5117,13 +5074,6 @@ export type Database = {
             foreignKeyName: "wa_messages_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
@@ -5138,14 +5088,14 @@ export type Database = {
             foreignKeyName: "wa_messages_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_messages_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -5173,13 +5123,6 @@ export type Database = {
             foreignKeyName: "wa_messages_reply_to_message_id_fkey"
             columns: ["reply_to_message_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_reply_to_message_id_fkey"
-            columns: ["reply_to_message_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
@@ -5188,13 +5131,6 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: false
             referencedRelation: "wa_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
             referencedColumns: ["id"]
           },
           {
@@ -5299,13 +5235,6 @@ export type Database = {
             foreignKeyName: "wa_reactions_message_id_fkey"
             columns: ["message_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_reactions_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
@@ -5314,13 +5243,6 @@ export type Database = {
             columns: ["reactor_contact_id"]
             isOneToOne: false
             referencedRelation: "wa_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_reactions_reactor_contact_id_fkey"
-            columns: ["reactor_contact_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
             referencedColumns: ["id"]
           },
           {
@@ -5396,14 +5318,14 @@ export type Database = {
             foreignKeyName: "wa_sync_jobs_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_sync_jobs_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -5457,13 +5379,6 @@ export type Database = {
             foreignKeyName: "wa_thread_labels_thread_id_fkey"
             columns: ["thread_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_thread_labels_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
             referencedRelation: "wa_v_thread_with_state"
             referencedColumns: ["thread_id"]
           },
@@ -5507,13 +5422,6 @@ export type Database = {
             foreignKeyName: "wa_thread_pinned_message_id_fkey"
             columns: ["message_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_thread_pinned_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
@@ -5529,13 +5437,6 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: true
             referencedRelation: "wa_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: true
-            referencedRelation: "wa_v_legacy_conversations"
             referencedColumns: ["id"]
           },
           {
@@ -5571,6 +5472,7 @@ export type Database = {
           last_message_sender_jid: string | null
           last_message_status: string | null
           message_count: number
+          unread_count: number
           updated_at: string
         }
         Insert: {
@@ -5589,6 +5491,7 @@ export type Database = {
           last_message_sender_jid?: string | null
           last_message_status?: string | null
           message_count?: number
+          unread_count?: number
           updated_at?: string
         }
         Update: {
@@ -5607,6 +5510,7 @@ export type Database = {
           last_message_sender_jid?: string | null
           last_message_status?: string | null
           message_count?: number
+          unread_count?: number
           updated_at?: string
         }
         Relationships: [
@@ -5622,13 +5526,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "wa_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
             referencedColumns: ["id"]
           },
           {
@@ -5656,14 +5553,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -5678,13 +5575,6 @@ export type Database = {
             columns: ["last_message_id"]
             isOneToOne: false
             referencedRelation: "wa_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_last_message_fk"
-            columns: ["last_message_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
             referencedColumns: ["id"]
           },
           {
@@ -5773,13 +5663,6 @@ export type Database = {
             foreignKeyName: "wa_user_starred_message_id_fkey"
             columns: ["message_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_user_starred_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
@@ -5844,13 +5727,6 @@ export type Database = {
             foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
             columns: ["last_read_message_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
-            columns: ["last_read_message_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
@@ -5859,13 +5735,6 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: false
             referencedRelation: "wa_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
             referencedColumns: ["id"]
           },
           {
@@ -5939,14 +5808,14 @@ export type Database = {
             foreignKeyName: "wa_webhook_events_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_webhook_events_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6055,147 +5924,51 @@ export type Database = {
           },
         ]
       }
-      wa_v_legacy_contacts: {
+      wa_instance_health: {
         Row: {
           business_id: string | null
-          created_at: string | null
+          health: string | null
           id: string | null
-          instance_id: string | null
-          name: string | null
-          phone_number: string | null
-          profile_pic: string | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wa_contacts_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      wa_v_legacy_conversations: {
-        Row: {
-          business_id: string | null
-          contact_id: string | null
-          created_at: string | null
-          display_name: string | null
-          group_id: string | null
-          id: string | null
-          instance_id: string | null
-          jid: string | null
-          last_message_content: string | null
-          last_message_direction: string | null
-          last_message_id: string | null
-          last_message_status: string | null
-          last_message_ts: string | null
-          last_message_type: string | null
-          lid_jid: string | null
+          last_event_at: string | null
           message_count: number | null
-          phone_jid: string | null
-          profile_pic: string | null
-          type: string | null
-          unread_count: number | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wa_threads_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "wa_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "wa_groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "wa_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      wa_v_legacy_instances: {
-        Row: {
-          business_id: string | null
-          created_at: string | null
-          id: string | null
-          instance_name: string | null
-          phone_number: string | null
-          profile_pic: string | null
+          name: string | null
+          paired_at: string | null
+          queue_dead: number | null
+          queue_pending: number | null
           status: string | null
-          updated_at: string | null
+          status_changed_at: string | null
+          thread_count: number | null
+          time_since_event: string | null
         }
         Insert: {
           business_id?: string | null
-          created_at?: string | null
+          health?: never
           id?: string | null
-          instance_name?: string | null
-          phone_number?: string | null
-          profile_pic?: string | null
+          last_event_at?: string | null
+          message_count?: never
+          name?: string | null
+          paired_at?: string | null
+          queue_dead?: never
+          queue_pending?: never
           status?: string | null
-          updated_at?: string | null
+          status_changed_at?: string | null
+          thread_count?: never
+          time_since_event?: never
         }
         Update: {
           business_id?: string | null
-          created_at?: string | null
+          health?: never
           id?: string | null
-          instance_name?: string | null
-          phone_number?: string | null
-          profile_pic?: string | null
+          last_event_at?: string | null
+          message_count?: never
+          name?: string | null
+          paired_at?: string | null
+          queue_dead?: never
+          queue_pending?: never
           status?: string | null
-          updated_at?: string | null
+          status_changed_at?: string | null
+          thread_count?: never
+          time_since_event?: never
         }
         Relationships: [
           {
@@ -6203,104 +5976,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      wa_v_legacy_messages: {
-        Row: {
-          business_id: string | null
-          contact_id: string | null
-          content: string | null
-          conversation_id: string | null
-          created_at: string | null
-          direction: string | null
-          id: string | null
-          instance_id: string | null
-          media_url: string | null
-          message_id: string | null
-          raw_key: Json | null
-          remote_jid: string | null
-          sender_jid: string | null
-          status: string | null
-          type: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wa_messages_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "wa_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "wa_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_thread_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "wa_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_thread_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_thread_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_thread_with_state"
-            referencedColumns: ["thread_id"]
-          },
-          {
-            foreignKeyName: "wa_messages_thread_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -6356,13 +6031,6 @@ export type Database = {
             foreignKeyName: "wa_threads_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
@@ -6384,14 +6052,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6412,13 +6080,6 @@ export type Database = {
             foreignKeyName: "wa_threads_last_message_fk"
             columns: ["last_message_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_last_message_fk"
-            columns: ["last_message_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
@@ -6427,13 +6088,6 @@ export type Database = {
             columns: ["last_read_message_id"]
             isOneToOne: false
             referencedRelation: "wa_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_user_thread_state_last_read_message_id_fkey"
-            columns: ["last_read_message_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
             referencedColumns: ["id"]
           },
           {
@@ -6498,14 +6152,14 @@ export type Database = {
             foreignKeyName: "wa_auto_replies_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_auto_replies_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6552,13 +6206,6 @@ export type Database = {
             foreignKeyName: "wa_thread_labels_thread_id_fkey"
             columns: ["id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_thread_labels_thread_id_fkey"
-            columns: ["id"]
-            isOneToOne: false
             referencedRelation: "wa_v_thread_with_state"
             referencedColumns: ["thread_id"]
           },
@@ -6580,14 +6227,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6627,14 +6274,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6649,13 +6296,6 @@ export type Database = {
             columns: ["id"]
             isOneToOne: false
             referencedRelation: "wa_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_user_thread_state_thread_id_fkey"
-            columns: ["id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
             referencedColumns: ["id"]
           },
           {
@@ -6738,13 +6378,6 @@ export type Database = {
             foreignKeyName: "wa_threads_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_threads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
@@ -6766,14 +6399,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6918,14 +6551,14 @@ export type Database = {
             foreignKeyName: "wa_groups_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_groups_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -7037,14 +6670,14 @@ export type Database = {
             foreignKeyName: "wa_labels_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_labels_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -7093,13 +6726,6 @@ export type Database = {
             foreignKeyName: "wa_messages_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
             referencedRelation: "whatsapp_contacts"
             referencedColumns: ["id"]
           },
@@ -7107,14 +6733,14 @@ export type Database = {
             foreignKeyName: "wa_messages_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_messages_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -7129,13 +6755,6 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "wa_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_messages_thread_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_conversations"
             referencedColumns: ["id"]
           },
           {
@@ -7177,13 +6796,6 @@ export type Database = {
             foreignKeyName: "wa_thread_pinned_thread_id_fkey"
             columns: ["id"]
             isOneToOne: true
-            referencedRelation: "wa_v_legacy_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_thread_pinned_thread_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
             referencedRelation: "wa_v_thread_with_state"
             referencedColumns: ["thread_id"]
           },
@@ -7205,14 +6817,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -7246,14 +6858,14 @@ export type Database = {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_threads_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -7268,13 +6880,6 @@ export type Database = {
             columns: ["id"]
             isOneToOne: false
             referencedRelation: "wa_messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wa_user_starred_message_id_fkey"
-            columns: ["id"]
-            isOneToOne: false
-            referencedRelation: "wa_v_legacy_messages"
             referencedColumns: ["id"]
           },
           {
@@ -7353,14 +6958,14 @@ export type Database = {
             foreignKeyName: "wa_sync_jobs_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_instances"
+            referencedRelation: "wa_instance_health"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wa_sync_jobs_instance_id_fkey"
             columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "wa_v_legacy_instances"
+            referencedRelation: "wa_instances"
             referencedColumns: ["id"]
           },
           {
@@ -7557,11 +7162,34 @@ export type Database = {
         }
         Returns: string
       }
+      wa_avatar_claim_batch: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          out_attempts: number
+          out_business_id: string
+          out_contact_id: string
+          out_instance_name: string
+          out_jid: string
+          out_phone_e164: string
+          out_queue_id: string
+        }[]
+      }
+      wa_avatar_mark_processed: {
+        Args: { p_error?: string; p_queue_id: string; p_success: boolean }
+        Returns: undefined
+      }
+      wa_avatar_requeue_stale: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       wa_classify_message_kind: {
         Args: { p_message_type: string }
         Returns: string
       }
       wa_classify_status: { Args: { p_evo_status: string }; Returns: string }
+      wa_cleanup_avatar_queue: { Args: { p_keep?: string }; Returns: number }
+      wa_cleanup_webhook_events: { Args: { p_keep?: string }; Returns: number }
+      wa_detect_silent_instances: { Args: never; Returns: number }
       wa_dispatch_event: {
         Args: {
           p_event_type: string
@@ -7624,15 +7252,19 @@ export type Database = {
       }
       wa_jid_kind: { Args: { p_jid: string }; Returns: string }
       wa_jid_local: { Args: { p_jid: string }; Returns: string }
-      wa_mark_thread_read: {
-        Args: { p_message_id?: string; p_thread_id: string }
-        Returns: undefined
-      }
+      wa_mark_thread_read: { Args: { p_thread_id: string }; Returns: number }
       wa_message_preview: {
         Args: { p_kind: string; p_text: string }
         Returns: string
       }
       wa_normalize_phone: { Args: { p_jid: string }; Returns: string }
+      wa_reconcile_thread_metadata: { Args: never; Returns: number }
+      wa_reconcile_unread_bulk: {
+        Args: { p_chats: Json; p_instance_id: string }
+        Returns: number
+      }
+      wa_reconcile_unread_counts: { Args: never; Returns: number }
+      wa_reconcile_unread_from_events: { Args: never; Returns: number }
       wa_resolve_contact: {
         Args: {
           p_alt_jid?: string
@@ -7650,6 +7282,10 @@ export type Database = {
           p_instance_id: string
           p_kind: string
         }
+        Returns: string
+      }
+      wa_set_contact_profile_pic: {
+        Args: { p_evo_instance_name: string; p_jid: string; p_pic_url: string }
         Returns: string
       }
       wa_set_thread_pref: {
@@ -7833,3 +7469,4 @@ export const Constants = {
     },
   },
 } as const
+
