@@ -209,6 +209,42 @@ class ColiatyAdapter {
         return `Bearer ${this.apiKeyPublic}:${this.apiKeySecret}`;
     }
 
+    // Coliaty requires package_content between 5 and 100 characters.
+    // The wizard sends "CODE xN, CODE xN" which can blow past 100 chars on
+    // multi-SKU orders. Fall back to "{N} produits, {M} pieces" derived from
+    // the same string so we don't lose item/piece counts.
+    buildPackageContent(productInfo) {
+        const MIN = 5;
+        const MAX = 100;
+        const raw = String(productInfo || '').trim();
+
+        if (raw.length >= MIN && raw.length <= MAX) return raw;
+
+        let itemCount = 0;
+        let totalPieces = 0;
+        if (raw) {
+            const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+            itemCount = parts.length;
+            for (const p of parts) {
+                const m = p.match(/x(\d+)\s*$/i);
+                if (m) totalPieces += parseInt(m[1], 10);
+            }
+        }
+
+        if (itemCount > 0) {
+            const productLabel = itemCount === 1 ? 'produit' : 'produits';
+            const pieceLabel = totalPieces === 1 ? 'piece' : 'pieces';
+            const summary = totalPieces > 0
+                ? `${itemCount} ${productLabel}, ${totalPieces} ${pieceLabel}`
+                : `${itemCount} ${productLabel}`;
+            if (summary.length >= MIN && summary.length <= MAX) return summary;
+            if (summary.length > MAX) return summary.substring(0, MAX);
+        }
+
+        if (raw.length > MAX) return raw.substring(0, MAX);
+        return 'Colis';
+    }
+
     async getDashboardToken() {
         if (this.jwtToken && this.jwtExpiresAt && Date.now() < this.jwtExpiresAt - 300000) {
             return this.jwtToken;
@@ -299,7 +335,7 @@ class ColiatyAdapter {
             package_price: parcelData.cash_on_delivery || parcelData.cod_amount || 0,
             package_addresse: parcelData.receiver_address || parcelData.delivery_address,
             package_city: parcelData.coliaty_city_name || parcelData.city_name,
-            package_content: parcelData.product_info || '',
+            package_content: this.buildPackageContent(parcelData.product_info),
             package_note: parcelData.delivery_note || '',
             package_no_open: parcelData.no_open || false,
             package_replacement: parcelData.replaceable || false,
