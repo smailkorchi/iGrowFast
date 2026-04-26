@@ -91,7 +91,8 @@ import { Navigate } from "react-router-dom";
 // WhatsApp Imports
 import WhatsAppManager from "./pages/admin/business/WhatsAppManager";
 import WhatsAppInbox from "./pages/admin/business/WhatsAppInbox";
-import WhatsAppAutomations from "./pages/admin/business/WhatsAppAutomations";
+import AIBrainConsole from "./pages/admin/business/AIBrainConsole";
+import OwnerAIConsole from "./pages/owner/OwnerAIConsole";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
@@ -193,6 +194,7 @@ const App = () => (
                   <Route path="cities" element={<OwnerCities />} />
                   <Route path="zones" element={<OwnerZones />} />
                   <Route path="activity-log" element={<OwnerActivityLog />} />
+                  <Route path="ai" element={<OwnerAIConsole />} />
                   <Route path="google-analytics" element={<GoogleAnalyticsPage />} />
                   <Route path="meta-ads" element={<MetaAdsPage />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
@@ -317,7 +319,7 @@ const App = () => (
                     <Route path="/business/payments" element={<AdminBusinessPayments />} />
                     <Route path="/business/whatsapp/manager" element={<WhatsAppManager />} />
                     <Route path="/business/whatsapp/inbox" element={<WhatsAppInbox />} />
-                    <Route path="/business/whatsapp/automations" element={<WhatsAppAutomations />} />
+                    <Route path="/business/ai-brain" element={<AIBrainConsole />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

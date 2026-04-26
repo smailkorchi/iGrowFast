@@ -56,6 +56,13 @@ export type Database = {
             foreignKeyName: "accessories_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "accessories_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -106,6 +113,13 @@ export type Database = {
             foreignKeyName: "ads_history_business_id_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ads_history_business_id_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -121,6 +135,1285 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_business_brain: {
+        Row: {
+          brain_model_id: string | null
+          business_hours_end: string | null
+          business_hours_start: string | null
+          business_hours_weekdays: number[] | null
+          business_id: string
+          created_at: string
+          default_mode: Database["public"]["Enums"]["ai_thread_mode_value"]
+          embedding_model_id: string | null
+          fallback_text_when_paused: string | null
+          human_takeover_pause_minutes: number
+          language: Database["public"]["Enums"]["ai_brain_language"]
+          max_consecutive_ai_messages: number
+          monthly_cap_usd: number
+          persona_summary: string | null
+          quota_status: Database["public"]["Enums"]["ai_provider_key_status"]
+          review_deadline_minutes: number
+          sandbox_globally: boolean
+          spend_last_reset_at: string
+          spent_this_month_usd: number
+          stt_model_id: string | null
+          tone: Database["public"]["Enums"]["ai_brain_tone"]
+          tongue_model_id: string | null
+          tts_model_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          brain_model_id?: string | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          business_hours_weekdays?: number[] | null
+          business_id: string
+          created_at?: string
+          default_mode?: Database["public"]["Enums"]["ai_thread_mode_value"]
+          embedding_model_id?: string | null
+          fallback_text_when_paused?: string | null
+          human_takeover_pause_minutes?: number
+          language?: Database["public"]["Enums"]["ai_brain_language"]
+          max_consecutive_ai_messages?: number
+          monthly_cap_usd?: number
+          persona_summary?: string | null
+          quota_status?: Database["public"]["Enums"]["ai_provider_key_status"]
+          review_deadline_minutes?: number
+          sandbox_globally?: boolean
+          spend_last_reset_at?: string
+          spent_this_month_usd?: number
+          stt_model_id?: string | null
+          tone?: Database["public"]["Enums"]["ai_brain_tone"]
+          tongue_model_id?: string | null
+          tts_model_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brain_model_id?: string | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          business_hours_weekdays?: number[] | null
+          business_id?: string
+          created_at?: string
+          default_mode?: Database["public"]["Enums"]["ai_thread_mode_value"]
+          embedding_model_id?: string | null
+          fallback_text_when_paused?: string | null
+          human_takeover_pause_minutes?: number
+          language?: Database["public"]["Enums"]["ai_brain_language"]
+          max_consecutive_ai_messages?: number
+          monthly_cap_usd?: number
+          persona_summary?: string | null
+          quota_status?: Database["public"]["Enums"]["ai_provider_key_status"]
+          review_deadline_minutes?: number
+          sandbox_globally?: boolean
+          spend_last_reset_at?: string
+          spent_this_month_usd?: number
+          stt_model_id?: string | null
+          tone?: Database["public"]["Enums"]["ai_brain_tone"]
+          tongue_model_id?: string | null
+          tts_model_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_business_brain_brain_model_id_fkey"
+            columns: ["brain_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_business_brain_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_business_brain_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_business_brain_embedding_model_id_fkey"
+            columns: ["embedding_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_business_brain_stt_model_id_fkey"
+            columns: ["stt_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_business_brain_tongue_model_id_fkey"
+            columns: ["tongue_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_business_brain_tts_model_id_fkey"
+            columns: ["tts_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_business_skills: {
+        Row: {
+          auto_promoted_at: string | null
+          business_id: string
+          created_at: string
+          custom_config: Json
+          enabled: boolean
+          failure_count: number
+          id: string
+          last_invoked_at: string | null
+          mode: Database["public"]["Enums"]["ai_business_skill_mode"]
+          owner_approvals_count: number
+          required_approvals: number
+          skill_id: string
+          success_count: number
+          updated_at: string
+        }
+        Insert: {
+          auto_promoted_at?: string | null
+          business_id: string
+          created_at?: string
+          custom_config?: Json
+          enabled?: boolean
+          failure_count?: number
+          id?: string
+          last_invoked_at?: string | null
+          mode?: Database["public"]["Enums"]["ai_business_skill_mode"]
+          owner_approvals_count?: number
+          required_approvals?: number
+          skill_id: string
+          success_count?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_promoted_at?: string | null
+          business_id?: string
+          created_at?: string
+          custom_config?: Json
+          enabled?: boolean
+          failure_count?: number
+          id?: string
+          last_invoked_at?: string | null
+          mode?: Database["public"]["Enums"]["ai_business_skill_mode"]
+          owner_approvals_count?: number
+          required_approvals?: number
+          skill_id?: string
+          success_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_business_skills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_business_skills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_business_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "ai_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_decisions: {
+        Row: {
+          brain_intent: Json | null
+          brain_model_id: string | null
+          brain_provider_id: string | null
+          business_id: string
+          cost_usd: number
+          created_at: string
+          id: string
+          inbound_message_id: string | null
+          latency_ms: number | null
+          outbound_message_id: string | null
+          outbound_wa_message_id: string | null
+          outcome: Database["public"]["Enums"]["ai_decision_outcome"]
+          outcome_reason: string | null
+          provider_chain: string[] | null
+          redaction_map: Json | null
+          review_status: Database["public"]["Enums"]["ai_review_status"]
+          reviewed_at: string | null
+          reviewed_by_user_id: string | null
+          sandbox: boolean
+          thread_id: string | null
+          tokens_in: number
+          tokens_out: number
+          tongue_model_id: string | null
+          tongue_output: string | null
+          tongue_provider_id: string | null
+          tool_calls: Json
+        }
+        Insert: {
+          brain_intent?: Json | null
+          brain_model_id?: string | null
+          brain_provider_id?: string | null
+          business_id: string
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          inbound_message_id?: string | null
+          latency_ms?: number | null
+          outbound_message_id?: string | null
+          outbound_wa_message_id?: string | null
+          outcome: Database["public"]["Enums"]["ai_decision_outcome"]
+          outcome_reason?: string | null
+          provider_chain?: string[] | null
+          redaction_map?: Json | null
+          review_status?: Database["public"]["Enums"]["ai_review_status"]
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          sandbox?: boolean
+          thread_id?: string | null
+          tokens_in?: number
+          tokens_out?: number
+          tongue_model_id?: string | null
+          tongue_output?: string | null
+          tongue_provider_id?: string | null
+          tool_calls?: Json
+        }
+        Update: {
+          brain_intent?: Json | null
+          brain_model_id?: string | null
+          brain_provider_id?: string | null
+          business_id?: string
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          inbound_message_id?: string | null
+          latency_ms?: number | null
+          outbound_message_id?: string | null
+          outbound_wa_message_id?: string | null
+          outcome?: Database["public"]["Enums"]["ai_decision_outcome"]
+          outcome_reason?: string | null
+          provider_chain?: string[] | null
+          redaction_map?: Json | null
+          review_status?: Database["public"]["Enums"]["ai_review_status"]
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          sandbox?: boolean
+          thread_id?: string | null
+          tokens_in?: number
+          tokens_out?: number
+          tongue_model_id?: string | null
+          tongue_output?: string | null
+          tongue_provider_id?: string | null
+          tool_calls?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_decisions_brain_model_id_fkey"
+            columns: ["brain_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_brain_provider_id_fkey"
+            columns: ["brain_provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_inbound_message_id_fkey"
+            columns: ["inbound_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_inbound_message_id_fkey"
+            columns: ["inbound_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_outbound_message_id_fkey"
+            columns: ["outbound_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_outbound_message_id_fkey"
+            columns: ["outbound_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_reviewed_by_user_id_fkey"
+            columns: ["reviewed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_tongue_model_id_fkey"
+            columns: ["tongue_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decisions_tongue_provider_id_fkey"
+            columns: ["tongue_provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_jailbreak_signals: {
+        Row: {
+          action: Database["public"]["Enums"]["ai_jailbreak_action"]
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          pattern: string
+          severity: Database["public"]["Enums"]["ai_jailbreak_severity"]
+        }
+        Insert: {
+          action?: Database["public"]["Enums"]["ai_jailbreak_action"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          pattern: string
+          severity?: Database["public"]["Enums"]["ai_jailbreak_severity"]
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["ai_jailbreak_action"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          pattern?: string
+          severity?: Database["public"]["Enums"]["ai_jailbreak_severity"]
+        }
+        Relationships: []
+      }
+      ai_knowledge_chunks: {
+        Row: {
+          active: boolean
+          business_id: string
+          chunk_index: number
+          created_at: string
+          embedding: string | null
+          id: string
+          language: string | null
+          metadata: Json
+          source_id: string | null
+          source_kind: Database["public"]["Enums"]["ai_kb_source_kind"]
+          source_label: string | null
+          text: string
+          token_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          business_id: string
+          chunk_index?: number
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          language?: string | null
+          metadata?: Json
+          source_id?: string | null
+          source_kind: Database["public"]["Enums"]["ai_kb_source_kind"]
+          source_label?: string | null
+          text: string
+          token_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          business_id?: string
+          chunk_index?: number
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          language?: string | null
+          metadata?: Json
+          source_id?: string | null
+          source_kind?: Database["public"]["Enums"]["ai_kb_source_kind"]
+          source_label?: string | null
+          text?: string
+          token_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_knowledge_chunks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_knowledge_chunks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_media_cache: {
+        Row: {
+          business_id: string
+          byte_count: number | null
+          char_count: number
+          created_at: string
+          expires_at: string
+          hash_key: string
+          hit_count: number
+          id: string
+          last_hit_at: string | null
+          storage_path: string
+          voice_id: string | null
+          voice_kind: Database["public"]["Enums"]["ai_voice_kind"]
+        }
+        Insert: {
+          business_id: string
+          byte_count?: number | null
+          char_count?: number
+          created_at?: string
+          expires_at?: string
+          hash_key: string
+          hit_count?: number
+          id?: string
+          last_hit_at?: string | null
+          storage_path: string
+          voice_id?: string | null
+          voice_kind: Database["public"]["Enums"]["ai_voice_kind"]
+        }
+        Update: {
+          business_id?: string
+          byte_count?: number | null
+          char_count?: number
+          created_at?: string
+          expires_at?: string
+          hash_key?: string
+          hit_count?: number
+          id?: string
+          last_hit_at?: string | null
+          storage_path?: string
+          voice_id?: string | null
+          voice_kind?: Database["public"]["Enums"]["ai_voice_kind"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_media_cache_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_media_cache_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_models: {
+        Row: {
+          audio_cost_per_minute: number | null
+          context_window: number | null
+          created_at: string
+          display_name: string
+          id: string
+          input_cost_per_1m: number | null
+          is_active: boolean
+          model_id: string
+          notes: string | null
+          output_cost_per_1m: number | null
+          provider_id: string
+          role: Database["public"]["Enums"]["ai_model_role"]
+          updated_at: string
+        }
+        Insert: {
+          audio_cost_per_minute?: number | null
+          context_window?: number | null
+          created_at?: string
+          display_name: string
+          id?: string
+          input_cost_per_1m?: number | null
+          is_active?: boolean
+          model_id: string
+          notes?: string | null
+          output_cost_per_1m?: number | null
+          provider_id: string
+          role: Database["public"]["Enums"]["ai_model_role"]
+          updated_at?: string
+        }
+        Update: {
+          audio_cost_per_minute?: number | null
+          context_window?: number | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          input_cost_per_1m?: number | null
+          is_active?: boolean
+          model_id?: string
+          notes?: string | null
+          output_cost_per_1m?: number | null
+          provider_id?: string
+          role?: Database["public"]["Enums"]["ai_model_role"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_models_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_pending_actions: {
+        Row: {
+          applied_at: string | null
+          applied_error: string | null
+          applied_ref_id: string | null
+          applied_ref_table: string | null
+          business_id: string
+          created_at: string
+          decision_id: string | null
+          expires_at: string
+          id: string
+          kind: Database["public"]["Enums"]["ai_pending_action_kind"]
+          payload: Json
+          skill_slug: string
+          status: Database["public"]["Enums"]["ai_pending_action_status"]
+          thread_id: string | null
+          tool_use_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_error?: string | null
+          applied_ref_id?: string | null
+          applied_ref_table?: string | null
+          business_id: string
+          created_at?: string
+          decision_id?: string | null
+          expires_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["ai_pending_action_kind"]
+          payload: Json
+          skill_slug: string
+          status?: Database["public"]["Enums"]["ai_pending_action_status"]
+          thread_id?: string | null
+          tool_use_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_error?: string | null
+          applied_ref_id?: string | null
+          applied_ref_table?: string | null
+          business_id?: string
+          created_at?: string
+          decision_id?: string | null
+          expires_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["ai_pending_action_kind"]
+          payload?: Json
+          skill_slug?: string
+          status?: Database["public"]["Enums"]["ai_pending_action_status"]
+          thread_id?: string | null
+          tool_use_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_pending_actions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_pending_actions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_pending_actions_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "ai_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_pending_actions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_pending_actions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "ai_pending_actions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_platform_keys: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          last_probe_at: string | null
+          last_probe_error: string | null
+          last_probe_ok: boolean | null
+          last_reset_at: string
+          monthly_cap_usd: number
+          provider_id: string
+          secret_id: string
+          spent_this_month_usd: number
+          status: Database["public"]["Enums"]["ai_provider_key_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          last_probe_at?: string | null
+          last_probe_error?: string | null
+          last_probe_ok?: boolean | null
+          last_reset_at?: string
+          monthly_cap_usd?: number
+          provider_id: string
+          secret_id: string
+          spent_this_month_usd?: number
+          status?: Database["public"]["Enums"]["ai_provider_key_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          last_probe_at?: string | null
+          last_probe_error?: string | null
+          last_probe_ok?: boolean | null
+          last_reset_at?: string
+          monthly_cap_usd?: number
+          provider_id?: string
+          secret_id?: string
+          spent_this_month_usd?: number
+          status?: Database["public"]["Enums"]["ai_provider_key_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_platform_keys_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_platform_keys_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: true
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_prompts: {
+        Row: {
+          body: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["ai_prompt_kind"]
+          skill_slug: string | null
+          version: number
+        }
+        Insert: {
+          body: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["ai_prompt_kind"]
+          skill_slug?: string | null
+          version?: number
+        }
+        Update: {
+          body?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["ai_prompt_kind"]
+          skill_slug?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_prompts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_prompts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_providers: {
+        Row: {
+          created_at: string
+          display_name: string
+          homepage_url: string | null
+          id: string
+          is_active: boolean
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          homepage_url?: string | null
+          id?: string
+          is_active?: boolean
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          homepage_url?: string | null
+          id?: string
+          is_active?: boolean
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_redaction_rules: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          custom_label: string | null
+          id: string
+          is_active: boolean
+          pattern: string
+          placeholder_kind: Database["public"]["Enums"]["ai_redaction_kind"]
+          priority: number
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          custom_label?: string | null
+          id?: string
+          is_active?: boolean
+          pattern: string
+          placeholder_kind: Database["public"]["Enums"]["ai_redaction_kind"]
+          priority?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          custom_label?: string | null
+          id?: string
+          is_active?: boolean
+          pattern?: string
+          placeholder_kind?: Database["public"]["Enums"]["ai_redaction_kind"]
+          priority?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_redaction_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_redaction_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_review_queue: {
+        Row: {
+          assigned_to: string | null
+          business_id: string
+          created_at: string
+          deadline_at: string | null
+          decision_id: string
+          id: string
+          notes: string | null
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["ai_review_status"]
+        }
+        Insert: {
+          assigned_to?: string | null
+          business_id: string
+          created_at?: string
+          deadline_at?: string | null
+          decision_id: string
+          id?: string
+          notes?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["ai_review_status"]
+        }
+        Update: {
+          assigned_to?: string | null
+          business_id?: string
+          created_at?: string
+          deadline_at?: string | null
+          decision_id?: string
+          id?: string
+          notes?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["ai_review_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_review_queue_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_review_queue_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_review_queue_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_review_queue_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: true
+            referencedRelation: "ai_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_skills: {
+        Row: {
+          category: Database["public"]["Enums"]["ai_skill_category"]
+          created_at: string
+          default_config: Json
+          default_safety_tier: Database["public"]["Enums"]["ai_skill_safety_tier"]
+          deprecated: boolean
+          description: string
+          id: string
+          name: string
+          required_role_filter:
+            | Database["public"]["Enums"]["user_role"][]
+            | null
+          requires_write_db: boolean
+          slug: string
+          tool_schema: Json
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["ai_skill_category"]
+          created_at?: string
+          default_config?: Json
+          default_safety_tier?: Database["public"]["Enums"]["ai_skill_safety_tier"]
+          deprecated?: boolean
+          description: string
+          id?: string
+          name: string
+          required_role_filter?:
+            | Database["public"]["Enums"]["user_role"][]
+            | null
+          requires_write_db?: boolean
+          slug: string
+          tool_schema?: Json
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["ai_skill_category"]
+          created_at?: string
+          default_config?: Json
+          default_safety_tier?: Database["public"]["Enums"]["ai_skill_safety_tier"]
+          deprecated?: boolean
+          description?: string
+          id?: string
+          name?: string
+          required_role_filter?:
+            | Database["public"]["Enums"]["user_role"][]
+            | null
+          requires_write_db?: boolean
+          slug?: string
+          tool_schema?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_thread_mode: {
+        Row: {
+          business_id: string
+          consecutive_ai_messages: number
+          last_human_takeover_at: string | null
+          mode_override:
+            | Database["public"]["Enums"]["ai_thread_mode_value"]
+            | null
+          paused_until: string | null
+          takeover_user_id: string | null
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          consecutive_ai_messages?: number
+          last_human_takeover_at?: string | null
+          mode_override?:
+            | Database["public"]["Enums"]["ai_thread_mode_value"]
+            | null
+          paused_until?: string | null
+          takeover_user_id?: string | null
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          consecutive_ai_messages?: number
+          last_human_takeover_at?: string | null
+          mode_override?:
+            | Database["public"]["Enums"]["ai_thread_mode_value"]
+            | null
+          paused_until?: string | null
+          takeover_user_id?: string | null
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_thread_mode_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_thread_mode_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_thread_mode_takeover_user_id_fkey"
+            columns: ["takeover_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_thread_mode_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "wa_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_thread_mode_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "wa_v_thread_with_state"
+            referencedColumns: ["thread_id"]
+          },
+          {
+            foreignKeyName: "ai_thread_mode_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_daily: {
+        Row: {
+          business_id: string
+          day: string
+          refreshed_at: string
+          total_audio_minutes: number
+          total_blocked_calls: number
+          total_calls: number
+          total_cost_usd: number
+          total_escalations: number
+          total_sandbox_calls: number
+          total_tokens_in: number
+          total_tokens_out: number
+        }
+        Insert: {
+          business_id: string
+          day: string
+          refreshed_at?: string
+          total_audio_minutes?: number
+          total_blocked_calls?: number
+          total_calls?: number
+          total_cost_usd?: number
+          total_escalations?: number
+          total_sandbox_calls?: number
+          total_tokens_in?: number
+          total_tokens_out?: number
+        }
+        Update: {
+          business_id?: string
+          day?: string
+          refreshed_at?: string
+          total_audio_minutes?: number
+          total_blocked_calls?: number
+          total_calls?: number
+          total_cost_usd?: number
+          total_escalations?: number
+          total_sandbox_calls?: number
+          total_tokens_in?: number
+          total_tokens_out?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_daily_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_usage_daily_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_events: {
+        Row: {
+          audio_minutes: number | null
+          business_id: string
+          cost_usd: number
+          decision_id: string | null
+          id: string
+          model_id: string
+          occurred_at: string
+          provider_id: string
+          tokens_in: number
+          tokens_out: number
+        }
+        Insert: {
+          audio_minutes?: number | null
+          business_id: string
+          cost_usd?: number
+          decision_id?: string | null
+          id?: string
+          model_id: string
+          occurred_at?: string
+          provider_id: string
+          tokens_in?: number
+          tokens_out?: number
+        }
+        Update: {
+          audio_minutes?: number | null
+          business_id?: string
+          cost_usd?: number
+          decision_id?: string | null
+          id?: string
+          model_id?: string
+          occurred_at?: string
+          provider_id?: string
+          tokens_in?: number
+          tokens_out?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_usage_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_events_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "ai_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_events_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_events_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_voice_profiles: {
+        Row: {
+          azure_voice_id: string | null
+          business_id: string
+          created_at: string
+          default_voice_kind: Database["public"]["Enums"]["ai_voice_kind"]
+          elevenlabs_voice_id: string | null
+          pitch_offset: number
+          speed_offset: number
+          updated_at: string
+        }
+        Insert: {
+          azure_voice_id?: string | null
+          business_id: string
+          created_at?: string
+          default_voice_kind?: Database["public"]["Enums"]["ai_voice_kind"]
+          elevenlabs_voice_id?: string | null
+          pitch_offset?: number
+          speed_offset?: number
+          updated_at?: string
+        }
+        Update: {
+          azure_voice_id?: string | null
+          business_id?: string
+          created_at?: string
+          default_voice_kind?: Database["public"]["Enums"]["ai_voice_kind"]
+          elevenlabs_voice_id?: string | null
+          pitch_offset?: number
+          speed_offset?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_voice_profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_voice_profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -296,6 +1589,13 @@ export type Database = {
             foreignKeyName: "audit_logs_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "audit_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -358,6 +1658,13 @@ export type Database = {
             foreignKeyName: "bons_commande_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bons_commande_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -401,6 +1708,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bons_livraison_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "bons_livraison_business_id_fkey"
             columns: ["business_id"]
@@ -469,6 +1783,13 @@ export type Database = {
           submitted_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "business_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "business_payments_business_id_fkey"
             columns: ["business_id"]
@@ -666,6 +1987,13 @@ export type Database = {
             foreignKeyName: "campaign_daily_entries_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "campaign_daily_entries_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -760,6 +2088,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "campaigns_DigiCom Business_fkey"
@@ -941,6 +2276,13 @@ export type Database = {
             foreignKeyName: "company_delivery_notes_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "company_delivery_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1015,6 +2357,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "providers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_fees_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "company_fees_DigiCom Business_fkey"
@@ -1103,6 +2452,13 @@ export type Database = {
             foreignKeyName: "company_parcels_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "company_parcels_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1161,6 +2517,13 @@ export type Database = {
           tracking_code?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "company_payment_note_orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "company_payment_note_orders_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -1231,6 +2594,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "company_payment_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "company_payment_notes_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -1369,6 +2739,13 @@ export type Database = {
             foreignKeyName: "company_return_notes_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "company_return_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1417,6 +2794,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "providers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_zones_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "company_zones_DigiCom Business_fkey"
@@ -1496,6 +2880,13 @@ export type Database = {
             foreignKeyName: "courier_delivery_notes_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "courier_delivery_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1568,6 +2959,13 @@ export type Database = {
             foreignKeyName: "courier_fees_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "courier_fees_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1624,6 +3022,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_notifications_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "courier_notifications_DigiCom Business_fkey"
@@ -1724,6 +3129,13 @@ export type Database = {
             foreignKeyName: "courier_parcels_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "courier_parcels_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1775,6 +3187,13 @@ export type Database = {
           tracking_code?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "courier_payment_note_orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "courier_payment_note_orders_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -1866,6 +3285,13 @@ export type Database = {
             foreignKeyName: "courier_payment_notes_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "courier_payment_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -1903,6 +3329,13 @@ export type Database = {
           tracking_code?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "courier_return_note_orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "courier_return_note_orders_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -2007,6 +3440,13 @@ export type Database = {
             foreignKeyName: "courier_return_notes_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "courier_return_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -2048,6 +3488,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_zones_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "courier_zones_DigiCom Business_fkey"
@@ -2190,6 +3637,13 @@ export type Database = {
             foreignKeyName: "devis_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "devis_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -2224,6 +3678,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expense_types_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "expense_types_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -2268,6 +3729,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "expenses_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -2347,6 +3815,13 @@ export type Database = {
             foreignKeyName: "factures_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "factures_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -2396,6 +3871,13 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "google_analytics_connections_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "google_analytics_connections_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -2536,6 +4018,13 @@ export type Database = {
             foreignKeyName: "mediabuyer_demands_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mediabuyer_demands_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -2604,6 +4093,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mediabuyer_payments_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "mediabuyer_payments_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -2677,6 +4173,13 @@ export type Database = {
             foreignKeyName: "meta_ads_connections_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "meta_ads_connections_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -2717,6 +4220,13 @@ export type Database = {
           total_earned?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "seller_daily_earnings_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "seller_daily_earnings_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -2791,6 +4301,13 @@ export type Database = {
             foreignKeyName: "order_items_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "order_items_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -2839,6 +4356,13 @@ export type Database = {
           status_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_order_status_history_business"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "fk_order_status_history_business"
             columns: ["DigiCom Business"]
@@ -3155,6 +4679,13 @@ export type Database = {
             foreignKeyName: "orders_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -3400,6 +4931,13 @@ export type Database = {
             foreignKeyName: "product_accessories_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "product_accessories_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -3459,6 +4997,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "products_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -3556,6 +5101,13 @@ export type Database = {
           webhook_url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "provider_webhooks_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "provider_webhooks_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -3701,6 +5253,13 @@ export type Database = {
             foreignKeyName: "providers_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "providers_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -3747,6 +5306,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "push_subscriptions_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -3811,6 +5377,13 @@ export type Database = {
             foreignKeyName: "sales_channels_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_channels_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -3848,6 +5421,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "seller_attribution_state_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "seller_attribution_state_business_id_fkey"
             columns: ["business_id"]
@@ -3918,6 +5498,13 @@ export type Database = {
             foreignKeyName: "seller_demands_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "seller_demands_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -3981,6 +5568,13 @@ export type Database = {
             foreignKeyName: "seller_payments_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "seller_payments_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -4019,6 +5613,13 @@ export type Database = {
           status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "seller_presences_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "seller_presences_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -4137,6 +5738,13 @@ export type Database = {
             foreignKeyName: "transactions_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "transactions_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -4178,6 +5786,13 @@ export type Database = {
           transaction_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "trns_payment_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "trns_payment_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -4238,6 +5853,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accessories"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trns_purchase_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "trns_purchase_DigiCom Business_fkey"
@@ -4352,6 +5974,13 @@ export type Database = {
             foreignKeyName: "users_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "users_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -4404,6 +6033,13 @@ export type Database = {
           trigger_value?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_auto_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_auto_replies_business_id_fkey"
             columns: ["business_id"]
@@ -4552,6 +6188,13 @@ export type Database = {
             foreignKeyName: "wa_contacts_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -4676,6 +6319,13 @@ export type Database = {
             foreignKeyName: "wa_groups_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -4762,6 +6412,13 @@ export type Database = {
             foreignKeyName: "wa_instances_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -4799,6 +6456,13 @@ export type Database = {
           last_seen_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_jid_aliases_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_jid_aliases_business_id_fkey"
             columns: ["business_id"]
@@ -4854,6 +6518,13 @@ export type Database = {
           predefined_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_labels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_labels_business_id_fkey"
             columns: ["business_id"]
@@ -4962,6 +6633,13 @@ export type Database = {
             foreignKeyName: "wa_media_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_media_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -5056,6 +6734,13 @@ export type Database = {
           wa_timestamp?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_messages_business_id_fkey"
             columns: ["business_id"]
@@ -5178,6 +6863,13 @@ export type Database = {
           shortcut?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_quick_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_quick_replies_business_id_fkey"
             columns: ["business_id"]
@@ -5307,6 +6999,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_sync_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_sync_jobs_business_id_fkey"
             columns: ["business_id"]
@@ -5457,6 +7156,7 @@ export type Database = {
       }
       wa_threads: {
         Row: {
+          ai_mode_resolved: Database["public"]["Enums"]["ai_thread_mode_value"]
           business_id: string
           contact_id: string | null
           created_at: string
@@ -5476,6 +7176,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_mode_resolved?: Database["public"]["Enums"]["ai_thread_mode_value"]
           business_id: string
           contact_id?: string | null
           created_at?: string
@@ -5495,6 +7196,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_mode_resolved?: Database["public"]["Enums"]["ai_thread_mode_value"]
           business_id?: string
           contact_id?: string | null
           created_at?: string
@@ -5514,6 +7216,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
@@ -5612,6 +7321,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_user_instance_access_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_user_instance_access_business_id_fkey"
             columns: ["business_id"]
@@ -5863,6 +7579,13 @@ export type Database = {
             foreignKeyName: "webhook_logs_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "webhook_logs_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -5895,6 +7618,29 @@ export type Database = {
       }
     }
     Views: {
+      ai_business_health: {
+        Row: {
+          business_id: string | null
+          business_monthly_cap_usd: number | null
+          business_quota_status:
+            | Database["public"]["Enums"]["ai_provider_key_status"]
+            | null
+          business_spent_this_month_usd: number | null
+          default_mode:
+            | Database["public"]["Enums"]["ai_thread_mode_value"]
+            | null
+          error_rate_7d: number | null
+          last_decision_at: string | null
+          live_skills_count: number | null
+          pending_reviews: number | null
+          platform_keys_all_active: boolean | null
+          platform_monthly_cap_usd: number | null
+          platform_spent_this_month_usd: number | null
+          sandbox_globally: boolean | null
+          sandbox_skills_count: number | null
+        }
+        Relationships: []
+      }
       seller_daily_earnings: {
         Row: {
           commission_earned: number | null
@@ -5908,6 +7654,13 @@ export type Database = {
           total_earned: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "orders_DigiCom Business_fkey"
             columns: ["DigiCom Business"]
@@ -5975,6 +7728,13 @@ export type Database = {
             foreignKeyName: "wa_instances_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6013,6 +7773,13 @@ export type Database = {
           user_id: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
@@ -6145,6 +7912,13 @@ export type Database = {
             foreignKeyName: "wa_auto_replies_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_auto_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6220,6 +7994,13 @@ export type Database = {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6263,6 +8044,13 @@ export type Database = {
           updated_at: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
@@ -6330,6 +8118,13 @@ export type Database = {
             foreignKeyName: "wa_contacts_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6360,6 +8155,13 @@ export type Database = {
           updated_at: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
@@ -6445,6 +8247,13 @@ export type Database = {
             foreignKeyName: "wa_quick_replies_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_quick_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6474,6 +8283,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "whatsapp_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
           },
           {
             foreignKeyName: "wa_groups_business_id_fkey"
@@ -6544,6 +8360,13 @@ export type Database = {
             foreignKeyName: "wa_groups_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6606,6 +8429,13 @@ export type Database = {
             foreignKeyName: "wa_instances_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6621,6 +8451,13 @@ export type Database = {
           phone_jid: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_jid_aliases_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_jid_aliases_business_id_fkey"
             columns: ["business_id"]
@@ -6659,6 +8496,13 @@ export type Database = {
           whatsapp_label_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_labels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_labels_business_id_fkey"
             columns: ["business_id"]
@@ -6708,6 +8552,13 @@ export type Database = {
           type: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_messages_business_id_fkey"
             columns: ["business_id"]
@@ -6810,6 +8661,13 @@ export type Database = {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -6847,6 +8705,13 @@ export type Database = {
           remote_jid: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wa_threads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
           {
             foreignKeyName: "wa_threads_business_id_fkey"
             columns: ["business_id"]
@@ -6951,6 +8816,13 @@ export type Database = {
             foreignKeyName: "wa_sync_jobs_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_sync_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -7007,6 +8879,13 @@ export type Database = {
             foreignKeyName: "wa_user_instance_access_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wa_user_instance_access_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
@@ -7025,6 +8904,221 @@ export type Database = {
         Args: { p_business_id: string; p_instance_id: string; p_jid: string }
         Returns: string
       }
+      ai_apply_create_order: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_discount: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_exchange: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_pending_actions_for_decision: {
+        Args: { p_decision_id: string }
+        Returns: Json
+      }
+      ai_auto_promote_skill: {
+        Args: { p_business_id: string; p_skill_slug: string }
+        Returns: Json
+      }
+      ai_can_spend: { Args: { p_business_id: string }; Returns: string }
+      ai_compute_thread_mode: {
+        Args: { p_thread_id: string }
+        Returns: Database["public"]["Enums"]["ai_thread_mode_value"]
+      }
+      ai_current_business_id: { Args: never; Returns: string }
+      ai_current_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
+      ai_decrypt_platform_key: {
+        Args: { p_provider_id: string }
+        Returns: string
+      }
+      ai_expire_pending_actions: { Args: never; Returns: number }
+      ai_is_admin_or_owner: { Args: never; Returns: boolean }
+      ai_is_super_admin: { Args: never; Returns: boolean }
+      ai_link_pending_actions: {
+        Args: {
+          p_business_id: string
+          p_decision_id: string
+          p_tool_use_ids: string[]
+        }
+        Returns: number
+      }
+      ai_media_cache_purge: { Args: never; Returns: number }
+      ai_monthly_reset: {
+        Args: never
+        Returns: {
+          business_rows: number
+          platform_rows: number
+        }[]
+      }
+      ai_queue_decision: {
+        Args: { p_business_id: string; p_decision_id: string }
+        Returns: string
+      }
+      ai_record_decision: {
+        Args: {
+          p_brain_cost_usd: number
+          p_brain_intent: Json
+          p_brain_model_id: string
+          p_brain_provider_id: string
+          p_brain_tokens_in: number
+          p_brain_tokens_out: number
+          p_business_id: string
+          p_inbound_message_id: string
+          p_latency_ms: number
+          p_outbound_message_id: string
+          p_outcome: Database["public"]["Enums"]["ai_decision_outcome"]
+          p_outcome_reason: string
+          p_provider_chain: string[]
+          p_redaction_map: Json
+          p_review_status: Database["public"]["Enums"]["ai_review_status"]
+          p_sandbox: boolean
+          p_thread_id: string
+          p_tongue_cost_usd: number
+          p_tongue_model_id: string
+          p_tongue_output: string
+          p_tongue_provider_id: string
+          p_tongue_tokens_in: number
+          p_tongue_tokens_out: number
+          p_tool_calls: Json
+        }
+        Returns: string
+      }
+      ai_record_usage: {
+        Args: {
+          p_audio_minutes: number
+          p_business_id: string
+          p_cost_usd: number
+          p_model_id: string
+          p_provider_id: string
+          p_tokens_in: number
+          p_tokens_out: number
+        }
+        Returns: undefined
+      }
+      ai_register_human_takeover: {
+        Args: { p_business_id: string; p_thread_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      ai_reject_pending_actions_for_decision: {
+        Args: { p_decision_id: string }
+        Returns: number
+      }
+      ai_resolve_review: {
+        Args: {
+          p_action: string
+          p_decision_id: string
+          p_outbound_wa_id: string
+          p_outcome: Database["public"]["Enums"]["ai_decision_outcome"]
+          p_override_text: string
+          p_reviewer_id: string
+        }
+        Returns: undefined
+      }
+      ai_search_knowledge: {
+        Args: {
+          p_business_id: string
+          p_embedding: string
+          p_k?: number
+          p_kinds?: Database["public"]["Enums"]["ai_kb_source_kind"][]
+        }
+        Returns: {
+          chunk_index: number
+          id: string
+          similarity: number
+          source_id: string
+          source_kind: Database["public"]["Enums"]["ai_kb_source_kind"]
+          source_label: string
+          text: string
+        }[]
+      }
+      ai_set_thread_mode: {
+        Args: {
+          p_mode: Database["public"]["Enums"]["ai_thread_mode_value"]
+          p_pause_minutes?: number
+          p_thread_id: string
+        }
+        Returns: undefined
+      }
+      ai_skill_ads_roi: {
+        Args: { p_business_id: string; p_period_days?: number }
+        Returns: Json
+      }
+      ai_skill_get_order_status: {
+        Args: { p_business_id: string; p_identifier: string }
+        Returns: {
+          city_name: string
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          date_livraison: string
+          delivered: boolean
+          id: string
+          price: number
+          status_category: string
+          status_code: string
+          status_color: string
+          status_label: string
+          tracking_number: string
+        }[]
+      }
+      ai_skill_lookup_orders_by_phone: {
+        Args: { p_business_id: string; p_limit?: number; p_phone: string }
+        Returns: {
+          city_name: string
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          delivered: boolean
+          id: string
+          price: number
+          product_name: string
+          quantity: number
+          status_code: string
+          status_color: string
+          status_label: string
+          tracking_number: string
+        }[]
+      }
+      ai_skill_match_morocco_city: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          id: string
+          name: string
+          name_ar: string
+          region: string
+          similarity: number
+        }[]
+      }
+      ai_skill_quote_shipping: {
+        Args: { p_business_id: string; p_master_city_id: string }
+        Returns: {
+          fee: number
+          provider_id: string
+          provider_kind: string
+          provider_name: string
+          return_fee: number
+        }[]
+      }
+      ai_skill_search_products: {
+        Args: { p_business_id: string; p_limit?: number; p_query: string }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          image_url: string
+          name: string
+          selling_price: number
+          similarity: number
+          stock: number
+        }[]
+      }
+      ai_skill_summarize_sales: {
+        Args: { p_business_id: string; p_period?: string }
+        Returns: Json
+      }
+      ai_stamp_outbound: {
+        Args: { p_decision_id: string; p_wa_message_id: string }
+        Returns: undefined
+      }
+      ai_usage_rollup: { Args: never; Returns: number }
       audit_log_dispatch_geo: { Args: never; Returns: undefined }
       audit_log_reap_geo: { Args: never; Returns: undefined }
       check_expired_licenses: { Args: never; Returns: undefined }
@@ -7324,6 +9418,61 @@ export type Database = {
       }
     }
     Enums: {
+      ai_brain_language: "darija" | "french" | "arabic" | "english"
+      ai_brain_tone: "warm" | "professional" | "playful" | "formal"
+      ai_business_skill_mode: "sandbox" | "live"
+      ai_decision_outcome:
+        | "sent"
+        | "failed"
+        | "escalated"
+        | "blocked_redaction"
+        | "blocked_quota"
+        | "blocked_jailbreak"
+        | "sandbox_pending"
+      ai_jailbreak_action: "log" | "escalate" | "block"
+      ai_jailbreak_severity: "low" | "medium" | "high"
+      ai_kb_source_kind:
+        | "product"
+        | "faq"
+        | "qna"
+        | "doc"
+        | "example_conversation"
+      ai_model_role: "brain" | "tongue" | "stt" | "tts" | "embedding"
+      ai_pending_action_kind:
+        | "create_order"
+        | "apply_discount"
+        | "handle_exchange"
+      ai_pending_action_status:
+        | "pending"
+        | "applied"
+        | "rejected"
+        | "expired"
+        | "failed"
+      ai_prompt_kind: "brain_system" | "tongue_style" | "skill_specific"
+      ai_provider_key_status: "active" | "paused" | "exhausted" | "invalid"
+      ai_redaction_kind:
+        | "phone"
+        | "address"
+        | "name"
+        | "ice"
+        | "rc"
+        | "email"
+        | "custom"
+      ai_review_status: "pending" | "approved" | "rejected" | "skipped"
+      ai_skill_category:
+        | "messaging"
+        | "sales"
+        | "orders"
+        | "support"
+        | "analytics"
+        | "moderation"
+      ai_skill_safety_tier: "sandbox_required" | "opt_in" | "safe_by_default"
+      ai_thread_mode_value: "off" | "static" | "dynamic" | "agent"
+      ai_voice_kind:
+        | "azure_female"
+        | "azure_male"
+        | "elevenlabs_cloned"
+        | "none"
       user_role:
         | "super admin"
         | "admin"
@@ -7458,6 +9607,68 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ai_brain_language: ["darija", "french", "arabic", "english"],
+      ai_brain_tone: ["warm", "professional", "playful", "formal"],
+      ai_business_skill_mode: ["sandbox", "live"],
+      ai_decision_outcome: [
+        "sent",
+        "failed",
+        "escalated",
+        "blocked_redaction",
+        "blocked_quota",
+        "blocked_jailbreak",
+        "sandbox_pending",
+      ],
+      ai_jailbreak_action: ["log", "escalate", "block"],
+      ai_jailbreak_severity: ["low", "medium", "high"],
+      ai_kb_source_kind: [
+        "product",
+        "faq",
+        "qna",
+        "doc",
+        "example_conversation",
+      ],
+      ai_model_role: ["brain", "tongue", "stt", "tts", "embedding"],
+      ai_pending_action_kind: [
+        "create_order",
+        "apply_discount",
+        "handle_exchange",
+      ],
+      ai_pending_action_status: [
+        "pending",
+        "applied",
+        "rejected",
+        "expired",
+        "failed",
+      ],
+      ai_prompt_kind: ["brain_system", "tongue_style", "skill_specific"],
+      ai_provider_key_status: ["active", "paused", "exhausted", "invalid"],
+      ai_redaction_kind: [
+        "phone",
+        "address",
+        "name",
+        "ice",
+        "rc",
+        "email",
+        "custom",
+      ],
+      ai_review_status: ["pending", "approved", "rejected", "skipped"],
+      ai_skill_category: [
+        "messaging",
+        "sales",
+        "orders",
+        "support",
+        "analytics",
+        "moderation",
+      ],
+      ai_skill_safety_tier: ["sandbox_required", "opt_in", "safe_by_default"],
+      ai_thread_mode_value: ["off", "static", "dynamic", "agent"],
+      ai_voice_kind: [
+        "azure_female",
+        "azure_male",
+        "elevenlabs_cloned",
+        "none",
+      ],
       user_role: [
         "super admin",
         "admin",

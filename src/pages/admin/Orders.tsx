@@ -910,6 +910,24 @@ const Orders = () => {
         },
     });
 
+    // Business identity — used to label history rows on whatsapp-source orders
+    // (where changed_by is NULL because no user took the action; the business
+    // itself, via the AI assistant, did).
+    const { data: businessIdentity } = useQuery({
+        queryKey: ['business-identity', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return null;
+            const { data, error } = await (supabase as any)
+                .from('businesses')
+                .select('id, name, logo')
+                .eq('id', activeBusinessId)
+                .maybeSingle();
+            if (error) throw error;
+            return data as { id: string; name: string | null; logo: string | null } | null;
+        },
+        enabled: !!activeBusinessId,
+    });
+
     const { data: couriers } = useQuery({
         queryKey: ['couriers-dropdown', activeBusinessId],
         queryFn: async () => {
@@ -4933,17 +4951,31 @@ const Orders = () => {
                                                                 </div>
                                                                 {record.created_at && <p className="text-[10px] font-bold text-ant-muted/50">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
                                                                 <div className="flex items-center gap-2">
-                                                                    {record.user ? (
-                                                                        <Avatar className="w-5 h-5 border bg-white">
-                                                                            <AvatarImage src={record.user.avatar_url} />
-                                                                            <AvatarFallback className="text-[9px] font-bold bg-ant-ink/5 text-ant-ink">{record.user.name?.[0] || '?'}</AvatarFallback>
-                                                                        </Avatar>
-                                                                    ) : (
-                                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
-                                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />
-                                                                        </div>
-                                                                    )}
-                                                                    <span className="text-[11px] font-bold text-ant-ink/70 truncate max-w-[200px]">{record.user?.name || 'Système'}</span>
+                                                                    {(() => {
+                                                                        // changed_by NULL + whatsapp-source order ⇒ the AI assistant acted on
+                                                                        // behalf of the business itself. Show the business name + logo
+                                                                        // instead of the generic "Système" pill.
+                                                                        const isAiBusinessAction = !record.user && selectedOrder?.source_name === 'whatsapp';
+                                                                        const displayName = record.user?.name
+                                                                            || (isAiBusinessAction ? (businessIdentity?.name || 'Business') : 'Système');
+                                                                        const displayAvatar = record.user?.avatar_url
+                                                                            || (isAiBusinessAction ? businessIdentity?.logo : null);
+                                                                        return (
+                                                                            <>
+                                                                                {displayAvatar ? (
+                                                                                    <Avatar className="w-5 h-5 border bg-white">
+                                                                                        <AvatarImage src={displayAvatar} />
+                                                                                        <AvatarFallback className="text-[9px] font-bold bg-ant-ink/5 text-ant-ink">{displayName?.[0] || '?'}</AvatarFallback>
+                                                                                    </Avatar>
+                                                                                ) : (
+                                                                                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
+                                                                                        <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />
+                                                                                    </div>
+                                                                                )}
+                                                                                <span className="text-[11px] font-bold text-ant-ink/70 truncate max-w-[200px]">{displayName}</span>
+                                                                            </>
+                                                                        );
+                                                                    })()}
                                                                 </div>
                                                                 {postponed && reportedText && (
                                                                     <div className="flex flex-col gap-1 p-3 bg-ant-orange/10 rounded-xl border border-ant-orange/25">

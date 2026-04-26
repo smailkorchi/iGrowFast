@@ -20,6 +20,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
+import { AIThreadPill } from '@/components/whatsapp/AIThreadPill';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -3861,6 +3862,9 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                 </div>
               </div>
               <div className="flex items-center gap-2 text-[#aebac1]">
+                {selectedChat.dbConvId && selectedChat.type !== 'group' && (
+                  <AIThreadPill threadId={selectedChat.dbConvId} />
+                )}
                 <button onClick={() => setShowMessageSearch(!showMessageSearch)} className={`p-2 rounded-full transition-colors ${showMessageSearch ? 'text-[#00a884]' : 'hover:bg-[#374045]'}`}><Search className="w-[20px] h-[20px]" /></button>
                 <div className="relative">
                   <button onClick={(e) => { e.stopPropagation(); setShowChatMenu(!showChatMenu); }} className="p-2 hover:bg-[#374045] rounded-full transition-colors">

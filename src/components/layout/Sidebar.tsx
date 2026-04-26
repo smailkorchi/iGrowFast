@@ -40,7 +40,7 @@ import {
     ClipboardList,
     PackageCheck,
     Smartphone,
-    Bot,
+    BrainCircuit,
     Plug,
     LineChart,
     UserCheck,
@@ -84,8 +84,10 @@ const navigation: NavSection[] = [
         items: [
             { icon: Smartphone, label: 'Instances', path: '/business/whatsapp/manager' },
             { icon: FaWhatsapp, label: 'Inbox', path: '/business/whatsapp/inbox' },
-            { icon: Bot, label: 'Automations', path: '/business/whatsapp/automations' },
         ],
+    },
+    {
+        items: [{ icon: BrainCircuit, label: 'AI Brain', path: '/business/ai-brain' }],
     },
     {
         items: [{ icon: ShoppingBag, label: 'Orders', path: '/orders' }],
