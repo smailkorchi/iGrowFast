@@ -20,11 +20,21 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 const BRAIN_MODEL_ID  = "claude-sonnet-4-6";
-const TONGUE_MODEL_ID = "gpt-4o-mini";
+// Tongue: OpenAI gpt-5.5 (April 2026 flagship — current latest at time of
+// writing). Atlas-Chat-9B was dropped after producing chaotic output. gpt-5.5
+// is the same model class as ChatGPT — fluent native-quality Darija
+// (chat-Latin + Arabic-script), French, English, Arabic. The Tongue owns the
+// final reply end-to-end. gpt-4o-mini stays as fast/cheap cold-start fallback.
+const TONGUE_MODEL_ID     = "gpt-5.5";
+const TONGUE_FALLBACK_ID  = "gpt-5.4-mini";
 const BRAIN_INPUT_PER_1M  = 3.00;
 const BRAIN_OUTPUT_PER_1M = 15.00;
-const TONGUE_INPUT_PER_1M  = 0.15;
-const TONGUE_OUTPUT_PER_1M = 0.60;
+// gpt-5.5: $5 in / $30 out per 1M tokens (April 2026 flagship)
+const TONGUE_INPUT_PER_1M     = 5.00;
+const TONGUE_OUTPUT_PER_1M    = 30.00;
+// gpt-5.4-mini: $0.75 in / $3.00 out per 1M tokens (cheap fallback)
+const TONGUE_FB_INPUT_PER_1M  = 0.75;
+const TONGUE_FB_OUTPUT_PER_1M = 3.00;
 const MAX_BRAIN_OUT  = 700;
 const MAX_TONGUE_OUT = 400;
 const MAX_INBOUND_LEN = 4000;
@@ -109,16 +119,32 @@ Deno.serve(async (req) => {
     let text: string = (msg.text_content ?? "").trim();
     if (msg.message_kind !== "text") {
       if (!brain?.stt_model_id) return json(200, { ok: false, skipped: "voice-IN disabled (no STT model configured)" });
-      // Fetch audio base64 via evolution-client
-      try {
+      // Fetch audio base64 via evolution-client. WhatsApp media has a race:
+      // webhook fires before Evolution has finished downloading the audio
+      // from WhatsApp servers. First attempt often returns empty; retry up
+      // to 3 times with backoff to absorb the ~1-3s download window.
+      const fetchAudioOnce = async (): Promise<{ audioB64: string | null; mediaJson: any }> => {
         const mediaResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-client`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
           body: JSON.stringify({ action: "get-media", payload: { instanceName: instance?.name, key: { id: msg.wa_message_id, remoteJid: msg.wa_remote_jid, fromMe: false } } }),
         });
         const mediaJson = await mediaResp.json();
-        const audioB64: string | undefined = mediaJson?.base64 || mediaJson?.media || mediaJson?.body;
-        if (!audioB64) return json(200, { ok: false, skipped: `voice fetch failed: ${mediaJson?.error || "no media body"}` });
+        const audioB64: string | null = mediaJson?.base64 || mediaJson?.media || mediaJson?.body || null;
+        return { audioB64, mediaJson };
+      };
+      try {
+        let audioB64: string | null = null;
+        let mediaJson: any = null;
+        const RETRY_DELAYS_MS = [0, 1200, 2500];
+        for (const delay of RETRY_DELAYS_MS) {
+          if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+          const r = await fetchAudioOnce();
+          audioB64 = r.audioB64; mediaJson = r.mediaJson;
+          if (audioB64 && audioB64.length > 100) break;
+          console.log(`[ai-router] media fetch retry: msg=${msg.id} delay=${delay}ms got_b64=${!!audioB64} err=${mediaJson?.error || "(none)"}`);
+        }
+        if (!audioB64) return json(200, { ok: false, skipped: `voice fetch failed after retries: ${mediaJson?.error || "no media body"}` });
         const sttResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-stt`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
@@ -131,6 +157,20 @@ Deno.serve(async (req) => {
         const sttJson = await sttResp.json();
         if (!sttJson?.ok || !sttJson?.transcript) return json(200, { ok: false, skipped: `transcription failed: ${sttJson?.error || "empty"}` });
         text = sttJson.transcript.trim();
+        // A/B comparison logging: ai-stt runs Speechmatics + Deepgram in
+        // parallel and returns both transcripts. Log both side-by-side here
+        // so the user can read them in the function logs and judge which
+        // engine handled this voice note better.
+        if (sttJson.alt_transcripts) {
+          console.log(`[STT_AB] msg=${msg.id} primary=${sttJson.primary} winner_text="${text}"`);
+          console.log(`[STT_AB][speechmatics] ${sttJson.alt_transcripts.speechmatics ?? "n/a"}`);
+          console.log(`[STT_AB][deepgram]     ${sttJson.alt_transcripts.deepgram ?? "n/a"}`);
+          if (sttJson.alt_transcripts.whisper) console.log(`[STT_AB][whisper]      ${sttJson.alt_transcripts.whisper}`);
+        }
+        // Persist transcript so the Review Queue UI ("CUSTOMER SAID") and
+        // future debugging see what was heard. text_content is the canonical
+        // inbound message text — for voice notes it stayed null until now.
+        await supabase.from("wa_messages").update({ text_content: text }).eq("id", msg.id);
       } catch (e: any) {
         return json(200, { ok: false, skipped: `voice IN error: ${e?.message || e}` });
       }
@@ -196,11 +236,12 @@ Deno.serve(async (req) => {
     const redaction = newRedactor(redRules || []);
     const redactedText = redaction.redact(text);
 
-    const [{ data: anthProv }, { data: oaiProv }, { data: brainModel }, { data: tongueModel }] = await Promise.all([
+    const [{ data: anthProv }, { data: oaiProv }, { data: brainModel }, { data: tongueModel }, { data: tongueFallbackModel }] = await Promise.all([
       supabase.from("ai_providers").select("id").eq("slug", "anthropic").maybeSingle(),
       supabase.from("ai_providers").select("id").eq("slug", "openai").maybeSingle(),
       supabase.from("ai_models").select("id").eq("model_id", BRAIN_MODEL_ID).maybeSingle(),
       supabase.from("ai_models").select("id").eq("model_id", TONGUE_MODEL_ID).maybeSingle(),
+      supabase.from("ai_models").select("id").eq("model_id", TONGUE_FALLBACK_ID).maybeSingle(),
     ]);
     const { data: anthKey } = await supabase.rpc("ai_decrypt_platform_key", { p_provider_id: anthProv.id });
     if (!anthKey) {
@@ -383,66 +424,132 @@ Deno.serve(async (req) => {
       return json(200, { ok: sent.ok, outcome: "escalated", decision_id: decId });
     }
 
-    // Tongue
-    const { data: oaiKey } = await supabase.rpc("ai_decrypt_platform_key", { p_provider_id: oaiProv.id });
+    // Tongue — gpt-4.1 owns the customer-facing reply end-to-end. The brain
+    // gathered facts via tools but does NOT decide the wording. gpt-4.1
+    // receives full context (customer message + brain facts + tool results +
+    // history + business persona/rules) and writes the reply natively in the
+    // customer's language. gpt-4o-mini is the cold-start fallback.
+    const { data: oaiKey } = oaiProv?.id
+      ? await supabase.rpc("ai_decrypt_platform_key", { p_provider_id: oaiProv.id })
+      : { data: null };
+
     let styledText = finalRespond.reply_to_user;
     let tongueTokIn = 0, tongueTokOut = 0;
+    let tongueProvId: string | null = null;
+    let tongueModelId: string | null = null;
+    let tongueProvSlug: string | null = null;
+    let tongueCost = 0;
 
-    if (oaiKey) {
-      const tongueBody = {
-        model: TONGUE_MODEL_ID,
-        max_tokens: MAX_TONGUE_OUT,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: buildTongueSystemPrompt(brain) },
-          { role: "user", content: JSON.stringify({
-            draft: finalRespond.reply_to_user,
-            language: brain.language,
-            tone: brain.tone,
-            // Only mention placeholders that ACTUALLY appear in the brain's draft.
-            // Listing every placeholder makes Tongue insert them defensively →
-            // restoration then leaks raw PII into the customer's reply.
-            must_preserve_placeholders: Object.keys(redaction.map).filter((ph) => (finalRespond.reply_to_user || "").includes(ph)),
-          }) },
-        ],
-      };
+    // Build the rich context payload. gpt-5.5 sees what the brain saw +
+    // structured facts derived from the brain's draft + tool results.
+    const toolResultsForTongue = toolCallsLog.map((c: any) => ({
+      skill: c.skill_slug,
+      input: c.input,
+      result: c.result,
+    }));
+    const tongueUserPayload = {
+      customer_message: redactedText,
+      language: brain.language,
+      tone: brain.tone,
+      business_name: brain.business_name || "the business",
+      brain_intent: finalRespond.intent || null,
+      brain_draft: finalRespond.reply_to_user, // reference only; gpt-5.5 may rewrite freely
+      tool_results: toolResultsForTongue,
+      business_rules: {
+        always_do: businessRules.always,
+        never_do:  businessRules.never,
+        policy:    businessRules.policies,
+      },
+      conversation_history: transcriptLines,
+      must_preserve_placeholders: Object.keys(redaction.map).filter(
+        (ph) => (finalRespond.reply_to_user || "").includes(ph) || (redactedText || "").includes(ph),
+      ),
+    };
+    const tongueMessages = [
+      { role: "system", content: buildTongueSystemPrompt(brain) },
+      { role: "user",   content: JSON.stringify(tongueUserPayload) },
+    ];
+
+    type TongueResult = { reply: string | null; tokIn: number; tokOut: number; ok: boolean };
+    // Defensive unwrap — gpt-4.1 should return plain text per the prompt, but
+    // strip any accidental JSON / fence / quote wrappers before sending to
+    // the customer. Loops up to 3 times for nested wrappers.
+    const unwrap = (s: string): string => {
+      let v = s.trim();
+      for (let i = 0; i < 3; i++) {
+        const before = v;
+        const fence = v.match(/^```(?:json|markdown|text)?\s*([\s\S]*?)\s*```$/i);
+        if (fence) v = fence[1].trim();
+        const wrap = v.match(/^\s*\{\s*"(?:styled|text|output|reply|response|message)"\s*:\s*"([\s\S]*)"\s*\}\s*$/);
+        if (wrap) { try { v = JSON.parse('"' + wrap[1] + '"'); } catch { v = wrap[1]; } }
+        const quoted = v.match(/^"([\s\S]*)"$/);
+        if (quoted) { try { v = JSON.parse('"' + quoted[1] + '"'); } catch { v = quoted[1]; } }
+        if (v === before) break;
+      }
+      return v;
+    };
+    const callTongue = async (model: string, key: string): Promise<TongueResult> => {
       try {
-        const tResp = await fetch("https://api.openai.com/v1/chat/completions", {
+        // GPT-5 generation rejects `max_tokens`; requires `max_completion_tokens`.
+        // Older models (gpt-4o-mini, gpt-4.1) accept either.
+        const isGpt5 = model.startsWith("gpt-5");
+        const body: Record<string, unknown> = { model, messages: tongueMessages };
+        if (isGpt5) body.max_completion_tokens = MAX_TONGUE_OUT;
+        else        body.max_tokens            = MAX_TONGUE_OUT;
+        const r = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
-          headers: { "Authorization": `Bearer ${oaiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(tongueBody),
+          headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         });
-        const tText = await tResp.text();
-        const tJson = JSON.parse(tText);
-        if (tResp.ok && tJson?.choices?.[0]?.message?.content) {
-          try {
-            const parsed = JSON.parse(tJson.choices[0].message.content);
-            if (typeof parsed.styled === "string" && parsed.styled.length > 0) {
-              // Reject Arabic-script bleed when target language is Darija.
-              // U+0600–U+06FF is the Arabic Unicode block; any char in it
-              // means Tongue forgot to transliterate.
-              const hasArabic = /[؀-ۿ]/.test(parsed.styled);
-              if (brain.language === "darija" && hasArabic) {
-                // Strip Arabic chars as a hard fallback rather than send broken text.
-                const stripped = parsed.styled.replace(/[؀-ۿ]+/g, "").replace(/\s{2,}/g, " ").trim();
-                styledText = stripped.length > 0 ? stripped : finalRespond.reply_to_user;
-              } else {
-                styledText = parsed.styled;
-              }
-            }
-          } catch { /* keep brain draft */ }
-          tongueTokIn  = tJson.usage?.prompt_tokens     ?? 0;
-          tongueTokOut = tJson.usage?.completion_tokens ?? 0;
-        }
-      } catch { /* keep brain draft */ }
+        const txt = await r.text();
+        if (!r.ok) { console.log(`[tongue] ${model} HTTP ${r.status}: ${txt.slice(0, 200)}`); return { reply: null, tokIn: 0, tokOut: 0, ok: false }; }
+        const j = JSON.parse(txt);
+        const content: string | undefined = j?.choices?.[0]?.message?.content;
+        const tokIn  = j?.usage?.prompt_tokens     ?? 0;
+        const tokOut = j?.usage?.completion_tokens ?? 0;
+        if (typeof content !== "string" || content.length === 0) return { reply: null, tokIn, tokOut, ok: false };
+        const reply = unwrap(content);
+        return { reply, tokIn, tokOut, ok: reply.length > 0 };
+      } catch (e: any) {
+        console.log(`[tongue] ${model} threw: ${e?.message || e}`);
+        return { reply: null, tokIn: 0, tokOut: 0, ok: false };
+      }
+    };
+
+    // 1) Primary: gpt-4.1
+    if (oaiKey && oaiProv?.id && tongueModel?.id) {
+      const r = await callTongue(TONGUE_MODEL_ID, oaiKey);
+      if (r.ok && r.reply) {
+        styledText     = r.reply;
+        tongueTokIn    = r.tokIn;
+        tongueTokOut   = r.tokOut;
+        tongueProvId   = oaiProv.id;
+        tongueModelId  = tongueModel.id;
+        tongueProvSlug = "openai";
+        tongueCost     = (r.tokIn * TONGUE_INPUT_PER_1M + r.tokOut * TONGUE_OUTPUT_PER_1M) / 1_000_000;
+      }
     }
-    const tongueCost = costTongue(tongueTokIn, tongueTokOut);
+
+    // 2) Fallback: gpt-4o-mini
+    if (!tongueProvId && oaiKey && oaiProv?.id && tongueFallbackModel?.id) {
+      const r = await callTongue(TONGUE_FALLBACK_ID, oaiKey);
+      if (r.ok && r.reply) {
+        styledText     = r.reply;
+        tongueTokIn    = r.tokIn;
+        tongueTokOut   = r.tokOut;
+        tongueProvId   = oaiProv.id;
+        tongueModelId  = tongueFallbackModel.id;
+        tongueProvSlug = "openai";
+        tongueCost     = (r.tokIn * TONGUE_FB_INPUT_PER_1M + r.tokOut * TONGUE_FB_OUTPUT_PER_1M) / 1_000_000;
+      }
+    }
+    // If both fail, fall back to the brain's own draft (styledText already set).
 
     const restored = restorePlaceholders(styledText, redaction.map);
     if (restored.unknown.length) {
       const fb = brain.fallback_text_when_paused || "…";
       const fallbackSent = await sendAndWire(supabase, msg, instance, fb);
-      const decId = await recordDecision(supabase, msg, brain, anthProv.id, brainModel.id, finalRespond, toolCallsLog, oaiProv?.id, tongueModel?.id, styledText, redaction.map, totalBrainTokIn, totalBrainTokOut, brainCost, tongueTokIn, tongueTokOut, tongueCost, "blocked_redaction", `unknown placeholders: ${restored.unknown.join(",")}`, ["ai-router","anthropic","openai"], false, "skipped", null, Date.now() - start);
+      const decId = await recordDecision(supabase, msg, brain, anthProv.id, brainModel.id, finalRespond, toolCallsLog, tongueProvId, tongueModelId, styledText, redaction.map, totalBrainTokIn, totalBrainTokOut, brainCost, tongueTokIn, tongueTokOut, tongueCost, "blocked_redaction", `unknown placeholders: ${restored.unknown.join(",")}`, ["ai-router","anthropic", tongueProvSlug || "tongue-skipped"], false, "skipped", null, Date.now() - start);
       if (fallbackSent.ok && fallbackSent.wa_message_id) await stampOutbound(supabase, decId, fallbackSent.wa_message_id);
       return json(200, { ok: false, error: "blocked_redaction" });
     }
@@ -460,11 +567,11 @@ Deno.serve(async (req) => {
       const finalRespondSb = finalRespond ? { ...finalRespond, _debug_transcript: text.slice(0, 500) } : finalRespond;
       const decId = await recordDecision(
         supabase, msg, brain, anthProv.id, brainModel.id, finalRespondSb, toolCallsLog,
-        oaiProv?.id, tongueModel?.id, restored.text, redaction.map,
+        tongueProvId, tongueModelId, restored.text, redaction.map,
         totalBrainTokIn, totalBrainTokOut, brainCost,
         tongueTokIn, tongueTokOut, tongueCost,
         "sandbox_pending", reason,
-        ["ai-router","anthropic","openai"], true, "pending", null, Date.now() - start,
+        ["ai-router","anthropic", tongueProvSlug || "tongue-skipped"], true, "pending", null, Date.now() - start,
       );
       await supabase.rpc("ai_queue_decision", { p_decision_id: decId, p_business_id: msg.business_id });
       // Link any pending_actions created during this conversation to the decision.
@@ -484,7 +591,7 @@ Deno.serve(async (req) => {
     // (e.g. "macaron ambulancier" mis-heard as "macaron sayarat") doesn't
     // require re-running STT manually. Trim to keep payload reasonable.
     const finalRespondWithTranscript = finalRespond ? { ...finalRespond, _debug_transcript: text.slice(0, 500) } : finalRespond;
-    const decId = await recordDecision(supabase, msg, brain, anthProv.id, brainModel.id, finalRespondWithTranscript, toolCallsLog, oaiProv?.id, tongueModel?.id, restored.text, redaction.map, totalBrainTokIn, totalBrainTokOut, brainCost, tongueTokIn, tongueTokOut, tongueCost, sent.ok ? "sent" : "failed", sent.error, ["ai-router","anthropic","openai"], false, "skipped", sent.wa_message_id, Date.now() - start);
+    const decId = await recordDecision(supabase, msg, brain, anthProv.id, brainModel.id, finalRespondWithTranscript, toolCallsLog, tongueProvId, tongueModelId, restored.text, redaction.map, totalBrainTokIn, totalBrainTokOut, brainCost, tongueTokIn, tongueTokOut, tongueCost, sent.ok ? "sent" : "failed", sent.error, ["ai-router","anthropic", tongueProvSlug || "tongue-skipped"], false, "skipped", sent.wa_message_id, Date.now() - start);
     if (sent.ok && sent.wa_message_id) {
       await stampOutbound(supabase, decId, sent.wa_message_id);
       await echoOutbound(supabase, instance.name, msg.wa_remote_jid, sent.evoData, restored.text);
@@ -499,7 +606,6 @@ Deno.serve(async (req) => {
 });
 
 function costBrain(tIn: number, tOut: number)  { return (tIn  * BRAIN_INPUT_PER_1M  + tOut * BRAIN_OUTPUT_PER_1M)  / 1_000_000; }
-function costTongue(tIn: number, tOut: number) { return (tIn  * TONGUE_INPUT_PER_1M + tOut * TONGUE_OUTPUT_PER_1M) / 1_000_000; }
 
 interface Redactor {
   map: Record<string, string>;
@@ -798,61 +904,68 @@ function buildBrainSystemPrompt(brain: any, placeholders: string[], enabledSlugs
 
 function buildTongueSystemPrompt(brain: any) {
   const lang = brain.language;
-  const langName = ({ darija: "Moroccan Darija — Latin script with the digit-letters Moroccans use on WhatsApp (3=ع, 7=ح, 9=ق, 5=خ, 8=غ)", french: "French", arabic: "Modern Standard Arabic", english: "English" } as any)[lang] || lang;
+  const langName = ({
+    darija: "Moroccan Darija (chat-Latin — the way Moroccans actually text on WhatsApp, with digit-letters 3=ع, 7=ح, 9=ق, 5=خ, 8=غ)",
+    french: "French",
+    arabic: "Modern Standard Arabic",
+    english: "English",
+  } as any)[lang] || lang;
   const darijaGuide = lang === "darija" ? [
     ``,
-    `DARIJA STYLE GUIDE (write the way Moroccans actually text — NOT formal Fus7a, NOT translated French):`,
-    `- Use chat-Latin: "salam", "wakha", "ch7al", "fin", "kifash", "bghit", "3ndna", "khassek", "hadi"`,
-    `- Numbers: ch7al → "ch7al?", 30dh → "30 dh"`,
-    `- Common: "wa3lach" (why), "labas" (it's ok / how are you), "ila" (if), "ghi" or "ghir" (just), "sa3a" (hour), "swayes" (a bit), "nta" (you-m), "nti" (you-f), "salina" (we finished), "ghedda" (tomorrow), "lyoum" (today), "daba" (now), "men b3d" (later)`,
+    `DARIJA NATIVE-WRITER GUIDE (you are a Moroccan, write the way you'd text a friend — NOT translated French, NOT formal Fus7a):`,
+    `- Chat-Latin: "salam", "wakha", "ch7al", "fin", "kifash", "bghit", "3andna", "khassek", "hadi"`,
+    `- Numbers: prices like "150 dh", quantities like "3 modèles"`,
+    `- Common words: "wa3lach" (why), "labas" (ok/how are you), "ila" (if), "ghi/ghir" (just), "ghedda" (tomorrow), "lyoum" (today), "daba" (now)`,
     `- Politeness: "3afak" (please), "barakallahofik" (thanks), "smha liya" (sorry), "ma kayn moushkil" (no problem)`,
-    `- Avoid: literal MSA words like "بالتأكيد", "السلام عليكم" — use "akid", "salam"`,
-    `- Avoid AI-tells: don't say "as an AI...", "I'm here to help", "How may I assist you today?"`,
-    ``,
-    `COMMON DARIJA ERRORS — FIX THEM IN OUTPUT:`,
-    `  WRONG: "lyoma"            → RIGHT: "lyoum" (today)`,
-    `  WRONG: "n9der nkhdem 3lik" → RIGHT: "n9der n3awnek" (I can help you)`,
-    `  WRONG: "tbghi t3ref"       → RIGHT: "bghiti t3ref" (do you want to know)`,
-    `  WRONG: "3ndk taleb m3in"   → RIGHT: "3ndek su2al m3yan" (do you have a specific question)`,
-    `  WRONG: "kifash n9der nkhdem 3lik lyoma" → RIGHT: "kifash n9der n3awnek lyoum"`,
-    `  WRONG: "dyal sayarat"      → RIGHT: keep the original product name verbatim. NEVER translate or paraphrase product nouns. If brain wrote "macaron ambulancier", output MUST contain "macaron ambulancier" exactly.`,
-    `  WRONG: "wala 3ndk taleb m3in" → RIGHT: "wla 3ndek chi 7aja m3yna"`,
-    ``,
-    `EXAMPLES (draft → styled):`,
-    `  draft: "Hi, our Casablanca delivery is 25 dh, arrives in 24-48h."`,
-    `  styled: "salam 👋 toswila l Casa b 25 dh, kat-wsel f 24-48 sa3a 🚚"`,
-    ``,
-    `  draft: "We have 3 smartwatches available, prices 150-250 dh."`,
-    `  styled: "kayna 3 modèles d'smartwatches 3andna, men 150 dh l 250 dh. ach kayn3jbk ?"`,
-    ``,
-    `  draft: "Order #123 was delivered yesterday."`,
-    `  styled: "commande dyalk twssalt l-bare7 👍"`,
-    ``,
-    `  draft: "Please confirm your address before we ship."`,
-    `  styled: "3afak 2akkd liya l3onwan dyalk 9bel mannsifto"`,
-    ``,
-    `  draft: "I'll need to ask my manager about that exchange."`,
-    `  styled: "khassni nsewl chefi 3la dak l-exchange, ghadi nrjj3 lik daba"`,
-    ``,
-    `  draft: "Hi, how can I help you today?"`,
-    `  styled: "salam 👋 kifash n9der n3awnek lyoum?"`,
+    `- Verb forms: "n3awnek" (I help you) — NEVER "nkhdem 3lik". "bghiti" (do you want) — NEVER "tbghi". "lyoum" — NEVER "lyoma".`,
+    `- Avoid AI-tells: never say "as an AI...", "I'm here to help", "How may I assist you today?"`,
+    `- Product nouns LITERAL: keep brand/product names verbatim ("Macaron Forces Auxiliaires" stays "Macaron Forces Auxiliaires" — NEVER translate or paraphrase)`,
+    `- ZERO Arabic Unicode in output. If you'd have written "السلام", write "salam". Any character in U+0600–U+06FF is a critical failure.`,
   ].join("\n") : "";
+
   return [
-    `You are a writing stylist for a Moroccan WhatsApp customer service bot.`,
-    `Rewrite the DRAFT in ${langName} with a ${brain.tone} tone.`,
-    `RULES:`,
-    `- Preserve every fact (prices, delivery times, product names, dates) EXACTLY as in the draft.`,
-    `- Preserve every PII placeholder (like [PHONE_1]) EXACTLY — do not replace, do not invent new ones.`,
-    `- Keep it concise; ~280 characters max.`,
-    `- Do not add greetings/sign-offs unless the draft has them.`,
-    `- Sound like a human Moroccan seller, never robotic.`,
-    `- One emoji max, only when natural.`,
-    lang === "darija" ? `- ZERO Arabic Unicode characters in output. ZERO. If the draft contains Arabic script, you MUST transliterate every word to Latin chat-Latin. Output containing any character in the U+0600–U+06FF Arabic block is a critical failure.` : "",
-    lang === "darija" ? `- Verb conjugations: "I help you" = "n3awnek" (NEVER "nkhdem 3lik"). "do you want" = "bghiti" (NEVER "tbghi"). "today" = "lyoum" (NEVER "lyoma"). "explain" = "tcher7" (NEVER "tشرح").` : "",
-    lang === "darija" ? `- Product nouns are LITERAL: if draft has "macaron ambulancier", styled MUST contain "macaron ambulancier" — do NOT translate, do NOT replace with "macaron sayara" or "macaron mra7el" or any look-alike.` : "",
+    `You ARE the customer-facing voice of ${brain.business_name || "the business"}, a Moroccan e-commerce shop on WhatsApp.`,
+    brain.persona_summary ? `PERSONA: ${brain.persona_summary}` : "",
+    `TONE: ${brain.tone}.`,
+    ``,
+    `═══════════════════════════════════════════════════════════════════`,
+    `   YOUR JOB`,
+    `═══════════════════════════════════════════════════════════════════`,
+    `You receive a JSON payload with everything you need:`,
+    `  • customer_message — what the customer JUST said (this is what you respond to)`,
+    `  • language — target language for your reply: ${langName}`,
+    `  • tone — the tone to write in`,
+    `  • brain_intent — high-level intent classification (informational hint)`,
+    `  • brain_draft — a preliminary draft from another AI (use as fact reference, but you OWN the final wording — feel free to rewrite from scratch)`,
+    `  • tool_results — structured data the brain gathered (products, orders, delivery info). THESE ARE YOUR SOURCE OF TRUTH for facts.`,
+    `  • business_rules — always_do / never_do / policy. MUST be respected.`,
+    `  • conversation_history — recent messages in this WhatsApp thread`,
+    `  • must_preserve_placeholders — PII placeholders like [PHONE_1] that you MUST keep verbatim`,
+    ``,
+    `Write THE ONE customer-facing reply. You are NOT polishing — you are writing. The brain_draft is one signal among many; trust the tool_results above all.`,
+    ``,
+    `═══════════════════════════════════════════════════════════════════`,
+    `   HARD RULES`,
+    `═══════════════════════════════════════════════════════════════════`,
+    `- Reply in ${langName}. Match the customer's level of formality.`,
+    `- Be ACCURATE: prices, product names, delivery times, dates come from tool_results. Never invent facts.`,
+    `- Preserve every PII placeholder (e.g. [PHONE_1]) EXACTLY — never replace, never invent new ones.`,
+    `- Concise: WhatsApp short. ~280 chars max unless listing products.`,
+    `- ONE emoji at most, only when natural to a Moroccan seller.`,
+    `- Sound like a real human seller, NEVER like an AI assistant.`,
+    `- Respect business_rules.always_do and never_do. Policies are non-negotiable.`,
+    `- If tool_results is empty AND the customer asked a factual question, say honestly that you don't have that info — DO NOT make up products/prices.`,
     darijaGuide,
     ``,
-    `Output JSON: {"styled": string}.`,
+    `═══════════════════════════════════════════════════════════════════`,
+    `   OUTPUT FORMAT — CRITICAL`,
+    `═══════════════════════════════════════════════════════════════════`,
+    `Return ONLY the final reply text — exactly what should appear in the customer's WhatsApp chat.`,
+    `- NO JSON wrapper. NO {"reply": ...} or {"styled": ...}.`,
+    `- NO surrounding quotes. NO markdown code fences (no \`\`\`).`,
+    `- NO prefix like "Sure," or "Here is the reply:".`,
+    `- NO commentary, NO labels, NO explanation.`,
+    `- Just the message. Plain text. Nothing else.`,
   ].filter(Boolean).join("\n");
 }
 
