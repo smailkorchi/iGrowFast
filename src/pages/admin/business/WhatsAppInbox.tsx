@@ -2964,9 +2964,10 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     // and bumps per-user last_read_at. Phone read-receipt fires below.
     setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
     if (chat.dbConvId) {
-      (db.rpc as unknown as (name: string, params: Record<string, unknown>) => Promise<unknown>)(
-        'wa_mark_thread_read', { p_thread_id: chat.dbConvId }
-      ).catch(() => {});
+      // Supabase's `.rpc()` returns a PostgrestFilterBuilder — a thenable, not
+      // a Promise. It exposes `.then()` but not `.catch()`, so wrap it in
+      // Promise.resolve to suppress unhandled rejection warnings.
+      Promise.resolve(db.rpc('wa_mark_thread_read', { p_thread_id: chat.dbConvId })).catch(() => {});
     }
     const nowTs = Math.floor(Date.now() / 1000);
     setChatSettings(prev => ({
