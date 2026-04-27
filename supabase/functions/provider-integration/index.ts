@@ -3106,20 +3106,19 @@ class DigylogAdapter {
 
         const isExchange = !!(parcelData.replace_parcel_code || parcelData.old_parcel_code || parcelData.replaceable);
         const items = Array.isArray(parcelData.items) ? parcelData.items : [];
-        // Build refs[]: type=1 → designation+quantity; type=2 → ref+quantity.
+        // refs[].designation is required for mode=1 (Standard, what DigiCom uses).
+        // Exchange flag goes on order.type, not on the refs shape.
         const refs = items
             .filter((i) => Number(i.quantity) > 0)
-            .map((i) => isExchange
-                ? { ref: String(i.code || i.product?.code || i.product_id || '').substring(0, 64), quantity: Number(i.quantity) || 1 }
-                : { designation: String(i.name || i.product?.name || i.code || '').substring(0, 200), quantity: Number(i.quantity) || 1 }
-            );
-        // Fallback: synthesize one ref from the parcel summary when items aren't present in `data`.
+            .map((i) => ({
+                designation: String(i.name || i.product?.name || i.code || 'Produit').substring(0, 200),
+                quantity: Number(i.quantity) || 1,
+            }));
         if (refs.length === 0) {
-            const summary = String(parcelData.product_info || parcelData.designation || 'Produit').substring(0, 200);
-            refs.push(isExchange
-                ? { ref: String(parcelData.order_num || 'P').substring(0, 64), quantity: 1 }
-                : { designation: summary, quantity: 1 }
-            );
+            refs.push({
+                designation: String(parcelData.product_info || parcelData.designation || 'Produit').substring(0, 200),
+                quantity: 1,
+            });
         }
 
         const order = {
