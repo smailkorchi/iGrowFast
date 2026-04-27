@@ -234,6 +234,14 @@ const KNOWN_PROVIDERS = [
         baseUrl: 'https://app.sendit.ma/api/v1',
         description: 'Sendit (Maroc). API REST Bearer + ramassage (/pickups) comme BL. Suivi temps réel via webhook natif.',
     },
+    {
+        type: 'digylog',
+        name: 'Digylog',
+        logo: '/providers/Digylog.webp',
+        color: '#1f56b8',
+        baseUrl: 'https://api.digylog.com/api/v2/seller',
+        description: 'Digylog (Maroc). API REST Bearer + BL généré par /orders/send. Webhook natif auto-enregistré.',
+    },
 ];
 
 type ProviderConfigField =
@@ -254,6 +262,7 @@ const PROVIDER_FIELD_SCHEMA: Record<string, ProviderConfigField[]> = {
     ozon: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
     coliaty: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_public_key', 'api_secret_key'],
     ameex: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
+    digylog: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_key'],
 };
 
 type FieldMeta = {
@@ -283,7 +292,7 @@ function getProviderTemplateByType(rawType: string | undefined | null) {
         ?? null;
 }
 
-type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit';
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog';
 
 type ProviderPermissionRow = { key: string; label: string; hint?: string };
 
@@ -329,6 +338,10 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
         // would mislead sellers since flipping it has no effect on the printed label or stored delivery.
         { key: 'autoriser_essayage', label: "Autoriser l'essayage du produit par le client" },
     ],
+    digylog: [
+        { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client", hint: 'Mappe le champ Digylog `openproduct`.' },
+        { key: 'port_seller_pays', label: 'Frais de livraison à la charge du vendeur', hint: 'Désactivé : client paie. Mappe le champ Digylog `port` (1=client, 2=vendeur).' },
+    ],
 };
 
 function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
@@ -341,6 +354,7 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'vitex' || t.includes('vitex')) return 'vitex';
     if (t === 'forcelog' || t.includes('forcelog')) return 'forcelog';
     if (t === 'sendit' || t.includes('sendit')) return 'sendit';
+    if (t === 'digylog' || t.includes('digylog')) return 'digylog';
     return null;
 }
 
@@ -386,6 +400,13 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
         // `sendit_allow_open` column dropped — Sendit's API ignored it. Toggle kept only for allow_try.
         return {
             autoriser_essayage: !!row.sendit_allow_try,
+        };
+    }
+    if (slug === 'digylog') {
+        return {
+            autorisation_ouverture_colis: !!row.digylog_allow_open,
+            // port=2 → seller pays; port=1 → customer pays.
+            port_seller_pays: Number(row.digylog_default_port) === 2,
         };
     }
     return {};
@@ -439,6 +460,12 @@ function flagsToProviderParcelUpdate(
         // allow_open=1. Not writing the DB column prevents stale toggle state from accumulating.
         return {
             sendit_allow_try: !!flags.autoriser_essayage,
+        };
+    }
+    if (slug === 'digylog') {
+        return {
+            digylog_allow_open: !!flags.autorisation_ouverture_colis,
+            digylog_default_port: flags.port_seller_pays ? 2 : 1,
         };
     }
     return {};
@@ -567,6 +594,7 @@ const DeliveryServices = () => {
     // Company Mutations (direct to table)
     const companyMutation = useMutation({
         mutationFn: async ({ values, id }: { values: DeliveryCompanyValues, id?: string }) => {
+            let row: any;
             if (id) {
                 const { data, error } = await supabase
                     .from(PROVIDERS_TABLE)
@@ -576,7 +604,7 @@ const DeliveryServices = () => {
                     .select()
                     .single();
                 if (error) throw error;
-                return data;
+                row = data;
             } else {
                 const { data, error } = await supabase
                     .from(PROVIDERS_TABLE)
@@ -587,8 +615,27 @@ const DeliveryServices = () => {
                     .select()
                     .single();
                 if (error) throw error;
-                return data;
+                row = data;
             }
+
+            // Auto-register webhook for providers that support it (Digylog).
+            // Skipped silently when the API rejects the credentials — surfaces in webhook health view.
+            const slug = String(row?.provider_type || '').toLowerCase();
+            if (row?.id && slug === 'digylog') {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
+                    await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session?.access_token || ''}`,
+                        },
+                        body: JSON.stringify({ action: 'register_webhook', provider_id: row.id, data: {} }),
+                    });
+                } catch (_) { /* non-fatal */ }
+            }
+            return row;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers', activeBusinessId] });
@@ -2238,6 +2285,13 @@ function ProviderPermissionsModal({
     const [senditPickupName, setSenditPickupName] = useState('');
     const [senditPickupPhone, setSenditPickupPhone] = useState('');
     const [senditPickupAddress, setSenditPickupAddress] = useState('');
+    // Digylog-specific state: network + store come from live API calls; webhook auto-registers on save.
+    const [digylogNetworkId, setDigylogNetworkId] = useState<number | null>(null);
+    const [digylogStoreName, setDigylogStoreName] = useState('');
+    const [digylogNetworks, setDigylogNetworks] = useState<Array<{ id: number; name: string }>>([]);
+    const [digylogStores, setDigylogStores] = useState<Array<{ id: number; name: string }>>([]);
+    const [digylogListsLoading, setDigylogListsLoading] = useState(false);
+    const [digylogListsError, setDigylogListsError] = useState<string | null>(null);
 
     const { data: permRow, isLoading: loadingPerm, isError: permError, error: permErr } = useQuery({
         queryKey: ['provider_permissions', company?.id, activeBusinessId],
@@ -2265,6 +2319,10 @@ function ProviderPermissionsModal({
                         'sendit_pickup_name',
                         'sendit_pickup_phone',
                         'sendit_pickup_address',
+                        'digylog_network_id',
+                        'digylog_store_name',
+                        'digylog_default_port',
+                        'digylog_allow_open',
                     ].join(', ')
                 )
                 .eq('id', company.id)
@@ -2291,7 +2349,57 @@ function ProviderPermissionsModal({
             setSenditPickupPhone('');
             setSenditPickupAddress('');
         }
+        if (providerSlug === 'digylog') {
+            const nid = permRow.digylog_network_id;
+            setDigylogNetworkId(typeof nid === 'number' ? nid : nid ? parseInt(String(nid), 10) || null : null);
+            setDigylogStoreName(String(permRow.digylog_store_name || ''));
+        } else {
+            setDigylogNetworkId(null);
+            setDigylogStoreName('');
+        }
     }, [isOpen, providerSlug, permRow]);
+
+    // Live-fetch Digylog networks + stores so the modal can render real dropdowns.
+    useEffect(() => {
+        let cancelled = false;
+        if (!isOpen || providerSlug !== 'digylog' || !company?.id) {
+            setDigylogNetworks([]);
+            setDigylogStores([]);
+            setDigylogListsError(null);
+            return () => { cancelled = true; };
+        }
+        (async () => {
+            setDigylogListsLoading(true);
+            setDigylogListsError(null);
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token || ''}`,
+                };
+                const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
+                const callList = async (action: string) => {
+                    const r = await fetch(url, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ action, provider_id: company.id, data: {} }),
+                    });
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+                    return Array.isArray(j?.data?.items) ? j.data.items : [];
+                };
+                const [nets, sts] = await Promise.all([callList('list_networks'), callList('list_stores')]);
+                if (cancelled) return;
+                setDigylogNetworks(nets as Array<{ id: number; name: string }>);
+                setDigylogStores(sts as Array<{ id: number; name: string }>);
+            } catch (e) {
+                if (!cancelled) setDigylogListsError((e as Error)?.message || 'Erreur');
+            } finally {
+                if (!cancelled) setDigylogListsLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isOpen, providerSlug, company?.id]);
 
     // Load pickup-enabled Sendit districts (only when modal is open for a Sendit provider).
     useEffect(() => {
@@ -2336,12 +2444,32 @@ function ProviderPermissionsModal({
                 patch.sendit_pickup_phone = senditPickupPhone.trim() || null;
                 patch.sendit_pickup_address = senditPickupAddress.trim() || null;
             }
+            if (providerSlug === 'digylog') {
+                patch.digylog_network_id = digylogNetworkId;
+                patch.digylog_store_name = digylogStoreName.trim() || null;
+            }
             const { error } = await supabase
                 .from(PROVIDERS_TABLE)
                 .update(patch as any)
                 .eq('id', company.id)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
+
+            // Auto-register webhook for Digylog so status updates flow back without dashboard setup.
+            if (providerSlug === 'digylog') {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
+                    await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session?.access_token || ''}`,
+                        },
+                        body: JSON.stringify({ action: 'register_webhook', provider_id: company.id, data: {} }),
+                    });
+                } catch (_) { /* non-fatal — surfaced via webhook health check */ }
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers', activeBusinessId] });
@@ -2360,6 +2488,9 @@ function ProviderPermissionsModal({
         : providerSlug === 'ozon' ? 'Ozon'
         : providerSlug === 'quicklivraison' ? 'Quick Livraison'
         : providerSlug === 'vitex' ? 'VITEX'
+        : providerSlug === 'forcelog' ? 'Forcelog'
+        : providerSlug === 'sendit' ? 'Sendit'
+        : providerSlug === 'digylog' ? 'Digylog'
         : null;
 
     const canSave = !!company && !!rows && !!activeBusinessId && !loadingPerm && !permError;
@@ -2491,6 +2622,53 @@ function ProviderPermissionsModal({
                                             maxLength={200}
                                             disabled={!canSave}
                                         />
+                                    </div>
+                                ) : null}
+                                {providerSlug === 'digylog' ? (
+                                    <div className="flex flex-col gap-3 py-4 border-t border-ant-line">
+                                        <div>
+                                            <p className="text-sm font-bold text-ant-ink leading-snug">Réseau Digylog</p>
+                                            <p className="text-xs font-medium text-ant-ink/45 mt-1.5 leading-relaxed">
+                                                Réseau Digylog où l'entrepôt vendeur opère (ex: Network Agadir). Obligatoire pour créer un colis.
+                                            </p>
+                                        </div>
+                                        <select
+                                            className="w-full h-11 rounded-xl border border-ant-line bg-white px-3 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50"
+                                            value={digylogNetworkId ?? ''}
+                                            onChange={(e) => setDigylogNetworkId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            disabled={!canSave || digylogListsLoading}
+                                        >
+                                            <option value="">{digylogListsLoading ? '— Chargement… —' : '— Sélectionner un réseau —'}</option>
+                                            {digylogNetworks.map((n) => (
+                                                <option key={n.id} value={n.id}>{n.name}</option>
+                                            ))}
+                                        </select>
+
+                                        <div className="pt-2">
+                                            <p className="text-sm font-bold text-ant-ink leading-snug">Boutique Digylog</p>
+                                            <p className="text-xs font-medium text-ant-ink/45 mt-1.5 leading-relaxed">
+                                                Boutique enregistrée chez Digylog. Apparaît sur le BL et les étiquettes.
+                                            </p>
+                                        </div>
+                                        <select
+                                            className="w-full h-11 rounded-xl border border-ant-line bg-white px-3 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50"
+                                            value={digylogStoreName}
+                                            onChange={(e) => setDigylogStoreName(e.target.value)}
+                                            disabled={!canSave || digylogListsLoading}
+                                        >
+                                            <option value="">{digylogListsLoading ? '— Chargement… —' : '— Sélectionner une boutique —'}</option>
+                                            {digylogStores.map((s) => (
+                                                <option key={s.id} value={s.name}>{s.name}</option>
+                                            ))}
+                                        </select>
+                                        {digylogListsError ? (
+                                            <p className="text-xs font-medium text-ant-rose mt-1">
+                                                Échec du chargement Digylog : {digylogListsError}. Vérifiez le token API.
+                                            </p>
+                                        ) : null}
+                                        <p className="text-xs font-medium text-ant-ink/45 mt-1 leading-relaxed">
+                                            Le webhook Digylog est enregistré automatiquement à l'enregistrement.
+                                        </p>
                                     </div>
                                 ) : null}
                             </div>

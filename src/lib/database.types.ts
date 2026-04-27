@@ -5513,6 +5513,10 @@ export type Database = {
           color: string | null
           created_at: string | null
           "DigiCom Business": string | null
+          digylog_allow_open: boolean
+          digylog_default_port: number
+          digylog_network_id: number | null
+          digylog_store_name: string | null
           forcelog_parcel_carton: boolean
           forcelog_parcel_fragile: boolean
           forcelog_parcel_open: boolean
@@ -5554,6 +5558,10 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
+          digylog_allow_open?: boolean
+          digylog_default_port?: number
+          digylog_network_id?: number | null
+          digylog_store_name?: string | null
           forcelog_parcel_carton?: boolean
           forcelog_parcel_fragile?: boolean
           forcelog_parcel_open?: boolean
@@ -5595,6 +5603,10 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
+          digylog_allow_open?: boolean
+          digylog_default_port?: number
+          digylog_network_id?: number | null
+          digylog_store_name?: string | null
           forcelog_parcel_carton?: boolean
           forcelog_parcel_fragile?: boolean
           forcelog_parcel_open?: boolean
@@ -9798,7 +9810,7 @@ export type Database = {
       wa_classify_status: { Args: { p_evo_status: string }; Returns: string }
       wa_cleanup_avatar_queue: { Args: { p_keep?: string }; Returns: number }
       wa_cleanup_webhook_events: { Args: { p_keep?: string }; Returns: number }
-      wa_detect_silent_instances: { Args: never; Returns: number }
+      wa_detect_silent_instances: { Args: never; Returns: Json }
       wa_dispatch_event: {
         Args: {
           p_event_type: string
@@ -10259,5 +10271,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.90.0 (currently installed v2.84.2)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

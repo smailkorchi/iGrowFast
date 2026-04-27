@@ -3015,6 +3015,332 @@ class SenditAdapter {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Digylog adapter — Bearer auth + Sendit-style draft→BL upgrade flow.
+// API base: https://api.digylog.com/api/v2/seller
+// Tracking codes look like "S1036052CA". BL is created by PUT /orders/send and
+// is immutable afterward, so subsequent adds must spawn a new note (same as
+// Sendit's pickup model).
+// ─────────────────────────────────────────────────────────────────────────────
+class DigylogAdapter {
+    constructor(credentials) {
+        this.apiBaseUrl = (credentials.api_base_url || 'https://api.digylog.com/api/v2/seller').replace(/\/+$/, '');
+        this.token = credentials.api_key || credentials.api_secret_key || '';
+        this.networkId = credentials.digylog_network_id ? Number(credentials.digylog_network_id) : null;
+        this.storeName = (credentials.digylog_store_name || '').toString().trim() || null;
+        this.defaultPort = Number(credentials.digylog_default_port) === 1 ? 1 : 2;
+        this.allowOpen = credentials.digylog_allow_open === true ? 1 : 0;
+        this.providerId = credentials.id || null;
+        this.businessId = credentials['DigiCom Business'] || null;
+    }
+
+    async apiFetch(path, method, jsonBody) {
+        if (!this.token) throw new Error('Digylog: token API requis (api_secret_key).');
+        const init = {
+            method: method || 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Referer': 'https://apiseller.digylog.com',
+                'Accept': 'application/json',
+            },
+        };
+        if (jsonBody !== undefined) {
+            init.headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(jsonBody);
+        }
+        const res = await fetch(`${this.apiBaseUrl}${path}`, init);
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch {
+            return { ok: res.ok, status: res.status, data: null, raw: text };
+        }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    async resolveMasterStatus(rawStatus, supabase) {
+        if (!rawStatus || !supabase) return null;
+        try {
+            const { data: rpcMatch } = await supabase.rpc('match_package_status', { p_status_value: rawStatus });
+            if (rpcMatch && rpcMatch[0]) return rpcMatch[0];
+        } catch (_) { /* RPC optional */ }
+        const { data: exact } = await supabase
+            .from('package_statuses')
+            .select('id, code, label, color, category')
+            .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
+            .limit(1)
+            .maybeSingle();
+        return exact || null;
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== DIGYLOG createParcel START ===');
+        if (!this.networkId) {
+            throw new Error('Digylog: réseau non configuré (Permissions > Réseau Digylog).');
+        }
+        if (!this.storeName) {
+            throw new Error('Digylog: boutique non configurée (Permissions > Boutique Digylog).');
+        }
+
+        // Destination city — Digylog accepts the NAME (no IDs in /cities response).
+        let cityName = '';
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('provider_cities')
+                .select('provider_city_name')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'digylog')
+                .maybeSingle();
+            cityName = String(mapping?.provider_city_name || '').trim();
+        }
+        if (!cityName) cityName = String(parcelData.city_name || '').trim();
+        if (!cityName) {
+            throw new Error('Digylog: ville de destination introuvable. Mappez-la dans la page Cities.');
+        }
+
+        // Phone normalization (10 digits starting with 05/06/07/08).
+        let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
+        if (phone.startsWith('212')) phone = '0' + phone.substring(3);
+        if (!/^0[5678]\d{8}$/.test(phone)) {
+            throw new Error(`Digylog: téléphone invalide "${phone}". Attendu 10 chiffres commençant par 05/06/07/08.`);
+        }
+
+        const isExchange = !!(parcelData.replace_parcel_code || parcelData.old_parcel_code || parcelData.replaceable);
+        const items = Array.isArray(parcelData.items) ? parcelData.items : [];
+        // Build refs[]: type=1 → designation+quantity; type=2 → ref+quantity.
+        const refs = items
+            .filter((i) => Number(i.quantity) > 0)
+            .map((i) => isExchange
+                ? { ref: String(i.code || i.product?.code || i.product_id || '').substring(0, 64), quantity: Number(i.quantity) || 1 }
+                : { designation: String(i.name || i.product?.name || i.code || '').substring(0, 200), quantity: Number(i.quantity) || 1 }
+            );
+        // Fallback: synthesize one ref from the parcel summary when items aren't present in `data`.
+        if (refs.length === 0) {
+            const summary = String(parcelData.product_info || parcelData.designation || 'Produit').substring(0, 200);
+            refs.push(isExchange
+                ? { ref: String(parcelData.order_num || 'P').substring(0, 64), quantity: 1 }
+                : { designation: summary, quantity: 1 }
+            );
+        }
+
+        const order = {
+            num: String(parcelData.order_num || parcelData.reference || '').substring(0, 50),
+            type: isExchange ? 2 : 1,
+            name: String(parcelData.receiver_name || parcelData.customer_name || '').substring(0, 100),
+            phone,
+            address: String(parcelData.receiver_address || parcelData.delivery_address || '').substring(0, 200),
+            city: cityName,
+            price: Number(parcelData.cash_on_delivery || parcelData.cod_amount || 0),
+            openproduct: this.allowOpen,
+            port: this.defaultPort,
+            note: String(parcelData.delivery_note || '').substring(0, 200),
+            refs,
+            pickup: 0,
+        };
+
+        const body = {
+            mode: 1,
+            network: this.networkId,
+            store: this.storeName,
+            status: 0, // add only — PUT /orders/send creates the BL.
+            checkDuplicate: 1,
+            orders: [order],
+        };
+
+        const resp = await this.apiFetch('/orders', 'POST', body);
+        if (!resp.ok || !Array.isArray(resp.data) || !resp.data[0]?.tracking) {
+            const msg = (resp.data && (resp.data.message || resp.data.error)) || JSON.stringify(resp.data || resp.raw || {}).substring(0, 300);
+            throw new Error(`Digylog: création échouée (HTTP ${resp.status}): ${msg}`);
+        }
+        const created = resp.data[0];
+        const tracking = created.tracking;
+        console.log('=== DIGYLOG createParcel END ===', tracking);
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: created,
+        };
+    }
+
+    async trackParcel(trackingCode, _externalId, supabase) {
+        if (!trackingCode) throw new Error('Tracking code required');
+        // /historics returns the audit log keyed by tracking code.
+        const resp = await this.apiFetch(`/historics?trackings=${encodeURIComponent(trackingCode)}`, 'GET');
+        const root = resp.data || {};
+        const audits = Array.isArray(root[trackingCode]) ? root[trackingCode] : [];
+        const history = [];
+        let lastStatus = null;
+        for (const a of audits) {
+            const s = a?.['new value'] || a?.newValue || '';
+            if (!s || s === lastStatus) continue;
+            lastStatus = s;
+            const entryMaster = await this.resolveMasterStatus(s, supabase);
+            history.push({
+                status: s,
+                statusLabel: entryMaster?.label || s,
+                statusColor: entryMaster?.color || null,
+                statusId: entryMaster?.id || null,
+                category: entryMaster?.category || null,
+                color: entryMaster?.color || null,
+                date: a?.date || '',
+                comment: a?.type || '',
+                hub: a?.location || '',
+            });
+        }
+        const latest = history.length ? history[history.length - 1] : null;
+        return {
+            tracking_code: trackingCode,
+            status: latest?.status || '',
+            statusLabel: latest?.statusLabel || latest?.status || '',
+            statusColor: latest?.statusColor || null,
+            status_code: null,
+            status_category: latest?.category || null,
+            history,
+        };
+    }
+
+    async getParcelInfo(trackingCode, supabase) {
+        return this.trackParcel(trackingCode, undefined, supabase);
+    }
+
+    async createDeliveryNote() {
+        // Digylog has no "create empty BL" endpoint. Returning a draft; addParcelsToNote
+        // will call PUT /orders/send with the full code list to spawn the real BL.
+        const draft = `DIGYLOG-DRAFT-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+        return { reference: draft, provider_response: { draft: true } };
+    }
+
+    async addParcelsToNote(deliveryNoteRef, parcelCodes, supabase) {
+        const codes = Array.isArray(parcelCodes) ? parcelCodes.filter(Boolean) : [];
+        if (!deliveryNoteRef) throw new Error('Digylog: référence BL requise.');
+        if (codes.length === 0) {
+            return { success: true, reference: deliveryNoteRef, parcel_codes: [], inserted: 0 };
+        }
+        const isDraft = /^DIGYLOG-DRAFT-/i.test(deliveryNoteRef);
+        if (!isDraft) {
+            // BL already created — Digylog provides no endpoint to append codes to an existing BL.
+            throw new Error('Digylog: ce BL est déjà émis et ne peut pas être modifié. Créez un nouveau bon de livraison.');
+        }
+        const resp = await this.apiFetch('/orders/send', 'PUT', { orders: codes });
+        const blId = resp.data?.bl;
+        if (!resp.ok || !blId) {
+            const msg = resp.data?.message || JSON.stringify(resp.data || resp.raw || {}).substring(0, 300);
+            throw new Error(`Digylog: envoi BL échoué (HTTP ${resp.status}): ${msg}`);
+        }
+        const newRef = String(blId);
+        // Update the delivery note row so the wizard picks up the real ref.
+        if (supabase) {
+            await supabase.from('company_delivery_notes')
+                .update({ reference: newRef, external_id: newRef })
+                .eq('reference', deliveryNoteRef);
+        }
+        return {
+            success: true,
+            reference: newRef,
+            parcel_codes: codes,
+            inserted: codes.length,
+            changed_reference: true,
+            previous_reference: deliveryNoteRef,
+        };
+    }
+
+    async finalizeDeliveryNote(reference) {
+        // No-op — BL is created by PUT /orders/send during addParcelsToNote.
+        return { success: true, reference };
+    }
+
+    async deleteNote(reference) {
+        // Digylog has no endpoint to cancel/delete a BL. Surface gracefully.
+        return { success: true, reference, note: 'Digylog ne permet pas la suppression de BL via API.' };
+    }
+
+    async deleteParcel(parcelCode) {
+        // No DELETE /orders endpoint. The dashboard uses /complaints type=5 for cancellation.
+        return { success: true, parcel_code: parcelCode, note: 'Digylog: utilisez le dashboard pour annuler.' };
+    }
+
+    async getPrintUrl(deliveryNoteRef, labelFormat, _printType, _options) {
+        // labelFormat values:
+        //  'a4_4' → 1, 'a4_8' → 2, 'thermal' / 'thermal_100' → 3,
+        //  'thermal_70' → 4, 'thermal_60' → 5, 'bl' → GET /bl/:id/pdf
+        const fmtRaw = String(labelFormat || 'a4_4').toLowerCase();
+        if (fmtRaw === 'bl') {
+            const blId = (deliveryNoteRef || '').replace(/^DIGYLOG-DRAFT-.*$/i, '').trim();
+            if (!blId) throw new Error('Digylog: BL non émis (référence draft). Validez le BL avant de l\'imprimer.');
+            return this.fetchPdfAsDataUrl(`/bl/${encodeURIComponent(blId)}/pdf`, 'GET', null);
+        }
+        const formatMap = { 'a4_4': 1, 'a4': 1, 'a4_8': 2, 'thermal': 3, 'thermal_100': 3, 'thermal_70': 4, 'thermal_60': 5 };
+        const format = formatMap[fmtRaw] || 1;
+        const opts = _options || {};
+        let codes = Array.isArray(opts.parcel_codes) ? opts.parcel_codes.filter(Boolean) : [];
+        if (codes.length === 0 && opts.supabase && opts.noteId) {
+            const { data: parcels } = await opts.supabase
+                .from('company_parcels')
+                .select('tracking_code')
+                .eq('delivery_note_id', opts.noteId)
+                .is('date_deleted', null);
+            codes = (parcels || []).map((p) => p.tracking_code).filter(Boolean);
+        }
+        const blId = deliveryNoteRef && !/^DIGYLOG-DRAFT-/i.test(deliveryNoteRef) ? String(deliveryNoteRef) : null;
+        const body = blId ? { bl: Number(blId), format } : { orders: codes.join(','), format };
+        if (!blId && codes.length === 0) {
+            throw new Error('Digylog: aucun colis à imprimer.');
+        }
+        return this.fetchPdfAsDataUrl('/labels', 'POST', body);
+    }
+
+    async fetchPdfAsDataUrl(path, method, body) {
+        const init = {
+            method,
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Referer': 'https://apiseller.digylog.com',
+                'Accept': 'application/pdf, application/json',
+            },
+        };
+        if (body !== null && body !== undefined) {
+            init.headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(body);
+        }
+        const res = await fetch(`${this.apiBaseUrl}${path}`, init);
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error(`Digylog PDF HTTP ${res.status}: ${t.substring(0, 200)}`);
+        }
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        return `data:application/pdf;base64,${btoa(binary)}`;
+    }
+
+    // List helpers (used by Permissions modal to populate dropdowns).
+    async listNetworks() {
+        const r = await this.apiFetch('/networks', 'GET');
+        if (!r.ok) throw new Error(`Digylog /networks HTTP ${r.status}`);
+        return Array.isArray(r.data) ? r.data : [];
+    }
+    async listStores() {
+        const r = await this.apiFetch('/stores', 'GET');
+        if (!r.ok) throw new Error(`Digylog /stores HTTP ${r.status}`);
+        return Array.isArray(r.data) ? r.data : [];
+    }
+    async listCities() {
+        const r = await this.apiFetch('/cities', 'GET');
+        if (!r.ok) throw new Error(`Digylog /cities HTTP ${r.status}`);
+        return Array.isArray(r.data) ? r.data : [];
+    }
+
+    async registerWebhook(webhookUrl) {
+        if (!webhookUrl) throw new Error('webhook URL requis');
+        const r = await this.apiFetch('/webhook', 'PUT', { url: webhookUrl });
+        if (!r.ok) {
+            const msg = r.data?.message || JSON.stringify(r.data || r.raw || {}).substring(0, 200);
+            throw new Error(`Digylog /webhook HTTP ${r.status}: ${msg}`);
+        }
+        return { success: true, url: webhookUrl, response: r.data };
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -3047,7 +3373,9 @@ Deno.serve(async (req) => {
                             ? new ForcelogAdapter(provider)
                             : type === 'sendit'
                                 ? new SenditAdapter(provider)
-                                : new AmeexAdapter(provider);
+                                : type === 'digylog'
+                                    ? new DigylogAdapter(provider)
+                                    : new AmeexAdapter(provider);
 
         // Adapter initialization
 
@@ -3103,6 +3431,52 @@ Deno.serve(async (req) => {
                 console.log('Deleting delivery note:', data.reference);
                 result = await adapter.deleteNote(data.reference);
                 break;
+            case 'list_networks': {
+                if (typeof adapter.listNetworks !== 'function') throw new Error(`${type} ne supporte pas list_networks.`);
+                result = { items: await adapter.listNetworks() };
+                break;
+            }
+            case 'list_stores': {
+                if (typeof adapter.listStores !== 'function') throw new Error(`${type} ne supporte pas list_stores.`);
+                result = { items: await adapter.listStores() };
+                break;
+            }
+            case 'list_provider_cities': {
+                if (typeof adapter.listCities !== 'function') throw new Error(`${type} ne supporte pas list_provider_cities.`);
+                result = { items: await adapter.listCities() };
+                break;
+            }
+            case 'register_webhook': {
+                if (typeof adapter.registerWebhook !== 'function') throw new Error(`${type} ne supporte pas register_webhook.`);
+                // Look up or create a provider_webhooks row, then push the URL to the provider.
+                const projectUrl = Deno.env.get('SUPABASE_URL')!;
+                let { data: existing } = await supabase
+                    .from('provider_webhooks')
+                    .select('id, webhook_secret, webhook_url')
+                    .eq('provider_id', provider_id)
+                    .maybeSingle();
+                let secret = existing?.webhook_secret;
+                if (!existing) {
+                    secret = crypto.randomUUID().replace(/-/g, '');
+                    const url = `${projectUrl}/functions/v1/provider-webhook/${provider_id}/${secret}`;
+                    const { data: ins, error: insErr } = await supabase
+                        .from('provider_webhooks')
+                        .insert({
+                            provider_id,
+                            webhook_secret: secret,
+                            webhook_url: url,
+                            is_active: true,
+                            'DigiCom Business': provider['DigiCom Business'],
+                        })
+                        .select('id, webhook_secret, webhook_url')
+                        .single();
+                    if (insErr) throw new Error(`provider_webhooks insert: ${insErr.message}`);
+                    existing = ins;
+                }
+                const webhookUrl = existing.webhook_url || `${projectUrl}/functions/v1/provider-webhook/${provider_id}/${secret}`;
+                result = await adapter.registerWebhook(webhookUrl);
+                break;
+            }
             default:
                 console.error('Unknown action:', action);
                 throw new Error(`Action ${action} not implemented`);

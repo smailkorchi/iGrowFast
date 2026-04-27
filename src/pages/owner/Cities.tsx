@@ -52,10 +52,10 @@ import {
 import { cn } from '@/lib/utils';
 
 type ProviderFieldDef = {
-    key: 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit';
+    key: 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog';
     label: string;
     ticker: string;
-    formField: 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id';
+    formField: 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id' | 'digylog_city_name';
     placeholder: string;
     apiHint: string;
 };
@@ -68,6 +68,7 @@ const PROVIDER_FIELDS: ProviderFieldDef[] = [
     { key: 'vitex', label: 'VITEX', ticker: 'VTX', formField: 'vitex_city_id', placeholder: 'City id', apiHint: 'city_id' },
     { key: 'forcelog', label: 'Forcelog', ticker: 'FCL', formField: 'forcelog_city_id', placeholder: 'City id', apiHint: 'city_id' },
     { key: 'sendit', label: 'Sendit', ticker: 'SND', formField: 'sendit_city_id', placeholder: 'District id', apiHint: 'district_id' },
+    { key: 'digylog', label: 'Digylog', ticker: 'DGY', formField: 'digylog_city_name', placeholder: 'City name', apiHint: 'city' },
 ];
 
 const PROVIDER_ORDER = PROVIDER_FIELDS.map((p) => p.key) as readonly ProviderFieldDef['key'][];
@@ -95,6 +96,7 @@ const citySchema = z.object({
     vitex_city_id: z.string().optional().nullable(),
     forcelog_city_id: z.string().optional().nullable(),
     sendit_city_id: z.string().optional().nullable(),
+    digylog_city_name: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
@@ -109,6 +111,7 @@ const emptyCityForm: CityFormValues = {
     vitex_city_id: '',
     forcelog_city_id: '',
     sendit_city_id: '',
+    digylog_city_name: '',
 };
 
 function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
@@ -122,6 +125,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
     const vx = by('vitex');
     const fl = by('forcelog');
     const se = by('sendit');
+    const dg = by('digylog');
     return {
         name: city.name,
         zone_id: city.zone_id || '',
@@ -132,6 +136,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
         vitex_city_id: (vx?.provider_city_id || '').trim() || '',
         forcelog_city_id: (fl?.provider_city_id || '').trim() || '',
         sendit_city_id: (se?.provider_city_id || '').trim() || '',
+        digylog_city_name: (dg?.provider_city_name || '').trim() || '',
     };
 }
 
@@ -144,6 +149,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
         vitex: null,
         forcelog: null,
         sendit: null,
+        digylog: null,
     };
     for (const pc of city.provider_cities || []) {
         const t = String(pc.provider_type || '').toLowerCase() as ProviderKey;
@@ -152,7 +158,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id || nm || null;
-        } else if (t === 'coliaty') {
+        } else if (t === 'coliaty' || t === 'digylog') {
             const nm = (pc.provider_city_name || '').trim();
             out[t] = nm || null;
         } else if (t === 'ozon') {
@@ -191,7 +197,7 @@ async function fetchAllMasterCities(): Promise<MasterCityRow[]> {
 async function syncProviderMappings(
     masterCityId: string,
     masterCityName: string,
-    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id'>
+    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id' | 'digylog_city_name'>
 ) {
     const name = masterCityName.trim();
 
@@ -283,6 +289,14 @@ async function syncProviderMappings(
         });
     } else {
         await del('sendit');
+    }
+
+    // Digylog uses city NAME only (no ID exposed by their /cities endpoint), Coliaty pattern.
+    const dg = (v.digylog_city_name || '').trim();
+    if (dg) {
+        await upsert('digylog', { provider_city_id: null, provider_city_name: dg });
+    } else {
+        await del('digylog');
     }
 }
 
@@ -535,13 +549,23 @@ const Cities = () => {
                 .not('logo_url', 'is', null)
                 .order('updated_at', { ascending: false, nullsFirst: false });
             if (error) throw error;
-            const map: Record<string, string> = {};
+            // Bundled fallbacks render the logo before the provider is added (cards still show the brand).
+            const map: Record<string, string> = {
+                ameex: '/providers/Ameex.png',
+                coliaty: '/providers/Coliaty.png',
+                ozon: '/providers/OZON.png',
+                quicklivraison: '/providers/Quick Livraison.png',
+                vitex: '/providers/Vitex.png',
+                forcelog: '/providers/Forcelog.png',
+                sendit: '/providers/Sendit.jpg',
+                digylog: '/providers/Digylog.webp',
+            };
             for (const row of data || []) {
                 const raw = String(row.provider_type || '').trim().toLowerCase();
                 const t =
                     raw === 'ozonexpress' || raw === 'ozon_express' ? 'ozon' : raw;
                 const url = String(row.logo_url || '').trim();
-                if (t && url && !map[t]) map[t] = row.logo_url as string;
+                if (t && url) map[t] = row.logo_url as string; // DB row overrides the bundled fallback.
             }
             return map;
         },

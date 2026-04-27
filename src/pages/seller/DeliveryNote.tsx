@@ -1930,6 +1930,37 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'digylog' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-white h-8 rounded-md px-3 text-[11px] font-semibold flex items-center gap-1.5">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[260px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('a4_4')}>
+                                            Tickets A4 · 4 par page
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('a4_8')}>
+                                            Tickets A4 · 8 par page
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('thermal_100')}>
+                                            Thermique 100×100
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('thermal_70')}>
+                                            Thermique 70×100
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('thermal_60')}>
+                                            Thermique 60×100
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange" onClick={() => handlePrintLabels('bl')}>
+                                            Bon de livraison (PDF)
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             ) : (
                                 <Button
                                     className="bg-ant-ink hover:bg-ant-ink/90 text-white h-8 rounded-md px-3 text-[11px] font-semibold flex items-center gap-1.5"

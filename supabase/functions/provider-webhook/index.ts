@@ -92,7 +92,9 @@ Deno.serve(async (req: Request) => {
             payload.ref ||
             forcelogData?.parcel_code ||  // Forcelog
             payload.code ||                // Sendit (flat)
-            forcelogData?.code;            // Sendit (wrapped in data)
+            forcelogData?.code ||          // Sendit (wrapped in data)
+            payload.tracking ||            // Digylog (flat camelCase)
+            payload.traking;               // Digylog typo per public docs
 
         // Always log — even if no tracking code (so we can debug)
         const { data: logEntry } = await supabase.from('webhook_logs').insert({

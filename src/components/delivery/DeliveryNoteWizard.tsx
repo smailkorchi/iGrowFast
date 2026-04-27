@@ -58,6 +58,10 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'forcelog_parcel_carton',
     'sendit_allow_try',
     'sendit_pickup_district_id',
+    'digylog_network_id',
+    'digylog_store_name',
+    'digylog_default_port',
+    'digylog_allow_open',
     'logo_url',
     'color'
 ].join(', ');
@@ -109,6 +113,10 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
         // Sendit: allow_open + allow_try + pickup_district_id are on the provider row, the adapter reads them.
         return {} as Record<string, unknown>;
     }
+    if (raw.includes('digylog')) {
+        // Digylog: network/store/port/openproduct are on the provider row, the adapter reads them.
+        return {} as Record<string, unknown>;
+    }
     return {} as Record<string, unknown>;
 }
 
@@ -137,6 +145,10 @@ type WizardProvider = {
     forcelog_parcel_carton: boolean;
     sendit_allow_try: boolean;
     sendit_pickup_district_id: number | null;
+    digylog_network_id: number | null;
+    digylog_store_name: string | null;
+    digylog_default_port: number | null;
+    digylog_allow_open: boolean;
     logo_url: string | null;
     color: string | null;
 };
@@ -394,6 +406,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const isVitex = providerType.includes('vitex');
                     const isForcelog = providerType.includes('forcelog');
                     const isSendit = providerType.includes('sendit');
+                    const isDigylog = providerType.includes('digylog');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
@@ -486,9 +499,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                                 ? String(order.sendit_old_tracking || '').trim()
                                                 : '',
                                         }
-                                      : Object.keys(permFields).length === 0
-                                        ? { replaceable: order.replace || false }
-                                        : {}),
+                                      : isDigylog
+                                        ? {
+                                              // Digylog: type=2 for exchange (adapter reads `replaceable`/`replace_parcel_code` flag).
+                                              // network/store/port/openproduct come from provider row.
+                                              order_num: order.id,
+                                              reference: String(order.id).substring(0, 50),
+                                              items: (order.items || []).map((i) => ({
+                                                  product_id: i.product_id,
+                                                  quantity: i.quantity,
+                                                  name: i.product?.name,
+                                                  code: i.product?.code,
+                                              })),
+                                              replaceable: !!order.replace,
+                                          }
+                                        : Object.keys(permFields).length === 0
+                                          ? { replaceable: order.replace || false }
+                                          : {}),
                     };
 
                     // Call Edge Function
