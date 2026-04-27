@@ -195,8 +195,6 @@ const App = () => (
                   <Route path="zones" element={<OwnerZones />} />
                   <Route path="activity-log" element={<OwnerActivityLog />} />
                   <Route path="ai" element={<OwnerAIConsole />} />
-                  <Route path="google-analytics" element={<GoogleAnalyticsPage />} />
-                  <Route path="meta-ads" element={<MetaAdsPage />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </OwnerLayout>

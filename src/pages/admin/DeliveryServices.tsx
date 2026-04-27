@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -15,11 +15,8 @@ import {
     Building2,
     Link as LinkIcon,
     Shield,
-    Image as ImageIcon,
-    Upload,
     Loader2,
     CheckCircle2,
-    ExternalLink,
     MapPin,
     Coins,
     Check,
@@ -78,7 +75,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 
 // Types are not yet updated in the generated schema, so we'll use any for table names
@@ -239,6 +235,53 @@ const KNOWN_PROVIDERS = [
         description: 'Sendit (Maroc). API REST Bearer + ramassage (/pickups) comme BL. Suivi temps réel via webhook natif.',
     },
 ];
+
+type ProviderConfigField =
+    | 'business_name'
+    | 'business_id'
+    | 'api_base_url'
+    | 'api_key'
+    | 'api_login'
+    | 'api_password'
+    | 'api_public_key'
+    | 'api_secret_key';
+
+const PROVIDER_FIELD_SCHEMA: Record<string, ProviderConfigField[]> = {
+    sendit: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_public_key', 'api_secret_key'],
+    forcelog: ['business_name', 'api_base_url', 'api_key', 'api_login', 'api_password'],
+    vitex: ['business_name', 'api_base_url', 'api_key', 'api_login', 'api_password'],
+    quicklivraison: ['business_name', 'api_base_url', 'api_key', 'api_login', 'api_password'],
+    ozon: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
+    coliaty: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_public_key', 'api_secret_key'],
+    ameex: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
+};
+
+type FieldMeta = {
+    label: string;
+    placeholder: string;
+    type?: 'text' | 'password' | 'url';
+    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+    fullWidth?: boolean;
+};
+
+const FIELD_META: Record<ProviderConfigField, FieldMeta> = {
+    business_name: { label: 'Business Name', placeholder: 'Legal entity name', icon: Building2, fullWidth: true },
+    business_id: { label: 'Business ID', placeholder: 'RC / ICE', icon: Shield, fullWidth: true },
+    api_base_url: { label: 'Base Endpoint', placeholder: 'https://api.provider.com', type: 'url', icon: LinkIcon, fullWidth: true },
+    api_key: { label: 'API Key', placeholder: 'Bearer or secret token', icon: Shield, fullWidth: true },
+    api_login: { label: 'Login', placeholder: 'Username', icon: User },
+    api_password: { label: 'Password', placeholder: '••••••••', type: 'password', icon: Lock },
+    api_public_key: { label: 'Public Key', placeholder: 'pk_live_…', icon: Shield },
+    api_secret_key: { label: 'Secret Key', placeholder: 'sk_live_…', type: 'password', icon: Lock },
+};
+
+function getProviderTemplateByType(rawType: string | undefined | null) {
+    if (!rawType) return null;
+    const t = rawType.toString().toLowerCase().trim();
+    return KNOWN_PROVIDERS.find((p) => p.type === t)
+        ?? KNOWN_PROVIDERS.find((p) => t.includes(p.type))
+        ?? null;
+}
 
 type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit';
 
@@ -976,35 +1019,88 @@ function CourierCard({ person, onEdit, onZones, onFees, onReturnFees, onPermissi
 }
 
 function PartnerCard({ company, onEdit, onZones, onFees, onReturnFees, onPermissions, onDelete }: any) {
-    const accent = company.color || '#141413';
-    return (
-        <Card className="group relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper shadow-none hover:border-ant-ink/20 transition-all duration-300 flex flex-col h-full">
-            <div className="h-[3px]" style={{ backgroundColor: accent }} />
+    const template = getProviderTemplateByType(company.provider_type);
+    const accent = template?.color || company.color || '#141413';
+    const displayName = template?.name || company.name;
+    const logoUrl = template?.logo || company.logo_url;
+    const slug = template?.type || (company.provider_type || '').toLowerCase();
+    const requiredFields = (PROVIDER_FIELD_SCHEMA[slug] || []) as ProviderConfigField[];
+    const completed = requiredFields.filter((f) => {
+        const v = (company as Record<string, unknown>)[f];
+        return typeof v === 'string' ? v.trim().length > 0 : !!v;
+    }).length;
+    const totalRequired = requiredFields.length;
+    const allConfigured = totalRequired > 0 && completed === totalRequired;
+    const completionPct = totalRequired > 0 ? Math.round((completed / totalRequired) * 100) : 0;
+    const baseHost = (() => {
+        try {
+            return company.api_base_url ? new URL(company.api_base_url).host : null;
+        } catch {
+            return company.api_base_url || null;
+        }
+    })();
 
-            <CardHeader className="flex flex-row items-start justify-between p-5 pb-3">
-                <div className="flex flex-col gap-3 min-w-0">
-                    <div className="h-16 w-16 rounded-xl bg-ant-light border border-ant-line p-2 flex items-center justify-center overflow-hidden shrink-0">
-                        {company.logo_url ? (
-                            <img src={company.logo_url} alt="" className="max-w-full max-h-full object-contain" />
+    return (
+        <Card
+            className="group relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper shadow-none transition-all duration-300 flex flex-col h-full hover:-translate-y-[1px]"
+            style={{
+                ['--p-color' as string]: accent,
+                ['--p-tint' as string]: `${accent}10`,
+                ['--p-ring' as string]: `${accent}26`,
+                ['--p-shadow' as string]: `${accent}33`,
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${accent}55`;
+                e.currentTarget.style.boxShadow = `0 18px 36px -22px ${accent}66`;
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '';
+                e.currentTarget.style.boxShadow = '';
+            }}
+        >
+            {/* Brand corner glow */}
+            <div
+                aria-hidden
+                className="absolute -top-12 -right-12 w-40 h-40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl pointer-events-none"
+                style={{ backgroundColor: `${accent}22` }}
+            />
+
+            <CardHeader className="flex flex-row items-start justify-between gap-3 p-5 pb-4 relative">
+                <div className="flex items-center gap-3.5 min-w-0">
+                    <div
+                        className="h-14 w-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 p-2 border transition-all"
+                        style={{
+                            backgroundColor: `${accent}10`,
+                            borderColor: `${accent}30`,
+                        }}
+                    >
+                        {logoUrl ? (
+                            <img src={logoUrl} alt="" className="max-w-full max-h-full object-contain" />
                         ) : (
-                            <Building2 className="w-6 h-6 text-ant-mid" strokeWidth={1.5} />
+                            <Building2 className="w-6 h-6" style={{ color: accent }} strokeWidth={1.5} />
                         )}
                     </div>
                     <div className="min-w-0">
-                        <CardTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight tracking-[-0.02em] truncate">
-                            {company.name}
+                        <CardTitle className="font-display text-[17px] font-semibold text-ant-ink leading-[1.15] tracking-[-0.015em] truncate">
+                            {displayName}
                         </CardTitle>
-                        <span
-                            className="inline-flex items-center gap-1.5 mt-1.5 text-[9.5px] font-medium uppercase tracking-[0.22em] px-2 py-0.5 rounded-full border"
-                            style={{
-                                backgroundColor: `${accent}14`,
-                                color: accent,
-                                borderColor: `${accent}30`,
-                            }}
-                        >
-                            <span className="w-1 h-1 rounded-full" style={{ backgroundColor: accent }} />
-                            {company.provider_type || 'Provider'}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <span
+                                className={cn(
+                                    'w-1.5 h-1.5 rounded-full',
+                                    company.active ? '' : 'bg-ant-mid/40',
+                                )}
+                                style={company.active ? { backgroundColor: accent } : undefined}
+                            />
+                            <span
+                                className={cn(
+                                    'font-display text-[10px] uppercase tracking-[0.2em]',
+                                    company.active ? 'text-ant-ink' : 'text-ant-mid/60',
+                                )}
+                            >
+                                {company.active ? 'Connected' : 'Paused'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -1014,14 +1110,14 @@ function PartnerCard({ company, onEdit, onZones, onFees, onReturnFees, onPermiss
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="rounded-full h-9 w-9 shrink-0 text-ant-mid hover:text-ant-ink hover:bg-ant-line-soft"
+                            className="rounded-full h-8 w-8 shrink-0 text-ant-mid hover:text-ant-ink hover:bg-ant-line-soft"
                         >
                             <MoreVertical className="w-4 h-4" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className={MENU_CONTENT_CLASS}>
                         <DropdownMenuItem onClick={onEdit} className={MENU_ITEM_CLASS}>
-                            <Edit2 className="w-3.5 h-3.5 mr-2.5 shrink-0 text-ant-mid" /> API configuration
+                            <Edit2 className="w-3.5 h-3.5 mr-2.5 shrink-0 text-ant-mid" /> Configuration
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="bg-ant-line my-1" />
                         <DropdownMenuItem onClick={onZones} className={MENU_ITEM_CLASS}>
@@ -1038,66 +1134,65 @@ function PartnerCard({ company, onEdit, onZones, onFees, onReturnFees, onPermiss
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="bg-ant-line my-1" />
                         <DropdownMenuItem onClick={onDelete} className={MENU_DESTRUCTIVE_CLASS}>
-                            <Trash2 className="w-3.5 h-3.5 mr-2.5 shrink-0" /> Delete connection
+                            <Trash2 className="w-3.5 h-3.5 mr-2.5 shrink-0" /> Disconnect
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </CardHeader>
 
-            <CardContent className="px-5 pb-4 pt-1 space-y-3 flex-grow">
-                <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
-                    <div className="bg-ant-paper px-3 py-2.5">
-                        <p className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">Legal entity</p>
-                        <p className="text-[12px] font-medium text-ant-ink truncate leading-tight mt-1">
-                            {company.business_name || '—'}
-                        </p>
-                    </div>
-                    <div className="bg-ant-paper px-3 py-2.5">
-                        <p className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">Status</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <span
-                                className={cn(
-                                    'w-1.5 h-1.5 rounded-full',
-                                    company.active ? 'bg-ant-green' : 'bg-ant-mid',
-                                )}
-                            />
-                            <p
-                                className={cn(
-                                    'text-[12px] font-medium leading-tight',
-                                    company.active ? 'text-ant-green' : 'text-ant-muted',
-                                )}
-                            >
-                                {company.active ? 'Operational' : 'Offline'}
-                            </p>
-                        </div>
-                    </div>
+            <CardContent className="px-5 pb-5 pt-0 flex-grow space-y-3.5 relative">
+                <div className="space-y-1">
+                    <span className="font-display text-[9px] uppercase tracking-[0.22em] text-ant-mid">
+                        Business
+                    </span>
+                    <p className="font-display text-[13px] text-ant-ink leading-tight truncate">
+                        {company.business_name || <span className="font-serif italic text-ant-mid">Not set</span>}
+                    </p>
                 </div>
 
-                <div className="flex items-center gap-2.5 py-2.5 px-3 rounded-xl bg-ant-light border border-ant-line">
-                    <div className="w-7 h-7 rounded-md bg-ant-paper border border-ant-line flex items-center justify-center shrink-0">
-                        <Shield
-                            className={cn(
-                                'w-3.5 h-3.5',
-                                company.api_key ? 'text-ant-green' : 'text-ant-orange',
-                            )}
-                            strokeWidth={1.75}
-                        />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                        <span className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">
-                            Security
+                {baseHost && (
+                    <div className="space-y-1">
+                        <span className="font-display text-[9px] uppercase tracking-[0.22em] text-ant-mid">
+                            Endpoint
                         </span>
-                        <span
-                            className={cn(
-                                'text-[11.5px] font-medium truncate leading-tight',
-                                company.api_key ? 'text-ant-green' : 'text-ant-orange',
-                            )}
-                        >
-                            {company.api_key ? 'AES-256 encrypted' : 'Missing API key'}
-                        </span>
+                        <p className="font-mono text-[11px] text-ant-ink/80 truncate">
+                            {baseHost}
+                        </p>
                     </div>
-                </div>
+                )}
             </CardContent>
+
+            <button
+                type="button"
+                onClick={onEdit}
+                className="px-5 py-3 border-t border-ant-line bg-ant-light/40 flex items-center justify-between gap-3 text-left hover:bg-ant-light/70 transition-colors"
+            >
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Setup
+                    </span>
+                    <span
+                        className="font-display text-[11px] tabular-nums"
+                        style={{ color: allConfigured ? accent : 'var(--ant-orange, #d97706)' }}
+                    >
+                        {completed}/{totalRequired}
+                    </span>
+                </div>
+                <span className="font-display text-[10px] uppercase tracking-[0.18em] text-ant-mid group-hover:text-ant-ink transition-colors">
+                    {allConfigured ? 'Edit' : 'Finish setup'}
+                </span>
+            </button>
+
+            {/* Bottom progress hairline */}
+            <div className="h-[3px] w-full bg-ant-line/60 overflow-hidden">
+                <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                        width: `${completionPct}%`,
+                        backgroundColor: accent,
+                    }}
+                />
+            </div>
         </Card>
     );
 }
@@ -1219,39 +1314,161 @@ function ProviderPickerModal({ isOpen, onClose, availableProviders, onSelect }: 
     availableProviders: typeof KNOWN_PROVIDERS;
     onSelect: (provider: typeof KNOWN_PROVIDERS[number]) => void;
 }) {
+    const [query, setQuery] = useState('');
+
+    useEffect(() => {
+        if (!isOpen) setQuery('');
+    }, [isOpen]);
+
+    const q = query.trim().toLowerCase();
+    const filtered = q
+        ? availableProviders.filter(
+              (p) =>
+                  p.name.toLowerCase().includes(q) ||
+                  p.type.toLowerCase().includes(q),
+          )
+        : availableProviders;
+
+    const getAuthSignature = (slug: string): string => {
+        const fields = (PROVIDER_FIELD_SCHEMA[slug] || []) as ProviderConfigField[];
+        const parts: string[] = [];
+        if (fields.includes('api_key')) parts.push('API Key');
+        if (fields.includes('api_login')) parts.push('Login');
+        if (fields.includes('api_public_key') || fields.includes('api_secret_key')) parts.push('Public · Secret');
+        if (fields.includes('business_id')) parts.push('Business ID');
+        return parts.join(' · ') || '—';
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-lg p-0 border-none bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
-                <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
-                    <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink tracking-[-0.02em]">Connect Provider</DialogTitle>
-                    <DialogDescription className="font-serif-display text-[13px] text-ant-muted italic">Select a delivery partner to integrate.</DialogDescription>
+            <DialogContent className="max-w-2xl p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden flex flex-col max-h-[88vh] [&>button.absolute]:hidden">
+                <div className="h-[3px] w-full bg-ant-ink shrink-0" />
+
+                <DialogHeader className="shrink-0 px-6 pt-6 pb-5 border-b border-ant-line text-left space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Network · Connect partner
+                            </span>
+                            <DialogTitle className="font-display text-[20px] leading-[1.15] tracking-[-0.015em] text-ant-ink">
+                                Choose a delivery network
+                            </DialogTitle>
+                            <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                Pick an integration to wire into your workspace — credentials come next.
+                            </DialogDescription>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                            aria-label="Close"
+                        >
+                            <span className="text-[14px] leading-none">&times;</span>
+                        </button>
+                    </div>
+
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                        <Input
+                            placeholder="Filter networks…"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            className="pl-9 h-10 rounded-lg border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange/15 focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
+                        />
+                    </div>
                 </DialogHeader>
 
-                <div className="px-10 pb-10 space-y-4">
-                    {availableProviders.map((provider) => (
-                        <div
-                            key={provider.type}
-                            onClick={() => onSelect(provider)}
-                            className="group relative flex items-center gap-5 p-5 rounded-2xl border-2 border-transparent bg-ant-line-soft hover:border-ant-ink/20 hover:shadow-xl cursor-pointer transition-all duration-300"
-                        >
-                            <div
-                                className="h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 p-2 border border-slate-100"
-                                style={{ backgroundColor: `${provider.color}08` }}
-                            >
-                                <img src={provider.logo} alt={provider.name} className="max-w-full max-h-full object-contain" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-lg font-semibold text-ant-ink">{provider.name}</h3>
-                                <p className="text-sm text-ant-muted font-medium leading-snug mt-0.5">{provider.description}</p>
-                            </div>
-                            <div
-                                className="w-10 h-10 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                                style={{ backgroundColor: provider.color }}
-                            >
-                                <Plus className="w-5 h-5 text-white" />
-                            </div>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+                    {filtered.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-ant-line bg-ant-light/40 p-8 text-center">
+                            <p className="font-serif italic text-[12.5px] text-ant-mid">
+                                {availableProviders.length === 0
+                                    ? 'All supported networks are already connected.'
+                                    : `No network matches "${query}".`}
+                            </p>
                         </div>
-                    ))}
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {filtered.map((provider) => (
+                                <button
+                                    key={provider.type}
+                                    type="button"
+                                    onClick={() => onSelect(provider)}
+                                    className="group relative text-left rounded-2xl border border-ant-line bg-ant-paper overflow-hidden transition-all duration-300 hover:-translate-y-[1px]"
+                                    style={{
+                                        ['--p-color' as string]: provider.color,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.borderColor = `${provider.color}55`;
+                                        e.currentTarget.style.boxShadow = `0 16px 32px -22px ${provider.color}99`;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.borderColor = '';
+                                        e.currentTarget.style.boxShadow = '';
+                                    }}
+                                >
+                                    {/* corner glow */}
+                                    <div
+                                        aria-hidden
+                                        className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl pointer-events-none"
+                                        style={{ backgroundColor: `${provider.color}1f` }}
+                                    />
+
+                                    <div className="p-4 flex items-start gap-3 relative">
+                                        <div
+                                            className="h-12 w-12 rounded-xl flex items-center justify-center overflow-hidden shrink-0 p-1.5 border transition-transform duration-300 group-hover:scale-[1.04]"
+                                            style={{
+                                                backgroundColor: `${provider.color}10`,
+                                                borderColor: `${provider.color}30`,
+                                            }}
+                                        >
+                                            <img
+                                                src={provider.logo}
+                                                alt=""
+                                                className="max-w-full max-h-full object-contain"
+                                            />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight tracking-[-0.01em] truncate">
+                                                {provider.name}
+                                            </h3>
+                                            <p className="font-mono text-[10px] text-ant-mid mt-1 truncate">
+                                                {getAuthSignature(provider.type)}
+                                            </p>
+                                        </div>
+                                        <span
+                                            aria-hidden
+                                            className="font-display text-[10px] uppercase tracking-[0.18em] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1"
+                                            style={{ color: provider.color }}
+                                        >
+                                            Connect →
+                                        </span>
+                                    </div>
+
+                                    {/* bottom hairline that fills on hover */}
+                                    <div className="h-[2px] w-full bg-ant-line/40 overflow-hidden">
+                                        <div
+                                            className="h-full w-0 group-hover:w-full transition-all duration-500"
+                                            style={{ backgroundColor: provider.color }}
+                                        />
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="shrink-0 px-6 py-3.5 border-t border-ant-line bg-ant-paper flex items-center justify-between gap-3 text-[11px]">
+                    <span className="font-display uppercase tracking-[0.2em] text-ant-mid">
+                        {filtered.length} of {availableProviders.length} available
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="font-display uppercase tracking-[0.2em] text-ant-mid hover:text-ant-ink transition-colors"
+                    >
+                        Cancel
+                    </button>
                 </div>
             </DialogContent>
         </Dialog>
@@ -1259,14 +1476,17 @@ function ProviderPickerModal({ isOpen, onClose, availableProviders, onSelect }: 
 }
 
 function CompanyModal({ isOpen, onClose, onSubmit, initialData, providerTemplate, loading }: any) {
-    const [logo, setLogo] = useState<File | null>(null);
-    const [logoPreview, setLogoPreview] = useState<string | null>(initialData?.logo_url || null);
+    const template = providerTemplate || getProviderTemplateByType(initialData?.provider_type);
+    const slug = (template?.type || initialData?.provider_type || '').toLowerCase();
+    const fields = (PROVIDER_FIELD_SCHEMA[slug] || []) as ProviderConfigField[];
+    const accent = template?.color || '#141413';
 
     const form = useForm<DeliveryCompanyValues>({
         resolver: zodResolver(deliveryCompanySchema),
         defaultValues: {
             name: '',
             business_name: '',
+            business_id: '',
             provider_type: '',
             api_key: '',
             api_login: '',
@@ -1280,10 +1500,21 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, providerTemplate
     });
 
     React.useEffect(() => {
-        if (isOpen && initialData) {
-            form.reset(initialData);
-            setLogoPreview(initialData.logo_url);
-        } else if (isOpen && providerTemplate) {
+        if (!isOpen) return;
+        if (initialData) {
+            form.reset({
+                ...initialData,
+                business_name: initialData.business_name || '',
+                business_id: initialData.business_id || '',
+                api_key: initialData.api_key || '',
+                api_login: initialData.api_login || '',
+                api_password: initialData.api_password || '',
+                api_base_url: initialData.api_base_url || '',
+                api_public_key: initialData.api_public_key || '',
+                api_secret_key: initialData.api_secret_key || '',
+                active: initialData.active ?? true,
+            });
+        } else if (providerTemplate) {
             form.reset({
                 name: providerTemplate.name,
                 business_name: '',
@@ -1298,246 +1529,177 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, providerTemplate
                 active: true,
                 logo_url: providerTemplate.logo,
             });
-            setLogoPreview(providerTemplate.logo);
-        } else if (isOpen) {
-            form.reset({
-                name: '',
-                business_name: '',
-                business_id: '',
-                provider_type: '',
-                api_key: '',
-                api_login: '',
-                api_password: '',
-                api_base_url: '',
-                api_public_key: '',
-                api_secret_key: '',
-                active: true,
-                logo_url: ''
-            });
-            setLogoPreview(null);
         }
     }, [isOpen, initialData, providerTemplate, form]);
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
-        const file = acceptedFiles[0];
-        setLogo(file);
-        setLogoPreview(URL.createObjectURL(file));
-    }, []);
-
-    const { getRootProps, getInputProps } = useDropzone({
-        onDrop,
-        accept: { 'image/*': [] },
-        multiple: false
-    });
-
-    const isTemplateCreate = !initialData && !!providerTemplate;
-
     const handleFormSubmit = async (values: DeliveryCompanyValues) => {
-        const finalValues = { ...values };
+        const finalValues: DeliveryCompanyValues & { color?: string } = { ...values };
 
-        if (logo) {
-            const fileExt = logo.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `logos/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('providers-logos')
-                .upload(filePath, logo);
-
-            if (!uploadError) {
-                const { data: { publicUrl } } = supabase.storage
-                    .from('providers-logos')
-                    .getPublicUrl(filePath);
-                finalValues.logo_url = publicUrl;
-            }
-        } else if (isTemplateCreate && providerTemplate) {
-            finalValues.logo_url = providerTemplate.logo;
-        }
-
-        if (isTemplateCreate && providerTemplate) {
-            finalValues.provider_type = providerTemplate.type;
-            (finalValues as any).color = providerTemplate.color;
+        if (template) {
+            finalValues.name = template.name;
+            finalValues.provider_type = template.type;
+            finalValues.logo_url = template.logo;
+            (finalValues as any).color = template.color;
         }
 
         onSubmit(finalValues);
     };
 
+    const watchActive = form.watch('active');
+
+    const renderField = (key: ProviderConfigField, fullRow = false) => {
+        const meta = FIELD_META[key];
+        const Icon = meta.icon;
+        return (
+            <FormField
+                key={key}
+                control={form.control}
+                name={key as any}
+                render={({ field }) => (
+                    <FormItem className={cn(fullRow && 'sm:col-span-2')}>
+                        <FormLabel className="font-display text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                            {meta.label}
+                        </FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                                <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" strokeWidth={1.75} />
+                                <Input
+                                    type={meta.type === 'password' ? 'password' : meta.type === 'url' ? 'url' : 'text'}
+                                    placeholder={meta.placeholder}
+                                    {...field}
+                                    value={(field.value as string) || ''}
+                                    className="h-11 pl-9 pr-3 rounded-xl border-ant-line bg-ant-paper text-ant-ink text-[12.5px] placeholder:text-ant-mid/60 focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:border-ant-ink/30 transition-all"
+                                    style={{ ['--tw-ring-color' as string]: `${accent}33` } as React.CSSProperties}
+                                />
+                            </div>
+                        </FormControl>
+                        <FormMessage className="text-[10px] text-ant-rose" />
+                    </FormItem>
+                )}
+            />
+        );
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-4xl p-0 border-none bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden overflow-y-auto max-h-[90vh]">
+            <DialogContent
+                className="max-w-xl p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden flex flex-col max-h-[92vh] [&>button.absolute]:hidden"
+                style={{ ['--p-color' as string]: accent }}
+            >
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleFormSubmit)}>
-                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line flex flex-row items-center justify-between">
-                            <div className="space-y-1 flex items-center gap-5">
-                                {isTemplateCreate && providerTemplate && (
-                                    <div
-                                        className="h-14 w-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 p-2 border"
-                                        style={{ backgroundColor: `${providerTemplate.color}10`, borderColor: `${providerTemplate.color}30` }}
-                                    >
-                                        <img src={providerTemplate.logo} alt={providerTemplate.name} className="max-w-full max-h-full object-contain" />
-                                    </div>
-                                )}
-                                <div>
-                                    <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink tracking-[-0.02em]">
-                                        {initialData ? 'Configure Service' : isTemplateCreate ? `Connect ${providerTemplate?.name}` : 'Connect Delivery Partner'}
+                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        {/* Brand accent band */}
+                        <div className="h-[3px] w-full shrink-0" style={{ backgroundColor: accent }} />
+
+                        {/* Header — read-only provider identity */}
+                        <DialogHeader
+                            className="shrink-0 px-6 pt-6 pb-5 border-b border-ant-line text-left space-y-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${accent}06 0%, transparent 65%)`,
+                            }}
+                        >
+                            <div className="flex items-start gap-4">
+                                <div
+                                    className="h-14 w-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 p-2 border"
+                                    style={{ backgroundColor: `${accent}14`, borderColor: `${accent}33` }}
+                                >
+                                    {template?.logo ? (
+                                        <img src={template.logo} alt="" className="max-w-full max-h-full object-contain" />
+                                    ) : (
+                                        <Building2 className="w-6 h-6" style={{ color: accent }} strokeWidth={1.5} />
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1 pt-0.5">
+                                    <span className="font-display text-[10px] uppercase tracking-[0.22em]" style={{ color: accent }}>
+                                        {initialData ? 'Configuration' : 'Connection'}
+                                    </span>
+                                    <DialogTitle className="font-display text-[20px] leading-[1.15] tracking-[-0.015em] text-ant-ink mt-0.5 truncate">
+                                        {template?.name || initialData?.name || 'Delivery partner'}
                                     </DialogTitle>
-                                    <DialogDescription className="font-serif-display text-[13px] text-ant-muted italic">
-                                        {isTemplateCreate ? `Enter your ${providerTemplate?.name} API credentials below.` : 'Link an external delivery company via API integration.'}
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid mt-1">
+                                        Credentials sync orders, tracking and delivery notes with this carrier.
                                     </DialogDescription>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                    aria-label="Close"
+                                >
+                                    <span className="text-[14px] leading-none">&times;</span>
+                                </button>
                             </div>
+
+                            {/* Active toggle as inline pill */}
+                            <FormField control={form.control} name="active" render={({ field }) => (
+                                <FormItem className="mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => field.onChange(!field.value)}
+                                        className="inline-flex items-center gap-2 h-7 pl-1 pr-3 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light transition-colors"
+                                    >
+                                        <span
+                                            className="w-5 h-5 rounded-full flex items-center justify-center transition-colors"
+                                            style={{
+                                                backgroundColor: field.value ? accent : 'transparent',
+                                                border: field.value ? 'none' : '1px dashed var(--ant-line, #e5e1d9)',
+                                            }}
+                                        >
+                                            {field.value && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                        </span>
+                                        <span className="font-display text-[10px] uppercase tracking-[0.2em] text-ant-ink">
+                                            {field.value ? 'Active' : 'Paused'}
+                                        </span>
+                                    </button>
+                                </FormItem>
+                            )} />
                         </DialogHeader>
 
-                        <div className="px-10 pb-10 grid grid-cols-1 md:grid-cols-2 gap-10">
-                            {/* Left Column: Basic Info */}
-                            <div className="space-y-8">
-                                {!isTemplateCreate && (
-                                    <div className="space-y-4">
-                                        <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Company Branding</FormLabel>
-                                        <div {...getRootProps()} className={cn(
-                                            "relative group h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden",
-                                            logoPreview ? "border-transparent" : "border-ant-ink/10 hover:border-ant-ink/30 bg-ant-line-soft"
-                                        )}>
-                                            <input {...getInputProps()} />
-                                            {logoPreview ? (
-                                                <>
-                                                    <img src={logoPreview} alt="Preview" className="w-full h-full object-contain p-4" />
-                                                    <div className="absolute inset-0 bg-ant-ink/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <Upload className="w-8 h-8 text-white" />
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <div className="text-center">
-                                                    <ImageIcon className="w-10 h-10 text-ant-mid mx-auto mb-2" />
-                                                    <p className="text-xs font-bold text-ant-ink/60">Upload Logo</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <FormField control={form.control} name="name" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Display Name</FormLabel>
-                                        <FormControl><Input placeholder="Internal Name" {...field} className="h-14 rounded-2xl border-none bg-ant-ink/5 text-ant-ink placeholder:text-ant-mid placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )} />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="business_name" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Registered Business Name</FormLabel>
-                                            <FormControl><Input placeholder="Legal Entity" {...field} className="h-14 rounded-2xl border-none bg-ant-ink/5 text-ant-ink placeholder:text-ant-mid placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
-                                    <FormField control={form.control} name="business_id" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Business ID / Tax ID</FormLabel>
-                                            <FormControl><Input placeholder="RC / ICE" {...field} className="h-14 rounded-2xl border-none bg-ant-ink/5 text-ant-ink placeholder:text-ant-mid placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="provider_type" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Provider Type (System)</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="e.g. ameex, coliaty"
-                                                    {...field}
-                                                    disabled={isTemplateCreate}
-                                                    className={cn(
-                                                        "h-14 rounded-2xl border-none bg-ant-ink/5 text-ant-ink placeholder:text-ant-mid placeholder:font-medium font-bold shadow-inner px-6",
-                                                        isTemplateCreate && "opacity-60 cursor-not-allowed"
-                                                    )}
-                                                    value={field.value || ''}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
-                                    <FormField control={form.control} name="active" render={({ field }) => (
-                                        <FormItem className="flex flex-col justify-end">
-                                            <div className="h-14 flex items-center gap-3 bg-ant-ink/5 rounded-2xl px-4 border border-transparent shadow-inner cursor-pointer" onClick={() => field.onChange(!field.value)}>
-                                                <div className={cn("w-3 h-3 rounded-full transition-all", field.value ? "bg-ant-green shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-300")} />
-                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-ant-ink">{field.value ? 'Active' : 'Offline'}</span>
-                                            </div>
-                                        </FormItem>
-                                    )} />
-                                </div>
-                            </div>
-
-                            {/* Right Column: API Keys */}
-                            <div className="space-y-8 bg-ant-line-soft p-8 rounded-2xl border border-ant-line">
-                                <h4 className="flex items-center gap-3 text-sm font-semibold text-ant-ink uppercase tracking-[0.15em] border-b border-ant-line pb-4">
-                                    <Shield className="w-5 h-5 opacity-30" /> Auth & Endpoints
-                                </h4>
-
-                                <FormField control={form.control} name="api_base_url" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid leading-none flex items-center gap-2">
-                                            <LinkIcon className="w-3 h-3" /> Base Endpoint
-                                        </FormLabel>
-                                        <FormControl><Input placeholder="https://api.provider.com" {...field} className="h-12 bg-transparent border-b-2 border-ant-ink/10 rounded-none focus-visible:ring-0 font-bold px-0 text-ant-ink placeholder:text-ant-mid placeholder:font-medium" /></FormControl>
-                                    </FormItem>
-                                )} />
-
-                                <div className="space-y-6">
-                                    <FormField control={form.control} name="api_key" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Universal API Key</FormLabel>
-                                            <FormControl><Input placeholder="Bearer or Secret Token" {...field} className="h-12 bg-transparent border-b-2 border-ant-ink/10 rounded-none focus-visible:ring-0 font-bold px-0 text-ant-ink placeholder:text-ant-mid placeholder:font-medium" /></FormControl>
-                                        </FormItem>
-                                    )} />
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <FormField control={form.control} name="api_login" render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">API User/Login</FormLabel>
-                                                <FormControl><Input placeholder="Username" {...field} className="h-12 bg-transparent border-b-2 border-ant-ink/10 rounded-none focus-visible:ring-0 font-bold px-0 text-ant-ink placeholder:text-ant-mid placeholder:font-medium" value={field.value || ''} /></FormControl>
-                                            </FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="api_password" render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">API Password</FormLabel>
-                                                <FormControl><Input type="password" placeholder="••••••••" {...field} className="h-12 bg-transparent border-b-2 border-ant-ink/10 rounded-none focus-visible:ring-0 font-bold px-0 text-ant-ink placeholder:text-ant-mid placeholder:font-medium" value={field.value || ''} /></FormControl>
-                                            </FormItem>
-                                        )} />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <FormField control={form.control} name="api_public_key" render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Public Key</FormLabel>
-                                                <FormControl><Input placeholder="pk_live_..." {...field} className="h-12 bg-transparent border-b-2 border-ant-ink/10 rounded-none focus-visible:ring-0 font-bold px-0 text-ant-ink placeholder:text-ant-mid placeholder:font-medium" value={field.value || ''} /></FormControl>
-                                            </FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="api_secret_key" render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-widest text-ant-mid">Secret Key</FormLabel>
-                                                <FormControl><Input type="password" placeholder="sk_live_..." {...field} className="h-12 bg-transparent border-b-2 border-ant-ink/10 rounded-none focus-visible:ring-0 font-bold px-0 text-ant-ink placeholder:text-ant-mid placeholder:font-medium" value={field.value || ''} /></FormControl>
-                                            </FormItem>
-                                        )} />
-                                    </div>
-                                </div>
-                                <div className="p-4 rounded-2xl bg-ant-ink/5 border border-ant-ink/10">
-                                    <p className="text-[10px] font-bold text-ant-muted leading-relaxed">
-                                        Note: These credentials will be used for tracking, status syncing, and automatic delivery note generation.
+                        {/* Body — provider-specific fields */}
+                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+                            {fields.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-ant-line bg-ant-light/40 p-6 text-center">
+                                    <p className="font-serif italic text-[12px] text-ant-mid">
+                                        No configuration fields are defined for this provider.
                                     </p>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
+                                    {fields.map((f) => renderField(f, FIELD_META[f].fullWidth))}
+                                </div>
+                            )}
                         </div>
 
-                        <DialogFooter className="px-6 pt-4 pb-6 border-t border-ant-line gap-2">
-                            <Button type="submit" disabled={loading} className="w-full bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl h-16 text-lg font-semibold shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] transition-all flex items-center justify-center gap-3">
-                                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <ExternalLink className="w-6 h-6" />}
-                                {initialData ? 'Save Configuration' : isTemplateCreate ? `Connect ${providerTemplate?.name}` : 'Establish Connection'}
+                        {/* Footer — brand-color CTA */}
+                        <div className="shrink-0 px-6 py-4 flex flex-row gap-2 bg-ant-paper border-t border-ant-line pb-[max(1rem,env(safe-area-inset-bottom))]">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={onClose}
+                                className="h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                            >
+                                Cancel
                             </Button>
-                        </DialogFooter>
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 h-11 px-5 rounded-full text-[12px] font-medium flex items-center justify-center gap-2 disabled:opacity-60 transition-all text-white"
+                                style={{
+                                    backgroundColor: accent,
+                                    boxShadow: `0 12px 28px -14px ${accent}99`,
+                                }}
+                            >
+                                {loading
+                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                {initialData
+                                    ? 'Save changes'
+                                    : template
+                                    ? `Connect ${template.name}`
+                                    : 'Connect partner'}
+                                {!initialData && watchActive && <span className="opacity-70">· Active</span>}
+                            </Button>
+                        </div>
                     </form>
                 </Form>
             </DialogContent>

@@ -36,7 +36,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
@@ -49,21 +49,29 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-const PROVIDER_ORDER = ['ameex', 'coliaty', 'ozon', 'quicklivraison', 'vitex', 'forcelog', 'sendit'] as const;
-type ProviderKey = (typeof PROVIDER_ORDER)[number];
-
-const PROVIDER_LABELS: Record<ProviderKey, string> = {
-    ameex: 'AMEEX',
-    coliaty: 'Coliaty',
-    ozon: 'Ozon',
-    quicklivraison: 'Quick Livraison',
-    vitex: 'VITEX',
-    forcelog: 'Forcelog',
-    sendit: 'Sendit',
+type ProviderFieldDef = {
+    key: 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit';
+    label: string;
+    ticker: string;
+    formField: 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id';
+    placeholder: string;
+    apiHint: string;
 };
+
+const PROVIDER_FIELDS: ProviderFieldDef[] = [
+    { key: 'ameex', label: 'AMEEX', ticker: 'AME', formField: 'ameex_city_code', placeholder: 'City code', apiHint: 'city' },
+    { key: 'coliaty', label: 'Coliaty', ticker: 'COL', formField: 'coliaty_city_name', placeholder: 'City name', apiHint: 'package_city' },
+    { key: 'ozon', label: 'Ozon', ticker: 'OZN', formField: 'ozon_city_id', placeholder: 'City id', apiHint: 'parcel-city' },
+    { key: 'quicklivraison', label: 'Quick Livraison', ticker: 'QL', formField: 'quicklivraison_city_id', placeholder: 'District id', apiHint: 'district_id' },
+    { key: 'vitex', label: 'VITEX', ticker: 'VTX', formField: 'vitex_city_id', placeholder: 'City id', apiHint: 'city_id' },
+    { key: 'forcelog', label: 'Forcelog', ticker: 'FCL', formField: 'forcelog_city_id', placeholder: 'City id', apiHint: 'city_id' },
+    { key: 'sendit', label: 'Sendit', ticker: 'SND', formField: 'sendit_city_id', placeholder: 'District id', apiHint: 'district_id' },
+];
+
+const PROVIDER_ORDER = PROVIDER_FIELDS.map((p) => p.key) as readonly ProviderFieldDef['key'][];
+type ProviderKey = ProviderFieldDef['key'];
 
 type MasterCityRow = {
     id: string;
@@ -278,58 +286,215 @@ async function syncProviderMappings(
     }
 }
 
-function ProviderMappingCell({
-    type,
-    logoUrl,
-    mappedName,
-    compact,
-    dense,
+function CityCoverageStrip({
+    pmap,
 }: {
-    type: ProviderKey;
-    logoUrl?: string;
-    mappedName: string | null;
-    compact?: boolean;
-    dense?: boolean;
+    pmap: Record<ProviderKey, string | null>;
 }) {
-    const label = PROVIDER_LABELS[type];
-    const imgCls = dense ? 'h-6 w-6 rounded-lg' : 'h-8 w-8 rounded-xl';
+    const filled = PROVIDER_FIELDS.reduce((n, p) => n + (pmap[p.key] ? 1 : 0), 0);
+    const total = PROVIDER_FIELDS.length;
+
     return (
-        <div className={cn('flex items-start gap-1.5 min-w-0', compact && 'flex-col gap-1')}>
-            {logoUrl ? (
-                <img
-                    src={logoUrl}
-                    alt=""
-                    className={cn(
-                        imgCls,
-                        'object-contain bg-ant-light border border-ant-line shrink-0 p-0.5',
+        <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-1 min-w-0">
+                {PROVIDER_FIELDS.map((p) => {
+                    const value = pmap[p.key];
+                    const isFilled = !!value;
+                    return (
+                        <span
+                            key={p.key}
+                            title={`${p.label}${isFilled ? ` · ${value}` : ' — not mapped'}`}
+                            className={cn(
+                                'inline-flex items-center justify-center h-[22px] min-w-[34px] px-1.5 text-[10px] font-display tracking-[0.08em] uppercase transition-all',
+                                isFilled
+                                    ? 'bg-ant-ink text-ant-light rounded-[6px]'
+                                    : 'border border-dashed border-ant-line text-ant-mid/55 rounded-[6px] bg-ant-paper',
+                            )}
+                        >
+                            {p.ticker}
+                        </span>
+                    );
+                })}
+            </div>
+            <span
+                className={cn(
+                    'tabular-nums font-display text-[11px] shrink-0',
+                    filled === total
+                        ? 'text-ant-green'
+                        : filled === 0
+                        ? 'text-ant-mid/60'
+                        : 'text-ant-orange',
+                )}
+            >
+                {filled}/{total}
+            </span>
+        </div>
+    );
+}
+
+function CarrierMappingSection({
+    form,
+    providerLogos,
+    providerSearch,
+    setProviderSearch,
+}: {
+    form: UseFormReturn<CityFormValues>;
+    providerLogos: Record<string, string>;
+    providerSearch: string;
+    setProviderSearch: (v: string) => void;
+}) {
+    const watched = form.watch();
+    const filledCount = PROVIDER_FIELDS.reduce(
+        (n, p) => n + (String((watched as Record<string, unknown>)[p.formField] || '').trim() ? 1 : 0),
+        0,
+    );
+    const total = PROVIDER_FIELDS.length;
+
+    const q = providerSearch.trim().toLowerCase();
+    const visible = q
+        ? PROVIDER_FIELDS.filter(
+              (p) =>
+                  p.label.toLowerCase().includes(q) ||
+                  p.key.toLowerCase().includes(q) ||
+                  p.apiHint.toLowerCase().includes(q),
+          )
+        : PROVIDER_FIELDS;
+
+    const pct = total ? (filledCount / total) * 100 : 0;
+
+    return (
+        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+            <header className="px-5 pt-4 pb-3 space-y-3">
+                <div className="flex items-end justify-between gap-3">
+                    <div className="space-y-0.5">
+                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                            Carrier mapping
+                        </span>
+                        <h3 className="font-display text-[15px] tracking-[-0.005em] text-ant-ink leading-tight">
+                            Identifiers per delivery partner
+                        </h3>
+                    </div>
+                    <div className="flex items-baseline gap-1 shrink-0">
+                        <span className="font-display text-[20px] tabular-nums text-ant-ink leading-none">
+                            {filledCount}
+                        </span>
+                        <span className="font-display text-[12px] tabular-nums text-ant-mid leading-none">
+                            /{total}
+                        </span>
+                    </div>
+                </div>
+                <div className="h-[2px] w-full rounded-full bg-ant-line/60 overflow-hidden">
+                    <div
+                        className={cn(
+                            'h-full transition-all duration-500',
+                            pct === 100 ? 'bg-ant-green' : pct === 0 ? 'bg-ant-line' : 'bg-ant-orange',
+                        )}
+                        style={{ width: `${pct}%` }}
+                    />
+                </div>
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                    <input
+                        type="search"
+                        placeholder="Filter carriers…"
+                        value={providerSearch}
+                        onChange={(e) => setProviderSearch(e.target.value)}
+                        className="w-full h-9 pl-9 pr-9 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/15 transition-all"
+                    />
+                    {providerSearch && (
+                        <button
+                            type="button"
+                            onClick={() => setProviderSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                            aria-label="Clear filter"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
                     )}
-                />
+                </div>
+            </header>
+
+            {visible.length === 0 ? (
+                <div className="p-6 text-center font-serif italic text-[12px] text-ant-mid border-t border-ant-line">
+                    No carrier matches "{providerSearch}".
+                </div>
             ) : (
-                <div
-                    className={cn(
-                        imgCls,
-                        'bg-ant-light border border-ant-line flex items-center justify-center text-[8px] font-medium text-ant-mid shrink-0',
-                    )}
-                >
-                    {label.slice(0, 2)}
+                <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {visible.map((p) => (
+                        <FormField
+                            key={p.key}
+                            control={form.control}
+                            name={p.formField}
+                            render={({ field }) => {
+                                const filled = !!String(field.value || '').trim();
+                                return (
+                                    <FormItem
+                                        className={cn(
+                                            'group relative m-0 rounded-xl border bg-ant-paper transition-all overflow-hidden',
+                                            filled
+                                                ? 'border-ant-ink/15 bg-ant-light/40'
+                                                : 'border-ant-line hover:border-ant-ink/20',
+                                        )}
+                                    >
+                                        <span
+                                            aria-hidden
+                                            className={cn(
+                                                'absolute left-0 top-0 bottom-0 w-[2px] transition-colors',
+                                                filled ? 'bg-ant-green' : 'bg-transparent',
+                                            )}
+                                        />
+                                        <div className="p-3 space-y-2.5">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-8 h-8 rounded-lg bg-ant-paper border border-ant-line flex items-center justify-center shrink-0 overflow-hidden">
+                                                    {providerLogos[p.key] ? (
+                                                        <img
+                                                            src={providerLogos[p.key]}
+                                                            alt=""
+                                                            className="w-full h-full object-contain p-1"
+                                                        />
+                                                    ) : (
+                                                        <span className="font-display text-[9px] tracking-[0.08em] text-ant-mid">
+                                                            {p.ticker}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <FormLabel className="block font-display text-[12.5px] text-ant-ink leading-tight truncate cursor-pointer">
+                                                        {p.label}
+                                                    </FormLabel>
+                                                    <p className="font-mono text-[10px] text-ant-mid truncate">
+                                                        {p.apiHint}
+                                                    </p>
+                                                </div>
+                                                <span
+                                                    className={cn(
+                                                        'font-display text-[9px] tracking-[0.08em] uppercase px-1.5 h-[18px] inline-flex items-center rounded shrink-0',
+                                                        filled
+                                                            ? 'bg-ant-ink text-ant-light'
+                                                            : 'border border-dashed border-ant-line text-ant-mid/60',
+                                                    )}
+                                                >
+                                                    {p.ticker}
+                                                </span>
+                                            </div>
+                                            <FormControl>
+                                                <input
+                                                    placeholder={p.placeholder}
+                                                    {...field}
+                                                    value={field.value || ''}
+                                                    className="w-full h-9 px-3 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/15 transition-all"
+                                                />
+                                            </FormControl>
+                                            <FormMessage className="text-[10px] text-ant-rose" />
+                                        </div>
+                                    </FormItem>
+                                );
+                            }}
+                        />
+                    ))}
                 </div>
             )}
-            <div className="min-w-0 flex-1 overflow-hidden">
-                {!dense && (
-                    <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-ant-mid">{label}</p>
-                )}
-                <p
-                    className={cn(
-                        'truncate',
-                        dense ? 'text-[12px]' : 'text-[13px]',
-                        mappedName ? 'font-display text-ant-ink' : 'font-serif italic text-ant-mid/70',
-                    )}
-                    title={mappedName || undefined}
-                >
-                    {mappedName || '—'}
-                </p>
-            </div>
-        </div>
+        </section>
     );
 }
 
@@ -342,6 +507,7 @@ const Cities = () => {
     const [filterZoneId, setFilterZoneId] = useState<string>('all');
     const [filterMapping, setFilterMapping] = useState<string>('all');
     const [visibleLimit, setVisibleLimit] = useState(150);
+    const [providerSearch, setProviderSearch] = useState('');
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
@@ -402,6 +568,10 @@ const Cities = () => {
         setVisibleLimit(150);
     }, [searchQuery, filterZoneId, filterMapping]);
 
+    useEffect(() => {
+        if (!isModalOpen) setProviderSearch('');
+    }, [isModalOpen]);
+
     const filteredCities = useMemo(() => {
         let list = cities ?? [];
 
@@ -432,11 +602,11 @@ const Cities = () => {
             list = list.filter((city) => {
                 if (filterMapping === 'missing_any') return !allMapped(city);
                 if (filterMapping === 'full') return allMapped(city);
-                if (filterMapping === 'missing_ameex') return !hasProvider(city, 'ameex');
-                if (filterMapping === 'missing_coliaty') return !hasProvider(city, 'coliaty');
-                if (filterMapping === 'missing_ozon') return !hasProvider(city, 'ozon');
-                if (filterMapping === 'missing_quicklivraison') return !hasProvider(city, 'quicklivraison');
-                if (filterMapping === 'missing_vitex') return !hasProvider(city, 'vitex');
+                if (filterMapping === 'unmapped') return PROVIDER_ORDER.every((k) => !hasProvider(city, k));
+                if (filterMapping.startsWith('missing_')) {
+                    const key = filterMapping.slice('missing_'.length) as ProviderKey;
+                    if (PROVIDER_ORDER.includes(key)) return !hasProvider(city, key);
+                }
                 return true;
             });
         }
@@ -458,21 +628,18 @@ const Cities = () => {
             return !!(m[key] && String(m[key]).trim());
         };
         const allMap = (city: MasterCityRow) => PROVIDER_ORDER.every((k) => hasProv(city, k));
+        const perProvider: Record<ProviderKey, number> = PROVIDER_FIELDS.reduce(
+            (acc, p) => ({ ...acc, [p.key]: 0 }),
+            {} as Record<ProviderKey, number>,
+        );
         let withHub = 0;
         let fullyMapped = 0;
-        let ameex = 0;
-        let coliaty = 0;
-        let ozon = 0;
-        let quicklivraison = 0;
-        let vitex = 0;
         for (const city of list) {
             if (city.zone_id) withHub++;
             if (allMap(city)) fullyMapped++;
-            if (hasProv(city, 'ameex')) ameex++;
-            if (hasProv(city, 'coliaty')) coliaty++;
-            if (hasProv(city, 'ozon')) ozon++;
-            if (hasProv(city, 'quicklivraison')) quicklivraison++;
-            if (hasProv(city, 'vitex')) vitex++;
+            for (const p of PROVIDER_FIELDS) {
+                if (hasProv(city, p.key)) perProvider[p.key]++;
+            }
         }
         const total = list.length;
         return {
@@ -481,11 +648,7 @@ const Cities = () => {
             noHub: total - withHub,
             fullyMapped,
             missingProviders: total - fullyMapped,
-            ameex,
-            coliaty,
-            ozon,
-            quicklivraison,
-            vitex,
+            perProvider,
         };
     }, [cities]);
 
@@ -606,43 +769,62 @@ const Cities = () => {
                 </div>
             </header>
 
-            {/* KPI hairline strip */}
+            {/* Snapshot panel — KPIs + per-carrier coverage as hairline bars */}
             {!isLoading && cities != null && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
-                    <KpiTile label="Total cities" value={cityCatalogStats.total} accent="bg-ant-ink" />
-                    <KpiTile label="Linked to hub" value={cityCatalogStats.withHub} accent="bg-ant-green" />
-                    <KpiTile label="Fully mapped" value={cityCatalogStats.fullyMapped} accent="bg-ant-green" />
-                    <KpiTile label="Incomplete" value={cityCatalogStats.missingProviders} accent="bg-ant-orange" />
-                </div>
-            )}
-
-            {/* Carrier coverage line */}
-            {!isLoading && cities != null && (
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-ant-mid">
-                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">Carrier coverage</span>
-                    <div className="inline-flex items-center gap-1">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
-                            <span className="font-medium text-ant-ink">AMEEX</span>
-                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.ameex}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
-                            <span className="font-medium text-ant-ink">Coliaty</span>
-                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.coliaty}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
-                            <span className="font-medium text-ant-ink">Ozon</span>
-                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.ozon}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
-                            <span className="font-medium text-ant-ink">Quick Livraison</span>
-                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.quicklivraison}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-light border border-ant-line">
-                            <span className="font-medium text-ant-ink">VITEX</span>
-                            <span className="tabular-nums text-ant-ink">{cityCatalogStats.vitex}</span>
-                        </span>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_1fr]">
+                        {/* KPIs */}
+                        <div className="grid grid-cols-2 divide-x divide-ant-line border-b lg:border-b-0 lg:border-r border-ant-line">
+                            <KpiBlock label="Total cities" value={cityCatalogStats.total} />
+                            <KpiBlock
+                                label="Fully mapped"
+                                value={cityCatalogStats.fullyMapped}
+                                hint={cityCatalogStats.total > 0
+                                    ? `${Math.round((cityCatalogStats.fullyMapped / cityCatalogStats.total) * 100)}%`
+                                    : undefined}
+                                tone={cityCatalogStats.fullyMapped === cityCatalogStats.total ? 'green' : 'orange'}
+                            />
+                        </div>
+                        {/* Per-carrier coverage bars */}
+                        <div className="p-4 sm:p-5">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                    Carrier coverage
+                                </span>
+                                <span className="font-serif italic text-[11px] text-ant-mid">
+                                    {cityCatalogStats.withHub} of {cityCatalogStats.total} linked to a hub
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                                {PROVIDER_FIELDS.map((p) => {
+                                    const count = cityCatalogStats.perProvider[p.key];
+                                    const pct = cityCatalogStats.total > 0
+                                        ? Math.round((count / cityCatalogStats.total) * 100)
+                                        : 0;
+                                    return (
+                                        <div key={p.key} className="flex items-center gap-3 min-w-0">
+                                            <span className="font-display text-[10px] tracking-[0.08em] uppercase text-ant-ink w-9 shrink-0">
+                                                {p.ticker}
+                                            </span>
+                                            <div className="h-1 flex-1 rounded-full bg-ant-line/60 overflow-hidden min-w-0">
+                                                <div
+                                                    className={cn(
+                                                        'h-full rounded-full transition-all',
+                                                        pct >= 95 ? 'bg-ant-green' : pct >= 50 ? 'bg-ant-ink' : 'bg-ant-orange',
+                                                    )}
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                            <span className="font-display text-[11px] tabular-nums text-ant-ink w-10 shrink-0 text-right">
+                                                {pct}%
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </section>
             )}
 
             {/* Filters */}
@@ -687,11 +869,12 @@ const Cities = () => {
                         <SelectItem value="all" className="text-[12px]">All mappings</SelectItem>
                         <SelectItem value="full" className="text-[12px]">Fully mapped</SelectItem>
                         <SelectItem value="missing_any" className="text-[12px]">Missing any</SelectItem>
-                        <SelectItem value="missing_ameex" className="text-[12px]">Missing AMEEX</SelectItem>
-                        <SelectItem value="missing_coliaty" className="text-[12px]">Missing Coliaty</SelectItem>
-                        <SelectItem value="missing_ozon" className="text-[12px]">Missing Ozon</SelectItem>
-                        <SelectItem value="missing_quicklivraison" className="text-[12px]">Missing Quick Livraison</SelectItem>
-                        <SelectItem value="missing_vitex" className="text-[12px]">Missing VITEX</SelectItem>
+                        <SelectItem value="unmapped" className="text-[12px]">Unmapped</SelectItem>
+                        {PROVIDER_FIELDS.map((p) => (
+                            <SelectItem key={p.key} value={`missing_${p.key}`} className="text-[12px]">
+                                Missing {p.label}
+                            </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
 
@@ -739,47 +922,21 @@ const Cities = () => {
                 </section>
             ) : viewMode === 'table' ? (
                 <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                    <div className="h-[3px] w-full bg-ant-ink" />
-                    <div className="max-h-[min(70vh,720px)] overflow-y-auto overflow-x-auto overscroll-x-contain">
-                        <table className="w-full min-w-[720px] table-fixed caption-bottom text-sm border-collapse">
-                            <colgroup>
-                                {isOwner && <col style={{ width: 84 }} />}
-                                <col />
-                                {PROVIDER_ORDER.map((type) => (
-                                    <col key={type} />
-                                ))}
-                                <col />
-                            </colgroup>
+                    <div className="max-h-[min(70vh,720px)] overflow-y-auto overscroll-contain">
+                        <table className="w-full caption-bottom text-sm border-collapse">
                             <thead>
-                                <tr className="border-b border-ant-line bg-ant-light/60">
-                                    {isOwner && (
-                                        <th
-                                            scope="col"
-                                            className="sticky top-0 left-0 z-30 h-10 w-[84px] min-w-[84px] max-w-[84px] whitespace-nowrap px-0 py-2 text-center align-middle text-[9px] font-medium uppercase leading-tight tracking-[0.22em] text-ant-mid bg-ant-light/95 backdrop-blur border-r border-ant-line"
-                                        >
-                                            Actions
-                                        </th>
-                                    )}
-                                    <th scope="col" className="sticky top-0 z-20 h-10 px-4 py-2 text-left align-middle text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid bg-ant-light/95 backdrop-blur">
+                                <tr className="border-b border-ant-line">
+                                    <th scope="col" className="sticky top-0 z-20 h-11 px-5 py-2 text-left align-middle text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid bg-ant-paper/95 backdrop-blur w-[36%]">
                                         City
                                     </th>
-                                    {PROVIDER_ORDER.map((type) => (
-                                        <th key={type} scope="col" className="sticky top-0 z-20 h-10 px-3 py-2 text-left align-middle bg-ant-light/95 backdrop-blur" title={PROVIDER_LABELS[type]}>
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                {providerLogos[type] ? (
-                                                    <img src={providerLogos[type]} alt="" className="h-5 w-5 rounded-lg object-contain bg-ant-paper border border-ant-line shrink-0 p-0.5" />
-                                                ) : (
-                                                    <span className="h-5 w-5 rounded-lg bg-ant-paper border border-ant-line flex items-center justify-center text-[7px] font-medium text-ant-mid shrink-0">
-                                                        {PROVIDER_LABELS[type].slice(0, 2)}
-                                                    </span>
-                                                )}
-                                                <span className="text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid truncate">{PROVIDER_LABELS[type]}</span>
-                                            </div>
-                                        </th>
-                                    ))}
-                                    <th scope="col" className="sticky top-0 z-20 h-10 px-3 py-2 text-left align-middle text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid bg-ant-light/95 backdrop-blur">
-                                        Hub
+                                    <th scope="col" className="sticky top-0 z-20 h-11 px-4 py-2 text-left align-middle text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid bg-ant-paper/95 backdrop-blur">
+                                        Carrier coverage
                                     </th>
+                                    {isOwner && (
+                                        <th scope="col" className="sticky top-0 z-20 h-11 px-4 py-2 text-right align-middle text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid bg-ant-paper/95 backdrop-blur w-[110px]">
+                                            <span className="sr-only">Actions</span>
+                                        </th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
@@ -787,10 +944,27 @@ const Cities = () => {
                                     const pmap = buildProviderMap(city);
                                     const hub = (city.zones as { name?: string } | null)?.name;
                                     return (
-                                        <tr key={city.id} className="group border-b border-ant-line last:border-b-0 transition-colors hover:bg-ant-light/40">
+                                        <tr
+                                            key={city.id}
+                                            className="group border-b border-ant-line last:border-b-0 transition-colors hover:bg-ant-light/50 cursor-pointer"
+                                            onClick={() => isOwner && (setEditingCity(city), form.reset(cityToFormDefaults(city)), setIsModalOpen(true))}
+                                        >
+                                            <td className="align-middle px-5 py-3.5 min-w-0">
+                                                <div className="min-w-0">
+                                                    <span className="font-display text-[9px] uppercase tracking-[0.22em] text-ant-mid block truncate">
+                                                        {hub || <span className="font-serif italic normal-case tracking-normal">Unassigned hub</span>}
+                                                    </span>
+                                                    <p className="font-display text-[15px] text-ant-ink leading-tight truncate mt-0.5">
+                                                        {city.name}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="align-middle px-4 py-3.5 min-w-0">
+                                                <CityCoverageStrip pmap={pmap} />
+                                            </td>
                                             {isOwner && (
-                                                <td className="sticky left-0 z-10 w-[84px] min-w-[84px] max-w-[84px] whitespace-nowrap align-middle p-0 bg-ant-paper group-hover:bg-ant-light/40 border-r border-ant-line">
-                                                    <div className="flex h-full flex-row items-center justify-center gap-1 px-1">
+                                                <td className="align-middle px-4 py-3.5 w-[110px]" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                         <button
                                                             type="button"
                                                             onClick={() => { setEditingCity(city); form.reset(cityToFormDefaults(city)); setIsModalOpen(true); }}
@@ -810,23 +984,6 @@ const Cities = () => {
                                                     </div>
                                                 </td>
                                             )}
-                                            <td className="align-middle px-4 py-2.5 min-w-0">
-                                                <span className="font-display text-[13px] text-ant-ink leading-snug line-clamp-2 break-words">{city.name}</span>
-                                            </td>
-                                            {PROVIDER_ORDER.map((type) => (
-                                                <td key={type} className="align-middle px-3 py-2.5 min-w-0">
-                                                    <ProviderMappingCell type={type} logoUrl={providerLogos[type]} mappedName={pmap[type]} dense />
-                                                </td>
-                                            ))}
-                                            <td className="align-middle px-3 py-2.5 min-w-0">
-                                                <span className={cn(
-                                                    'inline-flex items-center gap-1 text-[11px] truncate',
-                                                    hub ? 'text-ant-ink' : 'font-serif italic text-ant-mid',
-                                                )}>
-                                                    {hub && <MapPin className="w-3 h-3 text-ant-mid shrink-0" />}
-                                                    {hub || '—'}
-                                                </span>
-                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -851,21 +1008,27 @@ const Cities = () => {
                         {visibleCities.map((city) => {
                             const pmap = buildProviderMap(city);
                             const hub = (city.zones as { name?: string } | null)?.name;
-                            const allMapped = PROVIDER_ORDER.every((k) => !!pmap[k]);
+                            const filledCount = PROVIDER_FIELDS.reduce((n, p) => n + (pmap[p.key] ? 1 : 0), 0);
+                            const total = PROVIDER_FIELDS.length;
+                            const pct = total ? (filledCount / total) * 100 : 0;
                             return (
-                                <div key={city.id} className="group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/25 transition-colors flex flex-col">
-                                    <div className={cn('h-[3px] w-full', allMapped ? 'bg-ant-green' : 'bg-ant-orange')} />
-                                    <div className="p-4 flex flex-col gap-3 flex-1">
+                                <div
+                                    key={city.id}
+                                    className="group relative rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/30 hover:shadow-[0_12px_28px_-18px_rgba(20,20,19,0.45)] transition-all flex flex-col cursor-pointer"
+                                    onClick={() => isOwner && (setEditingCity(city), form.reset(cityToFormDefaults(city)), setIsModalOpen(true))}
+                                >
+                                    <div className="px-4 pt-4 pb-3 flex flex-col gap-3 flex-1">
                                         <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0 flex-1 space-y-1">
-                                                <p className="font-display text-[14px] text-ant-ink truncate leading-tight">{city.name}</p>
-                                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ant-mid">
-                                                    <MapPin className="w-3 h-3 shrink-0" />
-                                                    {hub || <span className="font-serif italic">No hub</span>}
+                                            <div className="min-w-0 flex-1">
+                                                <span className="font-display text-[9px] uppercase tracking-[0.22em] text-ant-mid block truncate">
+                                                    {hub || <span className="font-serif italic normal-case tracking-normal">Unassigned hub</span>}
                                                 </span>
+                                                <p className="font-display text-[16px] text-ant-ink truncate leading-tight mt-0.5">
+                                                    {city.name}
+                                                </p>
                                             </div>
                                             {isOwner && (
-                                                <div className="flex items-center gap-1 shrink-0">
+                                                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                                                     <button
                                                         type="button"
                                                         onClick={() => { setEditingCity(city); form.reset(cityToFormDefaults(city)); setIsModalOpen(true); }}
@@ -883,11 +1046,18 @@ const Cities = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="space-y-2 pt-3 border-t border-ant-line">
-                                            {PROVIDER_ORDER.map((type) => (
-                                                <ProviderMappingCell key={type} type={type} logoUrl={providerLogos[type]} mappedName={pmap[type]} compact />
-                                            ))}
+                                        <div className="pt-3 border-t border-ant-line">
+                                            <CityCoverageStrip pmap={pmap} />
                                         </div>
+                                    </div>
+                                    <div className="h-[3px] w-full bg-ant-line/60 overflow-hidden">
+                                        <div
+                                            className={cn(
+                                                'h-full transition-all duration-500',
+                                                pct === 100 ? 'bg-ant-green' : pct === 0 ? 'bg-ant-line' : 'bg-ant-orange',
+                                            )}
+                                            style={{ width: `${pct}%` }}
+                                        />
                                     </div>
                                 </div>
                             );
@@ -950,226 +1120,57 @@ const Cities = () => {
                                 </div>
                             </DialogHeader>
 
-                            <ScrollArea className="min-h-0 flex-1">
-                                <div className="px-5 py-4 space-y-5">
-                                    {/* Chapter 01 — Identity */}
-                                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                                        <div className="h-[3px] w-full bg-ant-ink" />
-                                        <div className="px-4 py-3 border-b border-ant-line">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-display text-[10px] text-ant-orange">01</span>
-                                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                                                    Identity & hub
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <FormField
-                                                control={form.control}
-                                                name="name"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Master city name</FormLabel>
-                                                        <FormControl>
-                                                            <input placeholder="E.g. Casablanca" {...field} className={inputClass} />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
+                            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                                <div className="px-5 py-5 space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="name"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Master city name</FormLabel>
+                                                    <FormControl>
+                                                        <input placeholder="E.g. Casablanca" {...field} className={inputClass} />
+                                                    </FormControl>
+                                                    <FormMessage className="text-[10px] text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
 
-                                            <FormField
-                                                control={form.control}
-                                                name="zone_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Hub (zone)</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
-                                                            <FormControl>
-                                                                <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] focus:ring-2 focus:ring-ant-orange/20">
-                                                                    <SelectValue placeholder="Choose a zone" />
-                                                                </SelectTrigger>
-                                                            </FormControl>
-                                                            <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
-                                                                {zones?.map((zone) => (
-                                                                    <SelectItem key={zone.id} value={zone.id} className="text-[12px]">
-                                                                        {zone.name}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                    </section>
-
-                                    {/* Chapter 02 — Carrier mapping */}
-                                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                                        <div className="h-[3px] w-full bg-ant-orange" />
-                                        <div className="px-4 py-3 border-b border-ant-line">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-display text-[10px] text-ant-orange">02</span>
-                                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                                                    Carrier mapping
-                                                </span>
-                                            </div>
-                                            <p className="font-serif italic text-[12px] text-ant-mid mt-1">
-                                                Each carrier uses its own identifier for this city.
-                                            </p>
-                                        </div>
-                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
-                                            <FormField
-                                                control={form.control}
-                                                name="ameex_city_code"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            AMEEX <span className="font-mono normal-case text-ant-mid/60">· city</span>
-                                                        </FormLabel>
+                                        <FormField
+                                            control={form.control}
+                                            name="zone_id"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Hub (zone)</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
-                                                            <input
-                                                                placeholder="City code"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
+                                                            <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] focus:ring-2 focus:ring-ant-orange/20">
+                                                                <SelectValue placeholder="Choose a zone" />
+                                                            </SelectTrigger>
                                                         </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
+                                                        <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                                                            {zones?.map((zone) => (
+                                                                <SelectItem key={zone.id} value={zone.id} className="text-[12px]">
+                                                                    {zone.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage className="text-[10px] text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
 
-                                            <FormField
-                                                control={form.control}
-                                                name="coliaty_city_name"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            Coliaty <span className="font-mono normal-case text-ant-mid/60">· package_city</span>
-                                                        </FormLabel>
-                                                        <FormControl>
-                                                            <input
-                                                                placeholder="City name"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-
-                                            <FormField
-                                                control={form.control}
-                                                name="ozon_city_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            Ozon <span className="font-mono normal-case text-ant-mid/60">· parcel-city</span>
-                                                        </FormLabel>
-                                                        <FormControl>
-                                                            <input
-                                                                placeholder="City id"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-
-                                            <FormField
-                                                control={form.control}
-                                                name="quicklivraison_city_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            Quick Livraison <span className="font-mono normal-case text-ant-mid/60">· district_id</span>
-                                                        </FormLabel>
-                                                        <FormControl>
-                                                            <input
-                                                                placeholder="District id"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-
-                                            <FormField
-                                                control={form.control}
-                                                name="vitex_city_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            VITEX <span className="font-mono normal-case text-ant-mid/60">· city_id</span>
-                                                        </FormLabel>
-                                                        <FormControl>
-                                                            <input
-                                                                placeholder="City id"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-
-                                            <FormField
-                                                control={form.control}
-                                                name="forcelog_city_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            Forcelog <span className="font-mono normal-case text-ant-mid/60">· city_id</span>
-                                                        </FormLabel>
-                                                        <FormControl>
-                                                            <input
-                                                                placeholder="City id"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-
-                                            <FormField
-                                                control={form.control}
-                                                name="sendit_city_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                                            Sendit <span className="font-mono normal-case text-ant-mid/60">· district_id</span>
-                                                        </FormLabel>
-                                                        <FormControl>
-                                                            <input
-                                                                placeholder="District id"
-                                                                {...field}
-                                                                value={field.value || ''}
-                                                                className={inputClass}
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage className="text-[10px] text-ant-rose" />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                    </section>
+                                    <CarrierMappingSection
+                                        form={form}
+                                        providerLogos={providerLogos}
+                                        providerSearch={providerSearch}
+                                        setProviderSearch={setProviderSearch}
+                                    />
                                 </div>
-                            </ScrollArea>
+                            </div>
 
                             <div className="shrink-0 px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                                 <button
@@ -1242,16 +1243,43 @@ const Cities = () => {
     );
 };
 
-const KpiTile = ({ label, value, accent }: { label: string; value: number; accent: string }) => (
-    <div className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-            <span className={cn('w-1 h-4 rounded-full', accent)} />
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">{label}</span>
+function KpiBlock({
+    label,
+    value,
+    hint,
+    tone = 'ink',
+}: {
+    label: string;
+    value: number;
+    hint?: string;
+    tone?: 'ink' | 'green' | 'orange';
+}) {
+    return (
+        <div className="px-5 py-5 flex flex-col gap-2 bg-ant-paper">
+            <span className="font-display text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                {label}
+            </span>
+            <div className="flex items-baseline gap-2">
+                <p className="font-display text-[28px] md:text-[32px] leading-none tabular-nums text-ant-ink">
+                    {value.toLocaleString('fr-MA')}
+                </p>
+                {hint && (
+                    <span
+                        className={cn(
+                            'font-display text-[12px] tabular-nums',
+                            tone === 'green'
+                                ? 'text-ant-green'
+                                : tone === 'orange'
+                                ? 'text-ant-orange'
+                                : 'text-ant-mid',
+                        )}
+                    >
+                        {hint}
+                    </span>
+                )}
+            </div>
         </div>
-        <p className="font-display text-[22px] md:text-[26px] leading-none tabular-nums text-ant-ink">
-            {value.toLocaleString('fr-MA')}
-        </p>
-    </div>
-);
+    );
+}
 
 export default Cities;

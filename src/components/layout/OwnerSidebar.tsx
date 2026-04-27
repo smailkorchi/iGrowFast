@@ -17,8 +17,6 @@ import {
     BrainCircuit,
     type LucideIcon,
 } from 'lucide-react';
-import { SiMeta } from 'react-icons/si';
-import { FaGoogle } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -40,8 +38,6 @@ const navigation: NavItem[] = [
     { icon: Map, label: 'Zones', path: '/owner/zones' },
     { icon: History, label: 'Activity Log', path: '/owner/activity-log' },
     { icon: BrainCircuit, label: 'AI Platform', path: '/owner/ai' },
-    { icon: FaGoogle, label: 'Google Analytics', path: '/owner/google-analytics' },
-    { icon: SiMeta, label: 'Meta Ads', path: '/owner/meta-ads' },
 ];
 
 const isParentPath = (path: string) => path === '/owner/dashboard';
