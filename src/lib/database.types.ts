@@ -4849,6 +4849,7 @@ export type Database = {
           delivery_fees_id: string | null
           delivery_note: string | null
           delivery_type: string | null
+          delvoexpress_old_tracking: string | null
           "DigiCom Business": string | null
           forcelog_old_tracking: string | null
           free_shipping: boolean | null
@@ -4906,6 +4907,7 @@ export type Database = {
           delivery_fees_id?: string | null
           delivery_note?: string | null
           delivery_type?: string | null
+          delvoexpress_old_tracking?: string | null
           "DigiCom Business"?: string | null
           forcelog_old_tracking?: string | null
           free_shipping?: boolean | null
@@ -4963,6 +4965,7 @@ export type Database = {
           delivery_fees_id?: string | null
           delivery_note?: string | null
           delivery_type?: string | null
+          delvoexpress_old_tracking?: string | null
           "DigiCom Business"?: string | null
           forcelog_old_tracking?: string | null
           free_shipping?: boolean | null
@@ -5512,6 +5515,7 @@ export type Database = {
           coliaty_package_no_open: boolean
           color: string | null
           created_at: string | null
+          delvoexpress_allow_open: boolean
           "DigiCom Business": string | null
           digylog_allow_open: boolean
           digylog_default_port: number
@@ -5557,6 +5561,7 @@ export type Database = {
           coliaty_package_no_open?: boolean
           color?: string | null
           created_at?: string | null
+          delvoexpress_allow_open?: boolean
           "DigiCom Business"?: string | null
           digylog_allow_open?: boolean
           digylog_default_port?: number
@@ -5602,6 +5607,7 @@ export type Database = {
           coliaty_package_no_open?: boolean
           color?: string | null
           created_at?: string | null
+          delvoexpress_allow_open?: boolean
           "DigiCom Business"?: string | null
           digylog_allow_open?: boolean
           digylog_default_port?: number

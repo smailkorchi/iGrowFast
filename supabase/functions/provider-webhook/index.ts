@@ -44,19 +44,30 @@ Deno.serve(async (req: Request) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
         );
 
-        // ── 3. Parse payload (JSON, form-encoded, or raw text) ──────────
+        // ── 3. Parse payload (JSON, form-encoded, raw text, or URL query) ──
+        // Delevo Express sends GET with templated URL params — merge query string
+        // into the payload so a single extractor handles all providers.
         const contentType = req.headers.get('content-type') || '';
         let payload: any = {};
-        if (contentType.includes('application/json')) {
-            payload = await req.json();
-        } else if (contentType.includes('form') || contentType.includes('multipart')) {
-            const formData = await req.formData();
-            for (const [key, value] of formData.entries()) {
-                try { payload[key] = JSON.parse(value as string); } catch { payload[key] = value; }
+        // First, harvest query params (works for any method).
+        for (const [k, v] of url.searchParams.entries()) {
+            try { payload[k] = JSON.parse(v); } catch { payload[k] = v; }
+        }
+        // Then layer the body on top (if any).
+        if (req.method !== 'GET') {
+            if (contentType.includes('application/json')) {
+                try { Object.assign(payload, await req.json()); } catch { /* empty body */ }
+            } else if (contentType.includes('form') || contentType.includes('multipart')) {
+                const formData = await req.formData();
+                for (const [key, value] of formData.entries()) {
+                    try { payload[key] = JSON.parse(value as string); } catch { payload[key] = value; }
+                }
+            } else {
+                const text = await req.text();
+                if (text) {
+                    try { Object.assign(payload, JSON.parse(text)); } catch { payload.raw = text; }
+                }
             }
-        } else {
-            const text = await req.text();
-            try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
         }
 
         console.log(`[webhook] provider=${providerId} payload=`, JSON.stringify(payload));

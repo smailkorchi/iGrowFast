@@ -1,0 +1,430 @@
+[
+  {
+    "id": 235,
+    "name": "Casablanca - Abdelmoumen"
+  },
+  {
+    "id": 236,
+    "name": "Casablanca - Nassim II"
+  },
+  {
+    "id": 237,
+    "name": "Casablanca - Al Mostakbal"
+  },
+  {
+    "id": 238,
+    "name": "Casablanca - Sid Al Khadir"
+  },
+  {
+    "id": 239,
+    "name": "Casablanca - El Hana"
+  },
+  {
+    "id": 240,
+    "name": "Casablanca - France Ville II"
+  },
+  {
+    "id": 241,
+    "name": "Casablanca - Lamkansa"
+  },
+  {
+    "id": 242,
+    "name": "Casablanca - Jawhara"
+  },
+  {
+    "id": 243,
+    "name": "Casablanca - Palmier"
+  },
+  {
+    "id": 244,
+    "name": "Casablanca - Anassi"
+  },
+  {
+    "id": 245,
+    "name": "Casablanca - Azhar bernoussi"
+  },
+  {
+    "id": 246,
+    "name": "Casablanca - Salmia"
+  },
+  {
+    "id": 247,
+    "name": "Lahraouyine"
+  },
+  {
+    "id": 248,
+    "name": "Casablanca - Ghandi"
+  },
+  {
+    "id": 249,
+    "name": "Casablanca - El hank"
+  },
+  {
+    "id": 250,
+    "name": "Casablanca - Hay Tissir"
+  },
+  {
+    "id": 251,
+    "name": "Casablanca - Hay el farah"
+  },
+  {
+    "id": 252,
+    "name": "Casablanca - Habous"
+  },
+  {
+    "id": 253,
+    "name": "Casablanca - Bachkou"
+  },
+  {
+    "id": 254,
+    "name": "Casablanca - Derb Milan"
+  },
+  {
+    "id": 255,
+    "name": "Casablanca - Derb alkabir"
+  },
+  {
+    "id": 256,
+    "name": "Casablanca - Val fleurie"
+  },
+  {
+    "id": 257,
+    "name": "Casablanca - Riveira"
+  },
+  {
+    "id": 258,
+    "name": "Casablanca - Bournazel"
+  },
+  {
+    "id": 259,
+    "name": "Casablanca - Floride"
+  },
+  {
+    "id": 260,
+    "name": "Casablanca - Mandarona"
+  },
+  {
+    "id": 261,
+    "name": "Casablanca - Polo"
+  },
+  {
+    "id": 262,
+    "name": "Casablanca - Hay assalama"
+  },
+  {
+    "id": 263,
+    "name": "Casablanca - Attacharok"
+  },
+  {
+    "id": 264,
+    "name": "Casablanca - Derb sultan"
+  },
+  {
+    "id": 265,
+    "name": "Casablanca - Hay Al Inara"
+  },
+  {
+    "id": 266,
+    "name": "Casablanca - 2 mars"
+  },
+  {
+    "id": 267,
+    "name": "Casablanca - Sidi Othmane"
+  },
+  {
+    "id": 268,
+    "name": "Casablanca - Sidi Moumen"
+  },
+  {
+    "id": 269,
+    "name": "Casablanca - Derb Omar"
+  },
+  {
+    "id": 270,
+    "name": "Casablanca - Ancienne Medina"
+  },
+  {
+    "id": 271,
+    "name": "Casablanca - Sidi Belyout"
+  },
+  {
+    "id": 272,
+    "name": "Casablanca - Gauthier"
+  },
+  {
+    "id": 273,
+    "name": "Casablanca - Centre Ville"
+  },
+  {
+    "id": 274,
+    "name": "Casablanca - Sbata"
+  },
+  {
+    "id": 275,
+    "name": "Casablanca - Ain Borja"
+  },
+  {
+    "id": 276,
+    "name": "Casablanca - Belvédère"
+  },
+  {
+    "id": 277,
+    "name": "Casablanca - Roches noires"
+  },
+  {
+    "id": 278,
+    "name": "Casablanca - Hay Moulay Rachid"
+  },
+  {
+    "id": 279,
+    "name": "Casablanca - Garage Allal"
+  },
+  {
+    "id": 280,
+    "name": "Casablanca - La Gironde"
+  },
+  {
+    "id": 281,
+    "name": "Casablanca - Mers sultan"
+  },
+  {
+    "id": 282,
+    "name": "Casablanca - Les Hôpitaux"
+  },
+  {
+    "id": 283,
+    "name": "Casablanca - Derb Ghalef"
+  },
+  {
+    "id": 284,
+    "name": "Casablanca - Maarif"
+  },
+  {
+    "id": 285,
+    "name": "Casablanca - Hay mohammedi"
+  },
+  {
+    "id": 286,
+    "name": "Casablanca - Oulfa"
+  },
+  {
+    "id": 287,
+    "name": "Casablanca - Lissassfa"
+  },
+  {
+    "id": 288,
+    "name": "Casablanca - CIL"
+  },
+  {
+    "id": 289,
+    "name": "Casablanca - Beauséjour"
+  },
+  {
+    "id": 290,
+    "name": "Casablanca - Hay Hassani"
+  },
+  {
+    "id": 291,
+    "name": "Casablanca - Bernoussi"
+  },
+  {
+    "id": 292,
+    "name": "Casablanca - Ben msik"
+  },
+  {
+    "id": 293,
+    "name": "Casablanca - Ain sebaa"
+  },
+  {
+    "id": 294,
+    "name": "Casablanca - Oasis"
+  },
+  {
+    "id": 295,
+    "name": "Casablanca - Hay moulay Abdellah"
+  },
+  {
+    "id": 296,
+    "name": "Casablanca - Californie"
+  },
+  {
+    "id": 297,
+    "name": "Casablanca - Ain chok"
+  },
+  {
+    "id": 298,
+    "name": "Casablanca - Racine"
+  },
+  {
+    "id": 299,
+    "name": "Casablanca - Bourgogne"
+  },
+  {
+    "id": 300,
+    "name": "Casablanca - Anfa"
+  },
+  {
+    "id": 301,
+    "name": "Casablanca - Ain diab"
+  },
+  {
+    "id": 302,
+    "name": "Casablanca - Sidi Maârouf"
+  },
+  {
+    "id": 303,
+    "name": "Casablanca - Al fida"
+  },
+  {
+    "id": 304,
+    "name": "Dar Bouaza"
+  },
+  {
+    "id": 305,
+    "name": "tamaris"
+  },
+  {
+    "id": 306,
+    "name": "Bouskoura"
+  },
+  {
+    "id": 307,
+    "name": "Tit Melil"
+  },
+  {
+    "id": 308,
+    "name": "deroua"
+  },
+  {
+    "id": 309,
+    "name": "Nouacer"
+  },
+  {
+    "id": 310,
+    "name": "Ain Harrouda"
+  },
+  {
+    "id": 311,
+    "name": "Sidi Hajjaj"
+  },
+  {
+    "id": 312,
+    "name": "Chellalat Mohammedia"
+  },
+  {
+    "id": 313,
+    "name": "Mohammedia"
+  },
+  {
+    "id": 314,
+    "name": "El Mansouria"
+  },
+  {
+    "id": 315,
+    "name": "Bouznika"
+  },
+  {
+    "id": 316,
+    "name": "Benslimane"
+  },
+  {
+    "id": 317,
+    "name": "Mediouna"
+  },
+  {
+    "id": 318,
+    "name": "Errahma"
+  },
+  {
+    "id": 319,
+    "name": "casa-dar 16"
+  },
+  {
+    "id": 320,
+    "name": "Casablanca-Autre quartiers"
+  },
+  {
+    "id": 321,
+    "name": "Casablanca - azhar oulfa"
+  },
+  {
+    "id": 322,
+    "name": "Almaz"
+  },
+  {
+    "id": 323,
+    "name": "EL HALHAL"
+  },
+  {
+    "id": 324,
+    "name": "Ain tekki-Mohammedia"
+  },
+  {
+    "id": 325,
+    "name": "Casablanca-sidi maarof (derb sultan)"
+  },
+  {
+    "id": 326,
+    "name": "DAR BOUAZZA"
+  },
+  {
+    "id": 330,
+    "name": "Sidi rahal"
+  },
+  {
+    "id": 331,
+    "name": "Had soualem"
+  },
+  {
+    "id": 332,
+    "name": "CASABLANCA"
+  },
+  {
+    "id": 333,
+    "name": "Bin lmdoun"
+  },
+  {
+    "id": 336,
+    "name": "Sidi rahhal"
+  },
+  {
+    "id": 337,
+    "name": "Louizia"
+  },
+  {
+    "id": 338,
+    "name": "Sidi moussa ben ali"
+  },
+  {
+    "id": 339,
+    "name": "Sidi hajaj -tite melil"
+  },
+  {
+    "id": 340,
+    "name": "Beni yakhlef"
+  },
+  {
+    "id": 341,
+    "name": "Chelallate"
+  },
+  {
+    "id": 342,
+    "name": "Sidi masaoud"
+  },
+  {
+    "id": 343,
+    "name": "Daroua"
+  },
+  {
+    "id": 344,
+    "name": "Zenata-ain harrouda"
+  },
+  {
+    "id": 347,
+    "name": "ZENATA_Ain harouda"
+  },
+  {
+    "id": 348,
+    "name": "Settat"
+  }
+]

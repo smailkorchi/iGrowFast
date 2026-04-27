@@ -52,10 +52,10 @@ import {
 import { cn } from '@/lib/utils';
 
 type ProviderFieldDef = {
-    key: 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog';
+    key: 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog' | 'delvoexpress';
     label: string;
     ticker: string;
-    formField: 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id' | 'digylog_city_name';
+    formField: 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id' | 'digylog_city_name' | 'delvoexpress_city_name';
     placeholder: string;
     apiHint: string;
 };
@@ -69,6 +69,7 @@ const PROVIDER_FIELDS: ProviderFieldDef[] = [
     { key: 'forcelog', label: 'Forcelog', ticker: 'FCL', formField: 'forcelog_city_id', placeholder: 'City id', apiHint: 'city_id' },
     { key: 'sendit', label: 'Sendit', ticker: 'SND', formField: 'sendit_city_id', placeholder: 'District id', apiHint: 'district_id' },
     { key: 'digylog', label: 'Digylog', ticker: 'DGY', formField: 'digylog_city_name', placeholder: 'City name', apiHint: 'city' },
+    { key: 'delvoexpress', label: 'Delevo Express', ticker: 'DLV', formField: 'delvoexpress_city_name', placeholder: 'City name', apiHint: 'city' },
 ];
 
 const PROVIDER_ORDER = PROVIDER_FIELDS.map((p) => p.key) as readonly ProviderFieldDef['key'][];
@@ -97,6 +98,7 @@ const citySchema = z.object({
     forcelog_city_id: z.string().optional().nullable(),
     sendit_city_id: z.string().optional().nullable(),
     digylog_city_name: z.string().optional().nullable(),
+    delvoexpress_city_name: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
@@ -112,6 +114,7 @@ const emptyCityForm: CityFormValues = {
     forcelog_city_id: '',
     sendit_city_id: '',
     digylog_city_name: '',
+    delvoexpress_city_name: '',
 };
 
 function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
@@ -126,6 +129,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
     const fl = by('forcelog');
     const se = by('sendit');
     const dg = by('digylog');
+    const dl = by('delvoexpress');
     return {
         name: city.name,
         zone_id: city.zone_id || '',
@@ -137,6 +141,7 @@ function cityToFormDefaults(city: MasterCityRow | null): CityFormValues {
         forcelog_city_id: (fl?.provider_city_id || '').trim() || '',
         sendit_city_id: (se?.provider_city_id || '').trim() || '',
         digylog_city_name: (dg?.provider_city_name || '').trim() || '',
+        delvoexpress_city_name: (dl?.provider_city_name || '').trim() || '',
     };
 }
 
@@ -150,6 +155,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
         forcelog: null,
         sendit: null,
         digylog: null,
+        delvoexpress: null,
     };
     for (const pc of city.provider_cities || []) {
         const t = String(pc.provider_type || '').toLowerCase() as ProviderKey;
@@ -158,7 +164,7 @@ function buildProviderMap(city: MasterCityRow): Record<ProviderKey, string | nul
             const id = (pc.provider_city_id || '').trim();
             const nm = (pc.provider_city_name || '').trim();
             out[t] = id || nm || null;
-        } else if (t === 'coliaty' || t === 'digylog') {
+        } else if (t === 'coliaty' || t === 'digylog' || t === 'delvoexpress') {
             const nm = (pc.provider_city_name || '').trim();
             out[t] = nm || null;
         } else if (t === 'ozon') {
@@ -197,7 +203,7 @@ async function fetchAllMasterCities(): Promise<MasterCityRow[]> {
 async function syncProviderMappings(
     masterCityId: string,
     masterCityName: string,
-    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id' | 'digylog_city_name'>
+    v: Pick<CityFormValues, 'ameex_city_code' | 'coliaty_city_name' | 'ozon_city_id' | 'quicklivraison_city_id' | 'vitex_city_id' | 'forcelog_city_id' | 'sendit_city_id' | 'digylog_city_name' | 'delvoexpress_city_name'>
 ) {
     const name = masterCityName.trim();
 
@@ -297,6 +303,14 @@ async function syncProviderMappings(
         await upsert('digylog', { provider_city_id: null, provider_city_name: dg });
     } else {
         await del('digylog');
+    }
+
+    // Delevo Express also takes city NAME (107 named districts; full names like "Casablanca - Nassim II").
+    const dl = (v.delvoexpress_city_name || '').trim();
+    if (dl) {
+        await upsert('delvoexpress', { provider_city_id: null, provider_city_name: dl });
+    } else {
+        await del('delvoexpress');
     }
 }
 
@@ -559,6 +573,7 @@ const Cities = () => {
                 forcelog: '/providers/Forcelog.png',
                 sendit: '/providers/Sendit.jpg',
                 digylog: '/providers/Digylog.webp',
+                delvoexpress: '/providers/Delvo.png',
             };
             for (const row of data || []) {
                 const raw = String(row.provider_type || '').trim().toLowerCase();

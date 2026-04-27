@@ -1961,6 +1961,23 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'delvoexpress' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-white h-8 rounded-md px-3 text-[11px] font-semibold flex items-center gap-1.5">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[240px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('a4')}>
+                                            Format A4
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('thermal_10')}>
+                                            Format 10×10 cm
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             ) : (
                                 <Button
                                     className="bg-ant-ink hover:bg-ant-ink/90 text-white h-8 rounded-md px-3 text-[11px] font-semibold flex items-center gap-1.5"

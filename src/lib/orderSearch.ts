@@ -35,6 +35,7 @@ type OrderForSearch = {
     quicklivraison_old_tracking?: unknown;
     forcelog_old_tracking?: unknown;
     sendit_old_tracking?: unknown;
+    delvoexpress_old_tracking?: unknown;
     note?: unknown;
     delivery_note?: unknown;
     source_name?: unknown;
@@ -104,6 +105,7 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
         order?.quicklivraison_old_tracking,
         order?.forcelog_old_tracking,
         order?.sendit_old_tracking,
+        order?.delvoexpress_old_tracking,
         order?.note,
         order?.delivery_note,
         order?.source_name,

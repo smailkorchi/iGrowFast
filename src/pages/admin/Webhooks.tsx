@@ -118,7 +118,7 @@ const Webhooks = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(WEBHOOKS_TABLE)
-                .select('*, providers(id, name, logo_url)')
+                .select('*, providers(id, name, logo_url, provider_type)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) throw error;
@@ -453,7 +453,14 @@ const WebhookKpi = ({
 
 const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
     const [copied, setCopied] = useState(false);
-    const fullUrl = `${projectUrl}/${hook.provider_id}/${hook.webhook_secret}`;
+    const baseUrl = `${projectUrl}/${hook.provider_id}/${hook.webhook_secret}`;
+    // Delevo Express requires URL-template placeholders so their dashboard substitutes the values
+    // (no JSON body — they send GET with query params). Append them automatically.
+    const providerType = String(hook.providers?.provider_type || '').toLowerCase();
+    const isDelvo = providerType === 'delvoexpress' || providerType.includes('delvo') || providerType.includes('delevo');
+    const fullUrl = isDelvo
+        ? `${baseUrl}?code={code_parcel}&status={status_name}&date={date_reported}&internal_id={external_id}`
+        : baseUrl;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(fullUrl);

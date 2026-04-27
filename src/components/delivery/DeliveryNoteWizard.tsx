@@ -62,6 +62,7 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'digylog_store_name',
     'digylog_default_port',
     'digylog_allow_open',
+    'delvoexpress_allow_open',
     'logo_url',
     'color'
 ].join(', ');
@@ -117,6 +118,10 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
         // Digylog: network/store/port/openproduct are on the provider row, the adapter reads them.
         return {} as Record<string, unknown>;
     }
+    if (raw.includes('delvo') || raw.includes('delevo')) {
+        // Delevo Express: openpackage is on the provider row, the adapter reads it.
+        return {} as Record<string, unknown>;
+    }
     return {} as Record<string, unknown>;
 }
 
@@ -149,6 +154,7 @@ type WizardProvider = {
     digylog_store_name: string | null;
     digylog_default_port: number | null;
     digylog_allow_open: boolean;
+    delvoexpress_allow_open: boolean;
     logo_url: string | null;
     color: string | null;
 };
@@ -177,6 +183,7 @@ type WizardOrder = {
     quicklivraison_old_tracking: string | null;
     forcelog_old_tracking: string | null;
     sendit_old_tracking: string | null;
+    delvoexpress_old_tracking: string | null;
     items: WizardOrderItem[] | null;
     city: { id: string; name: string; zone_id: string | null } | null;
     company: WizardProvider | null;
@@ -407,6 +414,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const isForcelog = providerType.includes('forcelog');
                     const isSendit = providerType.includes('sendit');
                     const isDigylog = providerType.includes('digylog');
+                    const isDelvoExpress = providerType.includes('delvo') || providerType.includes('delevo');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
@@ -435,6 +443,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     if (isSendit && order.replace && !String(order.sendit_old_tracking || '').trim()) {
                         throw new Error(
                             "Sendit exchange requires the previous parcel tracking number on the order (sendit_old_tracking)."
+                        );
+                    }
+                    if (isDelvoExpress && order.replace && !String(order.delvoexpress_old_tracking || '').trim()) {
+                        throw new Error(
+                            "Delevo Express exchange requires the previous parcel code on the order (delvoexpress_old_tracking)."
                         );
                     }
                     // Prepare parcel data
@@ -513,9 +526,24 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                               })),
                                               replaceable: !!order.replace,
                                           }
-                                        : Object.keys(permFields).length === 0
-                                          ? { replaceable: order.replace || false }
-                                          : {}),
+                                        : isDelvoExpress
+                                          ? {
+                                                // Delevo Express: change=1 + coli_exchange={old_code}.
+                                                order_num: order.id,
+                                                reference: String(order.id).substring(0, 50),
+                                                items: (order.items || []).map((i) => ({
+                                                    product_id: i.product_id,
+                                                    quantity: i.quantity,
+                                                    name: i.product?.name,
+                                                    code: i.product?.code,
+                                                })),
+                                                replace_parcel_code: order.replace
+                                                    ? String(order.delvoexpress_old_tracking || '').trim()
+                                                    : '',
+                                            }
+                                          : Object.keys(permFields).length === 0
+                                            ? { replaceable: order.replace || false }
+                                            : {}),
                     };
 
                     // Call Edge Function
@@ -1076,6 +1104,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             order.quicklivraison_old_tracking,
                             order.forcelog_old_tracking,
                             order.sendit_old_tracking,
+                            order.delvoexpress_old_tracking,
                             String(order.price ?? ''),
                             itemLabels,
                         ].filter(Boolean).join(' ').toLowerCase();

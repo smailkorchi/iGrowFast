@@ -242,6 +242,14 @@ const KNOWN_PROVIDERS = [
         baseUrl: 'https://api.digylog.com/api/v2/seller',
         description: 'Digylog (Maroc). API REST Bearer + BL généré par /orders/send. Webhook natif auto-enregistré.',
     },
+    {
+        type: 'delvoexpress',
+        name: 'Delevo Express',
+        logo: '/providers/Delvo.png',
+        color: '#1d4ed8',
+        baseUrl: 'https://delevoexpress.com',
+        description: 'Delevo Express (Maroc). API REST + auth dashboard pour BL/impression. Webhook natif (URL templating).',
+    },
 ];
 
 type ProviderConfigField =
@@ -263,6 +271,7 @@ const PROVIDER_FIELD_SCHEMA: Record<string, ProviderConfigField[]> = {
     coliaty: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_public_key', 'api_secret_key'],
     ameex: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
     digylog: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_key'],
+    delvoexpress: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_key'],
 };
 
 type FieldMeta = {
@@ -292,7 +301,7 @@ function getProviderTemplateByType(rawType: string | undefined | null) {
         ?? null;
 }
 
-type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog';
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog' | 'delvoexpress';
 
 type ProviderPermissionRow = { key: string; label: string; hint?: string };
 
@@ -342,6 +351,9 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
         { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client", hint: 'Mappe le champ Digylog `openproduct`.' },
         { key: 'port_seller_pays', label: 'Frais de livraison à la charge du vendeur', hint: 'Désactivé : client paie. Mappe le champ Digylog `port` (1=client, 2=vendeur).' },
     ],
+    delvoexpress: [
+        { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client", hint: 'Mappe le champ Delevo `openpackage`.' },
+    ],
 };
 
 function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
@@ -355,6 +367,7 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'forcelog' || t.includes('forcelog')) return 'forcelog';
     if (t === 'sendit' || t.includes('sendit')) return 'sendit';
     if (t === 'digylog' || t.includes('digylog')) return 'digylog';
+    if (t === 'delvoexpress' || t.includes('delvo') || t.includes('delevo')) return 'delvoexpress';
     return null;
 }
 
@@ -407,6 +420,11 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
             autorisation_ouverture_colis: !!row.digylog_allow_open,
             // port=2 → seller pays; port=1 → customer pays.
             port_seller_pays: Number(row.digylog_default_port) === 2,
+        };
+    }
+    if (slug === 'delvoexpress') {
+        return {
+            autorisation_ouverture_colis: !!row.delvoexpress_allow_open,
         };
     }
     return {};
@@ -466,6 +484,11 @@ function flagsToProviderParcelUpdate(
         return {
             digylog_allow_open: !!flags.autorisation_ouverture_colis,
             digylog_default_port: flags.port_seller_pays ? 2 : 1,
+        };
+    }
+    if (slug === 'delvoexpress') {
+        return {
+            delvoexpress_allow_open: !!flags.autorisation_ouverture_colis,
         };
     }
     return {};
@@ -2323,6 +2346,7 @@ function ProviderPermissionsModal({
                         'digylog_store_name',
                         'digylog_default_port',
                         'digylog_allow_open',
+                        'delvoexpress_allow_open',
                     ].join(', ')
                 )
                 .eq('id', company.id)
@@ -2491,6 +2515,7 @@ function ProviderPermissionsModal({
         : providerSlug === 'forcelog' ? 'Forcelog'
         : providerSlug === 'sendit' ? 'Sendit'
         : providerSlug === 'digylog' ? 'Digylog'
+        : providerSlug === 'delvoexpress' ? 'Delevo Express'
         : null;
 
     const canSave = !!company && !!rows && !!activeBusinessId && !loadingPerm && !permError;

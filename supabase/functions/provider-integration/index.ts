@@ -3340,6 +3340,565 @@ class DigylogAdapter {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Delevo Express adapter — dual-auth.
+//   • API-Token (header `api-Token`) for /api/client/* (create / track / list).
+//   • Laravel session (email/password login → cookie + CSRF) for /client/* dashboard
+//     endpoints (BL create / list / print PDFs / delete) — public API doesn't
+//     expose these. Tested directly against their stack.
+// City accepts a NAME string matching their internal list (107 districts, format
+// "Casablanca - Nassim II"). Stored in provider_cities.provider_city_name.
+// ─────────────────────────────────────────────────────────────────────────────
+class DelvoExpressAdapter {
+    constructor(credentials) {
+        this.apiBaseUrl = (credentials.api_base_url || 'https://delevoexpress.com').replace(/\/+$/, '');
+        this.apiToken = credentials.api_key || '';
+        this.email = credentials.api_login || '';
+        this.password = credentials.api_password || '';
+        this.allowOpen = credentials.delvoexpress_allow_open === true ? 1 : 0;
+        this.businessId = credentials['DigiCom Business'] || null;
+        // Session cache (populated by ensureSession on first session-call).
+        this.cookieHeader = null;
+        this.csrfToken = null;
+    }
+
+    // ── API-Token calls (public REST) ──────────────────────────────────────
+    async apiFetch(path, method, formBody) {
+        if (!this.apiToken) throw new Error('Delevo: api_key requis (Api-Token).');
+        const init = {
+            method: method || 'GET',
+            redirect: 'follow',
+            headers: {
+                'api-Token': this.apiToken,
+                'Accept': 'application/json',
+            },
+        };
+        if (formBody && method !== 'GET') {
+            init.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            init.body = typeof formBody === 'string' ? formBody : new URLSearchParams(formBody).toString();
+        }
+        const res = await fetch(`${this.apiBaseUrl}/api/client${path}`, init);
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { return { ok: res.ok, status: res.status, data: null, raw: text }; }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    // ── Session-auth (Laravel cookies + CSRF) ──────────────────────────────
+    async ensureSession() {
+        if (this.cookieHeader && this.csrfToken) return;
+        if (!this.email || !this.password) {
+            throw new Error('Delevo: identifiants dashboard (api_login/api_password) requis pour BL/impression.');
+        }
+
+        // 1. GET /client/login → form CSRF + initial cookies.
+        const loginRes = await fetch(`${this.apiBaseUrl}/client/login`, { redirect: 'manual' });
+        const loginHtml = await loginRes.text();
+        const cookies = this.parseSetCookies(loginRes.headers);
+        const tokenMatch = loginHtml.match(/name="_token"[^>]*value="([^"]+)"/) || loginHtml.match(/_token\s*[=:]\s*["']([^"']+)["']/);
+        if (!tokenMatch) throw new Error('Delevo session: CSRF introuvable dans /client/login');
+        const csrf = tokenMatch[1];
+
+        // 2. POST /client/login with email + password + _token.
+        const body = new URLSearchParams({
+            _token: csrf,
+            email: this.email,
+            password: this.password,
+        }).toString();
+        const postRes = await fetch(`${this.apiBaseUrl}/client/login`, {
+            method: 'POST',
+            redirect: 'manual',
+            headers: {
+                'Cookie': cookies,
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': `${this.apiBaseUrl}/client/login`,
+            },
+            body,
+        });
+        // 302 → /client (success). 200 / 422 → invalid creds.
+        if (postRes.status !== 302 && postRes.status !== 303) {
+            const t = await postRes.text();
+            if (t.includes('email') || t.includes('password')) throw new Error('Delevo: email/mot de passe invalides.');
+        }
+        const merged = this.mergeCookies(cookies, this.parseSetCookies(postRes.headers));
+
+        // 3. Fetch the dashboard once to settle the session token.
+        const homeRes = await fetch(`${this.apiBaseUrl}/client`, { headers: { 'Cookie': merged }, redirect: 'manual' });
+        const homeHtml = await homeRes.text();
+        const homeCookies = this.mergeCookies(merged, this.parseSetCookies(homeRes.headers));
+        const csrfMatch = homeHtml.match(/_token["']?\s*[=:]\s*["']([^"']+)["']/);
+        this.cookieHeader = homeCookies;
+        this.csrfToken = csrfMatch ? csrfMatch[1] : csrf;
+    }
+
+    parseSetCookies(headers) {
+        // Deno aggregates Set-Cookie via headers.getSetCookie() (or fallback)
+        const all = typeof headers.getSetCookie === 'function' ? headers.getSetCookie() : [];
+        const pairs = [];
+        for (const sc of all) {
+            const eq = sc.indexOf('=');
+            const semi = sc.indexOf(';');
+            if (eq > 0) pairs.push(sc.substring(0, semi > 0 ? semi : sc.length));
+        }
+        return pairs.join('; ');
+    }
+    mergeCookies(prev, next) {
+        if (!prev) return next;
+        if (!next) return prev;
+        // Index by name; later wins.
+        const map = new Map();
+        for (const part of [...prev.split('; '), ...next.split('; ')]) {
+            const eq = part.indexOf('=');
+            if (eq > 0) map.set(part.substring(0, eq), part.substring(eq + 1));
+        }
+        return Array.from(map.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    }
+
+    async sessionFetch(path, method, formBody, _retried) {
+        await this.ensureSession();
+        const headers = {
+            'Cookie': this.cookieHeader,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': this.csrfToken,
+            'Referer': `${this.apiBaseUrl}/client`,
+        };
+        const init = { method: method || 'GET', redirect: 'manual', headers };
+        if (formBody) {
+            const body = formBody instanceof URLSearchParams ? formBody : new URLSearchParams(formBody);
+            if (!body.has('_token')) body.set('_token', this.csrfToken);
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            init.body = body.toString();
+        }
+        const res = await fetch(`${this.apiBaseUrl}${path}`, init);
+        // Laravel rotates session cookies on every request — harvest them so the next call
+        // doesn't 401. Without this, /post/ajax fails right after a successful /post/add.
+        const fresh = this.parseSetCookies(res.headers);
+        if (fresh) this.cookieHeader = this.mergeCookies(this.cookieHeader, fresh);
+        // 401 → session expired. Re-login once.
+        if (res.status === 401 && !_retried) {
+            this.cookieHeader = null;
+            this.csrfToken = null;
+            return this.sessionFetch(path, method, formBody, true);
+        }
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { return { ok: res.ok, status: res.status, data: null, raw: text }; }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    async sessionFetchPdf(path) {
+        await this.ensureSession();
+        const res = await fetch(`${this.apiBaseUrl}${path}`, {
+            method: 'GET',
+            redirect: 'manual',
+            headers: { 'Cookie': this.cookieHeader, 'Accept': 'application/pdf, application/json' },
+        });
+        const fresh = this.parseSetCookies(res.headers);
+        if (fresh) this.cookieHeader = this.mergeCookies(this.cookieHeader, fresh);
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error(`Delevo PDF HTTP ${res.status}: ${t.substring(0, 200)}`);
+        }
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+        return `data:application/pdf;base64,${btoa(bin)}`;
+    }
+
+    async resolveMasterStatus(rawStatus, supabase) {
+        if (!rawStatus || !supabase) return null;
+        try {
+            const { data } = await supabase.rpc('match_package_status', { p_status_value: rawStatus });
+            if (data && data[0]) return data[0];
+        } catch (_) { /* RPC optional */ }
+        const { data } = await supabase
+            .from('package_statuses')
+            .select('id, code, label, color, category')
+            .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
+            .limit(1)
+            .maybeSingle();
+        return data || null;
+    }
+
+    // ── createParcel — public REST (returns code_shippment) ────────────────
+    async createParcel(parcelData, supabase) {
+        // Resolve destination city — Delevo accepts the full name from their internal list.
+        let cityName = '';
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('provider_cities')
+                .select('provider_city_name')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'delvoexpress')
+                .maybeSingle();
+            cityName = String(mapping?.provider_city_name || '').trim();
+        }
+        if (!cityName) cityName = String(parcelData.city_name || '').trim();
+        if (!cityName) {
+            throw new Error('Delevo: ville introuvable. Mappez-la dans la page Cities.');
+        }
+
+        // Phone normalisation (must start with 05/06/07/08, 10 digits).
+        let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
+        if (phone.startsWith('212')) phone = '0' + phone.substring(3);
+        if (!/^0[5678]\d{8}$/.test(phone)) {
+            throw new Error(`Delevo: téléphone invalide "${phone}". Attendu 10 chiffres commençant par 05/06/07/08.`);
+        }
+
+        const items = Array.isArray(parcelData.items) ? parcelData.items : [];
+        const products = items
+            .filter((i) => Number(i.quantity) > 0)
+            .map((i) => String(i.name || i.product?.name || i.code || '').trim())
+            .filter(Boolean);
+        const qtys = items
+            .filter((i) => Number(i.quantity) > 0)
+            .map((i) => String(Number(i.quantity) || 1));
+        const productStr = products.length ? products.join(';') : (parcelData.product_info || 'Produit');
+        const qtyStr = qtys.length ? qtys.join(';') : '1';
+
+        const isExchange = !!(parcelData.replace_parcel_code || parcelData.old_parcel_code || parcelData.replaceable);
+        const body = new URLSearchParams({
+            fullname: String(parcelData.receiver_name || parcelData.customer_name || '').substring(0, 100),
+            phone,
+            city: cityName,
+            address: String(parcelData.receiver_address || parcelData.delivery_address || '').substring(0, 200),
+            price: String(Number(parcelData.cash_on_delivery || parcelData.cod_amount || 0)),
+            product: productStr.substring(0, 200),
+            qty: qtyStr,
+            note: String(parcelData.delivery_note || '').substring(0, 200),
+            change: isExchange ? '1' : '0',
+            openpackage: String(this.allowOpen),
+            from_stock: '0',
+            internal_id: String(parcelData.order_num || parcelData.reference || '').substring(0, 64),
+        });
+        if (isExchange) {
+            const old = String(parcelData.replace_parcel_code || parcelData.old_parcel_code || '').trim();
+            if (!old) throw new Error('Delevo: code du colis à échanger requis (champ coli_exchange).');
+            body.set('coli_exchange', old);
+        }
+
+        const resp = await this.apiFetch('/post/colis/add-colis', 'POST', body.toString());
+        if (!resp.ok || resp.data?.code !== 'ok' || !resp.data?.code_shippment) {
+            const msg = resp.data?.message || JSON.stringify(resp.data || resp.raw || {}).substring(0, 300);
+            throw new Error(`Delevo: création échouée (HTTP ${resp.status}): ${msg}`);
+        }
+        const tracking = resp.data.code_shippment;
+        return {
+            tracking_code: tracking,
+            external_id: tracking,
+            provider_response: resp.data,
+        };
+    }
+
+    async trackParcel(trackingCode, _externalId, supabase) {
+        if (!trackingCode) throw new Error('Tracking code required');
+        // 1. Try the public /api/client/colis/track/{code} first. As of 2026-04, Delvo's
+        // own endpoint returns 500 for every parcel — but if they fix it later, we'll pick
+        // up real audit events automatically.
+        const apiResp = await this.apiFetch(`/colis/track/${encodeURIComponent(trackingCode)}`, 'GET');
+        if (apiResp.ok && Array.isArray(apiResp.data?.data) && apiResp.data.data.length > 0) {
+            const audits = [...apiResp.data.data].sort((a, b) => Number(a.Date_Evenement || 0) - Number(b.Date_Evenement || 0));
+            const history = [];
+            let last = null;
+            for (const a of audits) {
+                const s = a?.status;
+                if (!s || s === last) continue;
+                last = s;
+                const master = await this.resolveMasterStatus(s, supabase);
+                history.push({
+                    status: s,
+                    statusLabel: master?.label || s,
+                    statusColor: master?.color || null,
+                    statusId: master?.id || null,
+                    category: master?.category || null,
+                    color: master?.color || null,
+                    date: a?.Date_Evenement ? new Date(Number(a.Date_Evenement) * 1000).toISOString() : '',
+                    comment: '',
+                });
+            }
+            const latest = history.length ? history[history.length - 1] : null;
+            return {
+                tracking_code: trackingCode,
+                status: latest?.status || '',
+                statusLabel: latest?.statusLabel || latest?.status || '',
+                statusColor: latest?.statusColor || null,
+                status_code: null,
+                status_category: latest?.category || null,
+                history,
+            };
+        }
+
+        // 2. Fallback: dashboard list-colis lookup. The public REST endpoint can't show
+        // events, but the dashboard row carries the current status_id / status.name /
+        // status_updated_at — enough to surface the real master-mapped status.
+        const colis = await this.fetchColisByCode(trackingCode);
+        if (!colis || !colis.status?.name) return null;
+        const master = await this.resolveMasterStatus(colis.status.name, supabase);
+        const eventDate = this.parseDelvoDate(colis.status_updated_at) || this.parseDelvoDate(colis.created_at);
+        const history = [{
+            status: colis.status.name,
+            statusLabel: master?.label || colis.status.name,
+            statusColor: master?.color || colis.status.color || null,
+            statusId: master?.id || null,
+            category: master?.category || null,
+            color: master?.color || colis.status.color || null,
+            date: eventDate,
+            comment: '',
+        }];
+        const latest = history[0];
+        return {
+            tracking_code: trackingCode,
+            status: latest.status,
+            statusLabel: latest.statusLabel,
+            statusColor: latest.statusColor || null,
+            status_code: null,
+            status_category: latest.category || null,
+            history,
+        };
+    }
+
+    async getParcelInfo(trackingCode, supabase) {
+        return this.trackParcel(trackingCode, undefined, supabase);
+    }
+
+    // Look a parcel up via the dashboard list-colis datatable. Used as fallback when the
+    // public REST tracking endpoint is unavailable.
+    async fetchColisByCode(code) {
+        const body = this.buildColisListDatatableBody({ length: 5, search: code });
+        const r = await this.sessionFetch('/client/post/colis/list-colis/ajax', 'POST', body);
+        const rows = Array.isArray(r.data?.data) ? r.data.data : [];
+        return rows.find((row) => String(row.code) === code) || rows[0] || null;
+    }
+
+    // Builds the full jQuery DataTables payload for /post/colis/list-colis/ajax. Empty
+    // date_start/date_end filter out everything, so we widen to 2024..now+1y.
+    buildColisListDatatableBody({ length = 5, search = '' } = {}) {
+        const cols = [
+            { data: 'select', name: '', searchable: 'false', orderable: 'false' },
+            { data: 'created_at', name: 'colis.created_at', searchable: 'true', orderable: 'true' },
+            { data: 'status_updated_at', name: 'colis.status_updated_at', searchable: 'true', orderable: 'true' },
+            { data: 'code', name: 'colis.code', searchable: 'true', orderable: 'false' },
+            { data: 'internal_id', name: 'colis.internal_id', searchable: 'true', orderable: 'false' },
+            { data: 'destination', name: 'colis.destination', searchable: 'true', orderable: 'true' },
+            { data: 'contact', name: 'colis.phone', searchable: 'true', orderable: 'false' },
+            { data: 'city.name', name: 'city.name', searchable: 'false', orderable: 'false' },
+            { data: 'price', name: 'colis.price', searchable: 'false', orderable: 'false' },
+            { data: 'coli_status', name: 'status.name', searchable: 'false', orderable: 'true' },
+            { data: 'client_invoiced', name: '', searchable: 'false', orderable: 'true' },
+            { data: 'action', name: '', searchable: 'false', orderable: 'false' },
+        ];
+        const body = new URLSearchParams();
+        body.set('draw', '1');
+        body.set('start', '0');
+        body.set('length', String(length));
+        body.set('search[value]', String(search || ''));
+        body.set('search[regex]', 'false');
+        body.set('order[0][column]', '1');
+        body.set('order[0][dir]', 'desc');
+        cols.forEach((c, i) => {
+            body.set(`columns[${i}][data]`, c.data);
+            body.set(`columns[${i}][name]`, c.name);
+            body.set(`columns[${i}][searchable]`, c.searchable);
+            body.set(`columns[${i}][orderable]`, c.orderable);
+            body.set(`columns[${i}][search][value]`, '');
+            body.set(`columns[${i}][search][regex]`, 'false');
+        });
+        body.set('city', '');
+        body.set('from_stock', '');
+        body.set('can_change', '');
+        body.set('can_open', '');
+        body.set('date_start', '2024-01-01');
+        const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        body.set('date_end', farFuture);
+        body.set('client_invoiced', '');
+        return body;
+    }
+
+    // Delvo returns timestamps as either "DD/MM/YYYY HH:mm" (local), ISO strings, or null.
+    parseDelvoDate(raw) {
+        if (!raw) return '';
+        const s = String(raw).trim();
+        // ISO already → keep.
+        if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return new Date(s).toISOString();
+        // "DD/MM/YYYY HH:mm" or "DD/MM/YYYY".
+        const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+        if (m) {
+            const [_, d, mo, y, hh, mm] = m;
+            return new Date(`${y}-${mo}-${d}T${hh || '00'}:${mm || '00'}:00Z`).toISOString();
+        }
+        const t = Date.parse(s);
+        return isNaN(t) ? '' : new Date(t).toISOString();
+    }
+
+    async createDeliveryNote() {
+        // BL is created lazily by addParcelsToNote (collection-voucher session POST).
+        const draft = `DELVO-DRAFT-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+        return { reference: draft, provider_response: { draft: true } };
+    }
+
+    async addParcelsToNote(deliveryNoteRef, parcelCodes, supabase) {
+        const codes = Array.isArray(parcelCodes) ? parcelCodes.filter(Boolean) : [];
+        if (!deliveryNoteRef) throw new Error('Delevo: référence BL requise.');
+        if (codes.length === 0) return { success: true, reference: deliveryNoteRef, parcel_codes: [], inserted: 0 };
+        const isDraft = /^DELVO-DRAFT-/i.test(deliveryNoteRef);
+        if (!isDraft) {
+            // Delevo's BL is created in one shot — no append-after-create endpoint.
+            throw new Error('Delevo: ce BL est déjà émis. Créez un nouveau bon de livraison.');
+        }
+        // 1. Snapshot top BL id BEFORE create so we can identify the new one.
+        const beforeId = await this.fetchLatestBlId();
+
+        // 2. POST /client/collection-voucher/post/add (session + JSON-string colis).
+        const body = new URLSearchParams();
+        body.set('colis', JSON.stringify(codes));
+        body.set('request_pickup', 'on');
+        const addResp = await this.sessionFetch('/client/collection-voucher/post/add', 'POST', body);
+        if (!addResp.ok || addResp.data?.code !== 'ok') {
+            const msg = addResp.data?.message || JSON.stringify(addResp.data || addResp.raw || {}).substring(0, 300);
+            throw new Error(`Delevo: création BL échouée (HTTP ${addResp.status}): ${msg}`);
+        }
+
+        // 3. Datatable poll for the new BL — scan top 5 in case of concurrent creates.
+        // Each datatable POST also harvests fresh Set-Cookie headers via sessionFetch.
+        let newBl = null;
+        for (let attempt = 0; attempt < 6 && !newBl; attempt++) {
+            const recent = await this.fetchRecentBls(5);
+            // Pick the highest-id BL that wasn't there before. Falls back to the first
+            // BL if `beforeId` was null (no prior BLs at all).
+            for (const r of recent) {
+                if (!beforeId || r.id > beforeId) { newBl = r; break; }
+            }
+            if (!newBl) await new Promise((res) => setTimeout(res, 600));
+        }
+        if (!newBl) throw new Error('Delevo: BL créé mais introuvable dans la liste — vérifiez le dashboard.');
+
+        // 4. Persist BL identity onto the delivery_note row.
+        if (supabase) {
+            await supabase.from('company_delivery_notes')
+                .update({ reference: newBl.code, external_id: String(newBl.id) })
+                .eq('reference', deliveryNoteRef);
+        }
+        return {
+            success: true,
+            reference: newBl.code,
+            external_id: String(newBl.id),
+            parcel_codes: codes,
+            inserted: codes.length,
+            changed_reference: true,
+            previous_reference: deliveryNoteRef,
+        };
+    }
+
+    async fetchLatestBlId() {
+        const r = await this.fetchLatestBl();
+        return r?.id || null;
+    }
+    async fetchLatestBl() {
+        const list = await this.fetchRecentBls(1);
+        return list[0] || null;
+    }
+    // Builds the full jQuery DataTables server-side payload for /collection-voucher/post/ajax.
+    // Without the columns[] array the Laravel controller 500s.
+    buildBlDatatableBody({ length = 5, search = '' } = {}) {
+        const cols = [
+            { data: 'code', name: 'collection_vouchers.code', searchable: 'true', orderable: 'true' },
+            { data: 'colis', name: '', searchable: 'true', orderable: 'true' },
+            { data: 'messedColis', name: '', searchable: 'true', orderable: 'true' },
+            { data: 'validate', name: 'collection_vouchers.is_validate', searchable: 'true', orderable: 'true' },
+            { data: 'created_at', name: 'collection_vouchers.created_at', searchable: 'true', orderable: 'true' },
+            { data: 'action', name: '', searchable: 'false', orderable: 'false' },
+        ];
+        const body = new URLSearchParams();
+        body.set('draw', '1');
+        body.set('start', '0');
+        body.set('length', String(length));
+        body.set('search[value]', String(search || ''));
+        body.set('search[regex]', 'false');
+        body.set('order[0][column]', '4');
+        body.set('order[0][dir]', 'desc');
+        cols.forEach((c, i) => {
+            body.set(`columns[${i}][data]`, c.data);
+            body.set(`columns[${i}][name]`, c.name);
+            body.set(`columns[${i}][searchable]`, c.searchable);
+            body.set(`columns[${i}][orderable]`, c.orderable);
+            body.set(`columns[${i}][search][value]`, '');
+            body.set(`columns[${i}][search][regex]`, 'false');
+        });
+        body.set('date_start', '');
+        body.set('date_end', '');
+        body.set('status', '');
+        return body;
+    }
+    async fetchRecentBls(limit) {
+        const body = this.buildBlDatatableBody({ length: limit || 5 });
+        const r = await this.sessionFetch('/client/collection-voucher/post/ajax', 'POST', body);
+        if (!Array.isArray(r.data?.data)) {
+            console.log('Delevo datatable returned non-array:', JSON.stringify(r.data || r.raw || {}).substring(0, 300));
+            return [];
+        }
+        return r.data.data.map((row) => ({ id: Number(row.id), code: String(row.code || '') }));
+    }
+
+    async finalizeDeliveryNote(reference) {
+        return { success: true, reference };
+    }
+
+    async deleteNote(reference) {
+        // Delevo blocks deletion when parcels are still attached. We surface their message verbatim.
+        if (!reference || /^DELVO-DRAFT-/i.test(reference)) return { success: true, reference };
+        // Need the BL id (not the BR-XXX code). Fetch via datatable filter.
+        const search = this.buildBlDatatableBody({ length: 5, search: reference });
+        const list = await this.sessionFetch('/client/collection-voucher/post/ajax', 'POST', search);
+        const row = Array.isArray(list.data?.data) ? list.data.data.find((b) => String(b.code) === reference) : null;
+        if (!row?.id) return { success: false, reference, error: 'BL introuvable' };
+        const del = await this.sessionFetch(`/client/collection-voucher/delete/${row.id}`, 'POST', new URLSearchParams({ _method: 'DELETE' }));
+        return { success: del.data?.code === 'ok', reference, error: del.data?.message };
+    }
+
+    async deleteParcel(parcelCode) {
+        // Delevo's public API has no parcel-cancel endpoint. Surface gracefully.
+        return { success: true, parcel_code: parcelCode, note: 'Delevo: utilisez le dashboard pour annuler un colis.' };
+    }
+
+    async getPrintUrl(deliveryNoteRef, labelFormat, _printType, _options) {
+        // Format mapping (verified live): A4 → /0/1, thermal 10×10 → /1
+        const fmt = String(labelFormat || 'a4').toLowerCase();
+        const opts = _options || {};
+        if (!deliveryNoteRef || /^DELVO-DRAFT-/i.test(deliveryNoteRef)) {
+            throw new Error('Delevo: BL non émis. Validez le BL avant l\'impression.');
+        }
+        // We need the numeric BL id, not the BR-XXX code. external_id on the note
+        // stores the id; if missing, look it up by code.
+        let blId = String(opts.external_id || '').trim();
+        if (!/^\d+$/.test(blId)) {
+            // Try: opts.supabase + opts.noteId.
+            if (opts.supabase && opts.noteId) {
+                const { data } = await opts.supabase
+                    .from('company_delivery_notes')
+                    .select('external_id, reference')
+                    .eq('id', opts.noteId)
+                    .maybeSingle();
+                if (data?.external_id && /^\d+$/.test(String(data.external_id))) blId = String(data.external_id);
+            }
+        }
+        if (!/^\d+$/.test(blId)) {
+            // Last-resort: datatable lookup by reference.
+            const search = this.buildBlDatatableBody({ length: 5, search: deliveryNoteRef });
+            const list = await this.sessionFetch('/client/collection-voucher/post/ajax', 'POST', search);
+            const row = Array.isArray(list.data?.data) ? list.data.data.find((b) => String(b.code) === deliveryNoteRef) : null;
+            if (row?.id) blId = String(row.id);
+        }
+        if (!/^\d+$/.test(blId)) throw new Error(`Delevo: ID BL introuvable pour ${deliveryNoteRef}.`);
+
+        const path = (fmt.includes('thermal') || fmt === '10x10' || fmt === 'thermal_10')
+            ? `/client/collection-voucher/tickets/pdf/${blId}/1`
+            : `/client/collection-voucher/tickets/pdf/${blId}/0/1`;
+        return this.sessionFetchPdf(path);
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -3374,7 +3933,9 @@ Deno.serve(async (req) => {
                                 ? new SenditAdapter(provider)
                                 : type === 'digylog'
                                     ? new DigylogAdapter(provider)
-                                    : new AmeexAdapter(provider);
+                                    : type === 'delvoexpress'
+                                        ? new DelvoExpressAdapter(provider)
+                                        : new AmeexAdapter(provider);
 
         // Adapter initialization
 
@@ -3395,7 +3956,7 @@ Deno.serve(async (req) => {
                     data.delivery_note_ref,
                     data.label_format,
                     data.print_type,
-                    { supabase, noteId: data.note_id }
+                    { supabase, noteId: data.note_id, external_id: data.external_id }
                 );
                 result = { print_html: link };
                 break;
