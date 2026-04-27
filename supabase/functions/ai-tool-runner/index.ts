@@ -35,6 +35,19 @@ const ENABLED_SKILLS = new Set([
   "apply_pricing_rule",
   // Phase 16 (documents + carrier)
   "generate_devis", "generate_facture", "create_delivery_note",
+  // Phase 17 (engagement + sales boosters)
+  "recommend_product", "send_catalog_picker", "react_with_emoji",
+  // Phase 18 (institutional memory)
+  "record_business_learning",
+  // Phase 19 (vision)
+  "analyze_image",
+  // Phase 20 (order CRUD)
+  "edit_order", "cancel_order", "change_delivery_info",
+  // Phase 21 (sales boosters)
+  "upsell_cross_sell", "bundle_offer",
+  // Phase 22 (quality + engagement)
+  "identify_repeat_customer", "summarize_thread_for_human",
+  "detect_spam_or_scam", "request_review_after_delivery",
 ]);
 
 Deno.serve(async (req) => {
@@ -57,6 +70,27 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
+  // Load per-business config for this skill. Merge schema defaults with the
+  // owner-saved overrides so handlers always receive a complete object.
+  // If the skill row doesn't exist yet (owner hasn't configured), defaults
+  // from the catalog schema kick in.
+  const { data: skillRow } = await supabase
+    .from("ai_skills")
+    .select("id, config_schema")
+    .eq("slug", skill_slug)
+    .maybeSingle();
+  let cfg: Record<string, any> = {};
+  if (skillRow?.id) {
+    const { data: bizRow } = await supabase
+      .from("ai_business_skills")
+      .select("config")
+      .eq("business_id", business_id)
+      .eq("skill_id", skillRow.id)
+      .maybeSingle();
+    const fields = (skillRow.config_schema as any)?.fields || [];
+    cfg = mergeConfigDefaults(fields, bizRow?.config || {});
+  }
+
   let out: any;
   try {
     switch (skill_slug) {
@@ -67,21 +101,35 @@ Deno.serve(async (req) => {
       case "check_delivery_zone":      out = await runCheckDeliveryZone(supabase, business_id, args || {}); break;
       case "validate_morocco_address": out = await runValidateMoroccoAddress(supabase, args || {}); break;
       case "quote_shipping_cost":      out = await runQuoteShippingCost(supabase, business_id, args || {}); break;
-      case "create_order":             out = await runCreateOrder(supabase, business_id, thread_id, tool_use_id, args || {}); break;
+      case "create_order":             out = await runCreateOrder(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
       case "confirm_cod_order":        out = await runConfirmCodOrder(supabase, business_id, args || {}); break;
-      case "recover_abandoned_cart":   out = await runRecoverAbandonedCart(supabase, business_id, thread_id); break;
-      case "send_payment_reminder":    out = await runSendPaymentReminder(supabase, business_id, args || {}); break;
-      case "apply_discount":           out = await runApplyDiscount(supabase, business_id, thread_id, tool_use_id, args || {}); break;
-      case "handle_exchange":          out = await runHandleExchange(supabase, business_id, thread_id, tool_use_id, args || {}); break;
+      case "recover_abandoned_cart":   out = await runRecoverAbandonedCart(supabase, business_id, thread_id, customer_phone); break;
+      case "send_payment_reminder":    out = await runSendPaymentReminder(supabase, business_id, args || {}, cfg); break;
+      case "apply_discount":           out = await runApplyDiscount(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
+      case "handle_exchange":          out = await runHandleExchange(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
       case "summarize_today_sales":    out = await runSummarizeSales(supabase, business_id, args || {}); break;
       case "analyze_ads_roi":          out = await runAnalyzeAdsRoi(supabase, business_id, args || {}); break;
       case "get_business_info":        out = await runGetBusinessInfo(supabase, business_id); break;
       case "get_product_details":      out = await runGetProductDetails(supabase, business_id, args || {}); break;
-      case "send_product_media":       out = await runSendProductMedia(supabase, business_id, thread_id, tool_use_id, args || {}); break;
+      case "send_product_media":       out = await runSendProductMedia(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
       case "apply_pricing_rule":       out = await runApplyPricingRule(supabase, business_id, args || {}); break;
-      case "generate_devis":           out = await runGenerateDevis(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone); break;
-      case "generate_facture":         out = await runGenerateFacture(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone); break;
-      case "create_delivery_note":     out = await runCreateDeliveryNote(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone); break;
+      case "generate_devis":           out = await runGenerateDevis(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
+      case "generate_facture":         out = await runGenerateFacture(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
+      case "create_delivery_note":     out = await runCreateDeliveryNote(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
+      case "recommend_product":        out = await runRecommendProduct(supabase, business_id, args || {}, cfg); break;
+      case "send_catalog_picker":      out = await runSendCatalogPicker(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
+      case "react_with_emoji":         out = await runReactWithEmoji(supabase, business_id, thread_id, args || {}, cfg); break;
+      case "record_business_learning": out = await runRecordBusinessLearning(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
+      case "analyze_image":            out = await runAnalyzeImage(supabase, business_id, thread_id, args || {}); break;
+      case "edit_order":               out = await runEditOrder(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
+      case "cancel_order":             out = await runCancelOrder(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
+      case "change_delivery_info":     out = await runChangeDeliveryInfo(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
+      case "upsell_cross_sell":        out = await runUpsellCrossSell(supabase, business_id, args || {}, cfg); break;
+      case "bundle_offer":             out = await runBundleOffer(supabase, business_id, thread_id, tool_use_id, args || {}, cfg); break;
+      case "identify_repeat_customer": out = await runIdentifyRepeatCustomer(supabase, business_id, args || {}, customer_phone, cfg); break;
+      case "summarize_thread_for_human": out = await runSummarizeThreadForHuman(supabase, business_id, thread_id, args || {}); break;
+      case "detect_spam_or_scam":      out = await runDetectSpamOrScam(supabase, business_id, thread_id, args || {}, cfg); break;
+      case "request_review_after_delivery": out = await runRequestReviewAfterDelivery(supabase, business_id, thread_id, tool_use_id, args || {}, customer_phone, cfg); break;
       default: out = { ok: false, error: `unknown skill: ${skill_slug}` };
     }
   } catch (e: any) {
@@ -354,8 +402,74 @@ async function runConfirmCodOrder(_supabase: any, _businessId: string, args: any
 }
 
 // ─── 10. recover_abandoned_cart ─────────────────────────────────────
-async function runRecoverAbandonedCart(supabase: any, businessId: string, threadId: string) {
+// Looks for the customer's most recent live order in TWO places:
+//   1. orders table — orders that were already created (within 60 min) and
+//      are still editable (not delivered, not shipped, not cancelled). These
+//      are the ones the brain should call edit_order on if the customer wants
+//      to bump quantities / change items / change address.
+//   2. ai_pending_actions — sandboxed drafts (pending/expired/rejected) that
+//      never made it to the orders table. The brain uses this to recover the
+//      thread of conversation if the owner hadn't approved yet.
+//
+// Real orders take precedence — they are the canonical truth. The brain MUST
+// use the returned order_id with edit_order for any modification. Without
+// this lookup the brain blindly calls create_order again, producing duplicate
+// orders for the same customer (the bug Ismail hit on 2026-04-27).
+async function runRecoverAbandonedCart(supabase: any, businessId: string, threadId: string, customerPhone?: string) {
   if (!threadId) return { ok: false, error: "thread_id required" };
+
+  // ── 1. Live order in orders table (within last 60 minutes, editable) ──
+  const cutoffIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  let liveOrder: any = null;
+  if (customerPhone && customerPhone.length >= 6) {
+    const digits = customerPhone.replace(/\D/g, "").replace(/^212/, "").replace(/^0/, "");
+    if (digits.length >= 6) {
+      // Look up most recent non-deleted, non-shipped, non-delivered order for
+      // this phone. We avoid an exact match because orders.phone may have
+      // formatting artefacts ("+212", spaces). LIKE on the digits-only suffix
+      // is what ai_skill_lookup_orders_by_phone does.
+      const { data: rows } = await supabase
+        .from("orders")
+        .select(`id, name, phone, price, processing, delivered, created_at,
+                 master_city_id, address,
+                 master_cities(name),
+                 order_items(product_id, quantity, products(name, selling_price))`)
+        .eq("DigiCom Business", businessId)
+        .is("date_deleted", null)
+        .eq("delivered", false)
+        .eq("processing", false)
+        .gte("created_at", cutoffIso)
+        .ilike("phone", `%${digits}%`)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      liveOrder = rows?.[0] || null;
+    }
+  }
+  if (liveOrder) {
+    return {
+      ok: true,
+      result: {
+        found: true,
+        source: "orders",
+        order_id: liveOrder.id,
+        recipient_name: liveOrder.name,
+        phone: liveOrder.phone,
+        city: liveOrder.master_cities?.name || null,
+        address: liveOrder.address,
+        total_dh: Number(liveOrder.price ?? 0),
+        items: (liveOrder.order_items || []).map((it: any) => ({
+          product_id: it.product_id,
+          product_name: it.products?.name,
+          quantity: it.quantity,
+          unit_price: Number(it.products?.selling_price ?? 0),
+        })),
+        created_at: liveOrder.created_at,
+        instruction: "This is an EXISTING editable order. To modify items/quantity/address use edit_order with order_id=" + liveOrder.id + ". DO NOT call create_order — that would duplicate.",
+      },
+    };
+  }
+
+  // ── 2. Fallback: pending sandbox draft ────────────────────────────────
   const { data } = await supabase.from("ai_pending_actions")
     .select("id, kind, payload, status, created_at")
     .eq("business_id", businessId).eq("thread_id", threadId)
@@ -363,11 +477,11 @@ async function runRecoverAbandonedCart(supabase: any, businessId: string, thread
     .order("created_at", { ascending: false }).limit(1);
   if (!data || data.length === 0) return { ok: true, result: { found: false } };
   const a = data[0];
-  return { ok: true, result: { found: true, kind: a.kind, status: a.status, summary: a.payload, when: a.created_at } };
+  return { ok: true, result: { found: true, source: "draft", kind: a.kind, status: a.status, summary: a.payload, when: a.created_at } };
 }
 
 // ─── 12. apply_discount (Phase 4.5 — DEFERRED) ──────────────────────
-async function runApplyDiscount(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any) {
+async function runApplyDiscount(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, cfg: Record<string, any> = {}) {
   if (!toolUseId) return { ok: false, error: "tool_use_id required" };
   const orderId: string | undefined = typeof args?.order_id === "string" ? args.order_id : undefined;
   const pct = Number.isFinite(args?.discount_pct) ? Number(args.discount_pct) : NaN;
@@ -383,12 +497,32 @@ async function runApplyDiscount(supabase: any, businessId: string, threadId: str
 
   const old_price = Number(order.price ?? 0);
   const new_price = Math.max(0, Math.round(old_price * (1 - pct/100) * 100) / 100);
+  const savingsDh = old_price - new_price;
+
+  // Owner policy enforcement: if the brain proposes a discount over any
+  // configured cap, refuse with a clear error message — the brain can
+  // either re-propose within bounds or escalate to a human.
+  const maxPct        = Number(cfg.max_pct_without_approval) || 0;        // 0 = no cap
+  const maxFlatDh     = Number(cfg.max_flat_amount_dh) || 0;              // 0 = no cap
+  const alwaysAboveDh = Number(cfg.always_require_approval_above_dh) || 0; // 0 = no cap
+  if (maxPct > 0 && pct > maxPct) {
+    return { ok: false, error: `discount_pct ${pct}% exceeds business policy max ${maxPct}%. Reduce or escalate to human.` };
+  }
+  if (maxFlatDh > 0 && savingsDh > maxFlatDh) {
+    return { ok: false, error: `discount of ${savingsDh.toFixed(2)} dh exceeds business policy max ${maxFlatDh} dh. Reduce or escalate.` };
+  }
+  if (alwaysAboveDh > 0 && savingsDh > alwaysAboveDh) {
+    // Not a refusal — the discount is allowed but the policy guarantees a
+    // strict sandbox handoff (which is already enforced by FORCE_SANDBOX).
+    // Surface this in the payload so the Review Queue can mark it explicitly.
+  }
 
   const payload = {
     business_id: businessId, order_id: orderId,
     discount_pct: pct, reason,
-    old_price, new_price, savings: old_price - new_price,
+    old_price, new_price, savings: savingsDh,
     customer_name: order.name, customer_phone: order.phone,
+    requires_owner: alwaysAboveDh > 0 && savingsDh > alwaysAboveDh,
   };
 
   const { data: existing } = await supabase.from("ai_pending_actions")
@@ -1036,4 +1170,771 @@ async function upsertPendingAction(
     actionId = ins!.id;
   }
   return { ok: true, result: { prepared: true, action_id: actionId, ...resp } };
+}
+
+// ─── Phase 17 ────────────────────────────────────────────────────────
+// recommend_product, send_catalog_picker, react_with_emoji.
+
+// ─── 23. recommend_product — read-only ────────────────────────────────
+// Given a source product, return up to N other similar products from the
+// same catalog. Used for cross-sell / upsell after the customer expresses
+// interest in something specific. Cross-tenant safety enforced by the RPC.
+async function runRecommendProduct(supabase: any, businessId: string, args: any, cfg: Record<string, any> = {}) {
+  const productId: string | undefined = typeof args?.product_id === "string" ? args.product_id : undefined;
+  if (!productId) return { ok: false, error: "product_id required" };
+  // Cap by per-business config — owner setting wins over the brain's request.
+  const cfgMax = Math.max(1, Math.min(Number(cfg.max_suggestions) || 3, 5));
+  const limit  = Math.min(cfgMax, Math.max(1, Math.min(args?.limit ?? cfgMax, 5)));
+  const minSim = Math.max(0.05, Math.min(Number(cfg.min_similarity) || 0.15, 0.5));
+  const { data, error } = await supabase.rpc("ai_skill_recommend_products", {
+    p_business_id: businessId, p_product_id: productId, p_limit: limit,
+  });
+  if (error) return { ok: false, error: `recommend_product: ${error.message}` };
+  // Filter by min_similarity client-side (the RPC doesn't take it yet).
+  const filtered = (data || []).filter((p: any) => Number(p.similarity) >= minSim);
+  return { ok: true, result: {
+    source_product_id: productId,
+    suggestions: filtered.map((p: any) => ({
+      id: p.id, name: p.name, code: p.code, description: p.description,
+      price: Number(p.selling_price), stock: p.stock,
+      match: Number(p.similarity).toFixed(2),
+    })),
+  } };
+}
+
+// ─── 24. send_catalog_picker — sandbox-required ───────────────────────
+// Queues a WhatsApp interactive list of 2-10 products for the customer to
+// tap. Owner approves in Review Queue → ai-review-act calls evolution-client
+// `send-list` to actually push it.
+async function runSendCatalogPicker(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, cfg: Record<string, any> = {}) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const ids: string[] = Array.isArray(args?.product_ids) ? args.product_ids.filter((x: any) => typeof x === "string") : [];
+  // Owner-set hard cap on picker size.
+  const cfgMaxItems = Math.max(2, Math.min(Number(cfg.max_products_per_picker) || 5, 10));
+  if (ids.length < 2)             return { ok: false, error: "product_ids requires 2..10 ids" };
+  if (ids.length > cfgMaxItems)   return { ok: false, error: `max ${cfgMaxItems} products in a picker (business config)` };
+
+  // Owner-defined defaults — used if the brain didn't pass title/button_text.
+  const cfgTitle      = typeof cfg.default_title       === "string" ? cfg.default_title       : "Voir nos options";
+  const cfgButtonText = typeof cfg.default_button_text === "string" ? cfg.default_button_text : "Choisir";
+  const title       = trimOrEmpty(args?.title,       60) || cfgTitle;
+  const description = trimOrEmpty(args?.description, 100);
+  const buttonText  = trimOrEmpty(args?.button_text, 20) || cfgButtonText;
+  const footerText  = trimOrEmpty(args?.footer_text, 60);
+  if (!title || !description || !buttonText) {
+    return { ok: false, error: "title, description, button_text are required" };
+  }
+
+  // Cross-tenant check: every requested product must belong to this business
+  // and be active. Mirrors the safety pattern in send_product_media.
+  const { data: prods } = await supabase.from("products")
+    .select('id, name, selling_price, stock, active, "DigiCom Business"')
+    .in("id", ids);
+  if (!prods || prods.length !== ids.length) return { ok: false, error: "one or more products not found" };
+  for (const p of prods as any[]) {
+    if (p["DigiCom Business"] !== businessId) return { ok: false, error: "cross-tenant product" };
+    if (p.active === false) return { ok: false, error: `product '${p.name}' is inactive` };
+  }
+  // Preserve the requested order for the picker rows
+  const byId = new Map<string, any>(); for (const p of prods as any[]) byId.set(p.id, p);
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+
+  const payload = {
+    business_id: businessId,
+    title, description, button_text: buttonText, footer_text: footerText,
+    products: ordered.map((p: any) => ({
+      id: p.id, name: p.name, price: Number(p.selling_price), stock: p.stock,
+    })),
+  };
+
+  const { data: existing } = await supabase.from("ai_pending_actions")
+    .select("id, status").eq("business_id", businessId).eq("tool_use_id", toolUseId).maybeSingle();
+  let actionId: string;
+  if (existing?.id) {
+    if (existing.status === "applied") return { ok: false, error: "already applied" };
+    await supabase.from("ai_pending_actions").update({
+      thread_id: threadId, skill_slug: "send_catalog_picker", kind: "send_catalog_picker",
+      payload, status: "pending", expires_at: new Date(Date.now() + 24*60*60*1000).toISOString(),
+    }).eq("id", existing.id);
+    actionId = existing.id;
+  } else {
+    const { data: ins, error: insErr } = await supabase.from("ai_pending_actions").insert({
+      business_id: businessId, thread_id: threadId, tool_use_id: toolUseId,
+      skill_slug: "send_catalog_picker", kind: "send_catalog_picker", payload, status: "pending",
+    }).select("id").maybeSingle();
+    if (insErr) return { ok: false, error: `pending insert: ${insErr.message}` };
+    actionId = ins!.id;
+  }
+
+  return { ok: true, result: {
+    prepared: true, action_id: actionId,
+    summary: { count: ordered.length, title, button_text: buttonText },
+    next_step: "Compose a brief sentence telling the customer the picker is on the way; owner approval will trigger the actual interactive list.",
+  } };
+}
+
+// ─── 25. react_with_emoji — fire-and-forget ───────────────────────────
+// Reacts immediately to the customer's most recent inbound message in the
+// thread. No sandbox queue: a tap-back emoji is harmless, single-character,
+// reversible (empty string removes), and used for fast acknowledgement.
+async function runReactWithEmoji(supabase: any, businessId: string, threadId: string, args: any, cfg: Record<string, any> = {}) {
+  const reaction: string = typeof args?.reaction === "string" ? args.reaction : "";
+  if (reaction.length > 8) return { ok: false, error: "reaction must be a single emoji (or empty to remove)" };
+  if (!threadId) return { ok: false, error: "thread_id required" };
+
+  // Owner-set whitelist: brain may only use emojis the owner allowed.
+  // Empty reaction is always permitted (it removes a previous reaction).
+  const allowed: string[] = Array.isArray(cfg.allowed_emojis) && cfg.allowed_emojis.length
+    ? cfg.allowed_emojis : ["👍","🙏","❤️","😊","✅"];
+  if (reaction && !allowed.includes(reaction)) {
+    return { ok: false, error: `emoji '${reaction}' not in allowed set (${allowed.join(" ")}) for this business` };
+  }
+
+  // Find the most recent inbound message in this thread.
+  const { data: lastInbound } = await supabase
+    .from("wa_messages")
+    .select("id, instance_id, wa_message_id, wa_remote_jid, business_id, text_content")
+    .eq("thread_id", threadId)
+    .eq("direction", "in")
+    .eq("business_id", businessId)
+    .order("received_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!lastInbound?.wa_message_id || !lastInbound?.wa_remote_jid) {
+    return { ok: false, error: "no inbound message found to react to" };
+  }
+  // Owner-set min length: don't react to short messages (avoid noisy thumbs
+  // on every "ok" / "merci"). Empty reaction (removal) always allowed.
+  const minLen = Math.max(0, Math.min(Number(cfg.min_message_length) || 0, 500));
+  if (reaction && minLen > 0 && (lastInbound.text_content || "").length < minLen) {
+    return { ok: false, error: `message too short to react (${(lastInbound.text_content || "").length} chars < min ${minLen})` };
+  }
+  const { data: instance } = await supabase
+    .from("wa_instances")
+    .select("name, status")
+    .eq("id", lastInbound.instance_id)
+    .maybeSingle();
+  if (!instance?.name) return { ok: false, error: "instance not found" };
+  if (instance.status !== "open") return { ok: false, error: `instance offline (${instance.status})` };
+
+  const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-client`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+    body: JSON.stringify({
+      action: "send-reaction",
+      payload: {
+        instanceName: instance.name,
+        reaction,
+        key: { id: lastInbound.wa_message_id, remoteJid: lastInbound.wa_remote_jid, fromMe: false },
+      },
+    }),
+  });
+  let data: any = null;
+  try { data = await r.json(); } catch { /* ignore */ }
+  if (!r.ok) return { ok: false, error: `react failed (${r.status}): ${data?.error || "unknown"}` };
+
+  return { ok: true, result: {
+    target_wa_message_id: lastInbound.wa_message_id,
+    reaction: reaction || "(removed)",
+  } };
+}
+
+// ─── 27. analyze_image — GPT-5.5 vision ───────────────────────────────
+// Brain calls when the customer's last inbound message is an image.
+// Pipeline: find the image media → fetch base64 via evolution-client →
+// send to gpt-5.5 with vision input → return structured intent + desc +
+// extracted_text. Cost is recorded against the business via ai_record_usage.
+async function runAnalyzeImage(supabase: any, businessId: string, threadId: string, args: any) {
+  if (!threadId) return { ok: false, error: "thread_id required" };
+  const hint: string = typeof args?.hint === "string" ? args.hint.trim() : "";
+
+  // 1. Find the most recent inbound IMAGE message in this thread.
+  const { data: lastImg } = await supabase
+    .from("wa_messages")
+    .select("id, instance_id, wa_message_id, wa_remote_jid, message_kind, media_id, business_id, raw_payload")
+    .eq("thread_id", threadId)
+    .eq("direction", "in")
+    .eq("business_id", businessId)
+    .eq("message_kind", "image")
+    .order("received_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!lastImg?.wa_message_id || !lastImg?.wa_remote_jid) {
+    return { ok: false, error: "no inbound image found in this thread" };
+  }
+  const { data: instance } = await supabase
+    .from("wa_instances")
+    .select("name, status").eq("id", lastImg.instance_id).maybeSingle();
+  if (!instance?.name) return { ok: false, error: "instance not found" };
+
+  // 2. Fetch image bytes via evolution-client get-media (returns base64).
+  const mResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-client`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+    body: JSON.stringify({
+      action: "get-media",
+      payload: { instanceName: instance.name, key: { id: lastImg.wa_message_id, remoteJid: lastImg.wa_remote_jid, fromMe: false } },
+    }),
+  });
+  const mJson = await mResp.json();
+  const b64: string | undefined = mJson?.base64 || mJson?.media || mJson?.body;
+  const mime = (mJson?.mimetype as string | undefined) || "image/jpeg";
+  if (!b64) return { ok: false, error: `image fetch failed: ${mJson?.error || "no body"}` };
+
+  // 3. Resolve OpenAI key + gpt-5.5 model row (for cost tracking).
+  const [{ data: oaiProv }, { data: model }] = await Promise.all([
+    supabase.from("ai_providers").select("id").eq("slug", "openai").maybeSingle(),
+    supabase.from("ai_models").select("id, model_id").eq("model_id", "gpt-5.5").maybeSingle(),
+  ]);
+  if (!oaiProv?.id || !model?.id) return { ok: false, error: "gpt-5.5 not registered" };
+  const { data: keyPlain } = await supabase.rpc("ai_decrypt_platform_key", { p_provider_id: oaiProv.id });
+  if (!keyPlain) return { ok: false, error: "openai key missing" };
+
+  // 4. Call gpt-5.5 with vision input. We ask for strict JSON so the brain
+  // can act on the result. detail=auto trims cost on smaller images.
+  const sysPrompt = [
+    "You are a vision classifier for a Moroccan WhatsApp e-commerce shop.",
+    "The customer just sent an image. Your job:",
+    "  1. Classify INTENT into ONE of: product, damaged_item, address_screenshot, payment_receipt, id_photo, other",
+    "  2. Write a SHORT description (max 200 chars) of what's visually in the image",
+    "  3. Extract ANY visible text (printed, handwritten, screenshot text) into extracted_text",
+    "  4. If intent=product, also propose a search_query (3-6 words in the customer's likely language) the brain can pass to search_products",
+    "Return ONLY valid JSON: {\"intent\": ..., \"description\": ..., \"extracted_text\": ..., \"search_query\": ...} — no commentary, no markdown fences.",
+  ].join("\n");
+  const userContent: any[] = [
+    { type: "text", text: hint ? `Context hint from the brain: ${hint}` : "Analyze this image." },
+    { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "auto" } },
+  ];
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${keyPlain}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-5.5",
+      max_completion_tokens: 400,
+      messages: [
+        { role: "system", content: sysPrompt },
+        { role: "user",   content: userContent },
+      ],
+    }),
+  });
+  const txt = await r.text();
+  if (!r.ok) return { ok: false, error: `gpt-5.5 vision ${r.status}: ${txt.slice(0, 200)}` };
+  const j = JSON.parse(txt);
+  const content: string = j?.choices?.[0]?.message?.content ?? "";
+  let parsed: any = null;
+  try { parsed = JSON.parse(content); }
+  catch {
+    const m = content.match(/\{[\s\S]*\}/);
+    if (m) { try { parsed = JSON.parse(m[0]); } catch { /* ignore */ } }
+  }
+  if (!parsed) return { ok: false, error: "vision returned non-JSON content", raw: content.slice(0, 200) };
+
+  // 5. Bill the call.
+  const tokIn  = j?.usage?.prompt_tokens     ?? 0;
+  const tokOut = j?.usage?.completion_tokens ?? 0;
+  const costUsd = (tokIn * 5.00 + tokOut * 30.00) / 1_000_000;
+  await supabase.rpc("ai_record_usage", {
+    p_business_id: businessId, p_provider_id: oaiProv.id, p_model_id: model.id,
+    p_tokens_in: tokIn, p_tokens_out: tokOut, p_audio_minutes: null, p_cost_usd: costUsd,
+  });
+
+  return { ok: true, result: {
+    intent:         parsed.intent || "other",
+    description:    parsed.description || null,
+    extracted_text: parsed.extracted_text || null,
+    search_query:   parsed.search_query || null,
+    image_message_id: lastImg.wa_message_id,
+    cost_usd: costUsd,
+  } };
+}
+
+// ─── 28. edit_order — sandbox-required ────────────────────────────────
+async function runEditOrder(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, callerPhone?: string, cfg: Record<string, any> = {}) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const orderId: string | undefined = typeof args?.order_id === "string" ? args.order_id : undefined;
+  if (!orderId) return { ok: false, error: "order_id required" };
+
+  // Tenant + caller-phone safety + cutoff window check
+  const { data: alt } = await supabase.from("orders")
+    .select('id, phone, delivered, date, order_status_id, "DigiCom Business"')
+    .eq("id", orderId).maybeSingle();
+  if (!alt || alt["DigiCom Business"] !== businessId) return { ok: false, error: "order not found for this business" };
+  if (alt.delivered) return { ok: false, error: "order already delivered — cannot edit" };
+  if (callerPhone && !phoneMatches(alt.phone, callerPhone)) return { ok: false, error: "forbidden: order is not for this caller" };
+  const cutoffErr = await checkOrderEditCutoff(supabase, alt, cfg);
+  if (cutoffErr) return { ok: false, error: cutoffErr };
+
+  // Build the payload — only include keys the brain actually passed
+  const payload: Record<string, unknown> = { order_id: orderId };
+  if (args?.customer && typeof args.customer === "object") payload.customer = args.customer;
+  if (args?.city && typeof args.city === "object")         payload.city     = args.city;
+  if (Array.isArray(args?.items))                          payload.items    = args.items;
+  if (Object.keys(payload).length === 1) return { ok: false, error: "nothing to edit — pass at least one of customer/city/items" };
+
+  const actionId = await upsertPendingActionSimple(supabase, businessId, threadId, toolUseId, "edit_order", payload);
+  if (!actionId.ok) return actionId;
+  return { ok: true, result: {
+    prepared: true, action_id: actionId.id,
+    summary: { order_id: orderId, fields: Object.keys(payload).filter((k) => k !== "order_id") },
+    next_step: "Compose a brief sentence telling the customer the change is being processed; owner approval applies it.",
+  } };
+}
+
+// ─── 29. cancel_order — sandbox-required ──────────────────────────────
+async function runCancelOrder(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, callerPhone?: string, cfg: Record<string, any> = {}) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const orderId: string | undefined = typeof args?.order_id === "string" ? args.order_id : undefined;
+  const reason: string  = typeof args?.reason   === "string" ? args.reason.trim()  : "";
+  if (!orderId)         return { ok: false, error: "order_id required" };
+  if (reason.length < 3) return { ok: false, error: "reason required (min 3 chars)" };
+
+  const { data: order } = await supabase.from("orders")
+    .select('id, phone, delivered, date, order_status_id, "DigiCom Business"').eq("id", orderId).maybeSingle();
+  if (!order || order["DigiCom Business"] !== businessId) return { ok: false, error: "order not found for this business" };
+  if (order.delivered) return { ok: false, error: "order already delivered — cannot cancel" };
+  if (callerPhone && !phoneMatches(order.phone, callerPhone)) return { ok: false, error: "forbidden: order is not for this caller" };
+  const cutoffErr = await checkOrderEditCutoff(supabase, order, cfg);
+  if (cutoffErr) return { ok: false, error: cutoffErr };
+
+  const payload = { order_id: orderId, reason };
+  const actionId = await upsertPendingActionSimple(supabase, businessId, threadId, toolUseId, "cancel_order", payload);
+  if (!actionId.ok) return actionId;
+  return { ok: true, result: {
+    prepared: true, action_id: actionId.id,
+    summary: { order_id: orderId, reason },
+    next_step: "Compose a brief sentence acknowledging the cancellation request; owner approval will mark the order cancelled.",
+  } };
+}
+
+// ─── 30. change_delivery_info — sandbox-required ──────────────────────
+async function runChangeDeliveryInfo(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, callerPhone?: string, cfg: Record<string, any> = {}) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const orderId: string | undefined = typeof args?.order_id === "string" ? args.order_id : undefined;
+  if (!orderId) return { ok: false, error: "order_id required" };
+
+  const { data: order } = await supabase.from("orders")
+    .select('id, phone, delivered, date, order_status_id, "DigiCom Business"').eq("id", orderId).maybeSingle();
+  if (!order || order["DigiCom Business"] !== businessId) return { ok: false, error: "order not found for this business" };
+  if (order.delivered) return { ok: false, error: "order already delivered — cannot change" };
+  if (callerPhone && !phoneMatches(order.phone, callerPhone)) return { ok: false, error: "forbidden: order is not for this caller" };
+  // change_delivery_info has its own cutoff key (cutoff_hours_before_shipment).
+  // Use the same helper but with the change_delivery_info-specific name.
+  const cutoffHours = Number(cfg.cutoff_hours_before_shipment) || 0;
+  if (cutoffHours > 0 && order.date) {
+    const placedAt = new Date(order.date as any).getTime();
+    const ageHours = (Date.now() - placedAt) / 3_600_000;
+    if (ageHours > cutoffHours) {
+      return { ok: false, error: `order placed ${ageHours.toFixed(1)}h ago — past the ${cutoffHours}h delivery-info change window. Escalate to human.` };
+    }
+  }
+
+  const payload: Record<string, unknown> = { order_id: orderId };
+  if (typeof args?.recipient_name === "string") payload.recipient_name = args.recipient_name.trim();
+  if (typeof args?.phone          === "string") payload.phone          = args.phone.trim();
+  if (typeof args?.address        === "string") payload.address        = args.address.trim();
+  if (typeof args?.master_city_id === "string") payload.master_city_id = args.master_city_id;
+  if (Object.keys(payload).length === 1) return { ok: false, error: "nothing to change — pass at least one of recipient_name/phone/address/master_city_id" };
+
+  const actionId = await upsertPendingActionSimple(supabase, businessId, threadId, toolUseId, "change_delivery_info", payload);
+  if (!actionId.ok) return actionId;
+  return { ok: true, result: {
+    prepared: true, action_id: actionId.id,
+    summary: { order_id: orderId, fields: Object.keys(payload).filter((k) => k !== "order_id") },
+    next_step: "Compose a brief sentence confirming the new delivery info will be applied; owner approval finalizes the change.",
+  } };
+}
+
+// ─── 31. upsell_cross_sell — read-only ────────────────────────────────
+async function runUpsellCrossSell(supabase: any, businessId: string, args: any, cfg: Record<string, any> = {}) {
+  const productId: string | undefined = typeof args?.product_id === "string" ? args.product_id : undefined;
+  if (!productId) return { ok: false, error: "product_id required" };
+  const cfgMax = Math.max(1, Math.min(Number(cfg.max_suggestions) || 3, 5));
+  const limit  = Math.min(cfgMax, Math.max(1, Math.min(args?.limit ?? cfgMax, 5)));
+  const premiumAllowed = cfg.premium_upsell_allowed !== false; // default true
+  const excluded: string[] = Array.isArray(cfg.excluded_product_ids) ? cfg.excluded_product_ids : [];
+  // Block recommending the anchor product itself or any owner-excluded id.
+  if (excluded.includes(productId)) {
+    return { ok: true, result: { anchor_product_id: productId, suggestions: [], note: "anchor product is excluded by business config" } };
+  }
+  const { data, error } = await supabase.rpc("ai_skill_upsell_cross_sell", {
+    p_business_id: businessId, p_product_id: productId, p_limit: limit,
+  });
+  if (error) return { ok: false, error: `upsell_cross_sell: ${error.message}` };
+  const filtered = (data || [])
+    .filter((p: any) => !excluded.includes(p.id))
+    .filter((p: any) => premiumAllowed || p.reason !== "premium version");
+  return { ok: true, result: {
+    anchor_product_id: productId,
+    suggestions: filtered.map((p: any) => ({
+      id: p.id, name: p.name, description: p.description,
+      price: Number(p.selling_price), stock: p.stock, image_url: p.image_url,
+      reason: p.reason, match: Number(p.similarity).toFixed(2),
+    })),
+  } };
+}
+
+// ─── 32. bundle_offer — sandbox-required ──────────────────────────────
+async function runBundleOffer(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, cfg: Record<string, any> = {}) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const ids: string[] = Array.isArray(args?.product_ids) ? args.product_ids.filter((x: any) => typeof x === "string") : [];
+  const bundlePrice: number = Number.isFinite(args?.bundle_price) ? Number(args.bundle_price) : NaN;
+  const title       = trimOrEmpty(args?.title,       80);
+  const description = trimOrEmpty(args?.description, 200);
+  // Owner-set caps (with safe fallbacks)
+  const cfgMaxSize = Math.max(2, Math.min(Number(cfg.max_bundle_size) || 5, 5));
+  const cfgMinSavingsPct = Math.max(0, Math.min(Number(cfg.min_savings_pct) || 10, 50));
+  if (ids.length < 2)        return { ok: false, error: "product_ids requires 2..5 ids" };
+  if (ids.length > cfgMaxSize) return { ok: false, error: `max ${cfgMaxSize} products in a bundle (business config)` };
+  if (!Number.isFinite(bundlePrice) || bundlePrice <= 0) return { ok: false, error: "bundle_price must be a positive number (in dh)" };
+  if (!title || !description) return { ok: false, error: "title and description are required" };
+
+  // Tenant safety + retail-price sum (so we can show savings)
+  const { data: prods } = await supabase.from("products")
+    .select('id, name, selling_price, image_url, "DigiCom Business"')
+    .in("id", ids);
+  if (!prods || prods.length !== ids.length) return { ok: false, error: "one or more products not found" };
+  let retailSum = 0;
+  for (const p of prods as any[]) {
+    if (p["DigiCom Business"] !== businessId) return { ok: false, error: "cross-tenant product" };
+    retailSum += Number(p.selling_price || 0);
+  }
+  if (bundlePrice >= retailSum) {
+    return { ok: false, error: `bundle_price (${bundlePrice}) must be LESS than the sum of selling_prices (${retailSum}) — a bundle without a discount is not a bundle` };
+  }
+  const savings = retailSum - bundlePrice;
+  const savingsPct = (savings / retailSum) * 100;
+  if (savingsPct < cfgMinSavingsPct) {
+    return { ok: false, error: `savings (${savingsPct.toFixed(1)}%) is below the business min (${cfgMinSavingsPct}%)` };
+  }
+
+  const byId = new Map<string, any>(); for (const p of prods as any[]) byId.set(p.id, p);
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+
+  const payload = {
+    business_id: businessId,
+    title, description,
+    bundle_price: bundlePrice,
+    retail_sum:   retailSum,
+    savings,
+    products: ordered.map((p: any) => ({
+      id: p.id, name: p.name, price: Number(p.selling_price), image_url: p.image_url,
+    })),
+  };
+
+  const u = await upsertPendingActionSimple(supabase, businessId, threadId, toolUseId, "bundle_offer", payload);
+  if (!u.ok) return u;
+  return { ok: true, result: {
+    prepared: true, action_id: u.id,
+    summary: { count: ordered.length, bundle_price: bundlePrice, retail_sum: retailSum, savings },
+    next_step: "Compose a brief sentence pitching the bundle; owner approval will send the actual offer message.",
+  } };
+}
+
+// ─── 33. identify_repeat_customer — read-only ─────────────────────────
+async function runIdentifyRepeatCustomer(supabase: any, businessId: string, args: any, callerPhone?: string, cfg: Record<string, any> = {}) {
+  const phone: string | undefined = typeof args?.phone === "string" ? args.phone : undefined;
+  if (!phone) return { ok: false, error: "phone required" };
+  if (callerPhone && !phoneMatches(phone, callerPhone)) {
+    return { ok: false, error: "forbidden: phone does not match caller — never look up other customers" };
+  }
+  const { data, error } = await supabase.rpc("ai_skill_identify_repeat_customer", {
+    p_business_id: businessId, p_phone: phone,
+  });
+  if (error) return { ok: false, error: `identify_repeat_customer: ${error.message}` };
+
+  const minOrders   = Math.max(1, Math.min(Number(cfg.min_orders_to_count) || 2, 10));
+  const topProducts = Math.max(1, Math.min(Number(cfg.top_products_to_fetch) || 3, 5));
+  // Apply business-tunable thresholds: customer is "repeat" only if they
+  // hit the configured order count; cap top_products list to configured N.
+  const totalOrders = Number(data?.total_orders ?? 0);
+  if (data?.found && totalOrders < minOrders) {
+    return { ok: true, result: { found: false, note: `customer has ${totalOrders} orders, below repeat threshold (${minOrders})` } };
+  }
+  if (data?.found && Array.isArray(data?.top_products)) {
+    data.top_products = data.top_products.slice(0, topProducts);
+  }
+  return { ok: true, result: data };
+}
+
+// ─── 34. summarize_thread_for_human — GPT-5.5 short summary ───────────
+async function runSummarizeThreadForHuman(supabase: any, businessId: string, threadId: string, args: any) {
+  if (!threadId) return { ok: false, error: "thread_id required" };
+  const hint: string = typeof args?.hint === "string" ? args.hint.trim() : "";
+
+  const [{ data: oaiProv }, { data: model }] = await Promise.all([
+    supabase.from("ai_providers").select("id").eq("slug", "openai").maybeSingle(),
+    supabase.from("ai_models").select("id, model_id").eq("model_id", "gpt-5.5").maybeSingle(),
+  ]);
+  if (!oaiProv?.id || !model?.id) return { ok: false, error: "gpt-5.5 not registered" };
+  const { data: keyPlain } = await supabase.rpc("ai_decrypt_platform_key", { p_provider_id: oaiProv.id });
+  if (!keyPlain) return { ok: false, error: "openai key missing" };
+
+  const { data: msgs } = await supabase
+    .from("wa_messages")
+    .select("direction, text_content, received_at")
+    .eq("thread_id", threadId)
+    .eq("business_id", businessId)
+    .order("received_at", { ascending: true })
+    .limit(40);
+  const transcript = (msgs || [])
+    .map((m: any) => `${m.direction === "in" ? "Customer" : "Agent"}: ${(m.text_content || "").slice(0, 300)}`)
+    .join("\n");
+
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${keyPlain}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-5.5",
+      max_completion_tokens: 220,
+      messages: [
+        { role: "system", content: "You write 2-3 line handoff summaries for human agents taking over a WhatsApp conversation. Plain text, no JSON, no markdown. Format: line 1 = what the customer wants. line 2 = what the AI tried. line 3 = the unresolved point." },
+        { role: "user",   content: `Conversation transcript (most recent last):\n${transcript}\n\nHint from the AI: ${hint || "(none)"}` },
+      ],
+    }),
+  });
+  const txt = await r.text();
+  if (!r.ok) return { ok: false, error: `summarize ${r.status}: ${txt.slice(0, 200)}` };
+  const j = JSON.parse(txt);
+  const content: string = j?.choices?.[0]?.message?.content?.trim() ?? "";
+  const tokIn  = j?.usage?.prompt_tokens     ?? 0;
+  const tokOut = j?.usage?.completion_tokens ?? 0;
+  const costUsd = (tokIn * 5.00 + tokOut * 30.00) / 1_000_000;
+  await supabase.rpc("ai_record_usage", {
+    p_business_id: businessId, p_provider_id: oaiProv.id, p_model_id: model.id,
+    p_tokens_in: tokIn, p_tokens_out: tokOut, p_audio_minutes: null, p_cost_usd: costUsd,
+  });
+  return { ok: true, result: { summary: content, cost_usd: costUsd } };
+}
+
+// ─── 35. detect_spam_or_scam — GPT-5.5 short classifier ───────────────
+async function runDetectSpamOrScam(supabase: any, businessId: string, threadId: string, args: any, cfg: Record<string, any> = {}) {
+  const sample: string | undefined = typeof args?.sample === "string" ? args.sample.trim() : undefined;
+  let textToScore = sample || "";
+  if (!textToScore) {
+    const { data: lastInbound } = await supabase.from("wa_messages")
+      .select("text_content").eq("thread_id", threadId).eq("direction", "in")
+      .eq("business_id", businessId).order("received_at", { ascending: false }).limit(1).maybeSingle();
+    textToScore = (lastInbound?.text_content || "").slice(0, 1000);
+  }
+  if (!textToScore) return { ok: false, error: "no message to score" };
+
+  // Allowlist short-circuit — if any owner-allowlisted phrase appears in the
+  // message, never flag it. Saves an LLM call and avoids paying $0 for a
+  // foregone conclusion.
+  const allowlist: string[] = Array.isArray(cfg.allowlist_phrases) ? cfg.allowlist_phrases : [];
+  const lower = textToScore.toLowerCase();
+  for (const phrase of allowlist) {
+    if (typeof phrase === "string" && phrase.length > 1 && lower.includes(phrase.toLowerCase())) {
+      return { ok: true, result: {
+        risk_score: 0, flags: [], suggested_action: "none",
+        cost_usd: 0,
+        note: `allowlisted phrase matched: "${phrase}"`,
+      } };
+    }
+  }
+
+  const [{ data: oaiProv }, { data: model }] = await Promise.all([
+    supabase.from("ai_providers").select("id").eq("slug", "openai").maybeSingle(),
+    supabase.from("ai_models").select("id, model_id").eq("model_id", "gpt-5.5").maybeSingle(),
+  ]);
+  if (!oaiProv?.id || !model?.id) return { ok: false, error: "gpt-5.5 not registered" };
+  const { data: keyPlain } = await supabase.rpc("ai_decrypt_platform_key", { p_provider_id: oaiProv.id });
+  if (!keyPlain) return { ok: false, error: "openai key missing" };
+
+  const sys = [
+    "You score WhatsApp messages for a Moroccan e-commerce shop on risk of being SPAM, FAKE ORDER, ABUSIVE, or SCAM.",
+    "Output STRICT JSON only: {\"risk_score\": 0..1, \"flags\": [string], \"suggested_action\": \"none\"|\"watch\"|\"escalate\"|\"block\"}",
+    "Possible flags: repeated_no_show, abusive_language, fake_address, urgency_pressure, mass_spam, impersonation, threat, unrelated_promotion, request_for_external_payment.",
+    "No commentary. No markdown fences. Just the JSON.",
+  ].join("\n");
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${keyPlain}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-5.5",
+      max_completion_tokens: 150,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user",   content: textToScore },
+      ],
+    }),
+  });
+  const txt = await r.text();
+  if (!r.ok) return { ok: false, error: `detect ${r.status}: ${txt.slice(0, 200)}` };
+  const j = JSON.parse(txt);
+  const content: string = j?.choices?.[0]?.message?.content ?? "";
+  let parsed: any = null;
+  try { parsed = JSON.parse(content); }
+  catch { const m = content.match(/\{[\s\S]*\}/); if (m) { try { parsed = JSON.parse(m[0]); } catch { /* ignore */ } } }
+  if (!parsed) return { ok: false, error: "non-JSON from classifier", raw: content.slice(0, 200) };
+  const tokIn  = j?.usage?.prompt_tokens     ?? 0;
+  const tokOut = j?.usage?.completion_tokens ?? 0;
+  const costUsd = (tokIn * 5.00 + tokOut * 30.00) / 1_000_000;
+  await supabase.rpc("ai_record_usage", {
+    p_business_id: businessId, p_provider_id: oaiProv.id, p_model_id: model.id,
+    p_tokens_in: tokIn, p_tokens_out: tokOut, p_audio_minutes: null, p_cost_usd: costUsd,
+  });
+  const riskScore  = Math.max(0, Math.min(1, Number(parsed.risk_score) || 0));
+  const flagThresh = Math.max(0.1, Math.min(Number(cfg.risk_threshold_to_flag) || 0.7, 0.95));
+  const pauseThresh = Math.max(0.1, Math.min(Number(cfg.auto_pause_threshold)   || 0.9, 1.0));
+  // Owner-tunable suggestion override:
+  //   risk >= auto_pause_threshold        → block (per business policy)
+  //   risk_threshold_to_flag <= risk < pause → at least "escalate"
+  //   below flag threshold                → "none"
+  let suggestedAction = parsed.suggested_action;
+  if (riskScore >= pauseThresh)         suggestedAction = "block";
+  else if (riskScore >= flagThresh)     suggestedAction = (suggestedAction === "block" ? "block" : "escalate");
+  else                                  suggestedAction = "none";
+  return { ok: true, result: {
+    risk_score: riskScore,
+    flags: Array.isArray(parsed.flags) ? parsed.flags : [],
+    suggested_action: suggestedAction,
+    flag_threshold: flagThresh,
+    pause_threshold: pauseThresh,
+    cost_usd: costUsd,
+  } };
+}
+
+// ─── 36. request_review_after_delivery — sandbox-required ─────────────
+async function runRequestReviewAfterDelivery(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, callerPhone?: string) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const orderId: string | undefined = typeof args?.order_id === "string" ? args.order_id : undefined;
+  if (!orderId) return { ok: false, error: "order_id required" };
+  const toneHint: string = typeof args?.tone_hint === "string" ? args.tone_hint.trim() : "";
+
+  const { data: order } = await supabase.from("orders")
+    .select('id, name, phone, delivered, "DigiCom Business"').eq("id", orderId).maybeSingle();
+  if (!order || order["DigiCom Business"] !== businessId) return { ok: false, error: "order not found for this business" };
+  if (!order.delivered) return { ok: false, error: "order is not delivered yet — cannot request review" };
+  if (callerPhone && !phoneMatches(order.phone, callerPhone)) return { ok: false, error: "forbidden: order is not for this caller" };
+
+  const payload = { order_id: orderId, tone_hint: toneHint, recipient_name: order.name };
+  const u = await upsertPendingActionSimple(supabase, businessId, threadId, toolUseId, "request_review_after_delivery", payload);
+  if (!u.ok) return u;
+  return { ok: true, result: {
+    prepared: true, action_id: u.id,
+    summary: { order_id: orderId, tone_hint: toneHint || "warm thanks" },
+    next_step: "Compose a brief sentence acknowledging the request; owner approval will send the actual review-ask message.",
+  } };
+}
+
+// Shared upsert helper (idempotent on tool_use_id) for the order CRUD trio
+// + Phase 5-6 sandbox-required skills (bundle_offer, request_review_after_delivery).
+// NOTE: distinct from upsertPendingAction() at the top of the file which has a
+// richer signature used by document-generation skills (generate_devis, etc.).
+async function upsertPendingActionSimple(
+  supabase: any, businessId: string, threadId: string, toolUseId: string,
+  kind: string, payload: Record<string, unknown>,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const { data: existing } = await supabase.from("ai_pending_actions")
+    .select("id, status").eq("business_id", businessId).eq("tool_use_id", toolUseId).maybeSingle();
+  if (existing?.id) {
+    if (existing.status === "applied") return { ok: false, error: "already applied" };
+    const { error: upErr } = await supabase.from("ai_pending_actions").update({
+      thread_id: threadId, skill_slug: kind, kind, payload, status: "pending",
+      expires_at: new Date(Date.now() + 24*60*60*1000).toISOString(),
+    }).eq("id", existing.id);
+    if (upErr) return { ok: false, error: `pending update: ${upErr.message}` };
+    return { ok: true, id: existing.id };
+  }
+  const { data: ins, error: insErr } = await supabase.from("ai_pending_actions").insert({
+    business_id: businessId, thread_id: threadId, tool_use_id: toolUseId,
+    skill_slug: kind, kind, payload, status: "pending",
+  }).select("id").maybeSingle();
+  if (insErr) return { ok: false, error: `pending insert: ${insErr.message}` };
+  return { ok: true, id: ins!.id };
+}
+
+function trimOrEmpty(v: unknown, max: number): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+// Per-business cutoff check shared by edit_order + cancel_order. Returns
+// null if edits are still allowed, or a human-readable error string.
+//   cutoff_hours_after_placed (number)   — block if order older than this
+//   block_after_status_confirmed (bool)  — block once status category is confirmed/processed/paid
+async function checkOrderEditCutoff(supabase: any, order: any, cfg: Record<string, any>): Promise<string | null> {
+  const cutoffHours = Number(cfg.cutoff_hours_after_placed) || 0;
+  if (cutoffHours > 0 && order?.date) {
+    const placedAt = new Date(order.date as any).getTime();
+    const ageHours = (Date.now() - placedAt) / 3_600_000;
+    if (ageHours > cutoffHours) {
+      return `order placed ${ageHours.toFixed(1)}h ago — past the ${cutoffHours}h edit window. Escalate to human.`;
+    }
+  }
+  if (cfg.block_after_status_confirmed === true && order?.order_status_id) {
+    const { data: stat } = await supabase
+      .from("order_statuses").select("category").eq("id", order.order_status_id).maybeSingle();
+    if (stat?.category && ["confirmed","processed","paid"].includes(stat.category)) {
+      return `order status is '${stat.category}' — locked by business policy. Escalate.`;
+    }
+  }
+  return null;
+}
+
+// Merge ai_skills.config_schema.fields[].default with the per-business
+// saved config so handlers always receive a complete, ready-to-read object.
+// Owner-saved value wins; otherwise the schema default kicks in.
+function mergeConfigDefaults(fields: any[], saved: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = { ...(saved || {}) };
+  for (const f of fields || []) {
+    if (out[f.key] === undefined && f.default !== undefined) {
+      out[f.key] = f.default;
+    }
+  }
+  return out;
+}
+
+// ─── 26. record_business_learning — sandbox-required ──────────────────
+// Brain proposes a memory mid-conversation. Goes to ai_pending_actions
+// pending. Owner approves in Review Queue → ai_apply_record_business_learning
+// inserts the active memory row. ai-review-act then embeds it so the next
+// conversations can vector-search it.
+async function runRecordBusinessLearning(supabase: any, businessId: string, threadId: string, toolUseId: string, args: any, cfg: Record<string, any> = {}) {
+  if (!toolUseId) return { ok: false, error: "tool_use_id required" };
+  const memoryType: string = typeof args?.memory_type === "string" ? args.memory_type : "";
+  const content: string    = typeof args?.content === "string"     ? args.content.trim() : "";
+  const evidence: string   = typeof args?.evidence === "string"    ? args.evidence.trim() : "";
+  const confidence: number = Number.isFinite(args?.confidence) ? Math.max(0, Math.min(1, args.confidence)) : 0.6;
+  // Owner-tunable: if confidence >= threshold, the queued action will be
+  // surfaced with `auto_approve: true` so the Review Queue UI can fast-path
+  // it (or the dispatcher can promote it). Below threshold = standard sandbox.
+  const autoApproveAt = Math.max(0.5, Math.min(Number(cfg.auto_approve_above_confidence) || 0.85, 1.0));
+  const autoApprove = confidence >= autoApproveAt;
+
+  const VALID_TYPES = new Set(["pattern","preference","warning","tactic","fact"]);
+  if (!VALID_TYPES.has(memoryType)) return { ok: false, error: "memory_type must be pattern|preference|warning|tactic|fact" };
+  if (content.length < 10)         return { ok: false, error: "content must be at least 10 chars" };
+  if (content.length > 600)        return { ok: false, error: "content must be at most 600 chars" };
+
+  const payload = { memory_type: memoryType, content, evidence: evidence || null, confidence, auto_approve: autoApprove };
+
+  const { data: existing } = await supabase.from("ai_pending_actions")
+    .select("id, status").eq("business_id", businessId).eq("tool_use_id", toolUseId).maybeSingle();
+  let actionId: string;
+  if (existing?.id) {
+    if (existing.status === "applied") return { ok: false, error: "already applied" };
+    await supabase.from("ai_pending_actions").update({
+      thread_id: threadId, skill_slug: "record_business_learning", kind: "record_business_learning",
+      payload, status: "pending", expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+    }).eq("id", existing.id);
+    actionId = existing.id;
+  } else {
+    const { data: ins, error: insErr } = await supabase.from("ai_pending_actions").insert({
+      business_id: businessId, thread_id: threadId, tool_use_id: toolUseId,
+      skill_slug: "record_business_learning", kind: "record_business_learning",
+      payload, status: "pending",
+    }).select("id").maybeSingle();
+    if (insErr) return { ok: false, error: `pending insert: ${insErr.message}` };
+    actionId = ins!.id;
+  }
+  return { ok: true, result: {
+    prepared: true, action_id: actionId,
+    summary: { memory_type: memoryType, content, confidence, auto_approve: autoApprove },
+    next_step: autoApprove
+      ? "High-confidence memory: marked for auto-approval (subject to business policy)."
+      : "Continue the conversation normally. Owner will approve this memory in the Review Queue and it will become active for future conversations.",
+  } };
 }

@@ -65,6 +65,7 @@ import {
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { useAiPendingNotifier } from '@/hooks/useAiPendingNotifier';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 // ──────────────────────────────────────────────────────────────────────
@@ -84,6 +85,11 @@ interface BrainConfig {
   persona_summary: string | null;
   fallback_text_when_paused: string | null;
   sandbox_globally: boolean;
+  trust_mode_enabled: boolean;
+  notify_audio_enabled: boolean;
+  notify_browser_enabled: boolean;
+  notify_quiet_start: string | null;
+  notify_quiet_end: string | null;
   monthly_cap_usd: number;
   spent_this_month_usd: number;
   quota_status: string;
@@ -115,6 +121,18 @@ interface FaqRow {
   updated_at: string | null;
 }
 
+type SkillConfigField = {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'integer' | 'percent' | 'number' | 'boolean' | 'select' | 'tag_list' | 'hours' | 'days';
+  default?: any;
+  hint?: string;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  options?: Array<{ value: string; label: string }>;
+};
+
 interface SkillRow {
   id: string;
   slug: string;
@@ -125,6 +143,8 @@ interface SkillRow {
   bs_id: string | null;
   enabled: boolean;
   mode: SkillMode;
+  config_schema?: { fields?: SkillConfigField[] } | null;
+  config?: Record<string, any> | null;
 }
 
 interface DecisionRow {
@@ -171,6 +191,9 @@ function timeAgo(iso: string | null): string {
 // ──────────────────────────────────────────────────────────────────────
 export default function AIBrainConsole() {
   const businessId = getActiveBusinessId();
+  // Subscribe to ai_decisions for live badge updates + sonar/notifications.
+  // Mounted at the page root so the notifier stays active across tab switches.
+  useAiPendingNotifier(businessId);
   if (!businessId) {
     return (
       <div className="ant-surface flex items-center justify-center h-64 text-ant-muted text-sm">
@@ -187,6 +210,8 @@ export default function AIBrainConsole() {
             { v: 'overview', label: 'Overview' },
             { v: 'review', label: 'Review Queue', badge: true },
             { v: 'brain', label: 'Brain Setup' },
+            { v: 'persona', label: 'Persona' },
+            { v: 'memory', label: 'Memory' },
             { v: 'rules', label: 'Rules' },
             { v: 'knowledge', label: 'FAQs' },
             { v: 'index', label: 'Knowledge Index' },
@@ -205,6 +230,8 @@ export default function AIBrainConsole() {
         <TabsContent value="overview"><OverviewTab businessId={businessId} /></TabsContent>
         <TabsContent value="review"><ReviewQueueTab businessId={businessId} /></TabsContent>
         <TabsContent value="brain"><BrainSetupTab businessId={businessId} /></TabsContent>
+        <TabsContent value="persona"><PersonaTab businessId={businessId} /></TabsContent>
+        <TabsContent value="memory"><MemoryTab businessId={businessId} /></TabsContent>
         <TabsContent value="rules"><RulesTab businessId={businessId} /></TabsContent>
         <TabsContent value="index"><IndexTab businessId={businessId} /></TabsContent>
         <TabsContent value="knowledge"><KnowledgeTab businessId={businessId} /></TabsContent>
@@ -243,6 +270,8 @@ function Header() {
 //   4. ACTIVITY. Narrative stream of last 10 decisions.
 // ──────────────────────────────────────────────────────────────────────
 function OverviewTab({ businessId }: { businessId: string }) {
+  const qc = useQueryClient();
+
   const { data: health, isLoading: hl } = useQuery<HealthRow | null>({
     queryKey: ['ai-brain-health', businessId],
     queryFn: async () => {
@@ -267,8 +296,26 @@ function OverviewTab({ businessId }: { businessId: string }) {
         .limit(10);
       return (data || []) as DecisionRow[];
     },
-    refetchInterval: 30_000,
+    // No polling — realtime subscription below invalidates this query the
+    // moment a new decision lands or an existing one's outcome changes.
   });
+
+  // Realtime: re-fetch the recent-decisions list on every INSERT or UPDATE
+  // of ai_decisions for this business. Replaces the old 30s polling — new
+  // rows now appear in well under a second.
+  useEffect(() => {
+    const ch = supabase
+      .channel(`ai-brain-overview-${businessId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'ai_decisions', filter: `business_id=eq.${businessId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ['ai-brain-recent-decisions', businessId] });
+          qc.invalidateQueries({ queryKey: ['ai-brain-health',          businessId] });
+          qc.invalidateQueries({ queryKey: ['ai-brain-trend-14d',       businessId] });
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [businessId, qc]);
 
   // 14-day decision counts for the hero sparkline + today/yesterday delta.
   // Pulled in one round-trip (max 14d window, capped at 5k rows for safety).
@@ -475,8 +522,9 @@ function OverviewTab({ businessId }: { businessId: string }) {
       <section className="rounded-xl border border-ant-line bg-ant-paper">
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <Kicker>Recent decisions</Kicker>
-          <span className="text-[10.5px] text-ant-muted">
-            {decisions?.length ?? 0} shown · live refresh every 30s
+          <span className="text-[10.5px] text-ant-muted flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-ant-green animate-pulse" />
+            {decisions?.length ?? 0} shown · live
           </span>
         </div>
         {!decisions || decisions.length === 0 ? (
@@ -645,7 +693,7 @@ function BrainSetupTab({ businessId }: { businessId: string }) {
     queryFn: async () => {
       const { data } = await supabase
         .from('ai_business_brain')
-        .select('business_id, default_mode, language, tone, persona_summary, fallback_text_when_paused, sandbox_globally, monthly_cap_usd, spent_this_month_usd, quota_status, human_takeover_pause_minutes, max_consecutive_ai_messages')
+        .select('business_id, default_mode, language, tone, persona_summary, fallback_text_when_paused, sandbox_globally, trust_mode_enabled, notify_audio_enabled, notify_browser_enabled, notify_quiet_start, notify_quiet_end, monthly_cap_usd, spent_this_month_usd, quota_status, human_takeover_pause_minutes, max_consecutive_ai_messages')
         .eq('business_id', businessId)
         .maybeSingle();
       return data as BrainConfig | null;
@@ -664,6 +712,11 @@ function BrainSetupTab({ businessId }: { businessId: string }) {
         persona_summary: next.persona_summary,
         fallback_text_when_paused: next.fallback_text_when_paused,
         sandbox_globally: next.sandbox_globally,
+        trust_mode_enabled: next.trust_mode_enabled,
+        notify_audio_enabled: next.notify_audio_enabled,
+        notify_browser_enabled: next.notify_browser_enabled,
+        notify_quiet_start: next.notify_quiet_start,
+        notify_quiet_end: next.notify_quiet_end,
         monthly_cap_usd: next.monthly_cap_usd,
         human_takeover_pause_minutes: next.human_takeover_pause_minutes,
         max_consecutive_ai_messages: next.max_consecutive_ai_messages,
@@ -824,7 +877,93 @@ function BrainSetupTab({ businessId }: { businessId: string }) {
         </div>
       </section>
 
-      {/* ─── 5. GUARDRAILS ─────────────────────────────────────────── */}
+      {/* ─── 5. AUTO-PILOT ─────────────────────────────────────────── */}
+      {/* Three-tier hierarchy made visible:
+            1. Kill switch (sandbox_globally) — overrides everything
+            2. Trust mode (trust_mode_enabled) — only meaningful when kill switch is OFF
+            3. Per-skill modes — set on the Skills tab
+          When the kill switch is ON, the trust toggle is dimmed and a banner
+          explains the override so the user is never surprised. */}
+      <section className={`rounded-2xl border overflow-hidden transition-colors ${
+        form.sandbox_globally
+          ? 'border-amber-300 bg-amber-50/30'
+          : form.trust_mode_enabled
+            ? 'border-rose-300 bg-rose-50/30'
+            : 'border-ant-line bg-ant-paper'
+      }`}>
+        <div className="px-6 md:px-7 py-5">
+          <SectionHead
+            kicker="Auto-pilot"
+            title="When does the brain send without asking?"
+            subtitle="Three layers, top wins. Kill switch beats trust mode beats per-skill mode (set on the Skills tab)."
+          />
+
+          {/* Kill switch (master) */}
+          <div className="mt-4 rounded-xl border border-ant-line bg-ant-paper px-4 py-3 flex items-center justify-between gap-4">
+            <div className="min-w-0 flex items-start gap-3">
+              <Hand className={`w-5 h-5 mt-0.5 ${form.sandbox_globally ? 'text-amber-600' : 'text-ant-mid'}`} />
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-medium text-ant-ink">
+                  {form.sandbox_globally
+                    ? 'Force every reply into the queue (kill switch is ON)'
+                    : 'Honor per-skill modes (kill switch is OFF)'}
+                </p>
+                <p className="text-[11px] text-ant-muted leading-snug mt-0.5">
+                  When ON, every reply waits for your approval no matter what — overrides Trust mode and per-skill Live toggles. Use this if the bot is misbehaving and you want to pause auto-send fast without losing your skill config.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={form.sandbox_globally}
+              onCheckedChange={(v) => setForm({ ...form, sandbox_globally: v })}
+              className="data-[state=checked]:bg-amber-500"
+            />
+          </div>
+
+          {/* Trust mode (subordinate to kill switch) */}
+          <div className={`mt-3 rounded-xl border px-4 py-3 flex items-center justify-between gap-4 transition-opacity ${
+            form.sandbox_globally
+              ? 'border-ant-line bg-ant-line-soft/40 opacity-50'
+              : 'border-ant-line bg-ant-paper'
+          }`}>
+            <div className="min-w-0 flex items-start gap-3">
+              <ShieldCheck className={`w-5 h-5 mt-0.5 ${
+                form.sandbox_globally ? 'text-ant-mid' :
+                form.trust_mode_enabled ? 'text-rose-600' : 'text-ant-mid'
+              }`} />
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-medium text-ant-ink">
+                  {form.sandbox_globally
+                    ? 'Trust mode (no effect — kill switch is ON)'
+                    : form.trust_mode_enabled
+                      ? 'Trust mode is ON — risky skills can be flipped Live'
+                      : 'Trust mode is OFF — risky skills are locked to Sandbox'}
+                </p>
+                <p className="text-[11px] text-ant-muted leading-snug mt-0.5">
+                  Unlocks the Live toggle on the Skills tab for sandbox-required skills (orders, discounts, customer-visible messages). Each skill still needs to be individually flipped to Live. You're responsible for what the AI sends.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={form.trust_mode_enabled}
+              disabled={form.sandbox_globally}
+              onCheckedChange={(v) => setForm({ ...form, trust_mode_enabled: v })}
+              className="data-[state=checked]:bg-rose-500"
+            />
+          </div>
+
+          {/* Active routing summary */}
+          <div className="mt-3 text-[11px] text-ant-muted italic font-serif-display leading-snug px-1">
+            {form.sandbox_globally
+              ? 'Right now: every brain decision waits in the Review Queue.'
+              : form.trust_mode_enabled
+                ? 'Right now: skills set to Live on the Skills tab auto-send. Skills set to Sandbox queue for approval.'
+                : 'Right now: only safe-by-default skills can auto-send. Risky skills always queue for approval.'}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 5b. GUARDRAILS (cost ceiling + handoff timing) ────────── */}
       <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
         <div className="px-6 md:px-7 py-5">
           <SectionHead
@@ -832,49 +971,79 @@ function BrainSetupTab({ businessId }: { businessId: string }) {
             title="Cost ceiling and human handoff."
             subtitle="Hard limits. The brain stops automatically when any of these triggers."
           />
-          <div className="mt-4 grid grid-cols-1 gap-4">
-            {/* sandbox toggle row */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <StepperField
+              label="Monthly cap"
+              suffix="USD"
+              value={form.monthly_cap_usd}
+              step={1}
+              min={0}
+              onChange={(n) => setForm({ ...form, monthly_cap_usd: Math.max(0, n) })}
+              hint="Hard ceiling on the brain's cost this month."
+            />
+            <StepperField
+              label="Pause after human"
+              suffix="min"
+              value={form.human_takeover_pause_minutes}
+              step={5}
+              min={0}
+              onChange={(n) => setForm({ ...form, human_takeover_pause_minutes: Math.max(0, n) })}
+              hint="When you reply to a thread, the AI stays out for this long."
+            />
+            <StepperField
+              label="Max replies in a row"
+              suffix="msgs"
+              value={form.max_consecutive_ai_messages}
+              step={1}
+              min={1}
+              onChange={(n) => setForm({ ...form, max_consecutive_ai_messages: Math.max(1, n) })}
+              hint="If the AI hits this in one thread it escalates to a human."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 5c. NOTIFICATIONS ─────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5">
+          <SectionHead
+            kicker="Notifications"
+            title="Get notified the moment a reply needs your approval."
+            subtitle="Audio chime in the browser tab + system notification when the page is in the background. Quiet hours mute both."
+          />
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="rounded-xl border border-ant-line bg-ant-light/40 px-4 py-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[12.5px] font-medium text-ant-ink">Sandbox new skills</p>
-                <p className="text-[11px] text-ant-muted leading-snug mt-0.5">
-                  Newly enabled skills always require your approval first — they only go live after you've approved a few sample replies.
-                </p>
+                <p className="text-[12.5px] font-medium text-ant-ink">Audio chime</p>
+                <p className="text-[11px] text-ant-muted leading-snug mt-0.5">Short beep when the page is open and a new pending review arrives.</p>
               </div>
-              <Switch
-                checked={form.sandbox_globally}
-                onCheckedChange={(v) => setForm({ ...form, sandbox_globally: v })}
-              />
+              <Switch checked={form.notify_audio_enabled} onCheckedChange={(v) => setForm({ ...form, notify_audio_enabled: v })} />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <StepperField
-                label="Monthly cap"
-                suffix="USD"
-                value={form.monthly_cap_usd}
-                step={1}
-                min={0}
-                onChange={(n) => setForm({ ...form, monthly_cap_usd: Math.max(0, n) })}
-                hint="Hard ceiling on the brain's cost this month."
-              />
-              <StepperField
-                label="Pause after human"
-                suffix="min"
-                value={form.human_takeover_pause_minutes}
-                step={5}
-                min={0}
-                onChange={(n) => setForm({ ...form, human_takeover_pause_minutes: Math.max(0, n) })}
-                hint="When you reply to a thread, the AI stays out for this long."
-              />
-              <StepperField
-                label="Max replies in a row"
-                suffix="msgs"
-                value={form.max_consecutive_ai_messages}
-                step={1}
-                min={1}
-                onChange={(n) => setForm({ ...form, max_consecutive_ai_messages: Math.max(1, n) })}
-                hint="If the AI hits this in one thread it escalates to a human."
-              />
+            <div className="rounded-xl border border-ant-line bg-ant-light/40 px-4 py-3 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-medium text-ant-ink">Browser notification</p>
+                <p className="text-[11px] text-ant-muted leading-snug mt-0.5">System pop-up when the tab is in the background. Browser will ask permission on first attempt.</p>
+              </div>
+              <Switch checked={form.notify_browser_enabled} onCheckedChange={(v) => setForm({ ...form, notify_browser_enabled: v })} />
             </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Quiet hours start" hint="HH:MM in 24-hour format. Leave empty to disable.">
+              <Input
+                type="time"
+                value={form.notify_quiet_start ?? ''}
+                onChange={(e) => setForm({ ...form, notify_quiet_start: e.target.value || null })}
+                className="rounded-lg h-9 text-[12px]"
+              />
+            </Field>
+            <Field label="Quiet hours end">
+              <Input
+                type="time"
+                value={form.notify_quiet_end ?? ''}
+                onChange={(e) => setForm({ ...form, notify_quiet_end: e.target.value || null })}
+                className="rounded-lg h-9 text-[12px]"
+              />
+            </Field>
           </div>
         </div>
       </section>
@@ -1027,6 +1196,814 @@ function ModelChip({ role, name, price }: { role: string; name: string; price: s
         <Cpu className="w-3 h-3 text-ant-mid shrink-0" /> {name}
       </p>
       <p className="text-[10.5px] text-ant-muted mt-0.5 tabular-nums">{price}</p>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// PERSONA TAB — the AI's identity for this business
+// ──────────────────────────────────────────────────────────────────────
+type PersonaRow = {
+  business_id: string;
+  agent_name: string;
+  agent_gender: 'male' | 'female';
+  agent_age: number;
+  agent_region: string;
+  agent_role: 'commercial' | 'manager' | 'owner' | 'assistant';
+  agent_tenure_months: number;
+  backstory: string | null;
+  communication_style: { formality?: string; humor?: string; emoji?: string; length?: string } | null;
+  greeting_style: string | null;
+  sign_off_style: string | null;
+  decision_philosophy: string | null;
+  forbidden_topics: string[];
+  escalation_triggers: string[];
+};
+
+function PersonaTab({ businessId }: { businessId: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const { data, isLoading } = useQuery<PersonaRow | null>({
+    queryKey: ['ai-business-persona', businessId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('ai_business_persona')
+        .select('*')
+        .eq('business_id', businessId)
+        .maybeSingle();
+      return data as PersonaRow | null;
+    },
+  });
+
+  const [form, setForm] = useState<PersonaRow | null>(null);
+  useEffect(() => { if (data) setForm(data); }, [data]);
+
+  const ensureRow = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('ai_business_persona')
+        .insert({ business_id: businessId });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai-business-persona', businessId] }),
+  });
+
+  const save = useMutation({
+    mutationFn: async (next: PersonaRow) => {
+      const { error } = await supabase.from('ai_business_persona').update({
+        agent_name:           next.agent_name,
+        agent_gender:         next.agent_gender,
+        agent_age:            next.agent_age,
+        agent_region:         next.agent_region,
+        agent_role:           next.agent_role,
+        agent_tenure_months:  next.agent_tenure_months,
+        backstory:            next.backstory,
+        communication_style:  next.communication_style,
+        greeting_style:       next.greeting_style,
+        sign_off_style:       next.sign_off_style,
+        decision_philosophy:  next.decision_philosophy,
+        forbidden_topics:     next.forbidden_topics,
+        escalation_triggers:  next.escalation_triggers,
+        updated_at:           new Date().toISOString(),
+      }).eq('business_id', businessId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast({ title: 'Persona saved', description: 'Brain + tongue will use this on the next conversation.' });
+      qc.invalidateQueries({ queryKey: ['ai-business-persona', businessId] });
+    },
+    onError: (e: any) => toast({ title: 'Save failed', description: e?.message || 'Unknown', variant: 'destructive' }),
+  });
+
+  // Cmd/Ctrl + S to save when dirty.
+  useEffect(() => {
+    function onKey(ev: KeyboardEvent) {
+      if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 's') {
+        if (form && JSON.stringify(form) !== JSON.stringify(data) && !save.isPending) {
+          ev.preventDefault();
+          save.mutate(form);
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [form, data, save]);
+
+  if (isLoading) return <Skeleton className="h-[480px] w-full rounded-xl" />;
+
+  // Empty state — no persona row yet
+  if (!data && !form) {
+    return (
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-10 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-ant-line-soft mb-4">
+            <Users className="w-5 h-5 text-ant-mid" />
+          </div>
+          <Kicker>Persona</Kicker>
+          <h3 className="font-display text-[20px] font-semibold text-ant-ink mt-1">Give your brain an identity.</h3>
+          <p className="font-serif-display italic text-[12.5px] text-ant-muted mt-1 max-w-md mx-auto">
+            Customers should feel they're texting a real person — a name, a face, a corner of Morocco. Pick the basics now, polish later.
+          </p>
+          <div className="mt-5">
+            <Button onClick={() => ensureRow.mutate()} disabled={ensureRow.isPending} className="rounded-lg">
+              {ensureRow.isPending ? 'Initializing…' : 'Initialize default persona'}
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!form) return <Skeleton className="h-[480px] w-full rounded-xl" />;
+
+  const cs = form.communication_style || {};
+  const setCs = (k: string, v: string) => setForm({ ...form, communication_style: { ...cs, [k]: v } });
+  const setListField = (k: 'forbidden_topics' | 'escalation_triggers', text: string) => {
+    const arr = text.split('\n').map((x) => x.trim()).filter(Boolean);
+    setForm({ ...form, [k]: arr } as PersonaRow);
+  };
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(data);
+  const tenureLabel = form.agent_tenure_months >= 12
+    ? `${Math.round(form.agent_tenure_months / 12)} year${form.agent_tenure_months >= 24 ? 's' : ''}`
+    : `${form.agent_tenure_months} month${form.agent_tenure_months === 1 ? '' : 's'}`;
+  const initials = (form.agent_name || '?').trim().split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  const previewGreeting = form.greeting_style?.trim() || 'salam, kifash n9der n3awnek?';
+
+  return (
+    <div className="space-y-5 pb-24">
+      {/* ─── 1. HERO IDENTITY CARD ──────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-6 flex items-start gap-5 flex-wrap">
+          <div className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-[20px] font-display font-semibold tracking-tight ${
+            form.agent_gender === 'female' ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' : 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'
+          }`}>
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <Kicker>Persona</Kicker>
+            <h2 className="font-display text-[26px] md:text-[28px] font-semibold text-ant-ink mt-0.5 leading-tight tracking-[-0.02em]">
+              {form.agent_name || 'Unnamed'}, {form.agent_age}
+            </h2>
+            <p className="font-serif-display italic text-[13.5px] text-ant-muted mt-1 max-w-2xl">
+              {form.agent_gender === 'female' ? 'A' : 'A'} <span className="not-italic font-medium text-ant-ink">{form.agent_role}</span> from <span className="not-italic font-medium text-ant-ink">{form.agent_region}</span> — {tenureLabel} at the business.
+            </p>
+            <div className="mt-3 inline-flex items-center gap-2 text-[12px] text-ant-mid bg-ant-light/60 rounded-lg px-3 py-1.5 border border-ant-line">
+              <MessageCircle className="w-3.5 h-3.5" /> Greets with: <span className="text-ant-ink italic">"{previewGreeting}"</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 2. IDENTITY ────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5">
+          <SectionHead
+            kicker="Identity"
+            title="Who are they?"
+            subtitle="The basics customers will perceive on every reply — name, gender, age, where they're from, what they do."
+          />
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+            <Field label="Name">
+              <Input value={form.agent_name} onChange={(e) => setForm({ ...form, agent_name: e.target.value })} placeholder="Salma" className="rounded-lg" />
+            </Field>
+            <Field label="Gender">
+              <Select value={form.agent_gender} onValueChange={(v) => setForm({ ...form, agent_gender: v as 'male' | 'female' })}>
+                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Age">
+              <Input type="number" min={18} max={80} value={form.agent_age} onChange={(e) => setForm({ ...form, agent_age: Number(e.target.value) })} className="rounded-lg" />
+            </Field>
+            <Field label="City of origin">
+              <Input value={form.agent_region} onChange={(e) => setForm({ ...form, agent_region: e.target.value })} placeholder="Casablanca" className="rounded-lg" />
+            </Field>
+            <Field label="Role at the business">
+              <Select value={form.agent_role} onValueChange={(v) => setForm({ ...form, agent_role: v as PersonaRow['agent_role'] })}>
+                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="commercial">Commercial / Sales</SelectItem>
+                  <SelectItem value="assistant">Assistant</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="owner">Owner</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Tenure (months)" hint="How long they've been at this business — affects familiarity in their tone.">
+              <Input type="number" min={0} value={form.agent_tenure_months} onChange={(e) => setForm({ ...form, agent_tenure_months: Number(e.target.value) })} className="rounded-lg" />
+            </Field>
+          </div>
+          <div className="mt-5">
+            <Field label="Backstory" hint="Two or three sentences. Why are they here? What do they care about? The brain will internalize it.">
+              <Textarea
+                rows={3}
+                value={form.backstory ?? ''}
+                onChange={(e) => setForm({ ...form, backstory: e.target.value })}
+                placeholder="Originaire de Casablanca, je travaille ici depuis quelques mois. J'aime aider les clients à trouver ce qu'ils cherchent rapidement et sans pression."
+                className="rounded-xl border-ant-line bg-ant-light/50 text-[13px] leading-relaxed focus-visible:ring-ant-orange focus-visible:ring-offset-0 resize-none px-4 py-3"
+              />
+            </Field>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 3. VOICE & STYLE ──────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5">
+          <SectionHead
+            kicker="Voice"
+            title="How do they sound?"
+            subtitle="Four dials shape every reply. Below them, the exact phrases they open and close with."
+          />
+          <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <PersonaDial
+              label="Formality"
+              value={cs.formality || 'medium'}
+              onChange={(v) => setCs('formality', v)}
+              options={[{ v: 'low', l: 'Casual' }, { v: 'medium', l: 'Medium' }, { v: 'high', l: 'Formal' }]}
+            />
+            <PersonaDial
+              label="Humor"
+              value={cs.humor || 'light'}
+              onChange={(v) => setCs('humor', v)}
+              options={[{ v: 'none', l: 'None' }, { v: 'dry', l: 'Dry' }, { v: 'light', l: 'Light' }, { v: 'playful', l: 'Playful' }]}
+            />
+            <PersonaDial
+              label="Emoji"
+              value={cs.emoji || 'light'}
+              onChange={(v) => setCs('emoji', v)}
+              options={[{ v: 'none', l: 'None' }, { v: 'light', l: 'Light' }, { v: 'heavy', l: 'Heavy' }]}
+            />
+            <PersonaDial
+              label="Reply length"
+              value={cs.length || 'medium'}
+              onChange={(v) => setCs('length', v)}
+              options={[{ v: 'short', l: 'Short' }, { v: 'medium', l: 'Medium' }, { v: 'long', l: 'Long' }]}
+            />
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Field label="Greeting" hint="The opener they use on a fresh thread.">
+              <Input value={form.greeting_style ?? ''} onChange={(e) => setForm({ ...form, greeting_style: e.target.value })} placeholder="salam, kifash n9der n3awnek?" className="rounded-lg" />
+            </Field>
+            <Field label="Sign-off" hint="The line that closes a conversation.">
+              <Input value={form.sign_off_style ?? ''} onChange={(e) => setForm({ ...form, sign_off_style: e.target.value })} placeholder="barakallahofik 🙏" className="rounded-lg" />
+            </Field>
+          </div>
+          <div className="mt-5">
+            <Field label="Decision philosophy" hint="The principle they fall back on when uncertain — push, propose, wait, escalate?">
+              <Textarea
+                rows={2}
+                value={form.decision_philosophy ?? ''}
+                onChange={(e) => setForm({ ...form, decision_philosophy: e.target.value })}
+                placeholder="Propose options clearly, never pressure, ask before assuming."
+                className="rounded-xl border-ant-line bg-ant-light/50 text-[13px] leading-relaxed focus-visible:ring-ant-orange focus-visible:ring-offset-0 resize-none px-4 py-3"
+              />
+            </Field>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 4. BOUNDARIES ─────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5">
+          <SectionHead
+            kicker="Boundaries"
+            title="What they won't do."
+            subtitle="Topics they refuse to engage with, and the moments they hand the conversation to a human."
+          />
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <Field label="Forbidden topics" hint="One per line. The brain will deflect any of these.">
+                <PersonaTagEditor
+                  value={form.forbidden_topics || []}
+                  onChange={(arr) => setForm({ ...form, forbidden_topics: arr })}
+                  placeholder="Add a topic and press Enter — politics, religion, personal opinions…"
+                  accent="warning"
+                />
+              </Field>
+            </div>
+            <div>
+              <Field label="Escalation triggers" hint="One per line. When any matches, the brain hands off to you.">
+                <PersonaTagEditor
+                  value={form.escalation_triggers || []}
+                  onChange={(arr) => setForm({ ...form, escalation_triggers: arr })}
+                  placeholder="Add a trigger and press Enter — serious complaint, legal request…"
+                  accent="alert"
+                />
+              </Field>
+            </div>
+          </div>
+          {/* Hidden textarea fallback for power-users (kept for keyboard paste of long lists) */}
+          <details className="mt-4 group">
+            <summary className="text-[10.5px] uppercase tracking-[0.2em] text-ant-muted cursor-pointer hover:text-ant-ink">Paste as text (one per line)</summary>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Textarea
+                rows={3}
+                value={(form.forbidden_topics || []).join('\n')}
+                onChange={(e) => setListField('forbidden_topics', e.target.value)}
+                placeholder="forbidden topics, one per line"
+                className="rounded-xl border-ant-line bg-ant-light/50 text-[12px] leading-relaxed focus-visible:ring-ant-orange focus-visible:ring-offset-0 resize-none px-3 py-2"
+              />
+              <Textarea
+                rows={3}
+                value={(form.escalation_triggers || []).join('\n')}
+                onChange={(e) => setListField('escalation_triggers', e.target.value)}
+                placeholder="escalation triggers, one per line"
+                className="rounded-xl border-ant-line bg-ant-light/50 text-[12px] leading-relaxed focus-visible:ring-ant-orange focus-visible:ring-offset-0 resize-none px-3 py-2"
+              />
+            </div>
+          </details>
+        </div>
+      </section>
+
+      {/* ─── STICKY SAVE BAR ───────────────────────────────────────── */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
+        <div className={`flex items-center gap-3 rounded-full border px-4 py-2 shadow-md transition-all ${
+          dirty
+            ? 'bg-ant-ink text-ant-paper border-ant-ink'
+            : 'bg-ant-paper text-ant-mid border-ant-line'
+        }`}>
+          <span className="text-[11px] uppercase tracking-[0.18em] font-semibold">
+            {dirty ? 'Unsaved changes' : 'All saved'}
+          </span>
+          <span className="hidden md:inline text-[10.5px] opacity-70">·</span>
+          <span className="hidden md:inline text-[10.5px] opacity-70">⌘ S</span>
+          <Button
+            size="sm"
+            variant={dirty ? 'secondary' : 'outline'}
+            disabled={!dirty || save.isPending}
+            onClick={() => data && setForm(data)}
+            className="rounded-full h-7"
+          >
+            <RotateCcw className="w-3 h-3 mr-1" /> Reset
+          </Button>
+          <Button
+            size="sm"
+            disabled={!dirty || save.isPending}
+            onClick={() => form && save.mutate(form)}
+            className="rounded-full h-7 bg-ant-orange hover:bg-ant-orange/90 text-white"
+          >
+            <Save className="w-3 h-3 mr-1" /> {save.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Small persona "dial" — segmented control rendered as chip pills.
+function PersonaDial({
+  label, value, onChange, options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { v: string; l: string }[];
+}) {
+  return (
+    <div className="rounded-xl border border-ant-line bg-ant-light/40 p-2.5">
+      <p className="text-[9.5px] uppercase tracking-[0.18em] text-ant-mid font-semibold mb-2 px-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {options.map((opt) => {
+          const active = value === opt.v;
+          return (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => onChange(opt.v)}
+              className={`text-[11px] px-2.5 py-1 rounded-full border transition-all ${
+                active
+                  ? 'bg-ant-ink text-ant-paper border-ant-ink'
+                  : 'bg-ant-paper text-ant-mid border-ant-line hover:text-ant-ink hover:border-ant-mid'
+              }`}
+            >
+              {opt.l}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Tag-pill editor for forbidden_topics + escalation_triggers — type and press
+// Enter to add a chip, click X on a chip to remove. Free-form, no taxonomy.
+function PersonaTagEditor({
+  value, onChange, placeholder, accent,
+}: {
+  value: string[];
+  onChange: (arr: string[]) => void;
+  placeholder: string;
+  accent: 'warning' | 'alert';
+}) {
+  const [draft, setDraft] = useState('');
+  const palette = accent === 'warning'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
+    : 'bg-rose-50 text-rose-800 border-rose-200';
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (value.includes(v)) { setDraft(''); return; }
+    onChange([...value, v]);
+    setDraft('');
+  };
+  return (
+    <div className="rounded-xl border border-ant-line bg-ant-light/40 px-2.5 py-2 min-h-[80px] flex flex-wrap items-start gap-1.5">
+      {value.map((t, i) => (
+        <span
+          key={`${t}-${i}`}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] ${palette}`}
+        >
+          {t}
+          <button
+            type="button"
+            onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+            className="opacity-60 hover:opacity-100"
+            aria-label={`Remove ${t}`}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); add(); }
+          else if (e.key === 'Backspace' && !draft && value.length > 0) {
+            onChange(value.slice(0, -1));
+          }
+        }}
+        onBlur={() => add()}
+        placeholder={value.length === 0 ? placeholder : 'Add another…'}
+        className="flex-1 min-w-[140px] bg-transparent border-0 outline-none text-[12px] text-ant-ink placeholder:text-ant-muted px-1 py-1"
+      />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// MEMORY TAB — institutional business memory (cross-customer patterns)
+// ──────────────────────────────────────────────────────────────────────
+type MemoryRow = {
+  id: string;
+  memory_type: 'pattern' | 'preference' | 'warning' | 'tactic' | 'fact';
+  source: 'owner_curated' | 'brain_observed' | 'auto_extracted';
+  status: 'pending' | 'active' | 'archived' | 'rejected';
+  content: string;
+  evidence: string | null;
+  confidence: number;
+  evidence_count: number;
+  last_reinforced_at: string;
+  created_at: string;
+};
+
+// Editorial stat — used in the Memory hero strip. Matches the typography
+// scale of CapacityFact but with an accent dot instead of a sub-line, since
+// memory counts don't have a meaningful sub-label.
+function MemoryStat({
+  label, value, tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'green' | 'amber' | 'violet' | 'ink';
+}) {
+  const dotCls =
+    tone === 'green'  ? 'bg-ant-green' :
+    tone === 'amber'  ? 'bg-ant-orange' :
+    tone === 'violet' ? 'bg-violet-500' :
+                        'bg-ant-ink';
+  return (
+    <div className="min-w-0">
+      <p className="text-[9.5px] uppercase tracking-[0.2em] text-ant-mid font-semibold flex items-center gap-1.5">
+        <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />
+        {label}
+      </p>
+      <p className="mt-1 text-[20px] font-display font-semibold text-ant-ink tabular-nums leading-none">{value}</p>
+    </div>
+  );
+}
+
+// Memory type → icon + tint. Single source of truth used by the badge,
+// the composer pills, and the card row icon.
+const MEMORY_TYPE_META: Record<MemoryRow['memory_type'], { icon: typeof Sparkles; tint: string; ring: string; label: string; sample: string }> = {
+  pattern:    { icon: TrendingUp, tint: 'bg-sky-50 text-sky-700',         ring: 'ring-sky-200',     label: 'Pattern',    sample: 'Casa customers usually order between 7-9pm.' },
+  preference: { icon: Hand,       tint: 'bg-violet-50 text-violet-700',   ring: 'ring-violet-200',  label: 'Preference', sample: 'Tangier customers prefer COD over bank transfer.' },
+  warning:    { icon: AlertCircle,tint: 'bg-amber-50 text-amber-700',     ring: 'ring-amber-200',   label: 'Warning',    sample: 'If customer says "ghadi nkhalss daba" twice without action, it usually means fake order.' },
+  tactic:     { icon: Sparkles,   tint: 'bg-emerald-50 text-emerald-700', ring: 'ring-emerald-200', label: 'Tactic',     sample: 'Bundling 2+ macarons with free delivery converts 40% better than per-piece pricing.' },
+  fact:       { icon: Info,       tint: 'bg-slate-100 text-slate-700',    ring: 'ring-slate-200',   label: 'Fact',       sample: "We're closed Sundays. We don't ship to the Sahara region." },
+};
+
+function MemoryTab({ businessId }: { businessId: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [filter, setFilter] = useState<'all' | 'active' | 'pending' | 'archived'>('active');
+  const [search, setSearch] = useState('');
+  const [draft, setDraft]   = useState({ memory_type: 'pattern' as MemoryRow['memory_type'], content: '', evidence: '' });
+
+  // Fetch ALL memories (one query); filter + search client-side so we can
+  // render the per-status counts in the tab pills without N round-trips.
+  const { data: allRows, isLoading } = useQuery<MemoryRow[]>({
+    queryKey: ['ai-business-memory', businessId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('ai_business_memory')
+        .select('id, memory_type, source, status, content, evidence, confidence, evidence_count, last_reinforced_at, created_at')
+        .eq('business_id', businessId)
+        .order('last_reinforced_at', { ascending: false });
+      return (data || []) as MemoryRow[];
+    },
+  });
+
+  const callMemoryWrite = async (body: Record<string, unknown>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('not authenticated');
+    const r = await fetch(`${(supabase as any).supabaseUrl}/functions/v1/ai-memory-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ business_id: businessId, ...body }),
+    });
+    const j = await r.json();
+    if (!j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    return j;
+  };
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (draft.content.trim().length < 10) throw new Error('Content must be at least 10 chars');
+      return callMemoryWrite({ action: 'create', memory_type: draft.memory_type, content: draft.content.trim(), evidence: draft.evidence.trim() || null });
+    },
+    onSuccess: () => {
+      toast({ title: 'Memory added', description: 'Embedded and active. Brain will use it on the next conversation.' });
+      setDraft({ memory_type: 'pattern', content: '', evidence: '' });
+      qc.invalidateQueries({ queryKey: ['ai-business-memory', businessId] });
+    },
+    onError: (e: any) => toast({ title: 'Failed', description: e?.message || 'unknown', variant: 'destructive' }),
+  });
+
+  const archive = useMutation({
+    mutationFn: (memoryId: string) => callMemoryWrite({ action: 'archive', memory_id: memoryId }),
+    onSuccess: () => {
+      toast({ title: 'Archived' });
+      qc.invalidateQueries({ queryKey: ['ai-business-memory', businessId] });
+    },
+    onError: (e: any) => toast({ title: 'Failed', description: e?.message || 'unknown', variant: 'destructive' }),
+  });
+
+  const setStatus = useMutation({
+    mutationFn: ({ memory_id, status }: { memory_id: string; status: MemoryRow['status'] }) =>
+      callMemoryWrite({ action: 'update', memory_id, status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai-business-memory', businessId] }),
+    onError: (e: any) => toast({ title: 'Failed', description: e?.message || 'unknown', variant: 'destructive' }),
+  });
+
+  const rows = allRows || [];
+  const counts = {
+    active:   rows.filter((r) => r.status === 'active').length,
+    pending:  rows.filter((r) => r.status === 'pending').length,
+    archived: rows.filter((r) => r.status === 'archived').length,
+    all:      rows.length,
+  };
+  const visible = rows.filter((r) => {
+    if (filter !== 'all' && r.status !== filter) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      if (!(r.content || '').toLowerCase().includes(q) && !(r.evidence || '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  const sourceCounts = {
+    owner_curated:   rows.filter((r) => r.source === 'owner_curated').length,
+    brain_observed:  rows.filter((r) => r.source === 'brain_observed').length,
+    auto_extracted: rows.filter((r) => r.source === 'auto_extracted').length,
+  };
+  const draftMeta = MEMORY_TYPE_META[draft.memory_type];
+
+  return (
+    <div className="space-y-5 pb-6">
+      {/* ─── 1. HERO ─────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5 flex items-start justify-between gap-6 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <Kicker>Business memory</Kicker>
+            <h2 className="font-display text-[26px] md:text-[28px] font-semibold text-ant-ink mt-0.5 leading-tight tracking-[-0.02em]">
+              The brain remembers what works.
+            </h2>
+            <p className="font-serif-display italic text-[13.5px] text-ant-muted mt-1 max-w-2xl">
+              Patterns, preferences, warnings, tactics, facts — every customer turn vector-searches the top five most relevant memories and the brain reads them as context.
+            </p>
+          </div>
+          <div className="flex items-center gap-5 shrink-0">
+            <MemoryStat label="Active"          value={counts.active}                tone="green" />
+            <MemoryStat label="Pending"         value={counts.pending}               tone="amber" />
+            <MemoryStat label="You added"       value={sourceCounts.owner_curated}   tone="ink" />
+            <MemoryStat label="Brain-observed"  value={sourceCounts.brain_observed}  tone="violet" />
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 2. COMPOSER ─────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5">
+          <SectionHead
+            kicker="Add a memory"
+            title="Teach the brain something it should know."
+            subtitle="One actionable sentence. Be specific — fuzzy memories produce fuzzy decisions."
+          />
+
+          {/* Type pills */}
+          <div className="mt-4">
+            <p className="text-[10.5px] uppercase tracking-[0.2em] text-ant-mid font-semibold mb-2">Type</p>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(MEMORY_TYPE_META) as MemoryRow['memory_type'][]).map((t) => {
+                const meta = MEMORY_TYPE_META[t];
+                const Icon = meta.icon;
+                const active = draft.memory_type === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, memory_type: t })}
+                    className={`inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-full border transition-all ${
+                      active
+                        ? `${meta.tint} ring-2 ${meta.ring} border-transparent`
+                        : 'bg-ant-paper text-ant-mid border-ant-line hover:text-ant-ink hover:border-ant-mid'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" /> {meta.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="mt-5 relative">
+            <Textarea
+              rows={3}
+              value={draft.content}
+              onChange={(e) => setDraft({ ...draft, content: e.target.value.slice(0, 600) })}
+              placeholder={draftMeta.sample}
+              className="rounded-xl border-ant-line bg-ant-light/50 text-[13px] leading-relaxed focus-visible:ring-ant-orange focus-visible:ring-offset-0 resize-none px-4 py-3"
+            />
+            <span className={`absolute bottom-3 right-4 text-[10px] tabular-nums ${(draft.content.length) > 540 ? 'text-ant-orange' : 'text-ant-muted'}`}>
+              {draft.content.length}/600
+            </span>
+          </div>
+
+          {/* Evidence */}
+          <div className="mt-3">
+            <Textarea
+              rows={2}
+              value={draft.evidence}
+              onChange={(e) => setDraft({ ...draft, evidence: e.target.value })}
+              placeholder="Optional evidence — a short rationale or quote backing this learning."
+              className="rounded-xl border-ant-line bg-ant-light/30 text-[12.5px] leading-relaxed focus-visible:ring-ant-orange focus-visible:ring-offset-0 resize-none px-4 py-3"
+            />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-[11px] text-ant-muted italic max-w-md">
+              Owner-added memories activate immediately. The brain may also propose memories — those land in <span className="text-ant-ink not-italic">pending</span>.
+            </p>
+            <Button
+              onClick={() => create.mutate()}
+              disabled={create.isPending || draft.content.trim().length < 10}
+              className="rounded-lg bg-ant-orange hover:bg-ant-orange/90 text-white"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" /> {create.isPending ? 'Adding…' : 'Add memory'}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 3. LIST WITH FILTERS + SEARCH ────────────────────────── */}
+      <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+        <div className="px-6 md:px-7 py-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['active','pending','archived','all'] as const).map((f) => {
+                const active = filter === f;
+                const c = counts[f];
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`text-[11.5px] px-3 py-1.5 rounded-full border transition-all inline-flex items-center gap-1.5 capitalize ${
+                      active
+                        ? 'bg-ant-ink text-ant-paper border-ant-ink'
+                        : 'bg-ant-paper text-ant-mid border-ant-line hover:text-ant-ink hover:border-ant-mid'
+                    }`}
+                  >
+                    {f}
+                    <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-full ${
+                      active ? 'bg-ant-paper/20 text-ant-paper' : 'bg-ant-line-soft text-ant-mid'
+                    }`}>{c}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-muted" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search memories…"
+                className="pl-8 h-8 w-[220px] text-[12px] rounded-lg border-ant-line bg-ant-light/40"
+              />
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="mt-5">
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-20 w-full rounded-xl" />
+                <Skeleton className="h-20 w-full rounded-xl" />
+                <Skeleton className="h-20 w-full rounded-xl" />
+              </div>
+            ) : visible.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-ant-line-soft mb-3">
+                  <BrainCircuit className="w-5 h-5 text-ant-mid" />
+                </div>
+                <p className="text-[13px] text-ant-mid">
+                  {search ? 'No memories match this search.' :
+                   filter === 'pending' ? 'Nothing pending. The brain only proposes memories when it notices a clear pattern.' :
+                   filter === 'archived' ? 'No archived memories yet.' :
+                   'No memories yet — add the first one above.'}
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {visible.map((m) => {
+                  const meta = MEMORY_TYPE_META[m.memory_type];
+                  const Icon = meta.icon;
+                  return (
+                    <li
+                      key={m.id}
+                      className={`group rounded-xl border bg-ant-paper transition-all ${
+                        m.status === 'pending' ? 'border-amber-200 ring-1 ring-amber-100' :
+                        m.status === 'archived' ? 'border-ant-line opacity-70' :
+                        'border-ant-line hover:border-ant-mid'
+                      }`}
+                    >
+                      <div className="px-4 py-3.5 flex items-start gap-3">
+                        <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${meta.tint} ring-1 ${meta.ring}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ant-ink">{meta.label}</span>
+                            <span className="text-ant-line">·</span>
+                            <span className="text-[10px] uppercase tracking-[0.16em] text-ant-mid">
+                              {m.source === 'owner_curated' ? 'You added' : m.source === 'brain_observed' ? 'Brain observed' : 'Auto-extracted'}
+                            </span>
+                            {m.status === 'pending' && (
+                              <span className="text-[10px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Pending review</span>
+                            )}
+                            {m.status === 'archived' && (
+                              <span className="text-[10px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded bg-ant-line-soft text-ant-mid border border-ant-line">Archived</span>
+                            )}
+                            <span className="ml-auto text-[10px] text-ant-muted tabular-nums">conf {Math.round(Number(m.confidence) * 100)}%</span>
+                          </div>
+                          <p className="text-[13.5px] text-ant-ink leading-snug">{m.content}</p>
+                          {m.evidence && (
+                            <p className="text-[11.5px] text-ant-mid italic mt-1.5 font-serif-display">— {m.evidence}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {m.status === 'pending' && (
+                            <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ memory_id: m.id, status: 'active' })} className="h-7 rounded-lg text-[11px]">
+                              <Check className="w-3 h-3 mr-1" /> Approve
+                            </Button>
+                          )}
+                          {m.status !== 'archived' && (
+                            <Button size="sm" variant="outline" onClick={() => archive.mutate(m.id)} className="h-7 rounded-lg text-[11px]">
+                              <Trash2 className="w-3 h-3 mr-1" /> Archive
+                            </Button>
+                          )}
+                          {m.status === 'archived' && (
+                            <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ memory_id: m.id, status: 'active' })} className="h-7 rounded-lg text-[11px]">
+                              <RefreshCw className="w-3 h-3 mr-1" /> Reactivate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -1402,13 +2379,13 @@ function SkillsTab({ businessId }: { businessId: string }) {
     queryFn: async () => {
       const { data: catalog } = await supabase
         .from('ai_skills')
-        .select('id, slug, name, description, category, default_safety_tier, deprecated')
+        .select('id, slug, name, description, category, default_safety_tier, deprecated, config_schema')
         .eq('deprecated', false)
         .order('category', { ascending: true })
         .order('name',     { ascending: true });
       const { data: bizs } = await supabase
         .from('ai_business_skills')
-        .select('id, skill_id, enabled, mode')
+        .select('id, skill_id, enabled, mode, config')
         .eq('business_id', businessId);
       const map = new Map<string, any>();
       (bizs || []).forEach((b: any) => map.set(b.skill_id, b));
@@ -1419,6 +2396,8 @@ function SkillsTab({ businessId }: { businessId: string }) {
           bs_id:    b?.id ?? null,
           enabled:  b?.enabled ?? false,
           mode:     (b?.mode ?? 'sandbox') as SkillMode,
+          config:   (b?.config ?? {}) as Record<string, any>,
+          config_schema: (s as any).config_schema as SkillRow['config_schema'],
         };
       });
     },
@@ -1444,9 +2423,70 @@ function SkillsTab({ businessId }: { businessId: string }) {
     onError: (e: any) => toast({ title: 'Toggle failed', description: e?.message || 'unknown', variant: 'destructive' }),
   });
 
+  // Read trust_mode_enabled — required to know which skills can flip to live
+  // even when their default_safety_tier is sandbox_required.
+  const { data: brainTrust } = useQuery<{ trust_mode_enabled: boolean } | null>({
+    queryKey: ['ai-brain-trust', businessId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('ai_business_brain')
+        .select('trust_mode_enabled')
+        .eq('business_id', businessId)
+        .maybeSingle();
+      return data as any;
+    },
+  });
+
+  // Per-skill live/sandbox toggle. Insert the row if it doesn't exist yet.
+  const setMode = useMutation({
+    mutationFn: async ({ skill, mode }: { skill: SkillRow; mode: SkillMode }) => {
+      if (skill.bs_id) {
+        const { error } = await supabase
+          .from('ai_business_skills')
+          .update({ mode, updated_at: new Date().toISOString() })
+          .eq('id', skill.bs_id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase
+          .from('ai_business_skills')
+          .insert({ business_id: businessId, skill_id: skill.id, enabled: skill.enabled, mode });
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai-brain-skills', businessId] }),
+    onError: (e: any) => toast({ title: 'Mode change failed', description: e?.message || 'unknown', variant: 'destructive' }),
+  });
+
+  // Save the per-business config blob for a skill. We always upsert via bs_id
+  // — if the skill row doesn't exist yet (e.g. owner is configuring before
+  // toggling on), insert with enabled=false so config persists.
+  const saveConfig = useMutation({
+    mutationFn: async ({ skill, config }: { skill: SkillRow; config: Record<string, any> }) => {
+      if (skill.bs_id) {
+        const { error } = await supabase
+          .from('ai_business_skills')
+          .update({ config, updated_at: new Date().toISOString() })
+          .eq('id', skill.bs_id);
+        if (error) throw new Error(error.message);
+      } else {
+        const mode: SkillMode = skill.default_safety_tier === 'safe_by_default' ? 'live' : 'sandbox';
+        const { error } = await supabase
+          .from('ai_business_skills')
+          .insert({ business_id: businessId, skill_id: skill.id, enabled: false, mode, config });
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast({ title: 'Config saved', description: 'Brain will use the new settings on the next call.' });
+      qc.invalidateQueries({ queryKey: ['ai-brain-skills', businessId] });
+    },
+    onError: (e: any) => toast({ title: 'Save failed', description: e?.message || 'unknown', variant: 'destructive' }),
+  });
+
   if (isLoading) return <Skeleton className="h-96 w-full rounded-xl" />;
 
-  // Wired skills only — others stay hidden until implementation lands.
+  // Wired skills — implemented end-to-end in ai-router + ai-tool-runner.
+  // The catalog now matches this list 1:1 after Phase 1 cleanup of stubs.
   const WIRED = new Set([
     'answer_faq', 'search_products', 'lookup_order_by_phone', 'explain_order_status',
     'check_delivery_zone', 'validate_morocco_address', 'quote_shipping_cost',
@@ -1456,6 +2496,13 @@ function SkillsTab({ businessId }: { businessId: string }) {
     'get_business_info', 'get_product_details', 'send_product_media',
     'apply_pricing_rule',
     'generate_devis', 'generate_facture', 'create_delivery_note',
+    'recommend_product', 'send_catalog_picker', 'react_with_emoji',
+    'record_business_learning',
+    'analyze_image',
+    'edit_order', 'cancel_order', 'change_delivery_info',
+    'upsell_cross_sell', 'bundle_offer',
+    'identify_repeat_customer', 'summarize_thread_for_human',
+    'detect_spam_or_scam', 'request_review_after_delivery',
   ]);
   const wired = (skills || []).filter((s) => WIRED.has(s.slug));
 
@@ -1553,6 +2600,11 @@ function SkillsTab({ businessId }: { businessId: string }) {
                     skill={s}
                     busy={setEnabled.isPending}
                     onToggle={(v) => setEnabled.mutate({ skill: s, enabled: v })}
+                    saving={saveConfig.isPending}
+                    onSaveConfig={(config) => saveConfig.mutate({ skill: s, config })}
+                    trustModeEnabled={!!brainTrust?.trust_mode_enabled}
+                    modeBusy={setMode.isPending}
+                    onSetMode={(mode) => setMode.mutate({ skill: s, mode })}
                   />
                 ))}
               </div>
@@ -1566,11 +2618,17 @@ function SkillsTab({ businessId }: { businessId: string }) {
 
 // ─── Skill card — one tile per skill ─────────────────────────────────
 function SkillCard({
-  skill, busy, onToggle,
+  skill, busy, onToggle, saving, onSaveConfig,
+  trustModeEnabled, modeBusy, onSetMode,
 }: {
   skill: SkillRow;
   busy: boolean;
   onToggle: (v: boolean) => void;
+  saving: boolean;
+  onSaveConfig: (config: Record<string, any>) => void;
+  trustModeEnabled: boolean;
+  modeBusy: boolean;
+  onSetMode: (mode: SkillMode) => void;
 }) {
   const meta = CATEGORY_META[skill.category] || CATEGORY_META.messaging;
   const Icon = SKILL_ICONS[skill.slug] || Sparkles;
@@ -1578,6 +2636,23 @@ function SkillCard({
   const isSandbox = skill.enabled && skill.mode === 'sandbox';
   const isOff     = !skill.enabled;
   const lockedSandbox = skill.default_safety_tier === 'sandbox_required';
+
+  const fields = (skill.config_schema?.fields || []) as SkillConfigField[];
+  const hasConfig = fields.length > 0;
+  const [open, setOpen] = useState(false);
+  // Local form state seeded from saved config (with schema defaults) so
+  // unsaved edits don't get nuked on a query refetch.
+  const initialCfg = useMemo(() => {
+    const out: Record<string, any> = { ...(skill.config || {}) };
+    for (const f of fields) {
+      if (out[f.key] === undefined && f.default !== undefined) out[f.key] = f.default;
+    }
+    return out;
+  }, [skill.config, fields]);
+  const [cfg, setCfg] = useState<Record<string, any>>(initialCfg);
+  // Re-sync if the saved config changes (after a successful save).
+  useEffect(() => { setCfg(initialCfg); /* eslint-disable-next-line */ }, [JSON.stringify(initialCfg)]);
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(initialCfg);
 
   const stateText  = isLive ? 'Live' : isSandbox ? 'Sandbox' : 'Off';
   const stateClass = isLive
@@ -1587,60 +2662,296 @@ function SkillCard({
       : 'text-ant-mid bg-ant-line-soft ring-ant-line';
 
   return (
-    <button
-      type="button"
-      onClick={() => !busy && onToggle(!skill.enabled)}
-      disabled={busy}
-      className={`group text-left rounded-2xl border bg-ant-paper p-4 transition-all relative
+    <div
+      className={`group rounded-2xl border bg-ant-paper transition-all relative
         ${isOff
-          ? 'border-ant-line opacity-65 hover:opacity-100 hover:border-ant-line/80'
-          : 'border-ant-line shadow-[0_1px_0_rgba(0,0,0,0.02)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}
-        ${busy ? 'cursor-wait' : 'cursor-pointer'}
+          ? 'border-ant-line opacity-75 hover:opacity-100 hover:border-ant-line/80'
+          : 'border-ant-line shadow-[0_1px_0_rgba(0,0,0,0.02)]'}
+        ${open ? 'shadow-[0_2px_12px_rgba(0,0,0,0.05)]' : ''}
       `}
     >
-      {/* Top row: icon + state pill */}
-      <div className="flex items-start justify-between gap-3">
-        <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ring-1 ${meta.tint} ${meta.ring}`}>
-          <Icon className={`w-[18px] h-[18px] ${meta.iconText}`} strokeWidth={1.6} />
+      {/* Clickable header zone — toggles enabled. Stops bubbling so the switch + config-button work independently. */}
+      <button
+        type="button"
+        onClick={() => !busy && onToggle(!skill.enabled)}
+        disabled={busy}
+        className={`w-full text-left p-4 ${busy ? 'cursor-wait' : 'cursor-pointer'}`}
+      >
+        {/* Top row: icon + state pill */}
+        <div className="flex items-start justify-between gap-3">
+          <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ring-1 ${meta.tint} ${meta.ring}`}>
+            <Icon className={`w-[18px] h-[18px] ${meta.iconText}`} strokeWidth={1.6} />
+          </div>
+          <span className={`text-[9.5px] uppercase tracking-[0.18em] font-semibold px-2 py-0.5 rounded-full ring-1 ${stateClass}`}>
+            {stateText}
+          </span>
         </div>
-        <span className={`text-[9.5px] uppercase tracking-[0.18em] font-semibold px-2 py-0.5 rounded-full ring-1 ${stateClass}`}>
-          {stateText}
-        </span>
+
+        {/* Title + description */}
+        <h4 className="mt-3 font-display text-[14.5px] font-semibold text-ant-ink leading-tight tracking-[-0.01em]">
+          {skill.name}
+        </h4>
+        <p className="text-[11.5px] text-ant-muted leading-relaxed mt-1 line-clamp-3 min-h-[44px]">
+          {skill.description}
+        </p>
+      </button>
+
+      {/* Footer (interactive — outside the click-to-toggle button) */}
+      <div className="px-4 pb-4">
+        <div className="pt-3 border-t border-ant-line flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[9.5px] uppercase tracking-[0.16em] font-semibold text-ant-mid flex items-center gap-1.5">
+              {lockedSandbox && <ShieldCheck className="w-3 h-3 text-ant-orange" />}
+              {lockedSandbox ? 'Sandbox required' : skill.default_safety_tier === 'safe_by_default' ? 'Safe by default' : 'Opt-in'}
+            </span>
+            {/* Live/Sandbox segmented toggle — shown only when the skill is enabled. */}
+            {skill.enabled && (
+              <SkillModeToggle
+                mode={skill.mode}
+                busy={modeBusy}
+                lockedSandbox={lockedSandbox}
+                trustModeEnabled={trustModeEnabled}
+                onChange={onSetMode}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {hasConfig && (
+              <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className={`text-[10px] uppercase tracking-[0.16em] font-semibold px-2 py-1 rounded-md inline-flex items-center gap-1 transition-colors ${
+                  open
+                    ? 'bg-ant-ink text-ant-paper'
+                    : dirty
+                      ? 'bg-ant-orange/10 text-ant-orange ring-1 ring-ant-orange/20'
+                      : 'bg-ant-line-soft text-ant-mid hover:text-ant-ink'
+                }`}
+                aria-expanded={open}
+              >
+                {open ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                {dirty && !open ? 'Unsaved' : 'Configure'}
+              </button>
+            )}
+            <Switch
+              checked={skill.enabled}
+              disabled={busy}
+              onCheckedChange={onToggle}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Title + description */}
-      <h4 className="mt-3 font-display text-[14.5px] font-semibold text-ant-ink leading-tight tracking-[-0.01em]">
-        {skill.name}
-      </h4>
-      <p className="text-[11.5px] text-ant-muted leading-relaxed mt-1 line-clamp-3 min-h-[44px]">
-        {skill.description}
-      </p>
-
-      {/* Footer */}
-      <div className="mt-3 pt-3 border-t border-ant-line flex items-center justify-between">
-        <span className="text-[9.5px] uppercase tracking-[0.16em] font-semibold text-ant-mid flex items-center gap-1.5">
-          {lockedSandbox && <ShieldCheck className="w-3 h-3 text-ant-orange" />}
-          {lockedSandbox ? 'Sandbox required' : skill.default_safety_tier === 'safe_by_default' ? 'Safe by default' : 'Opt-in'}
-        </span>
-        {/* Switch acts as a visual indicator and a backup target. The whole card is clickable. */}
-        <span onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-          <Switch
-            checked={skill.enabled}
-            disabled={busy}
-            onCheckedChange={onToggle}
-          />
-        </span>
-      </div>
+      {/* Inline config panel — auto-rendered from config_schema */}
+      {open && hasConfig && (
+        <div className="border-t border-ant-line bg-ant-light/40 px-4 py-4 rounded-b-2xl space-y-4">
+          <SchemaForm fields={fields} value={cfg} onChange={setCfg} />
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!dirty || saving}
+              onClick={() => setCfg(initialCfg)}
+              className="h-7 rounded-lg text-[11px]"
+            >
+              Reset
+            </Button>
+            <Button
+              size="sm"
+              disabled={!dirty || saving}
+              onClick={() => onSaveConfig(cfg)}
+              className="h-7 rounded-lg text-[11px] bg-ant-orange hover:bg-ant-orange/90 text-white"
+            >
+              <Save className="w-3 h-3 mr-1" /> {saving ? 'Saving…' : 'Save config'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Faint accent strip at bottom when active */}
       {!isOff && (
         <span
-          className={`absolute left-3 right-3 bottom-0 h-[2px] rounded-t-full transition-opacity ${
+          className={`absolute left-3 right-3 bottom-0 h-[2px] rounded-t-full transition-opacity pointer-events-none ${
             isLive ? 'bg-ant-green/30' : 'bg-ant-orange/30'
           }`}
         />
       )}
-    </button>
+    </div>
+  );
+}
+
+// ─── SchemaForm — auto-renders a per-skill config form from JSON schema ─
+// Field types: text | textarea | integer | percent | number | boolean |
+//              select | tag_list | hours | days
+function SchemaForm({
+  fields, value, onChange,
+}: {
+  fields: SkillConfigField[];
+  value: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+}) {
+  const setField = (k: string, v: any) => onChange({ ...value, [k]: v });
+  return (
+    <div className="space-y-3">
+      {fields.map((f) => (
+        <SchemaField key={f.key} field={f} value={value[f.key]} onChange={(v) => setField(f.key, v)} />
+      ))}
+    </div>
+  );
+}
+
+function SchemaField({
+  field, value, onChange,
+}: {
+  field: SkillConfigField;
+  value: any;
+  onChange: (v: any) => void;
+}) {
+  const v = value === undefined || value === null ? (field.default ?? '') : value;
+  const numericInput = (suffix?: string) => (
+    <div className="relative">
+      <Input
+        type="number"
+        min={field.min}
+        max={field.max}
+        value={v ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        placeholder={field.placeholder}
+        className="rounded-lg h-8 text-[12px] pr-12"
+      />
+      {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.14em] text-ant-muted pointer-events-none">{suffix}</span>}
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-3 items-start">
+      <div>
+        <label className="text-[11px] font-medium text-ant-ink leading-tight block">{field.label}</label>
+        {field.hint && <p className="text-[10px] text-ant-muted mt-0.5 leading-snug">{field.hint}</p>}
+      </div>
+      <div>
+        {field.type === 'text' && (
+          <Input value={v} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} className="rounded-lg h-8 text-[12px]" />
+        )}
+        {field.type === 'textarea' && (
+          <Textarea
+            rows={3}
+            value={v}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            className="rounded-lg text-[12px] leading-relaxed bg-ant-paper resize-none px-3 py-2"
+          />
+        )}
+        {field.type === 'integer' && numericInput()}
+        {field.type === 'percent' && numericInput('%')}
+        {field.type === 'hours' && numericInput('hrs')}
+        {field.type === 'days' && numericInput('days')}
+        {field.type === 'number' && numericInput()}
+        {field.type === 'boolean' && (
+          <div className="flex items-center justify-end h-8">
+            <Switch checked={!!v} onCheckedChange={onChange} />
+          </div>
+        )}
+        {field.type === 'select' && (
+          <Select value={String(v ?? '')} onValueChange={onChange}>
+            <SelectTrigger className="rounded-lg h-8 text-[12px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(field.options || []).map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {field.type === 'tag_list' && (
+          <SchemaTagList value={Array.isArray(v) ? v : []} onChange={onChange} placeholder={field.placeholder} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SchemaTagList({
+  value, onChange, placeholder,
+}: {
+  value: string[];
+  onChange: (arr: string[]) => void;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    if (value.includes(t)) { setDraft(''); return; }
+    onChange([...value, t]);
+    setDraft('');
+  };
+  return (
+    <div className="rounded-lg border border-ant-line bg-ant-paper px-2 py-1.5 min-h-[34px] flex flex-wrap items-center gap-1">
+      {value.map((t, i) => (
+        <span key={`${t}-${i}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-ant-line-soft text-[11px] text-ant-ink">
+          {t}
+          <button type="button" onClick={() => onChange(value.filter((_, idx) => idx !== i))} className="opacity-60 hover:opacity-100" aria-label={`Remove ${t}`}>
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); add(); }
+          else if (e.key === 'Backspace' && !draft && value.length > 0) onChange(value.slice(0, -1));
+        }}
+        onBlur={() => add()}
+        placeholder={value.length === 0 ? (placeholder || 'Type and press Enter…') : ''}
+        className="flex-1 min-w-[80px] bg-transparent border-0 outline-none text-[11.5px] text-ant-ink placeholder:text-ant-muted px-1"
+      />
+    </div>
+  );
+}
+
+// Live ↔ Sandbox segmented toggle. Live is locked (with a lock icon) for
+// sandbox-required skills unless the business has trust_mode_enabled.
+function SkillModeToggle({
+  mode, busy, lockedSandbox, trustModeEnabled, onChange,
+}: {
+  mode: SkillMode;
+  busy: boolean;
+  lockedSandbox: boolean;
+  trustModeEnabled: boolean;
+  onChange: (m: SkillMode) => void;
+}) {
+  const liveLocked = lockedSandbox && !trustModeEnabled;
+  return (
+    <div className="inline-flex rounded-md border border-ant-line bg-ant-paper overflow-hidden text-[9.5px] uppercase tracking-[0.14em] font-semibold">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => mode !== 'sandbox' && onChange('sandbox')}
+        className={`px-2 py-0.5 transition-colors ${
+          mode === 'sandbox'
+            ? 'bg-ant-orange/15 text-ant-orange'
+            : 'text-ant-mid hover:text-ant-ink'
+        }`}
+        title="Owner approves every reply before send"
+      >
+        Sandbox
+      </button>
+      <button
+        type="button"
+        disabled={busy || liveLocked}
+        onClick={() => !liveLocked && mode !== 'live' && onChange('live')}
+        className={`px-2 py-0.5 transition-colors flex items-center gap-1 ${
+          liveLocked
+            ? 'opacity-40 cursor-not-allowed text-ant-mid'
+            : mode === 'live'
+              ? 'bg-ant-green/15 text-ant-green'
+              : 'text-ant-mid hover:text-ant-ink'
+        }`}
+        title={liveLocked ? 'Locked — turn on Trust mode in Brain Setup to enable Live for this skill' : 'AI sends without your approval'}
+      >
+        {liveLocked && <ShieldCheck className="w-2.5 h-2.5" />} Live
+      </button>
+    </div>
   );
 }
 

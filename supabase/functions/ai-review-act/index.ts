@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { runPendingSideEffects } from "../_shared/runPendingSideEffects.ts";
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  ai-review-act — owner approve / reject / edit a sandboxed AI    ║
 // ║  decision in the Review Queue.                                    ║
@@ -141,46 +142,11 @@ Deno.serve(async (req) => {
   // skill approval counters for sandbox-mode skills used.
   let applyResults: any = null;
   let mediaSendResults: any[] = [];
+  let catalogPickerResults: any[] = [];
+  let bundleOfferResults: any[] = [];
+  let reviewRequestResults: any[] = [];
   let deliveryNoteResults: any[] = [];
   if (action === "approve" || action === "edit") {
-    // Send any pending product-media actions BEFORE the SQL apply (which marks
-    // them applied). evolution-client send-media is the actual side-effect.
-    if (sentWaMsgId && instance?.status === "open" && inbound?.wa_remote_jid) {
-      const { data: mediaActions } = await service.from("ai_pending_actions")
-        .select("id, kind, payload")
-        .eq("decision_id", decisionId)
-        .eq("kind", "send_product_media")
-        .eq("status", "pending");
-      const number = inbound.wa_remote_jid.replace(/@s\.whatsapp\.net$/, "");
-      for (const ma of mediaActions || []) {
-        const products = (ma.payload?.products || []) as any[];
-        for (const p of products) {
-          if (!p?.image_url) continue;
-          try {
-            const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-client`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
-              body: JSON.stringify({
-                action: "send-media",
-                payload: {
-                  instanceName: instance.name,
-                  number,
-                  mediatype: "image",
-                  caption: ma.payload?.caption || `${p.name}${p.price ? ` — ${p.price} dh` : ""}`,
-                  media: p.image_url,
-                  fileName: `${p.name}.jpg`,
-                },
-              }),
-            });
-            const d = await r.json();
-            mediaSendResults.push({ product: p.name, ok: r.ok && !!d?.key?.id, error: r.ok ? null : (d?.error || `${r.status}`) });
-          } catch (e: any) {
-            mediaSendResults.push({ product: p.name, ok: false, error: e?.message || String(e) });
-          }
-        }
-      }
-    }
-
     // Run create_delivery_note actions BEFORE SQL apply: call provider-integration
     // create_parcel, INSERT company_parcels, write applied_ref_id back so the
     // SQL no-op marker just confirms 'applied'. Mirrors DeliveryNoteWizard
@@ -267,12 +233,26 @@ Deno.serve(async (req) => {
         }
       }
     }
-    try {
-      const r = await service.rpc("ai_apply_pending_actions_for_decision", { p_decision_id: decisionId });
-      applyResults = r.data;
-    } catch (e: any) {
-      applyResults = [{ error: e?.message || "apply failed" }];
+    // Run media / catalog_picker / bundle_offer / review_request side-effects
+    // + the SQL dispatcher + memory-embed via the shared runner. Same code
+    // path used by ai-router's auto-pilot (live-mode) flow — single source
+    // of truth for "what happens to a decision after the text is sent".
+    {
+      const fx = await runPendingSideEffects({
+        service,
+        decisionId,
+        businessId: dec.business_id,
+        instance: instance ? { name: instance.name, status: instance.status } : null,
+        inboundRemoteJid: inbound?.wa_remote_jid ?? null,
+        sentWaMsgId: sentWaMsgId ?? null,
+      });
+      mediaSendResults     = fx.media_sends;
+      catalogPickerResults = fx.catalog_pickers;
+      bundleOfferResults   = fx.bundle_offers;
+      reviewRequestResults = fx.review_requests;
+      applyResults         = fx.applied_actions;
     }
+
     const slugs = Array.isArray(dec.tool_calls)
       ? Array.from(new Set(dec.tool_calls.map((c: any) => c?.skill_slug).filter(Boolean)))
       : [];
@@ -295,7 +275,7 @@ Deno.serve(async (req) => {
     action: `ai.review.${action}`,
     entity_table: "ai_decisions",
     entity_id: decisionId,
-    metadata: { outcome: finalOutcome, sent_wa_message_id: sentWaMsgId, send_error: sendError, applied_actions: applyResults, media_sends: mediaSendResults, delivery_notes: deliveryNoteResults },
+    metadata: { outcome: finalOutcome, sent_wa_message_id: sentWaMsgId, send_error: sendError, applied_actions: applyResults, media_sends: mediaSendResults, catalog_pickers: catalogPickerResults, bundle_offers: bundleOfferResults, review_requests: reviewRequestResults, delivery_notes: deliveryNoteResults },
   });
 
   return json(200, {
@@ -304,6 +284,9 @@ Deno.serve(async (req) => {
     sent_wa_message_id: sentWaMsgId,
     applied_actions: applyResults,
     media_sends: mediaSendResults,
+    catalog_pickers: catalogPickerResults,
+    bundle_offers: bundleOfferResults,
+    review_requests: reviewRequestResults,
     delivery_notes: deliveryNoteResults,
     error: sendError,
   });

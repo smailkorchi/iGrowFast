@@ -90,12 +90,36 @@ async function indexSource(supabase: any, businessId: string, kind: string) {
   });
   if (error) return { ok: false, error: `fetch: ${error.message}`, total: 0, embedded: 0 };
   const list = rows || [];
-  if (list.length === 0) return { ok: true, total: 0, embedded: 0 };
+  const kbKind = KIND_TO_KB_KIND[kind] || "doc";
+
+  // Orphan cleanup: remove chunks whose source_id is no longer in the live
+  // payload. Without this, deleted/trashed records leave stale chunks that
+  // poison RAG search and inflate the dashboard count. Runs even when
+  // list.length === 0 (full wipe scenario).
+  const liveIds: string[] = list.map((r: any) => r.source_id).filter(Boolean);
+  let orphansDeleted = 0;
+  if (liveIds.length === 0) {
+    const { count } = await supabase.from("ai_knowledge_chunks")
+      .delete({ count: "exact" })
+      .eq("business_id", businessId)
+      .eq("source_kind", kbKind);
+    orphansDeleted = count ?? 0;
+  } else {
+    // Supabase doesn't expose `not in (uuid[])` cleanly; use a direct SQL RPC
+    // would be tidier, but the array filter via PostgREST works for ≤ ~1000 ids.
+    const { count } = await supabase.from("ai_knowledge_chunks")
+      .delete({ count: "exact" })
+      .eq("business_id", businessId)
+      .eq("source_kind", kbKind)
+      .not("source_id", "in", `(${liveIds.join(",")})`);
+    orphansDeleted = count ?? 0;
+  }
+
+  if (list.length === 0) return { ok: true, total: 0, embedded: 0, orphans_deleted: orphansDeleted };
 
   // Embed in batches of 50 (OpenAI accepts up to 2048 inputs but we keep it small for cost spread).
   const BATCH = 50;
   let embedded = 0;
-  const kbKind = KIND_TO_KB_KIND[kind] || "doc";
 
   for (let i = 0; i < list.length; i += BATCH) {
     const batch = list.slice(i, i + BATCH);
@@ -137,5 +161,5 @@ async function indexSource(supabase: any, businessId: string, kind: string) {
       embedded++;
     }
   }
-  return { ok: true, total: list.length, embedded };
+  return { ok: true, total: list.length, embedded, orphans_deleted: orphansDeleted };
 }

@@ -154,6 +154,10 @@ export type Database = {
           language: Database["public"]["Enums"]["ai_brain_language"]
           max_consecutive_ai_messages: number
           monthly_cap_usd: number
+          notify_audio_enabled: boolean
+          notify_browser_enabled: boolean
+          notify_quiet_end: string | null
+          notify_quiet_start: string | null
           persona_summary: string | null
           quota_status: Database["public"]["Enums"]["ai_provider_key_status"]
           review_deadline_minutes: number
@@ -163,6 +167,7 @@ export type Database = {
           stt_model_id: string | null
           tone: Database["public"]["Enums"]["ai_brain_tone"]
           tongue_model_id: string | null
+          trust_mode_enabled: boolean
           tts_model_id: string | null
           updated_at: string
         }
@@ -180,6 +185,10 @@ export type Database = {
           language?: Database["public"]["Enums"]["ai_brain_language"]
           max_consecutive_ai_messages?: number
           monthly_cap_usd?: number
+          notify_audio_enabled?: boolean
+          notify_browser_enabled?: boolean
+          notify_quiet_end?: string | null
+          notify_quiet_start?: string | null
           persona_summary?: string | null
           quota_status?: Database["public"]["Enums"]["ai_provider_key_status"]
           review_deadline_minutes?: number
@@ -189,6 +198,7 @@ export type Database = {
           stt_model_id?: string | null
           tone?: Database["public"]["Enums"]["ai_brain_tone"]
           tongue_model_id?: string | null
+          trust_mode_enabled?: boolean
           tts_model_id?: string | null
           updated_at?: string
         }
@@ -206,6 +216,10 @@ export type Database = {
           language?: Database["public"]["Enums"]["ai_brain_language"]
           max_consecutive_ai_messages?: number
           monthly_cap_usd?: number
+          notify_audio_enabled?: boolean
+          notify_browser_enabled?: boolean
+          notify_quiet_end?: string | null
+          notify_quiet_start?: string | null
           persona_summary?: string | null
           quota_status?: Database["public"]["Enums"]["ai_provider_key_status"]
           review_deadline_minutes?: number
@@ -215,6 +229,7 @@ export type Database = {
           stt_model_id?: string | null
           tone?: Database["public"]["Enums"]["ai_brain_tone"]
           tongue_model_id?: string | null
+          trust_mode_enabled?: boolean
           tts_model_id?: string | null
           updated_at?: string
         }
@@ -270,10 +285,200 @@ export type Database = {
           },
         ]
       }
+      ai_business_memory: {
+        Row: {
+          business_id: string
+          confidence: number
+          content: string
+          created_at: string
+          created_by_user_id: string | null
+          embedding: string | null
+          evidence: string | null
+          evidence_count: number
+          expires_at: string | null
+          id: string
+          last_reinforced_at: string
+          memory_type: Database["public"]["Enums"]["ai_memory_type"]
+          source: Database["public"]["Enums"]["ai_memory_source"]
+          status: Database["public"]["Enums"]["ai_memory_status"]
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          confidence?: number
+          content: string
+          created_at?: string
+          created_by_user_id?: string | null
+          embedding?: string | null
+          evidence?: string | null
+          evidence_count?: number
+          expires_at?: string | null
+          id?: string
+          last_reinforced_at?: string
+          memory_type: Database["public"]["Enums"]["ai_memory_type"]
+          source: Database["public"]["Enums"]["ai_memory_source"]
+          status?: Database["public"]["Enums"]["ai_memory_status"]
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          confidence?: number
+          content?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          embedding?: string | null
+          evidence?: string | null
+          evidence_count?: number
+          expires_at?: string | null
+          id?: string
+          last_reinforced_at?: string
+          memory_type?: Database["public"]["Enums"]["ai_memory_type"]
+          source?: Database["public"]["Enums"]["ai_memory_source"]
+          status?: Database["public"]["Enums"]["ai_memory_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_business_memory_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_business_memory_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_business_persona: {
+        Row: {
+          agent_age: number
+          agent_gender: Database["public"]["Enums"]["ai_persona_gender"]
+          agent_name: string
+          agent_region: string
+          agent_role: Database["public"]["Enums"]["ai_persona_role"]
+          agent_tenure_months: number
+          backstory: string | null
+          business_id: string
+          communication_style: Json
+          created_at: string
+          decision_philosophy: string | null
+          escalation_triggers: string[]
+          forbidden_topics: string[]
+          greeting_style: string | null
+          sign_off_style: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_age?: number
+          agent_gender?: Database["public"]["Enums"]["ai_persona_gender"]
+          agent_name?: string
+          agent_region?: string
+          agent_role?: Database["public"]["Enums"]["ai_persona_role"]
+          agent_tenure_months?: number
+          backstory?: string | null
+          business_id: string
+          communication_style?: Json
+          created_at?: string
+          decision_philosophy?: string | null
+          escalation_triggers?: string[]
+          forbidden_topics?: string[]
+          greeting_style?: string | null
+          sign_off_style?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_age?: number
+          agent_gender?: Database["public"]["Enums"]["ai_persona_gender"]
+          agent_name?: string
+          agent_region?: string
+          agent_role?: Database["public"]["Enums"]["ai_persona_role"]
+          agent_tenure_months?: number
+          backstory?: string | null
+          business_id?: string
+          communication_style?: Json
+          created_at?: string
+          decision_philosophy?: string | null
+          escalation_triggers?: string[]
+          forbidden_topics?: string[]
+          greeting_style?: string | null
+          sign_off_style?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_business_persona_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_business_persona_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_business_rules: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["ai_business_rule_kind"]
+          priority: number
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["ai_business_rule_kind"]
+          priority?: number
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["ai_business_rule_kind"]
+          priority?: number
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_business_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_business_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_business_skills: {
         Row: {
           auto_promoted_at: string | null
           business_id: string
+          config: Json
           created_at: string
           custom_config: Json
           enabled: boolean
@@ -290,6 +495,7 @@ export type Database = {
         Insert: {
           auto_promoted_at?: string | null
           business_id: string
+          config?: Json
           created_at?: string
           custom_config?: Json
           enabled?: boolean
@@ -306,6 +512,7 @@ export type Database = {
         Update: {
           auto_promoted_at?: string | null
           business_id?: string
+          config?: Json
           created_at?: string
           custom_config?: Json
           enabled?: boolean
@@ -525,6 +732,57 @@ export type Database = {
             columns: ["tongue_provider_id"]
             isOneToOne: false
             referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_indexable_sources: {
+        Row: {
+          business_id: string
+          dirty_at: string
+          enabled: boolean
+          kind: Database["public"]["Enums"]["ai_index_source_kind"]
+          last_error: string | null
+          last_indexed_at: string | null
+          rows_indexed: number
+          rows_total: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          dirty_at?: string
+          enabled?: boolean
+          kind: Database["public"]["Enums"]["ai_index_source_kind"]
+          last_error?: string | null
+          last_indexed_at?: string | null
+          rows_indexed?: number
+          rows_total?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          dirty_at?: string
+          enabled?: boolean
+          kind?: Database["public"]["Enums"]["ai_index_source_kind"]
+          last_error?: string | null
+          last_indexed_at?: string | null
+          rows_indexed?: number
+          rows_total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_indexable_sources_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_indexable_sources_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -898,6 +1156,76 @@ export type Database = {
           },
         ]
       }
+      ai_pricing_rules: {
+        Row: {
+          business_id: string
+          created_at: string
+          discount_pct: number | null
+          fixed_unit_price: number | null
+          free_shipping: boolean
+          id: string
+          is_active: boolean
+          notes: string | null
+          priority: number
+          product_id: string | null
+          quantity_max: number | null
+          quantity_min: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          discount_pct?: number | null
+          fixed_unit_price?: number | null
+          free_shipping?: boolean
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          priority?: number
+          product_id?: string | null
+          quantity_max?: number | null
+          quantity_min?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          discount_pct?: number | null
+          fixed_unit_price?: number | null
+          free_shipping?: boolean
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          priority?: number
+          product_id?: string | null
+          quantity_max?: number | null
+          quantity_min?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_pricing_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_pricing_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_pricing_rules_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_prompts: {
         Row: {
           body: string
@@ -985,6 +1313,45 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ai_rate_limit_buckets: {
+        Row: {
+          blocked_count: number
+          business_id: string
+          last_blocked_at: string | null
+          requests_in_window: number
+          window_started_at: string
+        }
+        Insert: {
+          blocked_count?: number
+          business_id: string
+          last_blocked_at?: string | null
+          requests_in_window?: number
+          window_started_at?: string
+        }
+        Update: {
+          blocked_count?: number
+          business_id?: string
+          last_blocked_at?: string | null
+          requests_in_window?: number
+          window_started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_rate_limit_buckets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_rate_limit_buckets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_redaction_rules: {
         Row: {
@@ -1105,6 +1472,7 @@ export type Database = {
       ai_skills: {
         Row: {
           category: Database["public"]["Enums"]["ai_skill_category"]
+          config_schema: Json
           created_at: string
           default_config: Json
           default_safety_tier: Database["public"]["Enums"]["ai_skill_safety_tier"]
@@ -1122,6 +1490,7 @@ export type Database = {
         }
         Insert: {
           category: Database["public"]["Enums"]["ai_skill_category"]
+          config_schema?: Json
           created_at?: string
           default_config?: Json
           default_safety_tier?: Database["public"]["Enums"]["ai_skill_safety_tier"]
@@ -1139,6 +1508,7 @@ export type Database = {
         }
         Update: {
           category?: Database["public"]["Enums"]["ai_skill_category"]
+          config_schema?: Json
           created_at?: string
           default_config?: Json
           default_safety_tier?: Database["public"]["Enums"]["ai_skill_safety_tier"]
@@ -7641,6 +8011,38 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_indexation_dashboard: {
+        Row: {
+          business_id: string | null
+          business_name: string | null
+          chunks_in_index: number | null
+          dirty_at: string | null
+          enabled: boolean | null
+          kind: Database["public"]["Enums"]["ai_index_source_kind"] | null
+          last_error: string | null
+          last_indexed_at: string | null
+          needs_reindex: boolean | null
+          rows_indexed: number | null
+          rows_total: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_indexable_sources_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_indexable_sources_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seller_daily_earnings: {
         Row: {
           commission_earned: number | null
@@ -8900,22 +9302,62 @@ export type Database = {
       }
     }
     Functions: {
+      _ai_order_is_locked: { Args: { p_order_id: string }; Returns: boolean }
       _wa_thread_by_jid: {
         Args: { p_business_id: string; p_instance_id: string; p_jid: string }
         Returns: string
       }
+      ai_apply_bundle_offer: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_cancel_order: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_change_delivery_info: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
+      ai_apply_create_delivery_note: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
       ai_apply_create_order: { Args: { p_action_id: string }; Returns: string }
       ai_apply_discount: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_edit_order: { Args: { p_action_id: string }; Returns: string }
       ai_apply_exchange: { Args: { p_action_id: string }; Returns: string }
+      ai_apply_generate_devis: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
+      ai_apply_generate_facture: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
       ai_apply_pending_actions_for_decision: {
         Args: { p_decision_id: string }
         Returns: Json
+      }
+      ai_apply_record_business_learning: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
+      ai_apply_request_review_after_delivery: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
+      ai_apply_send_catalog_picker: {
+        Args: { p_action_id: string }
+        Returns: string
+      }
+      ai_apply_send_product_media: {
+        Args: { p_action_id: string }
+        Returns: string
       }
       ai_auto_promote_skill: {
         Args: { p_business_id: string; p_skill_slug: string }
         Returns: Json
       }
       ai_can_spend: { Args: { p_business_id: string }; Returns: string }
+      ai_check_rate_limit: {
+        Args: { p_business_id: string; p_max_per_minute?: number }
+        Returns: Json
+      }
       ai_compute_thread_mode: {
         Args: { p_thread_id: string }
         Returns: Database["public"]["Enums"]["ai_thread_mode_value"]
@@ -8930,6 +9372,19 @@ export type Database = {
         Returns: string
       }
       ai_expire_pending_actions: { Args: never; Returns: number }
+      ai_indexer_fetch_payload: {
+        Args: {
+          p_business_id: string
+          p_kind: Database["public"]["Enums"]["ai_index_source_kind"]
+          p_limit?: number
+        }
+        Returns: {
+          metadata: Json
+          payload: string
+          source_id: string
+          source_label: string
+        }[]
+      }
       ai_is_admin_or_owner: { Args: never; Returns: boolean }
       ai_is_super_admin: { Args: never; Returns: boolean }
       ai_link_pending_actions: {
@@ -8939,6 +9394,13 @@ export type Database = {
           p_tool_use_ids: string[]
         }
         Returns: number
+      }
+      ai_mark_source_dirty: {
+        Args: {
+          p_business_id: string
+          p_kind: Database["public"]["Enums"]["ai_index_source_kind"]
+        }
+        Returns: undefined
       }
       ai_media_cache_purge: { Args: never; Returns: number }
       ai_monthly_reset: {
@@ -9001,6 +9463,14 @@ export type Database = {
         Args: { p_decision_id: string }
         Returns: number
       }
+      ai_resolve_price: {
+        Args: {
+          p_business_id: string
+          p_product_id: string
+          p_quantity: number
+        }
+        Returns: Json
+      }
       ai_resolve_review: {
         Args: {
           p_action: string
@@ -9011,6 +9481,21 @@ export type Database = {
           p_reviewer_id: string
         }
         Returns: undefined
+      }
+      ai_search_business_memory: {
+        Args: {
+          p_business_id: string
+          p_limit?: number
+          p_min_similarity?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          confidence: number
+          content: string
+          id: string
+          memory_type: Database["public"]["Enums"]["ai_memory_type"]
+          similarity: number
+        }[]
       }
       ai_search_knowledge: {
         Args: {
@@ -9059,6 +9544,10 @@ export type Database = {
           tracking_number: string
         }[]
       }
+      ai_skill_identify_repeat_customer: {
+        Args: { p_business_id: string; p_phone: string }
+        Returns: Json
+      }
       ai_skill_lookup_orders_by_phone: {
         Args: { p_business_id: string; p_limit?: number; p_phone: string }
         Returns: {
@@ -9097,6 +9586,19 @@ export type Database = {
           return_fee: number
         }[]
       }
+      ai_skill_recommend_products: {
+        Args: { p_business_id: string; p_limit?: number; p_product_id: string }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          image_url: string
+          name: string
+          selling_price: number
+          similarity: number
+          stock: number
+        }[]
+      }
       ai_skill_search_products: {
         Args: { p_business_id: string; p_limit?: number; p_query: string }
         Returns: {
@@ -9113,6 +9615,19 @@ export type Database = {
       ai_skill_summarize_sales: {
         Args: { p_business_id: string; p_period?: string }
         Returns: Json
+      }
+      ai_skill_upsell_cross_sell: {
+        Args: { p_business_id: string; p_limit?: number; p_product_id: string }
+        Returns: {
+          description: string
+          id: string
+          image_url: string
+          name: string
+          reason: string
+          selling_price: number
+          similarity: number
+          stock: number
+        }[]
       }
       ai_stamp_outbound: {
         Args: { p_decision_id: string; p_wa_message_id: string }
@@ -9420,6 +9935,12 @@ export type Database = {
     Enums: {
       ai_brain_language: "darija" | "french" | "arabic" | "english"
       ai_brain_tone: "warm" | "professional" | "playful" | "formal"
+      ai_business_rule_kind:
+        | "always_do"
+        | "never_do"
+        | "policy"
+        | "tone_example"
+        | "greeting"
       ai_business_skill_mode: "sandbox" | "live"
       ai_decision_outcome:
         | "sent"
@@ -9429,6 +9950,12 @@ export type Database = {
         | "blocked_quota"
         | "blocked_jailbreak"
         | "sandbox_pending"
+      ai_index_source_kind:
+        | "product"
+        | "customer"
+        | "order"
+        | "business_profile"
+        | "faq"
       ai_jailbreak_action: "log" | "escalate" | "block"
       ai_jailbreak_severity: "low" | "medium" | "high"
       ai_kb_source_kind:
@@ -9437,17 +9964,36 @@ export type Database = {
         | "qna"
         | "doc"
         | "example_conversation"
+        | "customer"
+        | "order"
+        | "business_profile"
+      ai_memory_source: "owner_curated" | "brain_observed" | "auto_extracted"
+      ai_memory_status: "pending" | "active" | "archived" | "rejected"
+      ai_memory_type: "pattern" | "preference" | "warning" | "tactic" | "fact"
       ai_model_role: "brain" | "tongue" | "stt" | "tts" | "embedding"
       ai_pending_action_kind:
         | "create_order"
         | "apply_discount"
         | "handle_exchange"
+        | "send_product_media"
+        | "generate_devis"
+        | "generate_facture"
+        | "create_delivery_note"
+        | "send_catalog_picker"
+        | "record_business_learning"
+        | "edit_order"
+        | "cancel_order"
+        | "change_delivery_info"
+        | "bundle_offer"
+        | "request_review_after_delivery"
       ai_pending_action_status:
         | "pending"
         | "applied"
         | "rejected"
         | "expired"
         | "failed"
+      ai_persona_gender: "male" | "female"
+      ai_persona_role: "commercial" | "manager" | "owner" | "assistant"
       ai_prompt_kind: "brain_system" | "tongue_style" | "skill_specific"
       ai_provider_key_status: "active" | "paused" | "exhausted" | "invalid"
       ai_redaction_kind:
@@ -9609,6 +10155,13 @@ export const Constants = {
     Enums: {
       ai_brain_language: ["darija", "french", "arabic", "english"],
       ai_brain_tone: ["warm", "professional", "playful", "formal"],
+      ai_business_rule_kind: [
+        "always_do",
+        "never_do",
+        "policy",
+        "tone_example",
+        "greeting",
+      ],
       ai_business_skill_mode: ["sandbox", "live"],
       ai_decision_outcome: [
         "sent",
@@ -9619,6 +10172,13 @@ export const Constants = {
         "blocked_jailbreak",
         "sandbox_pending",
       ],
+      ai_index_source_kind: [
+        "product",
+        "customer",
+        "order",
+        "business_profile",
+        "faq",
+      ],
       ai_jailbreak_action: ["log", "escalate", "block"],
       ai_jailbreak_severity: ["low", "medium", "high"],
       ai_kb_source_kind: [
@@ -9627,12 +10187,29 @@ export const Constants = {
         "qna",
         "doc",
         "example_conversation",
+        "customer",
+        "order",
+        "business_profile",
       ],
+      ai_memory_source: ["owner_curated", "brain_observed", "auto_extracted"],
+      ai_memory_status: ["pending", "active", "archived", "rejected"],
+      ai_memory_type: ["pattern", "preference", "warning", "tactic", "fact"],
       ai_model_role: ["brain", "tongue", "stt", "tts", "embedding"],
       ai_pending_action_kind: [
         "create_order",
         "apply_discount",
         "handle_exchange",
+        "send_product_media",
+        "generate_devis",
+        "generate_facture",
+        "create_delivery_note",
+        "send_catalog_picker",
+        "record_business_learning",
+        "edit_order",
+        "cancel_order",
+        "change_delivery_info",
+        "bundle_offer",
+        "request_review_after_delivery",
       ],
       ai_pending_action_status: [
         "pending",
@@ -9641,6 +10218,8 @@ export const Constants = {
         "expired",
         "failed",
       ],
+      ai_persona_gender: ["male", "female"],
+      ai_persona_role: ["commercial", "manager", "owner", "assistant"],
       ai_prompt_kind: ["brain_system", "tongue_style", "skill_specific"],
       ai_provider_key_status: ["active", "paused", "exhausted", "invalid"],
       ai_redaction_kind: [
@@ -9680,4 +10259,5 @@ export const Constants = {
     },
   },
 } as const
-
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

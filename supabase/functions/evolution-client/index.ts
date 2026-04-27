@@ -124,6 +124,20 @@ Deno.serve(async (req) => {
         });
         break;
 
+      case 'send-list':
+        // WhatsApp interactive list message — used by the AI brain's
+        // send_catalog_picker skill to show a tappable product picker.
+        endpoint = `/message/sendList/${payload.instanceName}`;
+        body = JSON.stringify({
+          number: payload.number,
+          title:        payload.title,
+          description:  payload.description,
+          buttonText:   payload.buttonText,
+          footerText:   payload.footerText || undefined,
+          sections:     payload.sections,
+        });
+        break;
+
       case 'delete-message':
         endpoint = `/chat/deleteMessageForEveryone/${payload.instanceName}`;
         method = "DELETE";
