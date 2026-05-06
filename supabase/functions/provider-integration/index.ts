@@ -273,18 +273,29 @@ class ColiatyAdapter {
         // Coliaty returns { success, data: { package_code, details: [] } }
         const details = result.data?.details || [];
 
-        // Transform Coliaty format to match frontend expectations
-        const history = details.map((event: any) => ({
-            status: event.HISTORY_STATUS,
-            date: event.HISTORY_STATUS_DATE
-                ? new Date(parseInt(event.HISTORY_STATUS_DATE) * 1000).toISOString()
-                : (event.HISTORY_TIMESTAMP
-                    ? new Date(parseInt(event.HISTORY_TIMESTAMP) * 1000).toISOString()
-                    : null),
-            comment: event.HISTORY_COMMENT || '',
-            user: event.HISTORY_LIVREUR?.name || event.HISTORY_ACTOR?.name || '',
-            _original: event
-        }));
+        // Transform Coliaty format to match frontend expectations.
+        // Phone candidates cover Coliaty payload variations across livreur/actor
+        // shapes (phone, mobile, tel, gsm). The frontend renders it as a tel: link.
+        const pickPhone = (src: any): string => {
+            if (!src) return '';
+            return String(src.phone || src.mobile || src.tel || src.gsm || '').trim();
+        };
+        const history = details.map((event: any) => {
+            const livreur = event.HISTORY_LIVREUR || null;
+            const actor = event.HISTORY_ACTOR || null;
+            return {
+                status: event.HISTORY_STATUS,
+                date: event.HISTORY_STATUS_DATE
+                    ? new Date(parseInt(event.HISTORY_STATUS_DATE) * 1000).toISOString()
+                    : (event.HISTORY_TIMESTAMP
+                        ? new Date(parseInt(event.HISTORY_TIMESTAMP) * 1000).toISOString()
+                        : null),
+                comment: event.HISTORY_COMMENT || '',
+                user: livreur?.name || actor?.name || '',
+                phone: pickPhone(livreur) || pickPhone(actor),
+                _original: event
+            };
+        });
 
         // Get current status from the latest event
         const latestEvent = history[0] || {};
