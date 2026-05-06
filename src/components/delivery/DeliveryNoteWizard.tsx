@@ -576,6 +576,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const finalStatusLabel = matched?.label ?? providerStatus;
                     const finalStatusColor = matched?.color ?? providerColor ?? null;
 
+                    // Sweep prior orphan parcels for this (provider, order) pair before inserting.
+                    // An orphan = no company_delivery_note_id. Left behind by a previous attempt
+                    // whose linking step never completed (failed call, page reload, retry).
+                    await supabase
+                        .from('company_parcels')
+                        .delete()
+                        .eq('provider_id', providerId)
+                        .eq('order_id', order.id)
+                        .is('company_delivery_note_id', null);
+
                     // Save to database with mapped status_id and native color
                     const { data: parcel, error: parcelError } = await supabase
                         .from('company_parcels')

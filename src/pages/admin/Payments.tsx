@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
 
 interface UnpaidOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
@@ -92,8 +93,8 @@ const Payments = () => {
                     company:providers(id, name, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     items:order_items(quantity, unit_price, product:products(name)),
-                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url)),
-                    courier_parcels(tracking_code)`)
+                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
+                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('order_status_id', unpaidStatusId)
                 .eq('package_status_id', deliveredPkgId)
@@ -268,8 +269,8 @@ const Payments = () => {
                 payment_note_id: note.id,
                 order_id: o.id,
                 tracking_code: isCourier
-                    ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || null)
-                    : (o.parcels?.[0]?.tracking_code || o.tracking_number || null),
+                    ? pickShippedCourierTrackingCode(o)
+                    : pickShippedCompanyTrackingCode(o),
                 amount: +Number(o.price || 0).toFixed(2),
                 shipping_fee: +resolveShippingFee(o).toFixed(2),
                 'DigiCom Business': activeBusinessId,

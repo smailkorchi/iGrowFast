@@ -6,9 +6,55 @@ export type TrackableCompanyParcelRow = {
     provider_id?: string | null;
     provider?: { id: string } | null;
     created_at?: string | null;
+    company_delivery_note_id?: string | null;
 };
 export type OrderWithParcels = { parcels?: TrackableCompanyParcelRow[] | null } | null | undefined;
 type Parcel = TrackableCompanyParcelRow;
+
+type CourierParcelRow = {
+    tracking_code?: string | null;
+    courier_delivery_note_id?: string | null;
+    created_at?: string | null;
+};
+
+/**
+ * Returns the tracking code of the parcel actually shipped via a delivery note,
+ * preferring the most recent one. Falls back to order.tracking_number, then null.
+ *
+ * Used by return/payment note builders. Skips orphan parcels — rows that were
+ * created but never attached to a delivery note (a stale row from a failed/retried
+ * provider call). Picking an orphan would write a tracking code the courier doesn't
+ * recognise into the financial document.
+ */
+export function pickShippedCompanyTrackingCode(order: {
+    parcels?: TrackableCompanyParcelRow[] | null;
+    tracking_number?: string | null;
+} | null | undefined): string | null {
+    const shipped = (order?.parcels || [])
+        .filter((p) => p?.company_delivery_note_id && p?.tracking_code);
+    if (shipped.length > 0) {
+        const sorted = [...shipped].sort(
+            (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        );
+        return String(sorted[0].tracking_code).trim();
+    }
+    return order?.tracking_number ? String(order.tracking_number).trim() : null;
+}
+
+export function pickShippedCourierTrackingCode(order: {
+    courier_parcels?: CourierParcelRow[] | null;
+    tracking_number?: string | null;
+} | null | undefined): string | null {
+    const shipped = (order?.courier_parcels || [])
+        .filter((p) => p?.courier_delivery_note_id && p?.tracking_code);
+    if (shipped.length > 0) {
+        const sorted = [...shipped].sort(
+            (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        );
+        return String(sorted[0].tracking_code).trim();
+    }
+    return order?.tracking_number ? String(order.tracking_number).trim() : null;
+}
 
 /** Latest company parcel that can be tracked via provider-integration (needs tracking code + provider). */
 export function getLatestTrackableCompanyParcel(order: OrderWithParcels): {

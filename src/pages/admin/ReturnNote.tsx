@@ -5,12 +5,16 @@ import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
     CheckCircle2, Clock, Building2, AlertTriangle, Truck,
     ChevronDown, ChevronRight, Printer, ArrowRight, SearchX,
-    RotateCcw, PackageCheck, User, Hash,
+    RotateCcw, PackageCheck, User, Hash, Unlock, X, Pencil,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -18,11 +22,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
 
 // Package status "Retourné"
 const RETOURNE_PACKAGE_STATUS_ID = 'c98d2ec2-94aa-4bfd-bc27-cdf93d46f3a9';
 // Order status "RETURN"
 const RETURN_ORDER_STATUS_ID = 'dbb3ae2c-abbf-4c96-93af-ed82319c8b68';
+// Order status "CONFIRMER" — fallback when no prior status is recorded
+const CONFIRMER_ORDER_STATUS_ID = '5c514555-0728-40c7-b6c5-2a006ed21d37';
 
 interface ReturnOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
@@ -74,10 +81,21 @@ const ReturnNote = () => {
     // product names, tracking). Reset alongside the rest of the wizard state.
     const [orderSearch, setOrderSearch] = useState('');
     const [isViewNoteOpen, setIsViewNoteOpen] = useState(false);
-    const [selectedNote, setSelectedNote] = useState<ReturnNote | null>(null);
+    const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'received'>('all');
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+    // Add-orders sub-dialog state. We open it from the View dialog when the
+    // note is pending, scoped to the same provider/courier as the note.
+    const [isAddOrdersOpen, setIsAddOrdersOpen] = useState(false);
+    const [addOrdersSelection, setAddOrdersSelection] = useState<Set<string>>(new Set());
+    const [addOrdersSearch, setAddOrdersSearch] = useState('');
+    // Confirmation state for the unlock + remove-order destructive actions.
+    // Mirrors the AlertDialog pattern used by admin/DeliveryNote.
+    const [noteToUnlock, setNoteToUnlock] = useState<ReturnNote | null>(null);
+    const [lineToRemove, setLineToRemove] = useState<{ note: ReturnNote; lineItem: ReturnNote['line_items'][number] } | null>(null);
+
+    const setSelectedNote = (note: ReturnNote | null) => setSelectedNoteId(note?.id ?? null);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -94,8 +112,8 @@ const ReturnNote = () => {
                     company:providers(id, name, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     items:order_items(quantity, unit_price, product:products(name)),
-                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url)),
-                    courier_parcels(tracking_code)`)
+                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
+                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('package_status_id', RETOURNE_PACKAGE_STATUS_ID)
                 .is('current_return_note_id', null)
@@ -131,6 +149,11 @@ const ReturnNote = () => {
             return [...companyNotes, ...courierNotes] as ReturnNote[];
         },
     });
+
+    const selectedNote = useMemo<ReturnNote | null>(() => {
+        if (!selectedNoteId) return null;
+        return (returnNotes || []).find((n: ReturnNote) => n.id === selectedNoteId) ?? null;
+    }, [returnNotes, selectedNoteId]);
 
     // ─── Fetch return fees maps (company + courier) for lookup by (entity, master_city_id) ───
     const { data: returnFeesMap } = useQuery({
@@ -291,8 +314,8 @@ const ReturnNote = () => {
                 return_note_id: note.id,
                 order_id: o.id,
                 tracking_code: isCourier
-                    ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || null)
-                    : (o.parcels?.[0]?.tracking_code || o.tracking_number || null),
+                    ? pickShippedCourierTrackingCode(o)
+                    : pickShippedCompanyTrackingCode(o),
                 amount: Number(o.price || 0),
                 shipping_fee: getReturnFeeForOrder(o),
                 'DigiCom Business': activeBusinessId,
@@ -338,6 +361,178 @@ const ReturnNote = () => {
             setIsViewNoteOpen(false); setSelectedNote(null);
         },
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
+    });
+
+    // ─── Unlock (received → pending) ───
+    // Reverses markReceivedMutation: flips note status, reverts each linked
+    // order back to its pre-RETURN status (read from order_status_history),
+    // and re-deducts stock for items the trigger restored on receive.
+    // The orders.order_status_id update doesn't fire any stock branch in the
+    // trigger when the new status isn't PROCESSED/RETURN/CONFIRMED with the
+    // matching stock_changed flag, so we manage stock manually here.
+    const unlockNoteMutation = useMutation({
+        mutationFn: async (note: ReturnNote) => {
+            if (note.status !== 'received') throw new Error('Note is not received');
+            const notesTable = note.kind === 'courier' ? 'courier_return_notes' : 'company_return_notes';
+            const orderIds = note.line_items.map(li => li.order_id);
+
+            // 1) Reverse stock per order: read items, add back what the
+            //    receive-trigger added (i.e. deduct again), and reset
+            //    stock_changed to true so the lifecycle stays consistent.
+            for (const orderId of orderIds) {
+                const { data: items, error: itemsErr } = await (supabase as any)
+                    .from('order_items')
+                    .select('product_id, quantity, accessory_id, accessory_quantity')
+                    .eq('order_id', orderId);
+                if (itemsErr) throw itemsErr;
+                for (const it of (items || [])) {
+                    if (it.product_id && Number(it.quantity) > 0) {
+                        const { data: prod } = await (supabase as any)
+                            .from('products').select('stock').eq('id', it.product_id).single();
+                        const next = Math.max(0, Number(prod?.stock || 0) - Number(it.quantity));
+                        await (supabase as any).from('products').update({ stock: next }).eq('id', it.product_id);
+                    }
+                    if (it.accessory_id && Number(it.accessory_quantity) > 0) {
+                        const { data: acc } = await (supabase as any)
+                            .from('accessories').select('stock').eq('id', it.accessory_id).single();
+                        const next = Math.max(0, Number(acc?.stock || 0) - Number(it.accessory_quantity));
+                        await (supabase as any).from('accessories').update({ stock: next }).eq('id', it.accessory_id);
+                    }
+                }
+            }
+
+            // 2) Look up each order's status RIGHT BEFORE it was set to RETURN.
+            //    history rows are appended on every status change, so the
+            //    one immediately preceding the latest RETURN entry is the
+            //    pre-receive status. Fall back to CONFIRMER if no history.
+            const priorByOrder = new Map<string, string>();
+            for (const orderId of orderIds) {
+                const { data: hist } = await (supabase as any)
+                    .from('order_status_history')
+                    .select('status_id, created_at')
+                    .eq('order_id', orderId)
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+                let prior: string | null = null;
+                const rows = (hist || []) as Array<{ status_id: string }>;
+                const idxReturn = rows.findIndex(r => r.status_id === RETURN_ORDER_STATUS_ID);
+                if (idxReturn >= 0 && rows[idxReturn + 1]) {
+                    prior = rows[idxReturn + 1].status_id;
+                }
+                priorByOrder.set(orderId, prior || CONFIRMER_ORDER_STATUS_ID);
+            }
+
+            // 3) Set order_status_id back per order; mark stock_changed=true
+            //    so future PROCESSED/RETURN cycles behave correctly.
+            for (const orderId of orderIds) {
+                const targetStatus = priorByOrder.get(orderId) || CONFIRMER_ORDER_STATUS_ID;
+                const { error } = await (supabase as any)
+                    .from('orders')
+                    .update({ order_status_id: targetStatus, stock_changed: true, updated_at: new Date().toISOString() })
+                    .eq('id', orderId);
+                if (error) throw error;
+            }
+
+            // 4) Flip note state back to pending and clear received_at.
+            const { error: noteErr } = await (supabase as any)
+                .from(notesTable)
+                .update({ status: 'pending', received_at: null, updated_at: new Date().toISOString() })
+                .eq('id', note.id);
+            if (noteErr) throw noteErr;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['return-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['retourne-orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            toast({ title: 'Note unlocked', description: 'You can now add or remove orders. Stock was re-deducted.' });
+        },
+        onError: (e: any) => toast({ title: 'Unlock failed', description: e.message, variant: 'destructive' }),
+    });
+
+    // ─── Add orders to an existing pending note ───
+    const addOrdersToNoteMutation = useMutation({
+        mutationFn: async ({ note, orders }: { note: ReturnNote; orders: ReturnOrder[] }) => {
+            if (note.status !== 'pending') throw new Error('Only pending notes can be edited');
+            if (orders.length === 0) return;
+            const lineItemsTable = note.kind === 'courier' ? 'courier_return_note_orders' : 'company_return_note_orders';
+            const orderLinkField = note.kind === 'courier' ? 'current_courier_return_note_id' : 'current_return_note_id';
+            const notesTable = note.kind === 'courier' ? 'courier_return_notes' : 'company_return_notes';
+
+            const newLines = orders.map((o) => ({
+                return_note_id: note.id,
+                order_id: o.id,
+                tracking_code: note.kind === 'courier'
+                    ? pickShippedCourierTrackingCode(o)
+                    : pickShippedCompanyTrackingCode(o),
+                amount: Number(o.price || 0),
+                shipping_fee: getReturnFeeForOrder(o),
+                'DigiCom Business': activeBusinessId,
+            }));
+            const { error: insErr } = await (supabase as any).from(lineItemsTable).insert(newLines);
+            if (insErr) throw insErr;
+
+            await (supabase as any).from('orders')
+                .update({ [orderLinkField]: note.id })
+                .in('id', orders.map(o => o.id));
+
+            // Recompute totals from the source of truth (line items).
+            const { data: allLines } = await (supabase as any)
+                .from(lineItemsTable)
+                .select('amount, shipping_fee')
+                .eq('return_note_id', note.id);
+            const total_amount = (allLines || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+            const total_shipping_fees = (allLines || []).reduce((s: number, r: any) => s + Number(r.shipping_fee || 0), 0);
+            await (supabase as any).from(notesTable).update({
+                total_amount,
+                total_shipping_fees,
+                net_amount: total_amount - total_shipping_fees,
+                order_count: (allLines || []).length,
+                updated_at: new Date().toISOString(),
+            }).eq('id', note.id);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['return-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['retourne-orders'] });
+            toast({ title: 'Orders added', description: 'Note totals were recomputed.' });
+        },
+        onError: (e: any) => toast({ title: 'Could not add orders', description: e.message, variant: 'destructive' }),
+    });
+
+    // ─── Remove a single order from a pending note ───
+    const removeOrderFromNoteMutation = useMutation({
+        mutationFn: async ({ note, lineItem }: { note: ReturnNote; lineItem: ReturnNote['line_items'][number] }) => {
+            if (note.status !== 'pending') throw new Error('Only pending notes can be edited');
+            const lineItemsTable = note.kind === 'courier' ? 'courier_return_note_orders' : 'company_return_note_orders';
+            const orderLinkField = note.kind === 'courier' ? 'current_courier_return_note_id' : 'current_return_note_id';
+            const notesTable = note.kind === 'courier' ? 'courier_return_notes' : 'company_return_notes';
+
+            const { error: delErr } = await (supabase as any).from(lineItemsTable).delete().eq('id', lineItem.id);
+            if (delErr) throw delErr;
+
+            await (supabase as any).from('orders')
+                .update({ [orderLinkField]: null })
+                .eq('id', lineItem.order_id);
+
+            const { data: allLines } = await (supabase as any)
+                .from(lineItemsTable)
+                .select('amount, shipping_fee')
+                .eq('return_note_id', note.id);
+            const total_amount = (allLines || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+            const total_shipping_fees = (allLines || []).reduce((s: number, r: any) => s + Number(r.shipping_fee || 0), 0);
+            await (supabase as any).from(notesTable).update({
+                total_amount,
+                total_shipping_fees,
+                net_amount: total_amount - total_shipping_fees,
+                order_count: (allLines || []).length,
+                updated_at: new Date().toISOString(),
+            }).eq('id', note.id);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['return-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['retourne-orders'] });
+            toast({ title: 'Order removed' });
+        },
+        onError: (e: any) => toast({ title: 'Could not remove order', description: e.message, variant: 'destructive' }),
     });
 
     const notesForActiveTab = useMemo(() => {
@@ -852,7 +1047,7 @@ const ReturnNote = () => {
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
-                                                {!isReceived && (
+                                                {!isReceived ? (
                                                     <Button
                                                         size="sm"
                                                         onClick={() => markReceivedMutation.mutate(note)}
@@ -865,6 +1060,23 @@ const ReturnNote = () => {
                                                             <>
                                                                 <PackageCheck className="w-3.5 h-3.5" />
                                                                 Mark received
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setNoteToUnlock(note)}
+                                                        disabled={unlockNoteMutation.isPending}
+                                                        className="h-9 px-3.5 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft text-[11.5px] font-medium gap-1.5"
+                                                    >
+                                                        {unlockNoteMutation.isPending && unlockNoteMutation.variables?.id === note.id ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : (
+                                                            <>
+                                                                <Unlock className="w-3.5 h-3.5" />
+                                                                Unlock
                                                             </>
                                                         )}
                                                     </Button>
@@ -1384,6 +1596,7 @@ const ReturnNote = () => {
                                                 <th className="px-3 py-2.5 text-right">Amount</th>
                                                 <th className="px-3 py-2.5 text-right">Shipping</th>
                                                 <th className="px-3 py-2.5 text-right">Net</th>
+                                                {selectedNote.status === 'pending' && <th className="px-3 py-2.5 w-10" />}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1396,11 +1609,35 @@ const ReturnNote = () => {
                                                     <td className="px-3 py-2 text-right font-display font-semibold text-ant-ink tabular-nums">
                                                         {(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}
                                                     </td>
+                                                    {selectedNote.status === 'pending' && (
+                                                        <td className="px-2 py-2 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setLineToRemove({ note: selectedNote, lineItem: li })}
+                                                                disabled={removeOrderFromNoteMutation.isPending || selectedNote.line_items.length <= 1}
+                                                                title={selectedNote.line_items.length <= 1 ? 'A note must keep at least one order — delete the note instead' : 'Remove from note'}
+                                                                className="inline-flex items-center justify-center w-7 h-7 rounded-full text-ant-mid hover:text-ant-rose hover:bg-ant-rose/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                                            >
+                                                                <X className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {selectedNote.status === 'pending' && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => { setAddOrdersSelection(new Set()); setAddOrdersSearch(''); setIsAddOrdersOpen(true); }}
+                                        className="w-full h-10 rounded-xl border-dashed border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[12px] gap-1.5"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        Add orders to this note
+                                    </Button>
+                                )}
 
                                 <div className="bg-ant-ink rounded-2xl p-5 text-ant-light">
                                     <div className="grid grid-cols-3 gap-px bg-white/10 rounded-xl overflow-hidden">
@@ -1434,7 +1671,7 @@ const ReturnNote = () => {
                                         <Printer className="w-3.5 h-3.5" />
                                         Print
                                     </Button>
-                                    {selectedNote.status === 'pending' && (
+                                    {selectedNote.status === 'pending' ? (
                                         <Button
                                             onClick={() => markReceivedMutation.mutate(selectedNote)}
                                             disabled={markReceivedMutation.isPending}
@@ -1443,6 +1680,16 @@ const ReturnNote = () => {
                                             {markReceivedMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PackageCheck className="w-3.5 h-3.5" />}
                                             Mark as received
                                         </Button>
+                                    ) : (
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setNoteToUnlock(selectedNote)}
+                                            disabled={unlockNoteMutation.isPending}
+                                            className="h-10 px-5 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[12px] gap-1.5"
+                                        >
+                                            {unlockNoteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlock className="w-3.5 h-3.5" />}
+                                            Unlock
+                                        </Button>
                                     )}
                                 </div>
                             </div>
@@ -1450,6 +1697,258 @@ const ReturnNote = () => {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* ─── ADD ORDERS SUB-DIALOG ─── */}
+            <Dialog open={isAddOrdersOpen} onOpenChange={v => { if (!v) { setIsAddOrdersOpen(false); setAddOrdersSelection(new Set()); setAddOrdersSearch(''); } }}>
+                <DialogContent className="ant-surface max-w-2xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[85vh] overflow-y-auto custom-scrollbar">
+                    {selectedNote && (() => {
+                        // Eligible = same target (provider for company, courier for courier),
+                        // present in the pool of returned orders not yet linked to any note.
+                        const eligible = (returnOrders || []).filter((o) => {
+                            if (selectedNote.kind === 'company') {
+                                const pid = o.company?.id || o.parcels?.[0]?.provider?.id || o.company_id;
+                                return !!selectedNote.provider?.id && pid === selectedNote.provider.id;
+                            }
+                            const cid = o.courier?.id || o.courier_id;
+                            return !!selectedNote.courier?.id && cid === selectedNote.courier.id;
+                        });
+                        const q = addOrdersSearch.trim().toLowerCase();
+                        const visible = !q ? eligible : eligible.filter((o) => {
+                            const codes = [
+                                ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
+                                ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
+                                o.tracking_number,
+                            ].filter(Boolean) as string[];
+                            const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
+                            const hay = [o.name, o.phone, ...codes, ...items, String(o.price ?? '')].join(' ').toLowerCase();
+                            return hay.includes(q);
+                        });
+                        const allSelected = visible.length > 0 && visible.every(o => addOrdersSelection.has(o.id));
+                        const selectedOrders = eligible.filter(o => addOrdersSelection.has(o.id));
+                        return (
+                            <>
+                                <DialogHeader className="px-6 pt-6 pb-3 border-b border-ant-line">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                        <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Add orders</span>
+                                    </div>
+                                    <DialogTitle className="font-display text-[20px] font-semibold text-ant-ink tracking-[-0.02em]">
+                                        Pick returned orders to attach
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif-display text-[12.5px] text-ant-muted italic mt-0.5">
+                                        Showing returned orders for {selectedNote.kind === 'courier' ? (selectedNote.courier?.name || '—') : (selectedNote.provider?.name || '—')} not yet on any note.
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                <div className="px-6 py-5 space-y-3">
+                                    {eligible.length === 0 ? (
+                                        <div className="rounded-xl border border-ant-line bg-ant-light py-10 text-center">
+                                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-3">
+                                                <AlertTriangle className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                                            </div>
+                                            <p className="font-display text-[15px] font-semibold text-ant-ink tracking-tight">No eligible orders</p>
+                                            <p className="font-serif-display text-[12px] text-ant-muted italic mt-1">
+                                                Every returned order for this {selectedNote.kind === 'courier' ? 'courier' : 'provider'} is already on a note.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-2">
+                                                <div className="relative flex-1">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                                                    <Input
+                                                        value={addOrdersSearch}
+                                                        onChange={(e) => setAddOrdersSearch(e.target.value)}
+                                                        placeholder="Search by name, phone, tracking, product..."
+                                                        className="h-9 pl-9 pr-8 rounded-xl border-ant-line bg-ant-paper text-[12px]"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (allSelected) setAddOrdersSelection(new Set());
+                                                        else setAddOrdersSelection(new Set(visible.map(o => o.id)));
+                                                    }}
+                                                    className="flex items-center gap-2 text-[11.5px] font-semibold text-ant-ink hover:text-ant-ink/70 transition-colors shrink-0 px-2 h-9 rounded-xl border border-ant-line bg-ant-paper"
+                                                >
+                                                    <span className={cn('w-4 h-4 rounded border flex items-center justify-center transition-colors',
+                                                        allSelected ? 'bg-ant-ink border-ant-ink' : 'border-ant-line bg-ant-paper')}>
+                                                        {allSelected && <CheckCircle2 className="w-3 h-3 text-ant-light" />}
+                                                    </span>
+                                                    {allSelected ? 'Deselect all' : `Select all (${visible.length})`}
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-1.5 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                                                {visible.length === 0 && (
+                                                    <div className="font-serif-display text-[12px] text-ant-muted italic py-6 text-center">
+                                                        No orders match "{addOrdersSearch}"
+                                                    </div>
+                                                )}
+                                                {visible.map((o) => {
+                                                    const checked = addOrdersSelection.has(o.id);
+                                                    const trackingCode = pickShippedCompanyTrackingCode(o) || pickShippedCourierTrackingCode(o) || o.tracking_number;
+                                                    const itemsLabel = (o.items || [])
+                                                        .filter(i => i.quantity > 0)
+                                                        .map(i => `${i.product?.name || 'Item'} ×${i.quantity}`)
+                                                        .join(', ');
+                                                    return (
+                                                        <button
+                                                            key={o.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAddOrdersSelection(prev => {
+                                                                    const next = new Set(prev);
+                                                                    if (next.has(o.id)) next.delete(o.id);
+                                                                    else next.add(o.id);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className={cn(
+                                                                'w-full p-3 rounded-xl border text-left flex items-center gap-3 transition-all',
+                                                                checked ? 'border-ant-ink/30 bg-ant-ink/[0.04]' : 'border-ant-line bg-ant-paper hover:border-ant-ink/15',
+                                                            )}
+                                                        >
+                                                            <span className={cn('w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
+                                                                checked ? 'bg-ant-ink border-ant-ink' : 'border-ant-line bg-ant-paper')}>
+                                                                {checked && <CheckCircle2 className="w-3 h-3 text-ant-light" />}
+                                                            </span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-display text-[13px] font-semibold text-ant-ink truncate">{o.name || 'No name'}</span>
+                                                                    {trackingCode && <span className="font-mono text-[10px] text-ant-mid truncate">{trackingCode}</span>}
+                                                                </div>
+                                                                <div className="text-[11px] text-ant-muted mt-0.5 truncate">
+                                                                    {o.phone || '—'}
+                                                                    {itemsLabel && <> · {itemsLabel}</>}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right shrink-0 tabular-nums">
+                                                                <div className="font-display text-[13px] font-semibold text-ant-ink">
+                                                                    {Number(o.price || 0).toFixed(2)}
+                                                                    <span className="text-[9px] text-ant-mid font-medium ml-1">MAD</span>
+                                                                </div>
+                                                                <div className="text-[10px] text-ant-rose">
+                                                                    −{getReturnFeeForOrder(o).toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="flex justify-end gap-2 pt-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => { setIsAddOrdersOpen(false); setAddOrdersSelection(new Set()); setAddOrdersSearch(''); }}
+                                            className="h-10 px-4 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[12px]"
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            disabled={selectedOrders.length === 0 || addOrdersToNoteMutation.isPending}
+                                            onClick={async () => {
+                                                await addOrdersToNoteMutation.mutateAsync({ note: selectedNote, orders: selectedOrders });
+                                                setIsAddOrdersOpen(false);
+                                                setAddOrdersSelection(new Set());
+                                                setAddOrdersSearch('');
+                                            }}
+                                            className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light font-medium text-[12px] gap-1.5 disabled:opacity-50"
+                                        >
+                                            {addOrdersToNoteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                            Add {selectedOrders.length || ''} order{selectedOrders.length === 1 ? '' : 's'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
+
+            {/* ─── UNLOCK CONFIRMATION ─── */}
+            <AlertDialog open={!!noteToUnlock} onOpenChange={(open) => { if (!open) setNoteToUnlock(null); }}>
+                <AlertDialogContent className="ant-surface rounded-2xl border border-ant-line bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] max-w-md p-6">
+                    <AlertDialogHeader className="space-y-2">
+                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-1">
+                            <Unlock className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <AlertDialogTitle className="font-display text-[18px] font-semibold text-ant-ink tracking-[-0.02em]">
+                            Unlock {noteToUnlock?.reference}?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="font-serif-display text-[12.5px] text-ant-muted italic leading-relaxed">
+                            Linked orders will revert to their pre-receive status and stock will be re-deducted (the receive added it back). Use this only if marking as received was a mistake.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-3">
+                        <AlertDialogCancel className="rounded-full h-10 px-4 font-medium border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft hover:text-ant-ink m-0 text-[12px]">
+                            Cancel
+                        </AlertDialogCancel>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={unlockNoteMutation.isPending}
+                            onClick={async () => {
+                                if (!noteToUnlock) return;
+                                const target = noteToUnlock;
+                                setNoteToUnlock(null);
+                                await unlockNoteMutation.mutateAsync(target);
+                            }}
+                            className="rounded-full h-10 px-4 font-medium text-[12px] bg-ant-orange hover:bg-ant-orange/90 m-0 w-full sm:w-auto"
+                        >
+                            {unlockNoteMutation.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                                <Unlock className="w-3.5 h-3.5 mr-1.5" />
+                            )}
+                            Unlock
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* ─── REMOVE ORDER FROM NOTE CONFIRMATION ─── */}
+            <AlertDialog open={!!lineToRemove} onOpenChange={(open) => { if (!open) setLineToRemove(null); }}>
+                <AlertDialogContent className="ant-surface rounded-2xl border border-ant-line bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] max-w-md p-6">
+                    <AlertDialogHeader className="space-y-2">
+                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-ant-rose/10 ring-1 ring-ant-rose/20 mb-1">
+                            <X className="w-5 h-5 text-ant-rose" strokeWidth={1.75} />
+                        </div>
+                        <AlertDialogTitle className="font-display text-[18px] font-semibold text-ant-ink tracking-[-0.02em]">
+                            Remove this order from the note?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="font-serif-display text-[12.5px] text-ant-muted italic leading-relaxed">
+                            The order returns to the pool of returned orders not yet on a note. The note totals will be recomputed. {lineToRemove?.lineItem?.tracking_code && (<><br/><span className="font-mono text-[11px] text-ant-ink not-italic">{lineToRemove.lineItem.tracking_code}</span></>)}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-3">
+                        <AlertDialogCancel className="rounded-full h-10 px-4 font-medium border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft hover:text-ant-ink m-0 text-[12px]">
+                            Cancel
+                        </AlertDialogCancel>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={removeOrderFromNoteMutation.isPending}
+                            onClick={async () => {
+                                if (!lineToRemove) return;
+                                const target = lineToRemove;
+                                setLineToRemove(null);
+                                await removeOrderFromNoteMutation.mutateAsync(target);
+                            }}
+                            className="rounded-full h-10 px-4 font-medium text-[12px] bg-ant-rose hover:bg-ant-rose/90 m-0 w-full sm:w-auto"
+                        >
+                            {removeOrderFromNoteMutation.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                                <X className="w-3.5 h-3.5 mr-1.5" />
+                            )}
+                            Remove
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

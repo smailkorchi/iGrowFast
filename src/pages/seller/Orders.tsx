@@ -375,10 +375,10 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     if (order?.sendit_old_tracking) codes.push(String(order.sendit_old_tracking));
     if (order?.delvoexpress_old_tracking) codes.push(String(order.delvoexpress_old_tracking));
     for (const p of order?.parcels || []) {
-        if (p?.tracking_code) codes.push(String(p.tracking_code));
+        if (p?.tracking_code && p?.company_delivery_note_id) codes.push(String(p.tracking_code));
     }
     for (const p of order?.courier_parcels || []) {
-        if (p?.tracking_code) codes.push(String(p.tracking_code));
+        if (p?.tracking_code && p?.courier_delivery_note_id) codes.push(String(p.tracking_code));
     }
     return codes.some((c) => c.toLowerCase().replace(/\s+/g, '').includes(needle));
 }
@@ -976,8 +976,8 @@ const Orders = () => {
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
-                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, provider:providers(id, name, logo_url)),
-                    courier_parcels(id, tracking_code, status_label, status_color, created_at)
+                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
+                    courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
