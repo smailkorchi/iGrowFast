@@ -118,7 +118,7 @@ const Auth = () => {
             <div className="relative z-10 min-h-[100svh] w-full flex flex-col lg:grid lg:grid-cols-2 lg:gap-10 px-5 py-8 sm:px-8 lg:px-16 lg:py-12 max-w-[1600px] mx-auto pointer-events-none">
                 {/* Brand mark (mobile: top-left · desktop: part of left column) */}
                 <div className="flex items-center gap-2.5 lg:col-span-2 pointer-events-auto w-fit">
-                    <img src="/Logo/iGrowFast Logo Transparent.png" alt="iGrowFast" className="h-9 object-contain" />
+                    <img src="/Logo/iGrowFast Logo Transparent.png" alt="iGrowFast" className="h-12 object-contain" />
                 </div>
 
                 {/* Desktop editorial column (hidden on mobile) */}
