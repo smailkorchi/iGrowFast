@@ -157,7 +157,7 @@ const MediaBuyerSidebar = () => {
                     <div className="flex items-center h-14 shrink-0 px-2">
                         <div className="flex items-center w-full h-10 rounded-xl relative">
                             <div className="w-[44px] h-10 flex items-center justify-center shrink-0">
-                                <div className="w-8 h-8 rounded-[10px] bg-ant-light flex items-center justify-center overflow-hidden p-1 transition-transform duration-700 group-hover/sidebar-inner:rotate-[360deg] group-data-[pinned=true]/sidebar-inner:rotate-[360deg]">
+                                <div className="w-8 h-8 rounded-[10px] bg-ant-orange flex items-center justify-center overflow-hidden p-1 transition-transform duration-700 group-hover/sidebar-inner:rotate-[360deg] group-data-[pinned=true]/sidebar-inner:rotate-[360deg]">
                                     <img
                                         src="/Logo/iGrowFast Icon Transparent.png"
                                         alt="iGrowFast"
