@@ -1,7 +1,7 @@
 {
   "name": "iGrowFast",
   "short_name": "iGrowFast",
-  "description": "iGrowFast Management System",
+  "description": "Commandes, livraisons, paiements, campagnes — tout atterrit au même endroit. iGrowFast orchestre ce qui comptait hier sur dix onglets.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
