@@ -76,7 +76,7 @@ const Auth = () => {
 
             toast({
                 title: 'Bienvenue',
-                description: 'Connexion réussie à DigiCom.',
+                description: 'Connexion réussie à iGrowFast.',
             });
 
             if (profile?.role === 'commercial') {
@@ -119,10 +119,10 @@ const Auth = () => {
                 {/* Brand mark (mobile: top-left · desktop: part of left column) */}
                 <div className="flex items-center gap-2.5 lg:col-span-2 pointer-events-auto w-fit">
                     <div className="h-9 w-9 rounded-xl bg-ant-paper border border-white/20 flex items-center justify-center overflow-hidden p-1 shadow-[0_12px_32px_-16px_rgba(0,0,0,0.5)]">
-                        <img src="/Logo/DigiCom Icon Transparent.png" alt="DigiCom" className="w-full h-full object-contain" />
+                        <img src="/Logo/iGrowFast Icon Transparent.png" alt="iGrowFast" className="w-full h-full object-contain" />
                     </div>
                     <span className="font-display text-[16px] font-semibold text-white tracking-tight">
-                        DigiCom<span className="text-ant-orange">.</span>
+                        iGrowFast<span className="text-ant-orange">.</span>
                     </span>
                 </div>
 
@@ -137,7 +137,7 @@ const Auth = () => {
                         <span className="font-serif italic font-light text-white/90">tout votre métier.</span>
                     </h1>
                     <p className="font-serif italic text-[15px] leading-relaxed text-white/70 mt-5 max-w-md">
-                        Commandes, livraisons, paiements, campagnes — tout atterrit au même endroit. DigiCom orchestre ce qui comptait hier sur dix onglets.
+                        Commandes, livraisons, paiements, campagnes — tout atterrit au même endroit. iGrowFast orchestre ce qui comptait hier sur dix onglets.
                     </p>
                     <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-3 pr-5 w-fit">
                         <div className="h-10 w-10 rounded-xl bg-ant-orange/15 border border-ant-orange/30 text-ant-orange flex items-center justify-center">
@@ -181,7 +181,7 @@ const Auth = () => {
                                             autoComplete="username"
                                             autoCapitalize="off"
                                             spellCheck={false}
-                                            placeholder="jane.doe / jane@digicom.com"
+                                            placeholder="jane.doe / jane@igrowfast.com"
                                             {...register('identifier')}
                                             className="w-full h-12 pl-10 pr-4 rounded-xl border border-white/15 bg-white/[0.06] text-[16px] font-medium text-white placeholder:font-serif placeholder:italic placeholder:text-white/35 focus:outline-none focus:border-ant-orange/60 focus:ring-2 focus:ring-ant-orange/20 focus:bg-white/[0.09] transition-all"
                                         />

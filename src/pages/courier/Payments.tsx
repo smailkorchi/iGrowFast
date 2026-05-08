@@ -215,7 +215,7 @@ const CourierPayments = () => {
             shipping_fee: Number(li.shipping_fee || 0),
         })),
         business: {
-            name: businessMeta?.name || 'DigiCom',
+            name: businessMeta?.name || 'iGrowFast',
             logo: resolvedImages?.businessLogo || null,
         },
         courier: {

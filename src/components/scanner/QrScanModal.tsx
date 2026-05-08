@@ -321,7 +321,7 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
                                 {/* Rejected hint */}
                                 {lastRejected && status === 'scanning' && (
                                     <p className="font-serif italic text-center text-[11px] text-ant-orange/85">
-                                        QR non reconnu : « {lastRejected} » — visez un colis DigiCom.
+                                        QR non reconnu : « {lastRejected} » — visez un colis iGrowFast.
                                     </p>
                                 )}
 

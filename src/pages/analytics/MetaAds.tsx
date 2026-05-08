@@ -537,7 +537,7 @@ const OnboardingCard: React.FC<{
             </div>
             <div className="md:col-span-3 space-y-4">
                 <OnboardingStep num={1} title="Click Connect with Facebook" body="Redirected to Facebook's secure consent screen." />
-                <OnboardingStep num={2} title="Pick ad accounts + pixels" body="Tick the ones you want DigiCom to manage." />
+                <OnboardingStep num={2} title="Pick ad accounts + pixels" body="Tick the ones you want iGrowFast to manage." />
                 <OnboardingStep num={3} title="Dashboards populate instantly" body="Campaigns, spend, ROAS, pixel events — live in seconds." />
                 <button
                     onClick={onConnect}

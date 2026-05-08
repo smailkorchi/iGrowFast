@@ -210,6 +210,7 @@ const Transactions = () => {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [paymentToDelete, setPaymentToDelete] = useState<any>(null);
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -439,6 +440,32 @@ const Transactions = () => {
             setIsDeleteDialogOpen(false);
             setSelectedTransaction(null);
             toast({ title: "Transaction Deleted", description: "Record removed successfully." });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const deletePaymentMutation = useMutation({
+        mutationFn: async (paymentId: string) => {
+            const { error } = await supabase
+                .from('trns_payment')
+                .delete()
+                .eq('id', paymentId)
+                .eq('DigiCom Business', activeBusinessId);
+
+            if (error) throw error;
+            return paymentId;
+        },
+        onSuccess: (paymentId) => {
+            queryClient.invalidateQueries({ queryKey: ['transactions', activeBusinessId] });
+            setSelectedTransaction((prev: any) =>
+                prev
+                    ? { ...prev, payments: (prev.payments || []).filter((p: any) => p.id !== paymentId) }
+                    : prev
+            );
+            setPaymentToDelete(null);
+            toast({ title: "Payment Removed", description: "Ledger entry deleted." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1338,7 +1365,7 @@ const Transactions = () => {
                                         ) : (
                                             <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                                                 {selectedTransaction.payments?.map((payment: any) => (
-                                                    <div key={payment.id} className="px-4 py-3 border-b border-ant-line last:border-0 flex justify-between items-center hover:bg-ant-light/60 transition-colors">
+                                                    <div key={payment.id} className="group px-4 py-3 border-b border-ant-line last:border-0 flex justify-between items-center hover:bg-ant-light/60 transition-colors">
                                                         <div className="flex items-center gap-2.5">
                                                             <div className="h-8 w-8 rounded-lg bg-ant-green/10 border border-ant-green/25 flex items-center justify-center">
                                                                 <Wallet className="w-3.5 h-3.5 text-ant-green" />
@@ -1348,7 +1375,19 @@ const Transactions = () => {
                                                                 <p className="text-[10px] text-ant-mid tabular-nums">{format(new Date(payment.date), 'MMM dd · HH:mm')}</p>
                                                             </div>
                                                         </div>
-                                                        <p className="text-[13px] font-semibold text-ant-green tabular-nums">+{payment.amount} <span className="text-ant-mid font-normal text-[11px]">DH</span></p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-[13px] font-semibold text-ant-green tabular-nums">+{payment.amount} <span className="text-ant-mid font-normal text-[11px]">DH</span></p>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                title="Remove payment"
+                                                                onClick={() => setPaymentToDelete(payment)}
+                                                                className="h-7 w-7 p-0 rounded-full text-ant-mid hover:text-ant-rose hover:bg-ant-rose/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1398,6 +1437,45 @@ const Transactions = () => {
                             </DialogFooter>
                         </>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete payment confirmation */}
+            <Dialog open={!!paymentToDelete} onOpenChange={(open) => !open && setPaymentToDelete(null)}>
+                <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                            Destructive action
+                        </div>
+                        <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Remove this payment?</DialogTitle>
+                        <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                            {paymentToDelete && (
+                                <>The {paymentToDelete.method} entry of {paymentToDelete.amount} DH from {format(new Date(paymentToDelete.date), 'MMM dd · yyyy')} will be erased from the ledger.</>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="px-6 py-4 gap-2">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setPaymentToDelete(null)}
+                            className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                if (paymentToDelete) {
+                                    deletePaymentMutation.mutate(paymentToDelete.id);
+                                }
+                            }}
+                            disabled={deletePaymentMutation.isPending}
+                            className="h-10 px-5 rounded-full bg-ant-rose hover:bg-ant-rose/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
+                        >
+                            {deletePaymentMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            Yes, remove
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 

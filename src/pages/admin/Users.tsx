@@ -1092,7 +1092,7 @@ const UserModal = ({
                                                     <FormControl>
                                                         <div className="relative">
                                                             <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
-                                                            <Input type="email" placeholder="alex@digicom.team" {...field} className={cn(inputCls, 'pl-10')} />
+                                                            <Input type="email" placeholder="alex@igrowfast.team" {...field} className={cn(inputCls, 'pl-10')} />
                                                         </div>
                                                     </FormControl>
                                                     <FormMessage className="text-ant-rose" />

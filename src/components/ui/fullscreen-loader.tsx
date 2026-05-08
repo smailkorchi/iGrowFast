@@ -17,8 +17,8 @@ export function FullscreenLoader({
                 <div className="relative h-16 w-16">
                     <div className="absolute inset-0 rounded-2xl border border-ant-line bg-ant-paper flex items-center justify-center shadow-[0_24px_60px_-24px_rgba(20,20,19,0.2)]">
                         <img
-                            src="/Logo/DigiCom Icon Transparent.png"
-                            alt="DigiCom"
+                            src="/Logo/iGrowFast Icon Transparent.png"
+                            alt="iGrowFast"
                             className="w-9 h-9 object-contain"
                         />
                     </div>

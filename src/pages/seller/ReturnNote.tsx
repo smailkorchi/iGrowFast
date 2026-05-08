@@ -457,7 +457,7 @@ const ReturnNote = () => {
         w.document.write('<!doctype html><html><head><title>' + note.reference + '</title></head><body style="font-family:system-ui;padding:40px;color:#3b5e5e">Loading…</body></html>');
         w.document.close();
 
-        let businessName = 'DigiCom';
+        let businessName = 'iGrowFast';
         let businessLogo: string | null = null;
         if (activeBusinessId) {
             const { data } = await (supabase as any).from('businesses').select('name, logo').eq('id', activeBusinessId).single();

@@ -191,7 +191,7 @@ const OwnerUsers = () => {
                             Owner accounts
                         </h1>
                         <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
-                            Accounts with owner-level access — the people who run DigiCom.
+                            Accounts with owner-level access — the people who run iGrowFast.
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

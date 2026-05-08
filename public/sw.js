@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-globals */
 /**
- * DigiCom Service Worker
+ * iGrowFast Service Worker
  *
  * Purpose:
  *   1. Handle Web Push notifications in the background (when the app is
@@ -19,7 +19,7 @@
  *   - click    → focus existing tab at target URL or open a new one
  */
 
-const SW_VERSION = 'digicom-sw-v1';
+const SW_VERSION = 'igrowfast-sw-v1';
 
 // ─── Install ─────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -39,8 +39,8 @@ self.addEventListener('activate', (event) => {
 //   {
 //     "title": "Nouveau colis attribué",
 //     "body":  "3 nouveaux colis viennent d'être ajoutés",
-//     "icon":  "/Logo/DigiCom Icon Transparent.png",
-//     "badge": "/Logo/DigiCom Icon Transparent.png",
+//     "icon":  "/Logo/iGrowFast Icon Transparent.png",
+//     "badge": "/Logo/iGrowFast Icon Transparent.png",
 //     "url":   "/courier/orders",
 //     "tag":   "courier-note-<uuid>",
 //     "data":  { ...arbitrary... }
@@ -65,11 +65,11 @@ self.addEventListener('push', (event) => {
         }
     }
 
-    const title = payload.title || 'DigiCom';
+    const title = payload.title || 'iGrowFast';
     const options = {
         body: payload.body || 'Nouvelle notification',
-        icon: payload.icon || '/Logo/DigiCom Icon Transparent.png',
-        badge: payload.badge || '/Logo/DigiCom Icon Transparent.png',
+        icon: payload.icon || '/Logo/iGrowFast Icon Transparent.png',
+        badge: payload.badge || '/Logo/iGrowFast Icon Transparent.png',
         tag: payload.tag, // undefined tag = unique notification every time
         renotify: !!payload.tag,
         requireInteraction: false,

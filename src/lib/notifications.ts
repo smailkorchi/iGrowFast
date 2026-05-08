@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * DigiCom Notification Manager
+ * iGrowFast Notification Manager
  *
  * Cross-platform wrapper that handles:
  *   - Feature detection (ServiceWorker, PushManager, Notification API)
@@ -294,8 +294,8 @@ export async function showLocalNotification(opts: ShowNotificationOptions): Prom
 
     const options: NotificationOptions = {
         body: opts.body,
-        icon: opts.icon || '/Logo/DigiCom Icon Transparent.png',
-        badge: opts.badge || '/Logo/DigiCom Icon Transparent.png',
+        icon: opts.icon || '/Logo/iGrowFast Icon Transparent.png',
+        badge: opts.badge || '/Logo/iGrowFast Icon Transparent.png',
         tag: opts.tag,
         // @ts-expect-error — `vibrate` is valid in NotificationOptions on most platforms
         vibrate: [100, 50, 100],
@@ -322,7 +322,7 @@ export async function showLocalNotification(opts: ShowNotificationOptions): Prom
 // Tracks whether the user dismissed the permission dialog this session, so
 // we don't nag them on every page navigation.
 
-const DISMISS_KEY = 'digicom:notif:dismissed';
+const DISMISS_KEY = 'igrowfast:notif:dismissed';
 
 export function markPermissionDialogDismissed(): void {
     try {

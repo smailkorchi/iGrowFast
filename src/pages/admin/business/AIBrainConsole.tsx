@@ -249,7 +249,7 @@ function Header() {
           <BrainCircuit className="w-5 h-5 text-ant-orange" />
         </div>
         <div>
-          <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">DigiCom AI</p>
+          <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">iGrowFast AI</p>
           <h1 className="font-display text-[20px] font-semibold text-ant-ink leading-tight">AI Brain</h1>
           <p className="font-serif-display italic text-[12px] text-ant-mid mt-0.5">
             Configure how your WhatsApp brain reads, thinks, and replies.

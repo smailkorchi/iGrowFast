@@ -24,7 +24,7 @@ const NotFound = () => {
               404
             </h1>
             <p className="font-serif italic text-[15px] md:text-[16px] leading-relaxed text-ant-mid max-w-md">
-              Cette page s&apos;est volatilisée — ou n&apos;a jamais existé. Le chemin que vous cherchez ne mène nulle part sur DigiCom.
+              Cette page s&apos;est volatilisée — ou n&apos;a jamais existé. Le chemin que vous cherchez ne mène nulle part sur iGrowFast.
             </p>
           </div>
 

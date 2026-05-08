@@ -592,7 +592,7 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
                     {/* Footer assurance */}
                     <div className="flex items-center justify-center gap-1.5 pt-1">
                         <span className="font-display text-[9px] uppercase tracking-[0.24em] text-ant-light/30">
-                            DigiCom
+                            iGrowFast
                             <span className="text-ant-orange">.</span>
                             Platform
                         </span>

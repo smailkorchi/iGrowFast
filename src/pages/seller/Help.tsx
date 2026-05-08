@@ -51,9 +51,9 @@ const SellerHelp = () => {
                                 {
                                     icon: Mail,
                                     label: 'Email',
-                                    value: 'support@digicom.ma',
+                                    value: 'support@igrowfast.ma',
                                     note: 'Demandes écrites',
-                                    href: 'mailto:support@digicom.ma',
+                                    href: 'mailto:support@igrowfast.ma',
                                     tone: 'bg-ant-ink border-ant-ink/15 text-ant-ink',
                                 },
                                 {

@@ -373,7 +373,7 @@ const SalesChannels = () => {
                                                 {editingChannel ? 'Update connection' : 'Connect a new channel'}
                                             </DialogTitle>
                                             <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                                                Paste the keys once — DigiCom handles the sync from here.
+                                                Paste the keys once — iGrowFast handles the sync from here.
                                             </DialogDescription>
                                         </div>
                                         {LOGOS[channelType] && (

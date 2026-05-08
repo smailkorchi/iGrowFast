@@ -95,14 +95,14 @@ const CourierSidebar = () => {
                                 <div className="w-[44px] h-10 flex items-center justify-center shrink-0">
                                     <div className="w-8 h-8 rounded-[10px] bg-ant-light flex items-center justify-center overflow-hidden p-1 transition-transform duration-700 group-hover/sidebar-inner:rotate-[360deg] group-data-[pinned=true]/sidebar-inner:rotate-[360deg]">
                                         <img
-                                            src="/Logo/DigiCom Icon Transparent.png"
-                                            alt="DigiCom"
+                                            src="/Logo/iGrowFast Icon Transparent.png"
+                                            alt="iGrowFast"
                                             className="w-full h-full object-contain"
                                         />
                                     </div>
                                 </div>
                                 <span className="ml-2 font-display font-semibold text-[15px] tracking-tight text-ant-light opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden">
-                                    DigiCom
+                                    iGrowFast
                                     <span className="text-ant-orange">.</span>
                                 </span>
                             </div>
@@ -246,10 +246,10 @@ const CourierSidebar = () => {
                 <div className="flex items-center justify-between px-3 h-12">
                     <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-ant-ink flex items-center justify-center overflow-hidden p-1">
-                            <img src="/Logo/DigiCom Icon Transparent.png" alt="DigiCom" className="w-full h-full object-contain" />
+                            <img src="/Logo/iGrowFast Icon Transparent.png" alt="iGrowFast" className="w-full h-full object-contain" />
                         </div>
                         <span className="font-display font-semibold text-[15px] tracking-tight text-ant-ink">
-                            DigiCom<span className="text-ant-orange">.</span>
+                            iGrowFast<span className="text-ant-orange">.</span>
                         </span>
                     </div>
                     <NavLink

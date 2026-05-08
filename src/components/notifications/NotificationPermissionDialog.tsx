@@ -232,8 +232,8 @@ function IosInstallScreen({ onClose }: { onClose: () => void }) {
                     <div className="absolute inset-0 bg-ant-orange/20 blur-2xl rounded-full" />
                     <div className="relative w-16 h-16 rounded-2xl bg-ant-ink flex items-center justify-center overflow-hidden p-2.5">
                         <img
-                            src="/Logo/DigiCom Icon Transparent.png"
-                            alt="DigiCom"
+                            src="/Logo/iGrowFast Icon Transparent.png"
+                            alt="iGrowFast"
                             className="w-full h-full object-contain"
                         />
                     </div>
@@ -247,10 +247,10 @@ function IosInstallScreen({ onClose }: { onClose: () => void }) {
                 </span>
             </div>
             <DialogTitle className="font-display text-center text-[20px] leading-[1.1] text-ant-ink tracking-[-0.01em]">
-                Installer DigiCom
+                Installer iGrowFast
             </DialogTitle>
             <DialogDescription className="font-serif italic text-center text-[12px] text-ant-mid mt-2 max-w-sm mx-auto">
-                Pour recevoir les notifications sur iPhone, ajoutez DigiCom à votre écran d'accueil.
+                Pour recevoir les notifications sur iPhone, ajoutez iGrowFast à votre écran d'accueil.
             </DialogDescription>
 
             {/* Numbered steps */}
@@ -270,7 +270,7 @@ function IosInstallScreen({ onClose }: { onClose: () => void }) {
                 <IosStep
                     number={3}
                     icon={Smartphone}
-                    title="Ouvrez DigiCom"
+                    title="Ouvrez iGrowFast"
                     sub="Depuis l’icône sur votre écran d’accueil"
                 />
             </div>

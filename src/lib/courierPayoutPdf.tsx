@@ -355,7 +355,7 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
     return (
         <Document
             title={`${reference} — Payout`}
-            author={business.name || 'DigiCom'}
+            author={business.name || 'iGrowFast'}
             subject="Courier Payout Statement"
         >
             <Page size="A4" style={styles.page} wrap>
@@ -372,7 +372,7 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
                             </View>
                         )}
                         <View>
-                            <Text style={styles.brandName}>{business.name || 'DigiCom'}</Text>
+                            <Text style={styles.brandName}>{business.name || 'iGrowFast'}</Text>
                             <Text style={styles.brandSub}>Courier Payout</Text>
                         </View>
                     </View>
@@ -457,7 +457,7 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
 
                 {/* Footer */}
                 <View style={styles.footer} fixed>
-                    <Text style={styles.footerText}>{business.name || 'DigiCom'} · Payout Statement</Text>
+                    <Text style={styles.footerText}>{business.name || 'iGrowFast'} · Payout Statement</Text>
                     <Text style={styles.footerText}>Generated {fmtDate(created_at)}</Text>
                 </View>
             </Page>

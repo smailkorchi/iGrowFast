@@ -173,7 +173,7 @@ function Header() {
           <BrainCircuit className="w-5 h-5 text-ant-orange" />
         </div>
         <div>
-          <p className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">DigiCom AI · platform</p>
+          <p className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">iGrowFast AI · platform</p>
           <h1 className="font-display text-[22px] font-semibold text-ant-ink leading-tight tracking-[-0.015em]">AI Platform</h1>
           <p className="font-serif-display italic text-[12.5px] text-ant-mid mt-0.5">
             Provider keys, models, skills, safety — applied across every tenant.

@@ -2609,7 +2609,7 @@ function ProviderPermissionsModal({
                                         <input
                                             type="text"
                                             className="w-full h-11 rounded-xl border border-ant-line bg-white px-3 text-sm font-semibold text-ant-ink focus:outline-none focus:ring-2 focus:ring-ant-ink/20 disabled:opacity-50"
-                                            placeholder="DigiCom - Entrepôt Agadir"
+                                            placeholder="iGrowFast - Entrepôt Agadir"
                                             value={senditPickupName}
                                             onChange={(e) => setSenditPickupName(e.target.value)}
                                             maxLength={100}

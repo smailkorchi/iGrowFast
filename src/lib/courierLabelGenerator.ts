@@ -322,7 +322,7 @@ function renderSticker(opts: {
   </section>
 
   <footer class="sticker__foot">
-    Cette commande est créée et gérée par <strong>DigiCom</strong> — la principale plateforme de gestion au Maroc.
+    Cette commande est créée et gérée par <strong>iGrowFast</strong> — la principale plateforme de gestion au Maroc.
   </footer>
 </div>
     `;

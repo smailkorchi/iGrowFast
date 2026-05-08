@@ -3556,7 +3556,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             WhatsApp Inbox
           </h1>
           <p className="font-serif-display text-[13px] text-ant-muted italic">
-            One inbox for every conversation, embedded directly in DigiCom.
+            One inbox for every conversation, embedded directly in iGrowFast.
           </p>
         </header>
 
@@ -3586,7 +3586,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             </h2>
 
             <p className="font-serif-display text-[14.5px] md:text-[15.5px] text-ant-muted italic leading-relaxed mt-4 max-w-[520px] mx-auto">
-              Scan a QR code from the device manager and every conversation lands here &mdash; threaded, searchable, and ready to answer without leaving DigiCom.
+              Scan a QR code from the device manager and every conversation lands here &mdash; threaded, searchable, and ready to answer without leaving iGrowFast.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 max-w-[560px] mx-auto">
@@ -4080,7 +4080,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
               <div className="flex items-center justify-center gap-2 mb-6">
                 <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#00a884]/40" />
                 <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#00a884]/70">
-                  Built into DigiCom
+                  Built into iGrowFast
                 </span>
                 <div className="h-px w-8 bg-gradient-to-l from-transparent to-[#00a884]/40" />
               </div>
@@ -4089,7 +4089,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                 The entire WhatsApp experience, rebuilt and embedded directly into your dashboard.
               </p>
               <p className="text-[13px] text-[#8696a0]/60 leading-[20px]">
-                Powered by AI to help you respond faster, manage conversations smarter, and never miss a beat &mdash; all without leaving DigiCom.
+                Powered by AI to help you respond faster, manage conversations smarter, and never miss a beat &mdash; all without leaving iGrowFast.
               </p>
 
               {/* Subtle feature pills */}
