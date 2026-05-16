@@ -16,6 +16,31 @@ const FORWARD_RANKS: Record<string, number> = {
     out_for_delivery: 4,
 };
 
+/* Terminal categories — once an order is here, only same-category status updates are allowed.
+ * Prevents Coliaty's PARCEL_SITUATION_CHANGED (sent days after delivery when the invoice is
+ * paid) from flipping a delivered order back into in_transit, and prevents a refused/returned
+ * order from being clobbered by a stale status push. */
+const TERMINAL_CATEGORIES = new Set(['delivered', 'returned', 'refused', 'cancelled']);
+
+/* Parse Coliaty DATE field. Coliaty's API reference shows two formats in production:
+ *   - PARCEL_STATUS_CHANGED:    "20/06/2025"  (dd/mm/yyyy)
+ *   - PARCEL_SITUATION_CHANGED: "14-05-2026"  (dd-mm-yyyy)
+ * Returns an ISO string anchored at 12:00 UTC of that day (avoids day-boundary drift on
+ * timezone conversion) or null when the input is missing or unparseable. */
+function parseColiatyDate(raw: unknown): string | null {
+    if (!raw || typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    const match = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (!match) return null;
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const year = parseInt(match[3], 10);
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000) return null;
+    const utc = Date.UTC(year, month - 1, day, 12, 0, 0);
+    if (Number.isNaN(utc)) return null;
+    return new Date(utc).toISOString();
+}
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -166,7 +191,7 @@ Deno.serve(async (req: Request) => {
         // orders can still surface here.
         const { data: orderMeta, error: orderMetaErr } = await supabase
             .from('orders')
-            .select('id, date_deleted')
+            .select('id, date_deleted, delivered, payed, date_livraison, package_status_id')
             .eq('id', orderId)
             .maybeSingle();
 
@@ -181,15 +206,36 @@ Deno.serve(async (req: Request) => {
 
         console.log(`[webhook] orderId=${orderId}`);
 
-        // ── 7. Multi-candidate status matching ──────────────────────────
+        // ── 7. Coliaty event classification ─────────────────────────────
+        // Coliaty now distinguishes two events. PARCEL_STATUS_CHANGED is the live lifecycle
+        // event (delivered, picked_up, …). PARCEL_SITUATION_CHANGED fires later when the
+        // invoice for that parcel is settled — Coliaty re-attaches the final STATUS
+        // (DELIVERED / REFUSE) along with billing fields (INVOICE_REF, PRICE, FEES, NET).
+        // The two MUST be handled differently: a SITUATION=PAID event arrives days after the
+        // actual delivery and must NOT overwrite date_livraison.
+        const eventName: string = String(payload.EVENT || '').toUpperCase();
+        const situation: string = String(payload.SITUATION || '').toUpperCase();
+        const isSituationEvent = eventName === 'PARCEL_SITUATION_CHANGED';
+        const isPaidSituation = situation === 'PAID';
+
+        // Pre-extract the webhook's own DATE so we can use it for date_livraison (delivery day)
+        // when Coliaty includes it on the lifecycle event itself.
+        const coliatyDate = parseColiatyDate(payload.DATE);
+
+        // ── 8. Multi-candidate status matching ──────────────────────────
         // Priority: AMEEX sub-status > AMEEX/Coliaty main status > generic > Forcelog (data.secondary_status > data.status)
         // Sendit uses camelCase keys — `newStatus` for forward flow, `statusReturn` for returns.
         // `statusReturn === 'NA'` means no return event; skip it (filter below drops literal 'NA' too).
         const skipSenditNA = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'NA' ? null : v);
+        // PAID is not a real Coliaty status code (it's a SITUATION). Old Coliaty payloads
+        // briefly mis-shipped EVENT=PARCEL_STATUS_CHANGED, STATUS=PAID — those events should
+        // be treated as billing confirmations, not status changes. Drop "PAID" from the
+        // status-mapping candidates so we don't error or wrongly downgrade the order.
+        const dropPaid = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'PAID' ? null : v);
         const statusCandidates = [
             payload.STATUT_S,                         // AMEEX sub-status (most precise)
             payload.STATUT,                           // AMEEX main status
-            payload.STATUS,                           // Coliaty status
+            dropPaid(payload.STATUS),                 // Coliaty status (drop literal "PAID")
             skipSenditNA(payload.statusReturn),       // Sendit return-flow (camelCase, flat)
             payload.newStatus,                        // Sendit forward-flow (camelCase, flat)
             payload.status,                           // generic / legacy snake_case
@@ -201,7 +247,37 @@ Deno.serve(async (req: Request) => {
             forcelogData?.newStatus,                  // Sendit wrapped forward (defensive)
         ].filter(Boolean);
 
+        // PAID-only event (no real status field) — record the payment, skip status mapping.
+        if (statusCandidates.length === 0 && isPaidSituation) {
+            const billingUpdate: any = {
+                payed: true,
+                updated_at: new Date().toISOString(),
+            };
+            await supabase
+                .from('orders')
+                .update(billingUpdate)
+                .eq('id', orderId)
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
+            if (logEntry) await supabase.from('webhook_logs').update({ processed: true }).eq('id', logEntry.id);
+            console.log(`[webhook] PAID-only situation recorded for order=${orderId}`);
+            return json({ status: 'success', situation: 'PAID', order_id: orderId });
+        }
+
         if (statusCandidates.length === 0) {
+            // Legacy stale Coliaty payload where STATUS=PAID was the only signal — degrade
+            // gracefully: mark order as paid if SITUATION=PAID can be inferred from COMMENT.
+            const commentHint = String(payload.COMMENT || '').toLowerCase();
+            if (commentHint.includes('facture') && commentHint.includes('pay')) {
+                await supabase
+                    .from('orders')
+                    .update({ payed: true, updated_at: new Date().toISOString() })
+                    .eq('id', orderId)
+                    .eq('DigiCom Business', businessId)
+                    .is('date_deleted', null);
+                if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: 'Inferred PAID from comment' }).eq('id', logEntry.id);
+                return json({ status: 'success', inferred: 'PAID', order_id: orderId });
+            }
             if (logEntry) await supabase.from('webhook_logs').update({ error_message: 'No status field in payload' }).eq('id', logEntry.id);
             return json({ status: 'logged', message: 'Status missing' });
         }
@@ -218,7 +294,7 @@ Deno.serve(async (req: Request) => {
             // Skip bare IN_PROGRESS — AMEEX container, not a real status. Forcelog sends IN_PROGRESS as a real code.
             if (candidate === 'IN_PROGRESS' && isAmeexPayload) continue;
 
-            // Try RPC first (handles diacritics, case-insensitive)
+            // Try RPC first (handles diacritics, case-insensitive, deterministic ordering)
             const { data: rpcMatch, error: rpcErr } = await supabase
                 .rpc('match_package_status', { p_status_value: candidate });
 
@@ -253,51 +329,111 @@ Deno.serve(async (req: Request) => {
                     updated_at: new Date().toISOString(),
                 }).eq('id', parcel.id);
             }
+            // If this was a paid-situation event with an unknown status, at least flag payed=true.
+            if (isPaidSituation) {
+                await supabase
+                    .from('orders')
+                    .update({ payed: true, updated_at: new Date().toISOString() })
+                    .eq('id', orderId)
+                    .eq('DigiCom Business', businessId)
+                    .is('date_deleted', null);
+            }
             if (logEntry) await supabase.from('webhook_logs').update({ error_message: `No mapping for: ${tried}` }).eq('id', logEntry.id);
             return json({ status: 'logged', message: 'No mapping found' });
         }
 
         console.log(`[webhook] matched: "${matchedCandidate}" → ${matchedStatus.label} (${matchedStatus.code}, cat=${matchedStatus.category})`);
 
-        // ── 8. Regression guard ─────────────────────────────────────────
-        // Fetch current order status to prevent backward moves. Deleted-order short-circuit
-        // above guarantees the row exists, so no date_deleted filter needed here.
-        const { data: currentOrder } = await supabase
-            .from('orders')
-            .select('package_status_id')
-            .eq('id', orderId)
-            .maybeSingle();
-
-        if (currentOrder?.package_status_id) {
+        // ── 9. Regression guard ─────────────────────────────────────────
+        // Fetch current category. Deleted-order short-circuit above guarantees the row exists.
+        let currentCat: string | null = null;
+        if (orderMeta.package_status_id) {
             const { data: currentPkgStatus } = await supabase
                 .from('package_statuses')
                 .select('category')
-                .eq('id', currentOrder.package_status_id)
+                .eq('id', orderMeta.package_status_id)
                 .maybeSingle();
+            currentCat = currentPkgStatus?.category || null;
+        }
 
-            if (currentPkgStatus) {
-                const currentCat = currentPkgStatus.category;
-                const newCat = matchedStatus.category;
+        const newCat = matchedStatus.category;
 
-                // Never regress to 'new' from any non-new status
-                if (newCat === 'new' && currentCat !== 'new') {
-                    console.log(`[webhook] BLOCKED regression to 'new' from '${currentCat}'`);
-                    if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: `Regression blocked: ${currentCat} → new` }).eq('id', logEntry.id);
-                    return json({ status: 'skipped', reason: 'regression_blocked' });
+        if (currentCat) {
+            // Never regress to 'new' from any non-new status
+            if (newCat === 'new' && currentCat !== 'new') {
+                console.log(`[webhook] BLOCKED regression to 'new' from '${currentCat}'`);
+                if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: `Regression blocked: ${currentCat} → new` }).eq('id', logEntry.id);
+                return json({ status: 'skipped', reason: 'regression_blocked' });
+            }
+
+            // Terminal-category lock: once delivered/returned/refused/cancelled, only allow
+            // same-category re-confirmations (idempotent) and side-effects from billing
+            // events. Block transitions to any other category. Crucially, this prevents
+            // Coliaty's PARCEL_SITUATION_CHANGED with STATUS=DELIVERED (sent at invoice-pay
+            // time) from being treated as a fresh "delivery just happened" event — the
+            // actual delivery may have been days earlier and date_livraison must not move.
+            if (TERMINAL_CATEGORIES.has(currentCat) && newCat !== currentCat) {
+                console.log(`[webhook] BLOCKED terminal regression: ${currentCat} → ${newCat}`);
+                if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: `Terminal lock: ${currentCat} → ${newCat}` }).eq('id', logEntry.id);
+                // Still record payment if applicable.
+                if (isPaidSituation) {
+                    await supabase
+                        .from('orders')
+                        .update({ payed: true, updated_at: new Date().toISOString() })
+                        .eq('id', orderId)
+                        .eq('DigiCom Business', businessId)
+                        .is('date_deleted', null);
                 }
+                return json({ status: 'skipped', reason: 'terminal_lock' });
+            }
 
-                // Never move backward in forward delivery progression
-                const currentRank = FORWARD_RANKS[currentCat];
-                const newRank = FORWARD_RANKS[newCat];
-                if (currentRank !== undefined && newRank !== undefined && newRank < currentRank) {
-                    console.log(`[webhook] BLOCKED backward move: ${currentCat}(${currentRank}) → ${newCat}(${newRank})`);
-                    if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: `Backward blocked: ${currentCat} → ${newCat}` }).eq('id', logEntry.id);
-                    return json({ status: 'skipped', reason: 'backward_blocked' });
-                }
+            // Never move backward in forward delivery progression
+            const currentRank = FORWARD_RANKS[currentCat];
+            const newRank = FORWARD_RANKS[newCat];
+            if (currentRank !== undefined && newRank !== undefined && newRank < currentRank) {
+                console.log(`[webhook] BLOCKED backward move: ${currentCat}(${currentRank}) → ${newCat}(${newRank})`);
+                if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: `Backward blocked: ${currentCat} → ${newCat}` }).eq('id', logEntry.id);
+                return json({ status: 'skipped', reason: 'backward_blocked' });
             }
         }
 
-        // ── 9. Update company_parcels ───────────────────────────────────
+        // ── 10. Same-status no-op guard ─────────────────────────────────
+        // Coliaty (and other providers) occasionally retry the same webhook event, and
+        // each retry without this check would bump updated_at — triggering a realtime
+        // UPDATE, cache invalidation, and a redundant toast even though nothing actually
+        // changed. Bail out unless:
+        //   - the status_id actually moved, OR
+        //   - we'd be flipping the delivered flag on for the first time, OR
+        //   - we'd be filing the first cancellation / postponement timestamp, OR
+        //   - SITUATION=PAID newly marks the order as payed.
+        const sameStatusId = orderMeta.package_status_id === matchedStatus.id;
+        const hasDeliveredSideEffect = newCat === 'delivered' && !orderMeta.delivered;
+        const hasCancelSideEffect = newCat === 'cancelled' && currentCat !== 'cancelled';
+        const hasPostponeSideEffect = newCat === 'postponed' && currentCat !== 'postponed';
+        const hasPaidSideEffect = isPaidSituation && !orderMeta.payed;
+        const noOp =
+            sameStatusId &&
+            !hasDeliveredSideEffect &&
+            !hasCancelSideEffect &&
+            !hasPostponeSideEffect &&
+            !hasPaidSideEffect;
+
+        if (noOp) {
+            // Touch the parcel only if its label/color drift (cheap, doesn't fan out to
+            // the orders realtime channel).
+            if (parcel) {
+                await supabase.from('company_parcels').update({
+                    status_id: matchedStatus.id,
+                    status_label: matchedStatus.label,
+                    status_color: matchedStatus.color || null,
+                }).eq('id', parcel.id);
+            }
+            if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: 'No-op (status unchanged)' }).eq('id', logEntry.id);
+            console.log(`[webhook] NO-OP order=${orderId} → ${matchedStatus.code}`);
+            return json({ status: 'noop', reason: 'status_unchanged', order_id: orderId });
+        }
+
+        // ── 11. Update company_parcels ──────────────────────────────────
         if (parcel) {
             await supabase.from('company_parcels').update({
                 status_id: matchedStatus.id,
@@ -307,17 +443,47 @@ Deno.serve(async (req: Request) => {
             }).eq('id', parcel.id);
         }
 
-        // ── 10. Update order ────────────────────────────────────────────
+        // ── 12. Update order ────────────────────────────────────────────
+        const nowIso = new Date().toISOString();
         const updateData: any = {
             package_status_id: matchedStatus.id,
             package_status_label: matchedStatus.label,
             package_status_color: matchedStatus.color || null,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
         };
 
-        if (matchedStatus.category === 'delivered') {
+        // Delivered: mark delivered=true and lock the delivery date. The date sources, in
+        // priority order:
+        //   1. Existing orders.date_livraison if it's already set (idempotent — don't move it)
+        //   2. Coliaty payload DATE field (parsed dd/mm/yyyy or dd-mm-yyyy at 12:00 UTC)
+        //   3. nowIso (live PARCEL_STATUS_CHANGED with no DATE — webhook arrival is the best
+        //      estimator for the actual delivery moment)
+        // For PARCEL_SITUATION_CHANGED, the DATE is the invoice-pay day and is NOT used for
+        // date_livraison — the terminal-category lock above already short-circuits this code
+        // path for already-delivered orders. For brand-new deliveries first observed via the
+        // situation event (no prior PARCEL_STATUS_CHANGED), we fall back to nowIso.
+        if (newCat === 'delivered') {
             updateData.delivered = true;
-            updateData.date_livraison = new Date().toISOString();
+            if (orderMeta.date_livraison) {
+                // Already set — don't move it.
+            } else if (!isSituationEvent && coliatyDate) {
+                updateData.date_livraison = coliatyDate;
+            } else {
+                updateData.date_livraison = nowIso;
+            }
+        }
+
+        // Cancelled / refused / returned timestamps — set on first transition, idempotent.
+        if (newCat === 'cancelled' && currentCat !== 'cancelled') {
+            updateData.annulation_date = coliatyDate || nowIso;
+        }
+        if (newCat === 'postponed' && currentCat !== 'postponed') {
+            updateData.reported_date = coliatyDate || nowIso;
+        }
+
+        // Paid situation — always flag the order, regardless of status transition outcome.
+        if (isPaidSituation) {
+            updateData.payed = true;
         }
 
         const { error: updateError } = await supabase
@@ -333,11 +499,17 @@ Deno.serve(async (req: Request) => {
             return json({ error: 'Update failed' }, 500);
         }
 
-        // ── 11. Mark success ────────────────────────────────────────────
+        // ── 12. Mark success ────────────────────────────────────────────
         if (logEntry) await supabase.from('webhook_logs').update({ processed: true }).eq('id', logEntry.id);
 
-        console.log(`[webhook] SUCCESS order=${orderId} → ${matchedStatus.label} (${matchedStatus.code})`);
-        return json({ status: 'success', status_mapped: matchedStatus.code, order_id: orderId });
+        console.log(`[webhook] SUCCESS order=${orderId} → ${matchedStatus.label} (${matchedStatus.code})${isSituationEvent ? ' [situation]' : ''}${isPaidSituation ? ' [paid]' : ''}`);
+        return json({
+            status: 'success',
+            status_mapped: matchedStatus.code,
+            order_id: orderId,
+            event: eventName || null,
+            situation: isPaidSituation ? 'PAID' : null,
+        });
 
     } catch (e) {
         console.error('[webhook] fatal:', e);

@@ -697,7 +697,9 @@ const Orders = () => {
         return () => { document.head.removeChild(style); };
     }, []);
 
-    // --- Realtime: listen for webhook-driven order updates ---
+    // --- Realtime: refresh the orders query when webhooks write status updates.
+    // The user-visible toast lives in the global OrderStatusNotifications component
+    // (mounted in SellerLayout) so it fires regardless of which page is open.
     useEffect(() => {
         if (!activeBusinessId) return;
 
@@ -710,33 +712,18 @@ const Orders = () => {
         };
 
         const channel = supabase
-            .channel(`orders-realtime-seller-${activeBusinessId}`)
+            .channel(`orders-cache-invalidate-seller-${activeBusinessId}`)
             .on(
                 'postgres_changes' as any,
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                },
-                (payload: any) => {
-                    console.log('[Realtime] Order updated:', payload.new?.id);
-                    debouncedInvalidate();
-                }
+                { event: 'UPDATE', schema: 'public', table: 'orders' },
+                () => { debouncedInvalidate(); }
             )
             .on(
                 'postgres_changes' as any,
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'orders',
-                },
-                () => {
-                    debouncedInvalidate();
-                }
+                { event: 'INSERT', schema: 'public', table: 'orders' },
+                () => { debouncedInvalidate(); }
             )
-            .subscribe((status: string) => {
-                console.log('[Realtime] Seller orders channel status:', status);
-            });
+            .subscribe();
 
         return () => {
             if (debounceTimer) clearTimeout(debounceTimer);
@@ -1286,6 +1273,61 @@ const Orders = () => {
             delvoexpress_old_tracking: ''
         }
     });
+
+    // ?view=<orderId> — opens the order preview modal. Used by the global
+    // OrderStatusNotifications toast (clicked from any seller page) to deep-link
+    // into the order it just announced. Same fallback as the admin page: if the
+    // order isn't in the cached list, fetch it directly (RLS still enforces that
+    // the seller can only see their own orders).
+    const viewParamHandledRef = useRef<string | null>(null);
+    useEffect(() => {
+        const requestedId = searchParams.get('view');
+        if (!requestedId) {
+            viewParamHandledRef.current = null;
+            return;
+        }
+        if (viewParamHandledRef.current === requestedId) return;
+        if (!orders) return;
+
+        const target = (orders as any[]).find((o) => o.id === requestedId);
+        viewParamHandledRef.current = requestedId;
+
+        const openWith = (row: any) => {
+            if (!row) return;
+            setSelectedOrder(row);
+            setIsViewModalOpen(true);
+        };
+
+        if (target) {
+            openWith(target);
+        } else {
+            (async () => {
+                const { data } = await (supabase as any)
+                    .from('orders')
+                    .select(`
+                        *,
+                        status:order_statuses(*),
+                        package_status:package_statuses(*),
+                        city:master_cities(id, name),
+                        courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                        assignee:users!orders_assign_id_fkey(id, name, avatar_url),
+                        company:providers(id, name, logo_url),
+                        items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
+                        history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
+                        parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
+                        courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
+                    `)
+                    .eq('id', requestedId)
+                    .is('date_deleted', null)
+                    .maybeSingle();
+                openWith(data);
+            })();
+        }
+
+        const next = new URLSearchParams(searchParams);
+        next.delete('view');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, orders, setSearchParams]);
 
     // ?addProductId=<uuid> — opens the New Order modal with the product
     // already on line 1 (mirrors what OrderLineProductCombobox does on select).

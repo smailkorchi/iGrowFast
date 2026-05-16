@@ -1,5 +1,6 @@
 import React from 'react';
 import Sidebar from './Sidebar';
+import { OrderStatusNotifications } from '@/components/orders/OrderStatusNotifications';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -17,6 +18,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     </div>
                 </div>
             </main>
+
+            {/* Mounted once per session — surfaces webhook-driven status changes on every admin page. */}
+            <OrderStatusNotifications role="admin" targetPath="/orders" />
         </div>
     );
 };

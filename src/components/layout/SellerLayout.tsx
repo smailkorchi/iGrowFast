@@ -3,6 +3,7 @@ import SellerSidebar from './SellerSidebar';
 import SuspensionOverlay from './SuspensionOverlay';
 import { supabase } from '@/lib/supabase';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
+import { OrderStatusNotifications } from '@/components/orders/OrderStatusNotifications';
 
 interface SellerLayoutProps {
     children: React.ReactNode;
@@ -63,6 +64,8 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
             {isSuspended && businessId && (
                 <SuspensionOverlay role="commercial" businessId={businessId} />
             )}
+            {/* Surfaces status changes on every seller page — only for orders attributed to this user. */}
+            <OrderStatusNotifications role="seller" targetPath="/seller/orders" />
         </div>
     );
 };

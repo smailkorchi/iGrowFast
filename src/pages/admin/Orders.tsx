@@ -586,7 +586,10 @@ const Orders = () => {
         return () => { document.head.removeChild(style); };
     }, []);
 
-    // --- Realtime: listen for webhook-driven order updates ---
+    // --- Realtime: refresh the orders query when webhooks write status updates.
+    // The user-visible toast lives in the global OrderStatusNotifications component
+    // (mounted in AppLayout) so it fires regardless of which page is open. This
+    // subscription only handles cache invalidation for the current page.
     useEffect(() => {
         if (!activeBusinessId) return;
 
@@ -599,33 +602,18 @@ const Orders = () => {
         };
 
         const channel = supabase
-            .channel(`orders-realtime-${activeBusinessId}`)
+            .channel(`orders-cache-invalidate-${activeBusinessId}`)
             .on(
                 'postgres_changes' as any,
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                },
-                (payload: any) => {
-                    console.log('[Realtime] Order updated:', payload.new?.id);
-                    debouncedInvalidate();
-                }
+                { event: 'UPDATE', schema: 'public', table: 'orders' },
+                () => { debouncedInvalidate(); }
             )
             .on(
                 'postgres_changes' as any,
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'orders',
-                },
-                () => {
-                    debouncedInvalidate();
-                }
+                { event: 'INSERT', schema: 'public', table: 'orders' },
+                () => { debouncedInvalidate(); }
             )
-            .subscribe((status: string) => {
-                console.log('[Realtime] Orders channel status:', status);
-            });
+            .subscribe();
 
         return () => {
             if (debounceTimer) clearTimeout(debounceTimer);
@@ -1263,6 +1251,66 @@ const Orders = () => {
     });
 
     const watchedOrderItems = useWatch({ control: form.control, name: 'items' });
+
+    // ?view=<orderId> — opens the order preview modal. Used by the global
+    // OrderStatusNotifications toast (clicked from any page) to deep-link into
+    // the order it just announced. Cleans the param after handling so a refresh
+    // doesn't re-open the modal. The handled-ref is reset whenever the param is
+    // absent so a second toast for the same order still opens the modal.
+    // If the order isn't in the cached `orders` list (e.g. filtered out by a date
+    // range, or trashed, or simply not yet loaded after a fresh navigation), we
+    // fall back to a direct fetch that mirrors the main query's joins so the modal
+    // can still open with everything it needs.
+    const viewParamHandledRef = useRef<string | null>(null);
+    useEffect(() => {
+        const requestedId = searchParams.get('view');
+        if (!requestedId) {
+            viewParamHandledRef.current = null;
+            return;
+        }
+        if (viewParamHandledRef.current === requestedId) return;
+        if (!orders) return;
+
+        const target = (orders as any[]).find((o) => o.id === requestedId);
+        viewParamHandledRef.current = requestedId;
+
+        const openWith = (row: any) => {
+            if (!row) return;
+            setSelectedOrder(row);
+            setIsViewModalOpen(true);
+        };
+
+        if (target) {
+            openWith(target);
+        } else {
+            // Direct fetch fallback when the order is outside the current view filters.
+            (async () => {
+                const { data } = await (supabase as any)
+                    .from('orders')
+                    .select(`
+                        *,
+                        status:order_statuses(*),
+                        package_status:package_statuses(*),
+                        city:master_cities(id, name),
+                        courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                        assignee:users!orders_assign_id_fkey(id, name, avatar_url),
+                        company:providers(id, name, logo_url),
+                        items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
+                        history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
+                        parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
+                        courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
+                    `)
+                    .eq('id', requestedId)
+                    .is('date_deleted', null)
+                    .maybeSingle();
+                openWith(data);
+            })();
+        }
+
+        const next = new URLSearchParams(searchParams);
+        next.delete('view');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, orders, setSearchParams]);
 
     // ?addProductId=<uuid> — opens the New Order modal with the product
     // already on line 1 (mirrors what OrderLineProductCombobox does on select).
