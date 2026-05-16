@@ -304,20 +304,16 @@ const SellerStatistics = () => {
             const confirmedOrders = orders?.filter(o => isConfirmedOrBeyond(o)).length || 0;
             const deliveredOrdersCount = orders?.filter(o => isDelivered(o)).length || 0;
             const fakeOrders = orders?.filter(o => isFake(o)).length || 0;
-            // Confirmation rate: numerator = any order where a yes was spoken
-            // (tracking code OR status anything except `new`/`callback`).
-            // Denominator = touched (tracking OR status NOT in `new`).
+            // Confirmation rate: numerator = orders NOT in pending (new +
+            // postponed) OR with tracking. Denominator = total orders.
+            const statusMapsReady = statusCats.pendingIds.size > 0;
             const rateConfirmedCount = orders?.filter((o: any) => {
                 if (hasTracking(o)) return true;
-                return !!o.order_status_id
-                    && !statusCats.newOrderIds.has(o.order_status_id)
-                    && !statusCats.unreachedOrderIds.has(o.order_status_id);
+                return statusMapsReady
+                    && !!o.order_status_id
+                    && !statusCats.pendingIds.has(o.order_status_id);
             }).length || 0;
-            const rateTouchedCount = orders?.filter((o: any) => {
-                if (hasTracking(o)) return true;
-                return !o.order_status_id || !statusCats.newOrderIds.has(o.order_status_id);
-            }).length || 0;
-            const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+            const confirmRate = totalOrdersCount > 0 ? (rateConfirmedCount / totalOrdersCount) * 100 : 0;
 
             // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
             // `trackedSet` was fetched above (before the confirmation rules).

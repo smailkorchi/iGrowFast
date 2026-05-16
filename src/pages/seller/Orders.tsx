@@ -2347,22 +2347,17 @@ const Orders = () => {
                 if (hasCompanyTracking || hasCourierTracking) trackedSet.add(o.id);
             });
 
-            // Confirmation rate: numerator = any order where a yes was spoken
-            // (tracking code OR status anything except `new`/`callback`).
-            // Denominator = touched (tracking OR status NOT in `new`).
+            // Confirmation rate: numerator = orders NOT in pending (new +
+            // postponed) OR with tracking. Denominator = total orders.
+            const statusMapsReady = statusCats.pendingIds.size > 0;
             const rateConfirmedCount = allOrders.filter((o: any) => {
                 const hasTracking = !!o.id && trackedSet.has(o.id);
                 if (hasTracking) return true;
-                return !!o.order_status_id
-                    && !statusCats.newOrderIds.has(o.order_status_id)
-                    && !statusCats.unreachedOrderIds.has(o.order_status_id);
+                return statusMapsReady
+                    && !!o.order_status_id
+                    && !statusCats.pendingIds.has(o.order_status_id);
             }).length;
-            const rateTouchedCount = allOrders.filter((o: any) => {
-                const hasTracking = !!o.id && trackedSet.has(o.id);
-                if (hasTracking) return true;
-                return !o.order_status_id || !statusCats.newOrderIds.has(o.order_status_id);
-            }).length;
-            const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+            const confirmRate = allOrders.length > 0 ? (rateConfirmedCount / allOrders.length) * 100 : 0;
             const trackedCount = allOrders.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
             const pullbackCount = allOrders.filter((o: any) =>
                 !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
@@ -2405,7 +2400,7 @@ const Orders = () => {
         };
 
         calculateSellerStats();
-    }, [orders, userId, sellerProfile, sellerProductIds, statusCats.deliveredPkgIds, statusCats.newOrderIds, statusCats.unreachedOrderIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
+    }, [orders, userId, sellerProfile, sellerProductIds, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);

@@ -10,7 +10,6 @@ import {
     isDelivered,
     isFailed,
     isRateConfirmed,
-    isRateTouched,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
@@ -35,8 +34,7 @@ interface OrdersSectionProps {
 export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) => {
     const {
         cancelledIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         deliveredPkgIds,
@@ -72,11 +70,9 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         // Failed = cancelled + fake + double + blacklisted merged bucket (§4).
         const failedCount = filtered.filter(o => isFailed(o, cancelledIds)).length;
 
-        // Confirmation-rate metric: numerator counts every order where a yes was
-        // spoken (everything except `new` and `callback`). Denominator excludes
-        // only `new` so unreached orders still penalise the rate.
-        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds)).length;
-        const rateTouchedCount = filtered.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds)).length;
+        // Confirmation-rate metric. Numerator = orders NOT in pending set
+        // (new + postponed) OR with tracking. Denominator = total filtered.
+        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds)).length;
 
         // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
         const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
@@ -85,7 +81,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         );
         const deliveryDenom = tracked.length - pullback.length;
 
-        const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+        const confirmRate = total > 0 ? (rateConfirmedCount / total) * 100 : 0;
         const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
         const failedRate = total > 0 ? (failedCount / total) * 100 : 0;
 
@@ -162,7 +158,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
             confirmRate, deliveryRate, failedRate, avgOrderValue,
             todayOrders, weekOrders, trendData, topCities, funnelData,
         };
-    }, [orders, dateFilter, cancelledIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds]);
+    }, [orders, dateFilter, cancelledIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds]);
 
     return (
         <SectionWrapper

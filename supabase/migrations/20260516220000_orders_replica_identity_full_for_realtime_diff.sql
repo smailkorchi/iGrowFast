@@ -1,0 +1,12 @@
+-- The order-status notification toast diffs `payload.old.package_status_id` vs
+-- `payload.new.package_status_id` to decide whether to fire. With REPLICA IDENTITY
+-- DEFAULT, Postgres only writes the primary key into the OLD record on UPDATE, so
+-- every old.* column except id is NULL in the realtime payload. The diff then
+-- treats every UPDATE as a status change, and the toast fires on benign edits
+-- (address change, seller assignment, payed flag flip, etc.) — including ones
+-- that have nothing to do with the courier.
+--
+-- REPLICA IDENTITY FULL writes every column into OLD, so the diff is accurate
+-- and the toast only fires when the package_status actually moves. The cost is
+-- a slightly larger WAL entry per UPDATE, which is fine at this row count.
+ALTER TABLE public.orders REPLICA IDENTITY FULL;

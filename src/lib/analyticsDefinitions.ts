@@ -185,24 +185,34 @@ export function isConfirmed(
 }
 
 /**
- * Confirmation-rate numerator: an order counts as confirmed if a customer
- * was spoken to and said yes at some point in its life — regardless of what
- * happened afterwards (cancel, return, fake, blacklist, etc.).
+ * Confirmation-rate numerator. An order counts as confirmed when:
+ *   - it has been handed to a courier (tracking code in company_parcels or
+ *     courier_parcels), OR
+ *   - its order_status is NOT in the pending set (new + postponed — orders
+ *     still waiting for human action). Everything else — callback, interested,
+ *     recheck, cancelled, fake, double, return, paid, unpaid, … — counts as
+ *     confirmed for the rate, because the CSR has progressed it past the
+ *     "needs first/next touch" queue.
  *
- * Definition: every order EXCEPT those still sitting at `new` (never worked)
- * or in `callback` (tried to call, no answer). The tracking-code override
- * still applies — if the order was handed to a courier, it is confirmed.
+ * The rate is computed against the TOTAL filtered orders (no separate
+ * "touched" denominator). Pending = `pendingOrderIds`, so:
+ *   rate = (filtered − pending − null-status) / filtered
+ *
+ * Empty-set guard: `pendingOrderIds` is empty while `useStatusCategories` is
+ * still loading. Without the guard the negative check (`!pendingIds.has(x)`)
+ * is trivially true for every order — including ones literally in
+ * `NOUVELLE COMMANDE` — and the rate spikes to ~100%. Return false in that
+ * window so the dashboard shows 0% briefly instead of 100%.
  */
 export function isRateConfirmed(
     order: AnalyticsOrder & { id?: string },
-    newOrderIds: Set<string>,
-    unreachedOrderIds: Set<string>,
+    pendingOrderIds: Set<string>,
     trackedOrderIds?: Set<string>,
 ): boolean {
     if (hasTrackingCode(order, trackedOrderIds)) return true;
+    if (pendingOrderIds.size === 0) return false;
     if (!order.order_status_id) return false;
-    if (newOrderIds.has(order.order_status_id)) return false;
-    if (unreachedOrderIds.has(order.order_status_id)) return false;
+    if (pendingOrderIds.has(order.order_status_id)) return false;
     return true;
 }
 
@@ -253,22 +263,22 @@ export function isInDeliveryDenominator(
 }
 
 /**
- * Confirmation-rate denominator: orders the team has actually started
- * working on. An order counts as touched if:
- *   - it has a tracking code (shipped ⇒ confirmed ⇒ touched), OR
- *   - it has no order_status_id (edge case — still counted as touched), OR
- *   - its order_status_id is NOT in the `new` bucket.
- * This guarantees `isRateConfirmed` ⇒ `isRateTouched`, so the rate is
- * always ≤ 100%.
+ * Confirmation-rate denominator. Every filtered order is in the denominator
+ * — the rate is `confirmed / total`, not `confirmed / touched`. This helper
+ * exists for callers that still want a per-order boolean (e.g. when building
+ * a separate "touched" stat); it just gates on having a real order row.
+ *
+ * Historical note: the old denominator excluded `new` orders, which made the
+ * rate spike to ~100% because untouched orders were also dropped from the
+ * denominator. That hid CSR backlog. The new rule treats `new` as "in the
+ * universe but not yet confirmed" — visible in the rate.
  */
 export function isRateTouched(
-    order: AnalyticsOrder & { id?: string },
-    newOrderIds: Set<string>,
-    trackedOrderIds?: Set<string>,
+    _order: AnalyticsOrder & { id?: string },
+    _pendingOrderIds?: Set<string>,
+    _trackedOrderIds?: Set<string>,
 ): boolean {
-    if (hasTrackingCode(order, trackedOrderIds)) return true;
-    if (!order.order_status_id) return true;
-    return !newOrderIds.has(order.order_status_id);
+    return true;
 }
 
 /** Failed = cancelled / fake / double / blacklisted — merged to a single bucket. */

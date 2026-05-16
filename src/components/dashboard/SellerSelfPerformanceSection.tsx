@@ -55,8 +55,7 @@ export function SellerSelfPerformanceSection({
         orderStatuses,
         packageStatuses,
         deliveredPkgIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         getOrderStatusColor,
@@ -146,26 +145,20 @@ export function SellerSelfPerformanceSection({
         const assignedCount = cohort.length;
         const assignedPercent = totalInWindow > 0 ? (assignedCount / totalInWindow) * 100 : 0;
 
-        // One true definition: an order is confirmed if it has a tracking
-        // code (in company_parcels/courier_parcels) OR its status is anything
-        // except `new` or a `callback` variant. Same rule for count and rate.
+        // Confirmed = status NOT in pending ({new, postponed}) OR has tracking.
+        // Empty-set guard: see DashboardSellersPerformance for the explanation.
         const hasTracking = (o: SSPOrder) => !!o.id && trackedOrderIds.has(o.id);
+        const statusMapsReady = pendingIds.size > 0;
         const confirmed = cohort.filter((o) =>
             hasTracking(o)
-            || (!!o.order_status_id
-                && !newOrderIds.has(o.order_status_id)
-                && !unreachedOrderIds.has(o.order_status_id)),
+            || (statusMapsReady
+                && !!o.order_status_id
+                && !pendingIds.has(o.order_status_id)),
         );
         const confirmedCount = confirmed.length;
 
-        // Touched denominator = cohort minus orders still sitting fresh at `new`.
-        // Tracking code is a hard override — tracking ⇒ confirmed ⇒ touched.
-        const rateTouchedCount = cohort.filter((o) =>
-            hasTracking(o)
-            || !o.order_status_id
-            || !newOrderIds.has(o.order_status_id),
-        ).length;
-        const confirmedPercent = rateTouchedCount > 0 ? (confirmedCount / rateTouchedCount) * 100 : 0;
+        // Rate denominator = full cohort (no "touched" exclusion).
+        const confirmedPercent = cohort.length > 0 ? (confirmedCount / cohort.length) * 100 : 0;
 
         // Delivered = package state is delivered. Computed directly from the
         // cohort so it is independent of the confirmed set.
@@ -302,8 +295,7 @@ export function SellerSelfPerformanceSection({
         sellerId,
         dateFilter,
         deliveredPkgIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         trackedOrderIds,

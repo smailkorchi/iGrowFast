@@ -173,23 +173,18 @@ const SellerProfile = () => {
                     const total = ordersList.length;
                     const delivered = ordersList.filter(o => isDeliveredForCommission(o, statusCats.deliveredPkgIds)).length;
 
-                    // Confirmation rate: numerator = any order where a yes was
-                    // spoken (tracking code OR status except `new`/`callback`).
-                    // Denominator = touched (tracking OR status NOT in `new`).
+                    // Confirmation rate: numerator = orders NOT in pending
+                    // (new + postponed) OR with tracking. Denominator = total.
+                    const statusMapsReady = statusCats.pendingIds.size > 0;
                     const rateConfirmedCount = ordersList.filter((o: any) => {
                         const hasTracking = !!o.id && trackedSet.has(o.id);
                         if (hasTracking) return true;
-                        return !!o.order_status_id
-                            && !statusCats.newOrderIds.has(o.order_status_id)
-                            && !statusCats.unreachedOrderIds.has(o.order_status_id);
-                    }).length;
-                    const rateTouchedCount = ordersList.filter((o: any) => {
-                        const hasTracking = !!o.id && trackedSet.has(o.id);
-                        if (hasTracking) return true;
-                        return !o.order_status_id || !statusCats.newOrderIds.has(o.order_status_id);
+                        return statusMapsReady
+                            && !!o.order_status_id
+                            && !statusCats.pendingIds.has(o.order_status_id);
                     }).length;
 
-                    const cRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+                    const cRate = ordersList.length > 0 ? (rateConfirmedCount / ordersList.length) * 100 : 0;
 
                     // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
                     const trackedCount = ordersList.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
@@ -304,22 +299,17 @@ const SellerProfile = () => {
                                     const oo = Array.isArray(o) ? o[0] : o;
                                     return oo?.order_status_id && statusCats.confirmedIds.has(oo.order_status_id);
                                 }).length,
-                                // Rate helpers — "yes was spoken" numerator / touched denominator.
-                                // Tracking code is a hard override (tracking ⇒ confirmed ⇒ touched).
+                                // Rate helpers: confirmed = NOT in pending (new+postponed)
+                                // OR has tracking. Denominator = total uniqueOrders.
                                 rateConfirmed: uniqueOrders.filter(o => {
                                     const oo = Array.isArray(o) ? o[0] : o;
                                     const hasTracking = !!oo?.id && trackedSet.has(oo.id);
                                     if (hasTracking) return true;
-                                    return !!oo?.order_status_id
-                                        && !statusCats.newOrderIds.has(oo.order_status_id)
-                                        && !statusCats.unreachedOrderIds.has(oo.order_status_id);
+                                    return statusCats.pendingIds.size > 0
+                                        && !!oo?.order_status_id
+                                        && !statusCats.pendingIds.has(oo.order_status_id);
                                 }).length,
-                                rateTouched: uniqueOrders.filter(o => {
-                                    const oo = Array.isArray(o) ? o[0] : o;
-                                    const hasTracking = !!oo?.id && trackedSet.has(oo.id);
-                                    if (hasTracking) return true;
-                                    return !oo?.order_status_id || !statusCats.newOrderIds.has(oo.order_status_id);
-                                }).length,
+                                rateTouched: uniqueOrders.length,
                                 delivered: uniqueOrders.filter(o => {
                                     const oo = Array.isArray(o) ? o[0] : o;
                                     return isDeliveredForCommission(oo, statusCats.deliveredPkgIds);

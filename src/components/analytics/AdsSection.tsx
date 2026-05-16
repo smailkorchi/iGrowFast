@@ -110,7 +110,7 @@ type AdsOrderForMatching = {
 };
 
 export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
-    const { deliveredPkgIds, newOrderIds, unreachedOrderIds } = useStatusCategories();
+    const { deliveredPkgIds, pendingIds } = useStatusCategories();
     const { trackedOrderIds } = useTrackedOrders(businessId);
 
     // ── Source 1: legacy per-product ads (ads_history) ─────────────
@@ -211,11 +211,14 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
         const classify = (o: AnalyticsOrder & { id?: string }) => {
             const isDelivered = isDeliveredHelper(o, deliveredPkgIds);
             const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+            // Confirmed = tracking OR status NOT in pending (new + postponed).
+            // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
+            const statusMapsReady = pendingIds.size > 0;
             const isConfirmed =
                 hasTracking
-                || (!!o.order_status_id
-                    && !newOrderIds.has(o.order_status_id)
-                    && !unreachedOrderIds.has(o.order_status_id));
+                || (statusMapsReady
+                    && !!o.order_status_id
+                    && !pendingIds.has(o.order_status_id));
             return { isDelivered, isConfirmed };
         };
 
@@ -505,7 +508,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             globalCampaignCount,
             platformData, trendData,
         };
-    }, [adsHistory, campaignEntries, allOrders, dateFilter, deliveredPkgIds, newOrderIds, unreachedOrderIds, trackedOrderIds]);
+    }, [adsHistory, campaignEntries, allOrders, dateFilter, deliveredPkgIds, pendingIds, trackedOrderIds]);
 
     // Expose campaignRows to satisfy linter usage (campaign names could be reused later in the UI).
     void campaignRows;

@@ -8,7 +8,7 @@ import {
     isDeliveredOnLocalDay,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
-import { isAdminPullback, isRateConfirmed, isRateTouched } from '@/lib/analyticsDefinitions';
+import { isAdminPullback, isRateConfirmed } from '@/lib/analyticsDefinitions';
 import {
     ShoppingCart, Eye, ChevronRight, Truck, Receipt,
     Wallet as WalletIcon, Clock, PackageCheck, CalendarDays,
@@ -222,12 +222,10 @@ const SellerDashboard = () => {
             );
             const deliveryDenom = tracked.length - pullback.length;
             const successRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
-            // Confirmation rate: numerator = any order where a yes was spoken
-            // (everything except `new` and `callback`). Denominator = touched
-            // (total minus `new`). Matches the canonical business definition.
-            const rateConfirmedCount = orders.filter(o => isRateConfirmed(o, statusCats.newOrderIds, statusCats.unreachedOrderIds, trackedSet)).length;
-            const rateTouchedCount = orders.filter(o => isRateTouched(o, statusCats.newOrderIds, trackedSet)).length;
-            const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+            // Confirmation rate: numerator = orders NOT in pending (new +
+            // postponed) OR with tracking. Denominator = total orders.
+            const rateConfirmedCount = orders.filter(o => isRateConfirmed(o, statusCats.pendingIds, trackedSet)).length;
+            const confirmRate = orders.length > 0 ? (rateConfirmedCount / orders.length) * 100 : 0;
 
             const { data: paymentsData } = await supabase
                 .from('seller_payments')

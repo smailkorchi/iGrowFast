@@ -116,8 +116,7 @@ export const DashboardProductsPerformance = ({
 
     const {
         deliveredPkgIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         orderStatuses,
@@ -356,12 +355,14 @@ export const DashboardProductsPerformance = ({
                 // tracking set (company_parcels/courier_parcels) for every
                 // "has tracking" check, including confirmation.
                 const hasTracking = !!order.id && trackedOrderIds.has(order.id);
-                // Touched = order has been worked on. Tracking ⇒ touched.
-                if (hasTracking || !sid || !newOrderIds.has(sid)) rateTouchedUnits += q;
-                // Confirmed = the one true definition: tracking code OR
-                // status anything except `new`/`callback`.
+                // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
+                // Pending = order_status ∈ PENDING_ORDER_CATS (new + postponed).
+                const statusMapsReady = pendingIds.size > 0;
+                // Touched = every order unit (rate denominator is now total).
+                rateTouchedUnits += q;
+                // Confirmed = tracking code OR status NOT in pending.
                 if (hasTracking
-                    || (sid && !newOrderIds.has(sid) && !unreachedOrderIds.has(sid))) {
+                    || (statusMapsReady && sid && !pendingIds.has(sid))) {
                     rateConfirmedUnits += q;
                 }
                 // Delivery-rate math — Coliaty formula, per product units.
@@ -448,12 +449,13 @@ export const DashboardProductsPerformance = ({
                 if (!order) return;
                 const src = (order.source_name || 'other').toLowerCase();
                 bump(src, 'assigned');
-                // Confirmed = the one true definition: tracking code OR
-                // status anything except `new`/`callback`.
+                // Confirmed = tracking code OR status NOT in pending. Same
+                // empty-set guard as above (see analyticsDefinitions.ts).
                 const sid = order.order_status_id;
                 const hasTracking = !!order.id && trackedOrderIds.has(order.id);
+                const statusMapsReady = pendingIds.size > 0;
                 const orderConfirmed = hasTracking
-                    || (!!sid && !newOrderIds.has(sid) && !unreachedOrderIds.has(sid));
+                    || (statusMapsReady && !!sid && !pendingIds.has(sid));
                 if (orderConfirmed) {
                     bump(src, 'confirmed');
                     if (isDeliveredForCommission(order, deliveredPkgIds)) bump(src, 'delivered');
@@ -469,8 +471,9 @@ export const DashboardProductsPerformance = ({
             const isWideConfirmed = (o: DPOrder) => {
                 const sid = o.order_status_id;
                 const hasTracking = !!o.id && trackedOrderIds.has(o.id);
+                const statusMapsReady = pendingIds.size > 0;
                 return hasTracking
-                    || (!!sid && !newOrderIds.has(sid) && !unreachedOrderIds.has(sid));
+                    || (statusMapsReady && !!sid && !pendingIds.has(sid));
             };
             const confirmedOrders = productOrders.filter(isWideConfirmed);
             const deliveredOrders = productOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
@@ -590,8 +593,7 @@ export const DashboardProductsPerformance = ({
         sellersForCommission,
         dateFilter,
         deliveredPkgIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         trackedOrderIds,

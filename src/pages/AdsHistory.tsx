@@ -382,7 +382,7 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({ products, value, onCh
 };
 
 const AdsHistory = () => {
-    const { cancelledIds, deliveredPkgIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, getOrderCategory } = useStatusCategories();
+    const { cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, getOrderCategory } = useStatusCategories();
     const activeBusinessIdForTracking = typeof localStorage !== 'undefined' ? localStorage.getItem('activeBusinessId') : null;
     const { trackedOrderIds } = useTrackedOrders(activeBusinessIdForTracking);
     const location = useLocation();
@@ -544,13 +544,13 @@ const AdsHistory = () => {
                     }
                 }
 
-                // Wide confirmed + touched (one true definition).
-                // Tracking number is a hard override — tracking ⇒ confirmed ⇒ touched.
-                if (hasTracking || !sid || !newOrderIds.has(sid)) {
-                    rateTouchedOrders++;
-                    if (hasTracking || (sid && !unreachedOrderIds.has(sid))) {
-                        confirmedOrders++;
-                    }
+                // Confirmed = tracking OR status NOT in pending (new+postponed).
+                // Denominator = total filtered orders (rate = confirmed / total).
+                // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
+                rateTouchedOrders++;
+                const statusMapsReady = pendingIds.size > 0;
+                if (hasTracking || (statusMapsReady && sid && !pendingIds.has(sid))) {
+                    confirmedOrders++;
                 }
 
                 // Coliaty delivery denominator = tracked − admin-pullback.
@@ -597,7 +597,7 @@ const AdsHistory = () => {
                 qualityScore: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
             };
         };
-    }, [allOrders, productCosts, cancelledIds, deliveredPkgIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
+    }, [allOrders, productCosts, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
 
     const form = useForm<AdsHistoryValues>({
         resolver: zodResolver(adsHistorySchema),

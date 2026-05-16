@@ -21,7 +21,6 @@ import {
     isDelivered,
     isFailed,
     isRateConfirmed,
-    isRateTouched,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
 
@@ -49,8 +48,6 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         confirmedIds,
         cancelledIds,
         pendingIds,
-        newOrderIds,
-        unreachedOrderIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         deliveredPkgIds,
@@ -121,13 +118,12 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
 
         const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
 
-        // Confirmation-rate metric uses the wide "yes was spoken" definition:
-        // any order except `new` (untouched) and `callback` (tried, no answer).
-        // Tracking-code override: once the parcel was handed to a courier
-        // (tracking code in company_parcels / courier_parcels), the order is
-        // confirmed regardless of order_status.
-        const rateConfirmed = filtered.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds));
-        const rateTouched = filtered.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds));
+        // Confirmation-rate metric. Pending = order_status in {new, postponed}
+        // (PENDING_ORDER_CATS) — orders still waiting for human action.
+        // Confirmed = everything else, with tracking-code override (handed to
+        // courier ⇒ confirmed regardless of status). Denominator = total
+        // filtered orders (NOT a separate "touched" subset).
+        const rateConfirmed = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds));
 
         // Delivery rate (Coliaty formula):
         //   delivered ÷ (tracked − admin-pullback)
@@ -141,15 +137,16 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const deliveryDenom = tracked.length - adminPullback.length;
 
         const confirmationRateNum =
-            rateTouched.length > 0 ? Math.min(100, (rateConfirmed.length / rateTouched.length) * 100) : 0;
+            total > 0 ? Math.min(100, (rateConfirmed.length / total) * 100) : 0;
         const confirmationRate = confirmationRateNum.toFixed(1);
         const deliveryRateNum =
             deliveryDenom > 0 ? Math.min(100, (delivered.length / deliveryDenom) * 100) : 0;
         const deliveryRate = deliveryRateNum.toFixed(1);
 
-        // Pending confirmation = status ∈ {new, callback} AND no tracking code.
-        // Tracking code (company_parcels / courier_parcels) is a hard override:
-        // if one exists, the order is confirmed regardless of status.
+        // Pending confirmation = status ∈ PENDING_ORDER_CATS (new + postponed)
+        // AND no tracking code. Tracking code (company_parcels/courier_parcels)
+        // is a hard override: if one exists, the order is confirmed regardless
+        // of status.
         const pendingConfirmation = filtered.filter(o => {
             if (o.id && trackedOrderIds.has(o.id)) return false;
             return !!o.order_status_id && pendingIds.has(o.order_status_id);
@@ -202,7 +199,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             {
                 title: 'Confirmation Rate',
                 value: `${confirmationRate}%`,
-                subtitle: `${rateConfirmed.length}/${rateTouched.length} touched`,
+                subtitle: `${rateConfirmed.length}/${total} of total`,
                 icon: Target,
                 accent: ANT.orange,
                 rate: confirmationRateNum,
@@ -269,7 +266,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
+    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">

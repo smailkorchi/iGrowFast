@@ -103,8 +103,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         orderStatuses,
         packageStatuses,
         deliveredPkgIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         getOrderStatusColor,
@@ -270,26 +269,25 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             const assignedCount = cohort.length;
             const assignedPercent = totalInWindow > 0 ? (assignedCount / totalInWindow) * 100 : 0;
 
-            // One true definition: an order is confirmed if it has a tracking
-            // code (company_parcels/courier_parcels) OR its status is anything
-            // except `new` or a `callback` variant. Same rule for count + rate.
+            // Confirmed = order_status NOT in pending ({new, postponed}) OR has
+            // tracking code (handed to courier ⇒ confirmed regardless of status).
+            // Empty-set guard: `pendingIds` is empty while `useStatusCategories`
+            // is loading; `.has` returns false for everything in that window,
+            // so without the guard every order would slip through as confirmed.
             const hasTracking = (o: DSOrder) => !!o.id && trackedOrderIds.has(o.id);
+            const statusMapsReady = pendingIds.size > 0;
             const confirmed = cohort.filter((o) =>
                 hasTracking(o)
-                || (!!o.order_status_id
-                    && !newOrderIds.has(o.order_status_id)
-                    && !unreachedOrderIds.has(o.order_status_id)),
+                || (statusMapsReady
+                    && !!o.order_status_id
+                    && !pendingIds.has(o.order_status_id)),
             );
             const confirmedCount = confirmed.length;
 
-            // Touched denominator = cohort minus orders still sitting fresh at `new`.
-            // Tracking code is a hard override — tracking ⇒ confirmed ⇒ touched.
-            const rateTouchedCount = cohort.filter((o) =>
-                hasTracking(o)
-                || !o.order_status_id
-                || !newOrderIds.has(o.order_status_id),
-            ).length;
-            const confirmedPercent = rateTouchedCount > 0 ? (confirmedCount / rateTouchedCount) * 100 : 0;
+            // Rate denominator = full cohort (every order in the window). The
+            // old "touched" denominator dropped `new` orders, hiding the CSR
+            // backlog and pushing the rate toward 100%.
+            const confirmedPercent = cohort.length > 0 ? (confirmedCount / cohort.length) * 100 : 0;
 
             // Delivered = package state is delivered. Computed directly from
             // the cohort so it is independent of the confirmed set.
@@ -488,8 +486,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         commissionTotals,
         dateFilter,
         deliveredPkgIds,
-        newOrderIds,
-        unreachedOrderIds,
+        pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         trackedOrderIds,

@@ -62,7 +62,7 @@ type OrderRow = {
  * cells with no data don't show fake #DIV/0 values).
  */
 export function useCampaignMetrics(campaign: Campaign | null | undefined) {
-    const { deliveredPkgIds } = useStatusCategories();
+    const { deliveredPkgIds, pendingIds } = useStatusCategories();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // Daily entries (manual spend + leads)
@@ -140,18 +140,24 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
             mediabuyer?.payment_type === 'commission' ? Number(mediabuyer.commission_price || 0) : 0;
 
         // Index orders by YYYY-MM-DD in business timezone.
-        // "Confirmed" = every order placed on the day, regardless of current status. Orders
-        // reaching this loop have already passed the source_name + business + date-range
-        // filter upstream, so presence here means the lead converted into an order.
+        // "Confirmed" = order_status NOT in pendingIds (new + postponed) — matches the
+        // dashboard's CSR-confirmation definition so cost-per-confirmed reflects orders
+        // the team actually accepted, not raw lead-to-placeholder conversions. Empty-set
+        // guard: skip counting until `pendingIds` is populated, otherwise every order
+        // slips through (an empty Set's `.has` is trivially false → `!has` is true).
         // "Delivered" = package status is in the 'delivered' category. No order-status
         // filter: a package marked delivered counts as a delivery regardless of whether
         // the cash has been collected (PAID/UNPAID) yet.
+        const statusMapsReady = pendingIds.size > 0;
         const ordersByDate = new Map<string, { confirmed: number; delivered: number }>();
         for (const o of orders) {
             if (!o.date) continue;
             const d = toBusinessDate(o.date);
             const bucket = ordersByDate.get(d) || { confirmed: 0, delivered: 0 };
-            bucket.confirmed += 1;
+            const isConfirmed = statusMapsReady
+                && !!o.order_status_id
+                && !pendingIds.has(o.order_status_id);
+            if (isConfirmed) bucket.confirmed += 1;
             if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) {
                 bucket.delivered += 1;
             }
@@ -216,7 +222,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         t.days = dailyRows.length;
 
         return { daily: dailyRows, totals: t };
-    }, [entries, orders, deliveredPkgIds, mediabuyer]);
+    }, [entries, orders, deliveredPkgIds, pendingIds, mediabuyer]);
 
     return {
         entries,

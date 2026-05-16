@@ -89,7 +89,7 @@ const finalize = (t: Totals): Totals => {
 export function useMediaBuyerStats(range: StatsDateRange) {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const currentUserId = useCurrentUserId();
-    const { deliveredPkgIds } = useStatusCategories();
+    const { deliveredPkgIds, pendingIds } = useStatusCategories();
 
     // 1. Entries directly by created_by — orphaned-safe.
     const { data: entries = [], isLoading: loadingEntries } = useQuery<CampaignDailyEntry[]>({
@@ -190,11 +190,15 @@ export function useMediaBuyerStats(range: StatsDateRange) {
         for (const c of campaigns) campaignById.set(c.id, c);
 
         // Bucket orders by (YYYY-MM-DD, source_lower).
-        // "Confirmed" = every order placed on the day, regardless of current status. Orders
-        // reaching this loop have already passed the source_name + business + date-range
-        // filter upstream, so presence here means the lead converted into an order.
+        // "Confirmed" = order_status NOT in pendingIds (new + postponed). This matches the
+        // dashboard's CSR-confirmation definition so the media buyer's cost-per-confirmed
+        // reflects orders the team actually accepted, not raw lead-to-placeholder
+        // conversions. Empty-set guard: when `pendingIds` hasn't loaded yet, don't count
+        // anything as confirmed (otherwise the negative `.has` trivially returns false and
+        // every order would slip through, inflating the metric on first paint).
         // "Delivered" = package status in the 'delivered' category, regardless of whether
         // the cash has been collected (PAID/UNPAID both count as delivered).
+        const statusMapsReady = pendingIds.size > 0;
         const ordersByDaySource = new Map<string, { confirmed: number; delivered: number }>();
         const key = (d: string, s: string) => `${d}|${s}`;
         for (const o of orders) {
@@ -203,7 +207,10 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             const s = o.source_name.toLowerCase();
             const k = key(d, s);
             const b = ordersByDaySource.get(k) || { confirmed: 0, delivered: 0 };
-            b.confirmed += 1;
+            const isConfirmed = statusMapsReady
+                && !!o.order_status_id
+                && !pendingIds.has(o.order_status_id);
+            if (isConfirmed) b.confirmed += 1;
             if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) {
                 b.delivered += 1;
             }
@@ -385,7 +392,7 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             perCampaign: perCampaignArr,
             currency: dominantCurrency,
         };
-    }, [entries, orders, campaigns, deliveredPkgIds, mediabuyer]);
+    }, [entries, orders, campaigns, deliveredPkgIds, pendingIds, mediabuyer]);
 
     return {
         campaigns,

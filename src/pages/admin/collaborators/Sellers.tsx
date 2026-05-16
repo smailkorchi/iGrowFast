@@ -162,8 +162,6 @@ const Sellers = () => {
         cancelledIds,
         deliveredPkgIds,
         pendingIds,
-        newOrderIds,
-        unreachedOrderIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
         getOrderCategory,
@@ -184,7 +182,7 @@ const Sellers = () => {
 
     useEffect(() => {
         fetchSellers();
-    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
+    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
 
     const fetchSellers = async () => {
         setLoading(true);
@@ -290,24 +288,17 @@ const Sellers = () => {
                     }
                 });
 
-                // Confirmation rate: numerator = any order where a yes was
-                // spoken (tracking code OR status except `new`/`callback`).
-                // Denominator = touched (tracking OR status NOT in `new`).
-                // Tracking lives in company_parcels/courier_parcels, not on the
-                // orders row — use `trackedOrderIds` (already fetched above).
+                // Confirmation rate: numerator = orders NOT in pending (new +
+                // postponed) OR with tracking. Denominator = total seller orders.
+                // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
+                const statusMapsReady = pendingIds.size > 0;
                 const rateConfirmedCount = sellerOrders.filter((o: any) => {
                     const hasTracking = !!o.id && trackedOrderIds.has(o.id);
                     if (hasTracking) return true;
-                    return !!o.order_status_id
-                        && !newOrderIds.has(o.order_status_id)
-                        && !unreachedOrderIds.has(o.order_status_id);
+                    if (!statusMapsReady) return false;
+                    return !!o.order_status_id && !pendingIds.has(o.order_status_id);
                 }).length;
-                const rateTouchedCount = sellerOrders.filter((o: any) => {
-                    const hasTracking = !!o.id && trackedOrderIds.has(o.id);
-                    if (hasTracking) return true;
-                    return !o.order_status_id || !newOrderIds.has(o.order_status_id);
-                }).length;
-                const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
+                const confirmRate = sellerOrders.length > 0 ? (rateConfirmedCount / sellerOrders.length) * 100 : 0;
                 // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
                 const sellerTracked = sellerOrders.filter((o: any) => !!o.id && trackedOrderIds.has(o.id));
                 const sellerPullback = sellerTracked.filter((o: any) =>

@@ -9,7 +9,6 @@ import {
     isAdminPullback,
     isDelivered,
     isRateConfirmed,
-    isRateTouched,
     isRevenueOrder,
     placementTimestamp,
     pureRevenueForOrder,
@@ -43,7 +42,7 @@ interface BusinessHealthSectionProps {
 }
 
 export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealthSectionProps) => {
-    const { confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
     const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders, isLoading } = useQuery({
@@ -92,11 +91,10 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         // ── Rates under the locked rules ────────────────────────────────
         // Delivered = package category or label match. No "must be paid" private rule.
         const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
-        // Confirmation-rate metric: numerator counts every order where a yes was
-        // spoken (all categories except `new` and `callback`); denominator is
-        // "touched" (total minus `new`). Unreached orders still drag the rate.
-        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds)).length;
-        const rateTouchedCount = filtered.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds)).length;
+        // Confirmation-rate metric: numerator counts orders NOT in pending
+        // (new + postponed) OR with tracking; denominator = total filtered.
+        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds)).length;
+        const rateTouchedCount = filtered.length;
         const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
         // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
         const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
@@ -178,8 +176,8 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         const trendData = intervals.map((anchor) => {
             const { start, end } = bucketBounds(anchor);
             const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
-            const bTouched = bucketOrders.filter(o => isRateTouched(o, newOrderIds, trackedOrderIds));
-            const bConfirmed = bucketOrders.filter(o => isRateConfirmed(o, newOrderIds, unreachedOrderIds, trackedOrderIds));
+            const bTouched = bucketOrders; // denominator = bucket total
+            const bConfirmed = bucketOrders.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds));
             const bDelivered = bucketOrders.filter(o => isDelivered(o, deliveredPkgIds));
             const bTracked = bucketOrders.filter(o => !!o.id && trackedOrderIds.has(o.id));
             const bPullback = bTracked.filter(o =>
@@ -224,7 +222,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             deliveredCount: delivered.length,
             touchedCount: rateTouchedCount,
         };
-    }, [orders, dateFilter, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds, unreachedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [orders, dateFilter, cancelledIds, deliveredPkgIds, paidOrderIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     return (
         <SectionWrapper
