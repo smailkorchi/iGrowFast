@@ -3351,7 +3351,11 @@ const Orders = () => {
                     }
                 }}
             >
-                <DialogContent className="w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]">
+                <DialogContent
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onInteractOutside={(e) => e.preventDefault()}
+                    className="w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]"
+                >
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((v) => {
                             const targetStatusId = v.order_status_id;
