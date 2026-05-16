@@ -1906,9 +1906,13 @@ const Orders = () => {
 
     const deleteOrderMutation = useMutation({
         mutationFn: async (id: string) => {
+            const { data: authData } = await supabase.auth.getUser();
             const { error } = await (supabase as any)
                 .from('orders')
-                .update({ date_deleted: new Date().toISOString() })
+                .update({
+                    date_deleted: new Date().toISOString(),
+                    deleted_by_id: authData?.user?.id || null,
+                })
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;

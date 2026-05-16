@@ -13,6 +13,7 @@ import {
     CircleDollarSign,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -35,6 +36,12 @@ type TrashedOrder = {
         color: string | null;
         icon: string | null;
     } | null;
+    deleted_by: {
+        id: string;
+        name: string | null;
+        email: string | null;
+        avatar_url: string | null;
+    } | null;
 };
 
 const Trash = () => {
@@ -51,7 +58,7 @@ const Trash = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
-                .select('id, name, phone, price, date_deleted, status:order_statuses(label, color, icon)')
+                .select('id, name, phone, price, date_deleted, status:order_statuses(label, color, icon), deleted_by:users!orders_deleted_by_id_fkey(id, name, email, avatar_url)')
                 .eq('DigiCom Business', activeBusinessId)
                 .not('date_deleted', 'is', null)
                 .order('date_deleted', { ascending: false });
@@ -65,7 +72,7 @@ const Trash = () => {
         mutationFn: async (id: string) => {
             const { error } = await (supabase as any)
                 .from('orders')
-                .update({ date_deleted: null })
+                .update({ date_deleted: null, deleted_by_id: null })
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
@@ -257,6 +264,7 @@ const Trash = () => {
                                         <th className="px-5 py-2.5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Prix</th>
                                         <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Statut</th>
                                         <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Supprimé le</th>
+                                        <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Supprimé par</th>
                                         <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Sursis</th>
                                         <th className="px-5 py-2.5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Actions</th>
                                     </tr>
@@ -309,6 +317,23 @@ const Trash = () => {
                                                     {order.date_deleted
                                                         ? new Date(order.date_deleted).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
                                                         : '—'}
+                                                </td>
+                                                <td className="px-5 py-3">
+                                                    {order.deleted_by ? (
+                                                        <div className="inline-flex items-center gap-2 min-w-0">
+                                                            <Avatar className="h-7 w-7 rounded-full border border-ant-line shrink-0">
+                                                                <AvatarImage src={order.deleted_by.avatar_url || ''} className="object-cover" />
+                                                                <AvatarFallback className="rounded-full text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                                    {(order.deleted_by.name || order.deleted_by.email || '?').substring(0, 2).toUpperCase()}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-display text-[12px] font-semibold text-ant-ink truncate max-w-[140px]" title={order.deleted_by.email || undefined}>
+                                                                {order.deleted_by.name || order.deleted_by.email || '—'}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="font-serif italic text-[11px] text-ant-mid">—</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-5 py-3">
                                                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums ${tone.bg} ${tone.border} ${tone.text}`}>
