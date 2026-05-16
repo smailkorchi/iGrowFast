@@ -7,7 +7,6 @@ import {
   CONFIRMED_ORDER_CATS,
   CANCELLED_ORDER_CATS,
   CALLBACK_ORDER_CATS,
-  PENDING_ORDER_CATS,
   UNREACHED_ORDER_CATS,
   ADMIN_PULLBACK_ORDER_CATS,
   ADMIN_PULLBACK_PACKAGE_CODES,
@@ -37,6 +36,13 @@ export interface OrderStatus {
   show_in_seller_suivi: boolean;
   perf_breakdown: boolean;
   perf_breakdown_phase: string | null;
+  /**
+   * Source of truth for "pending confirmation". Set per row in the DB; do NOT
+   * derive from category — only a subset of callback statuses (the RAPPEL retry
+   * queue) count as pending while the rest (Boitevocale, Pas de réponse,
+   * Mauvais numéro, …) are treated as confirmed for the rate.
+   */
+  pending_confirmation: boolean;
 }
 
 export interface PackageStatus {
@@ -63,7 +69,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('order_statuses')
-        .select('id, code, label, color, category, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase')
+        .select('id, code, label, color, category, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase, pending_confirmation')
         .order('ranking');
       return (data || []) as OrderStatus[];
     },
@@ -110,7 +116,13 @@ export function useStatusCategories() {
     const unpaidOrderIds = collectIds(['unpaid'], orderCatMap);
     const cancelledIds = collectIds(CANCELLED_ORDER_CATS, orderCatMap);
     const callbackIds = collectIds(CALLBACK_ORDER_CATS, orderCatMap);
-    const pendingIds = collectIds(PENDING_ORDER_CATS, orderCatMap);
+    // Pending confirmation is now data-driven: each order_status row has a
+    // `pending_confirmation` boolean. We no longer derive it from the category,
+    // because only the RAPPEL retry slots count as pending — other callback
+    // variants (Boitevocale, Pas de réponse, Mauvais numéro) are resolved.
+    const pendingIds = new Set(
+      orderStatuses.filter((s) => s.pending_confirmation).map((s) => s.id),
+    );
     // "Brand new uncalled" denominator exclusion — the single `new` category.
     const newOrderIds = collectIds(['new'], orderCatMap);
     // Confirmation-rate helper set: tried to call, customer never answered.

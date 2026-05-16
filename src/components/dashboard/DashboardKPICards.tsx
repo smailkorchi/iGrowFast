@@ -118,11 +118,10 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
 
         const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
 
-        // Confirmation-rate metric. Pending = order_status in {new, postponed}
-        // (PENDING_ORDER_CATS) — orders still waiting for human action.
-        // Confirmed = everything else, with tracking-code override (handed to
-        // courier ⇒ confirmed regardless of status). Denominator = total
-        // filtered orders (NOT a separate "touched" subset).
+        // Confirmation-rate metric. Pending = `order_statuses.pending_confirmation = true`
+        // (NEW + the six RAPPELE retry slots + REPORTER). Confirmed = everything else,
+        // with tracking-code override (handed to courier ⇒ confirmed regardless of
+        // status). Denominator = total filtered orders.
         const rateConfirmed = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds));
 
         // Delivery rate (Coliaty formula):
@@ -143,10 +142,10 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             deliveryDenom > 0 ? Math.min(100, (delivered.length / deliveryDenom) * 100) : 0;
         const deliveryRate = deliveryRateNum.toFixed(1);
 
-        // Pending confirmation = status ∈ PENDING_ORDER_CATS (new + postponed)
-        // AND no tracking code. Tracking code (company_parcels/courier_parcels)
-        // is a hard override: if one exists, the order is confirmed regardless
-        // of status.
+        // Pending confirmation = order_statuses with pending_confirmation=true
+        // (NEW + RAPPELE 1-6 + REPORTER) AND no tracking code. Tracking code
+        // (company_parcels/courier_parcels) is a hard override: if one exists,
+        // the order is confirmed regardless of status.
         const pendingConfirmation = filtered.filter(o => {
             if (o.id && trackedOrderIds.has(o.id)) return false;
             return !!o.order_status_id && pendingIds.has(o.order_status_id);

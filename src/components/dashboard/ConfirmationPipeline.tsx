@@ -15,7 +15,7 @@ interface ConfirmationPipelineProps {
 }
 
 export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPipelineProps) => {
-    const { pendingIds, callbackIds, getOrderStatusColor } = useStatusCategories();
+    const { pendingIds, getOrderStatusColor } = useStatusCategories();
     const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders } = useQuery({
@@ -44,9 +44,6 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             });
         };
 
-        const isConfirmationStatus = (statusId: string) =>
-            statusId && (pendingIds.has(statusId) || callbackIds.has(statusId));
-
         type OrderRow = {
             id?: string | null;
             order_status_id?: string | null;
@@ -54,14 +51,15 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             tracking_number?: string | null;
             order_statuses?: { label?: string | null; code?: string | null } | null;
         };
-        // Pending confirmation = status ∈ {new, callback} AND no tracking code
-        // (tracking code lives in company_parcels / courier_parcels, not on the
-        // orders row). Once a parcel is handed to a courier, the order is
-        // confirmed regardless of its order_status.
+        // Pipeline = orders whose status has `pending_confirmation=true` (NEW +
+        // RAPPELE 1-6 + REPORTER) AND no tracking code yet. The previous version
+        // also lumped in every callback variant (Boitevocale, Pas de réponse,
+        // Mauvais numéro, …), which the product owner does not consider pending
+        // — those CSR interactions are already resolved.
         const confirmationOrders = orders.filter((o: OrderRow) => {
             if (o.id && trackedOrderIds.has(o.id)) return false;
             return !!o.order_status_id
-                && isConfirmationStatus(o.order_status_id)
+                && pendingIds.has(o.order_status_id)
                 && isInRange(o.date);
         });
 
@@ -84,7 +82,7 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             .sort((a, b) => b.count - a.count);
 
         return { total: confirmationOrders.length, sorted };
-    }, [orders, dateFilter, pendingIds, callbackIds, getOrderStatusColor, trackedOrderIds]);
+    }, [orders, dateFilter, pendingIds, getOrderStatusColor, trackedOrderIds]);
 
     if (!metrics) return null;
 

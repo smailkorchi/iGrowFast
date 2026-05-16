@@ -26,7 +26,7 @@ const BUCKETS = [
 ] as const;
 
 export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrdersBreakdownProps) => {
-    const { pendingIds, callbackIds } = useStatusCategories();
+    const { pendingIds } = useStatusCategories();
     const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const { data: orders } = useQuery({
@@ -64,10 +64,12 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
             tracking_number?: string | null;
         };
         const isPendingStatus = (id: string | null) =>
-            !!id && (pendingIds.has(id) || callbackIds.has(id));
-        // Tracking code (company_parcels / courier_parcels) overrides
-        // everything: once a parcel is handed to a courier, the order is
-        // confirmed regardless of status and must leave the pending queue.
+            !!id && pendingIds.has(id);
+        // Pending = `order_statuses.pending_confirmation = true` (NEW +
+        // RAPPELE 1-6 + REPORTER). Tracking code (company_parcels /
+        // courier_parcels) overrides everything: once a parcel is handed to a
+        // courier, the order is confirmed regardless of status and leaves the
+        // pending queue.
         const pending = (orders as unknown as POBOrder[]).filter((o) => {
             if (o.id && trackedOrderIds.has(o.id)) return false;
             return isPendingStatus(o.order_status_id) && isInRange(o.date);
@@ -102,7 +104,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
         });
 
         return { total: pending.length, totalValue, staleCount, bucketStats };
-    }, [orders, dateFilter, pendingIds, callbackIds, trackedOrderIds]);
+    }, [orders, dateFilter, pendingIds, trackedOrderIds]);
 
     if (!metrics) return null;
 

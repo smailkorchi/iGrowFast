@@ -46,14 +46,10 @@ export const CONFIRMED_ORDER_CATS: OrderCategory[] = ['confirmed', 'processed', 
 export const CANCELLED_ORDER_CATS: OrderCategory[] = ['cancelled', 'fake', 'double', 'blacklisted'];
 export const CALLBACK_ORDER_CATS: OrderCategory[] = ['callback'];
 
-// Orders that are waiting for human action right now: `new` (CSR hasn't touched
-// it yet) and `postponed` (CSR called, customer asked to call later — still on
-// the queue, just deferred). Callback (CSR tried, customer didn't pick up) is
-// NOT counted here because the CSR has already done their part — the order is
-// stalled on the customer side, not the team side.
-//
-// Drives the "Pending Confirmation" KPI card and the confirmation-rate
-// numerator (confirmed = total − pending, with tracking-code override).
+// DEPRECATED — kept for legacy callers that haven't migrated yet. The real
+// source of truth is `order_statuses.pending_confirmation` (boolean column on
+// each status row). `useStatusCategories.pendingIds` now derives from that flag
+// directly, so this constant is no longer wired into the dashboard math.
 export const PENDING_ORDER_CATS: OrderCategory[] = ['new', 'postponed'];
 
 // Orders where the CSR tried to call but the customer never answered.

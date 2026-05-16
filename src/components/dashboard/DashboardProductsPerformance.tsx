@@ -356,7 +356,7 @@ export const DashboardProductsPerformance = ({
                 // "has tracking" check, including confirmation.
                 const hasTracking = !!order.id && trackedOrderIds.has(order.id);
                 // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
-                // Pending = order_status ∈ PENDING_ORDER_CATS (new + postponed).
+                // Pending = order_statuses.pending_confirmation=true (NEW + RAPPELE 1-6 + REPORTER).
                 const statusMapsReady = pendingIds.size > 0;
                 // Touched = every order unit (rate denominator is now total).
                 rateTouchedUnits += q;

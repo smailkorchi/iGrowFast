@@ -4773,6 +4773,7 @@ export type Database = {
           icon: string | null
           id: string
           label: string
+          pending_confirmation: boolean
           perf_breakdown: boolean
           perf_breakdown_phase: string | null
           ranking: number | null
@@ -4792,6 +4793,7 @@ export type Database = {
           icon?: string | null
           id?: string
           label: string
+          pending_confirmation?: boolean
           perf_breakdown?: boolean
           perf_breakdown_phase?: string | null
           ranking?: number | null
@@ -4811,6 +4813,7 @@ export type Database = {
           icon?: string | null
           id?: string
           label?: string
+          pending_confirmation?: boolean
           perf_breakdown?: boolean
           perf_breakdown_phase?: string | null
           ranking?: number | null
