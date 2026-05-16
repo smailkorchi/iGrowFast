@@ -51,8 +51,9 @@ export type SellerEarnings = {
     // Existing payout (if any) — informational only
     existing_payout: {
         id: string;
-        status: 'pending' | 'paid';
+        status: 'pending' | 'partial' | 'paid';
         total_amount: number;
+        paid_amount: number;
         paid_at: string | null;
     } | null;
 };
@@ -85,7 +86,8 @@ type PriorPayment = {
     commission_earned: number | string;
     delivered_orders: number;
     total_amount: number | string;
-    status: 'pending' | 'paid';
+    paid_amount: number | string;
+    status: 'pending' | 'partial' | 'paid';
     paid_at: string | null;
 };
 
@@ -144,7 +146,7 @@ export function useSellerEarnings(month: string) {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('seller_payments')
-                .select('id, seller_id, payout_month, commission_earned, delivered_orders, total_amount, status, paid_at')
+                .select('id, seller_id, payout_month, commission_earned, delivered_orders, total_amount, paid_amount, status, paid_at')
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('payout_month', bounds.payoutMonthKey);
             if (error) throw error;
@@ -221,6 +223,7 @@ export function useSellerEarnings(month: string) {
                           id: existing.id,
                           status: existing.status,
                           total_amount: Number(existing.total_amount || 0),
+                          paid_amount: Number(existing.paid_amount || 0),
                           paid_at: existing.paid_at,
                       }
                     : null,

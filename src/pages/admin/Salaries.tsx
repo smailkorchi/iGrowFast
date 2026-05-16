@@ -18,8 +18,10 @@ import {
     Headphones,
     Target,
     DollarSign,
+    History,
     type LucideIcon,
 } from 'lucide-react';
+import { RecordPaymentDialog, PaymentHistoryDialog } from '@/components/salaries/PayoutPaymentDialogs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -152,24 +154,31 @@ type SellerPayout = {
     salary_earned: number | string;
     commission_earned: number | string;
     total_amount: number | string;
+    paid_amount: number | string;
     days_present: number;
     delivered_orders: number;
     bank_snapshot: any;
-    status: 'pending' | 'paid';
+    status: 'pending' | 'partial' | 'paid';
     created_at: string;
     paid_at: string | null;
     seller: { name: string; email: string; avatar_url: string | null } | null;
 };
+
+type PayoutStatus = 'pending' | 'partial' | 'paid';
 
 const SellerPayoutsList: React.FC = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | PayoutStatus>('all');
     const [selected, setSelected] = useState<string[]>([]);
     const [page, setPage] = useState(1);
     const PER_PAGE = 10;
+    // Partial-payment dialogs — the "Record payment" composer + the history list.
+    const [recordOpen, setRecordOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [activeRow, setActiveRow] = useState<SellerPayout | null>(null);
 
     const { data: payouts = [], isLoading } = useQuery<SellerPayout[]>({
         queryKey: ['seller-payouts', activeBusinessId],
@@ -193,16 +202,55 @@ const SellerPayoutsList: React.FC = () => {
         enabled: !!activeBusinessId,
     });
 
-    const markMutation = useMutation({
-        mutationFn: async ({ ids, status }: { ids: string[]; status: 'paid' | 'pending' }) => {
-            const payload = status === 'paid' ? { status, paid_at: new Date().toISOString() } : { status, paid_at: null };
-            const { error } = await (supabase as any).from('seller_payments').update(payload).in('id', ids);
+    // "Settle in full" — for each non-fully-paid row, insert one txn covering
+    // the remaining balance. The trigger flips status to 'paid' automatically.
+    // Replaces the old direct `status` toggle so all paid amounts are auditable.
+    const settleMutation = useMutation({
+        mutationFn: async (ids: string[]) => {
+            const rows = payouts.filter((p) => ids.includes(p.id));
+            const { data: { user } } = await supabase.auth.getUser();
+            const inserts = rows
+                .map((p) => {
+                    const remaining = Math.max(0, Number(p.total_amount || 0) - Number(p.paid_amount || 0));
+                    return { p, remaining };
+                })
+                .filter(({ remaining }) => remaining > 0)
+                .map(({ p, remaining }) => ({
+                    seller_payment_id: p.id,
+                    amount: remaining,
+                    paid_at: new Date().toISOString(),
+                    note: 'Settled in full from Salaries bulk action',
+                    created_by: user?.id || null,
+                    'DigiCom Business': activeBusinessId,
+                }));
+            if (!inserts.length) return { inserted: 0 };
+            const { error } = await (supabase as any).from('seller_payment_txns').insert(inserts);
+            if (error) throw error;
+            return { inserted: inserts.length };
+        },
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: ['seller-payouts'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-payment-txns'] });
+            toast({ title: 'Settled', description: `${res.inserted} payout(s) marked as fully paid.` });
+            setSelected([]);
+        },
+        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+    });
+
+    // Reverse-all on a payout: deletes every txn. Trigger drops paid_amount=0
+    // and status='pending' automatically.
+    const reverseAllMutation = useMutation({
+        mutationFn: async (payoutId: string) => {
+            const { error } = await (supabase as any)
+                .from('seller_payment_txns')
+                .delete()
+                .eq('seller_payment_id', payoutId);
             if (error) throw error;
         },
-        onSuccess: (_, vars) => {
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['seller-payouts'] });
-            toast({ title: 'Updated', description: `${vars.ids.length} payout(s) marked as ${vars.status}.` });
-            setSelected([]);
+            queryClient.invalidateQueries({ queryKey: ['seller-payment-txns'] });
+            toast({ title: 'Reversed', description: 'All payments on this payout have been reversed.' });
         },
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
@@ -218,15 +266,19 @@ const SellerPayoutsList: React.FC = () => {
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
     const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+    // Stats now aggregate `paid_amount` directly (trigger-maintained running sum)
+    // and use `(total_amount − paid_amount)` for the open balance. This survives
+    // partials: a row halfway settled contributes its portion to both buckets.
     const stats = useMemo(() => {
         let totalPaid = 0;
         let totalPending = 0;
         let thisMonth = 0;
         const startOfThisMonth = startOfMonth(new Date());
         for (const p of payouts) {
-            const amt = Number(p.total_amount || 0);
-            if (p.status === 'paid') totalPaid += amt;
-            else totalPending += amt;
+            const total = Number(p.total_amount || 0);
+            const paid = Number(p.paid_amount || 0);
+            totalPaid += paid;
+            totalPending += Math.max(0, total - paid);
             if (new Date(p.created_at) >= startOfThisMonth) thisMonth += 1;
         }
         return { totalPaid, totalPending, thisMonth };
@@ -235,6 +287,7 @@ const SellerPayoutsList: React.FC = () => {
     const counts = {
         all: payouts.length,
         pending: payouts.filter((p) => p.status === 'pending').length,
+        partial: payouts.filter((p) => p.status === 'partial').length,
         paid: payouts.filter((p) => p.status === 'paid').length,
     };
 
@@ -254,6 +307,7 @@ const SellerPayoutsList: React.FC = () => {
                     {([
                         { key: 'all', label: 'All' },
                         { key: 'pending', label: 'Pending' },
+                        { key: 'partial', label: 'Partial' },
                         { key: 'paid', label: 'Paid' },
                     ] as const).map((t) => {
                         const active = statusFilter === t.key;
@@ -287,12 +341,12 @@ const SellerPayoutsList: React.FC = () => {
                     </div>
                     {selected.length > 0 && (
                         <Button
-                            onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })}
-                            disabled={markMutation.isPending}
+                            onClick={() => settleMutation.mutate(selected)}
+                            disabled={settleMutation.isPending}
                             className="h-10 px-5 rounded-full bg-ant-green hover:bg-ant-green/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
                         >
-                            {markMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            Mark {selected.length} paid
+                            {settleMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            Settle {selected.length} in full
                         </Button>
                     )}
                 </div>
@@ -322,8 +376,8 @@ const SellerPayoutsList: React.FC = () => {
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-ant-line bg-ant-light/50">
-                                    <th className="px-4 py-3 w-10">
+                                <tr className="border-b border-ant-line">
+                                    <th className="pl-5 pr-2 py-4 w-10">
                                         <Checkbox
                                             checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
                                             onCheckedChange={(v) => {
@@ -333,78 +387,112 @@ const SellerPayoutsList: React.FC = () => {
                                             className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                         />
                                     </th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Seller</th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Month</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivered</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Days</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Commission</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Total</th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Status</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Actions</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Seller</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Days</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Total</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Paid</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Status</th>
+                                    <th className="pl-3 pr-5 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {paginated.map((p) => {
-                                    const paid = p.status === 'paid';
+                                    const totalAmount = Number(p.total_amount || 0);
+                                    const paidAmount = Number(p.paid_amount || 0);
+                                    const pct = totalAmount > 0 ? Math.min(100, (paidAmount / totalAmount) * 100) : 0;
+                                    const isPaid = p.status === 'paid';
+                                    const isPartial = p.status === 'partial';
+                                    const statusMeta = isPaid
+                                        ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
+                                        : isPartial
+                                          ? { bg: 'bg-ant-blue/10', text: 'text-ant-blue', dot: 'bg-ant-blue' }
+                                          : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                     return (
-                                        <tr key={p.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0 tabular-nums">
-                                            <td className="px-4 py-3">
+                                        <tr key={p.id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
+                                            <td className="pl-5 pr-2 py-4">
                                                 <Checkbox
                                                     checked={selected.includes(p.id)}
                                                     onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))}
                                                     className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                                 />
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
+                                            <td className="px-3 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-9 w-9 shrink-0 rounded-lg border border-ant-line">
                                                         <AvatarImage src={p.seller?.avatar_url || ''} className="object-cover" />
-                                                        <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                        <AvatarFallback className="rounded-lg text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
                                                             {(p.seller?.name || '??').substring(0, 2).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="min-w-0">
-                                                        <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{p.seller?.name || '—'}</p>
-                                                        <p className="text-[11px] text-ant-mid truncate">{p.seller?.email}</p>
+                                                        <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{p.seller?.name || '—'}</p>
+                                                        <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">{p.seller?.email}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-[11px] text-ant-ink">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
-                                            <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
-                                            <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums">{fmtNum(p.days_present)}</td>
-                                            <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(Number(p.commission_earned))}>
-                                                {fmtCur(Number(p.commission_earned))}
+                                            <td className="px-3 py-4 text-[12px] text-ant-mid whitespace-nowrap">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
+                                            <td className="px-3 py-4 text-right text-[12px] text-ant-mid tabular-nums">{fmtNum(p.days_present)}</td>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(totalAmount)}>
+                                                {fmtCur(totalAmount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                             </td>
-                                            <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_amount))}>
-                                                {fmtCur(Number(p.total_amount))}
-                                                <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                            <td className="px-3 py-4 text-right" title={`${fmtCurFull(paidAmount)} paid of ${fmtCurFull(totalAmount)}`}>
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    <span className={cn('text-[13px] font-semibold tabular-nums leading-none', paidAmount > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
+                                                        {fmtCur(paidAmount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                    </span>
+                                                    {isPartial && (
+                                                        <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
+                                                            <div className="h-full rounded-full bg-ant-blue transition-all" style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
-                                                    <span className={cn('h-1.5 w-1.5 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                            <td className="px-3 py-4">
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', statusMeta.bg, statusMeta.text)}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
                                                     {p.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {paid ? (
+                                            <td className="pl-3 pr-5 py-4 text-right">
+                                                <div className="inline-flex items-center gap-1.5">
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })}
-                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
+                                                        onClick={() => { setActiveRow(p); setHistoryOpen(true); }}
+                                                        className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                                                        title="Payment history"
                                                     >
-                                                        Unmark
+                                                        <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                ) : (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })}
-                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green hover:bg-ant-green/10 cursor-pointer"
-                                                    >
-                                                        Mark paid
-                                                    </Button>
-                                                )}
+                                                    {isPaid ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => {
+                                                                if (window.confirm('Reverse all payments on this payout?')) {
+                                                                    reverseAllMutation.mutate(p.id);
+                                                                }
+                                                            }}
+                                                            className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid hover:text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
+                                                        >
+                                                            Reverse
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => { setActiveRow(p); setRecordOpen(true); }}
+                                                            className={cn(
+                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white',
+                                                                isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
+                                                            )}
+                                                        >
+                                                            {isPartial ? 'Continue' : 'Record'}
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -428,6 +516,32 @@ const SellerPayoutsList: React.FC = () => {
                     </Button>
                 </div>
             )}
+
+            {activeRow && (
+                <>
+                    <RecordPaymentDialog
+                        open={recordOpen}
+                        onOpenChange={setRecordOpen}
+                        kind="seller"
+                        payoutId={activeRow.id}
+                        totalAmount={Number(activeRow.total_amount || 0)}
+                        paidAmount={Number(activeRow.paid_amount || 0)}
+                        collaboratorName={activeRow.seller?.name || 'Seller'}
+                        businessId={activeBusinessId}
+                    />
+                    <PaymentHistoryDialog
+                        open={historyOpen}
+                        onOpenChange={setHistoryOpen}
+                        kind="seller"
+                        payoutId={activeRow.id}
+                        totalAmount={Number(activeRow.total_amount || 0)}
+                        paidAmount={Number(activeRow.paid_amount || 0)}
+                        collaboratorName={activeRow.seller?.name || 'Seller'}
+                        businessId={activeBusinessId}
+                        onAddPayment={() => { setHistoryOpen(false); setRecordOpen(true); }}
+                    />
+                </>
+            )}
         </div>
     );
 };
@@ -441,11 +555,12 @@ type MBPayout = {
     salary_earned: number | string;
     commission_earned: number | string;
     total_amount: number | string;
+    paid_amount: number | string;
     delivered_orders: number;
     total_spend: number | string;
     campaigns_count: number;
     bank_snapshot: any;
-    status: 'pending' | 'paid';
+    status: PayoutStatus;
     created_at: string;
     paid_at: string | null;
     mediabuyer: { name: string; email: string; avatar_url: string | null } | null;
@@ -456,10 +571,13 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | PayoutStatus>('all');
     const [selected, setSelected] = useState<string[]>([]);
     const [page, setPage] = useState(1);
     const PER_PAGE = 10;
+    const [recordOpen, setRecordOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [activeRow, setActiveRow] = useState<MBPayout | null>(null);
 
     const { data: payouts = [], isLoading } = useQuery<MBPayout[]>({
         queryKey: ['mb-payouts', activeBusinessId],
@@ -483,16 +601,52 @@ const MediaBuyerPayoutsList: React.FC = () => {
         enabled: !!activeBusinessId,
     });
 
-    const markMutation = useMutation({
-        mutationFn: async ({ ids, status }: { ids: string[]; status: 'paid' | 'pending' }) => {
-            const payload = status === 'paid' ? { status, paid_at: new Date().toISOString() } : { status, paid_at: null };
-            const { error } = await (supabase as any).from('mediabuyer_payments').update(payload).in('id', ids);
+    // Same partial-aware bulk action as seller list: insert a txn covering
+    // the remaining balance for each selected non-paid row.
+    const settleMutation = useMutation({
+        mutationFn: async (ids: string[]) => {
+            const rows = payouts.filter((p) => ids.includes(p.id));
+            const { data: { user } } = await supabase.auth.getUser();
+            const inserts = rows
+                .map((p) => {
+                    const remaining = Math.max(0, Number(p.total_amount || 0) - Number(p.paid_amount || 0));
+                    return { p, remaining };
+                })
+                .filter(({ remaining }) => remaining > 0)
+                .map(({ p, remaining }) => ({
+                    mediabuyer_payment_id: p.id,
+                    amount: remaining,
+                    paid_at: new Date().toISOString(),
+                    note: 'Settled in full from Salaries bulk action',
+                    created_by: user?.id || null,
+                    'DigiCom Business': activeBusinessId,
+                }));
+            if (!inserts.length) return { inserted: 0 };
+            const { error } = await (supabase as any).from('mediabuyer_payment_txns').insert(inserts);
+            if (error) throw error;
+            return { inserted: inserts.length };
+        },
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
+            queryClient.invalidateQueries({ queryKey: ['mediabuyer-payment-txns'] });
+            toast({ title: 'Settled', description: `${res.inserted} payout(s) marked as fully paid.` });
+            setSelected([]);
+        },
+        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+    });
+
+    const reverseAllMutation = useMutation({
+        mutationFn: async (payoutId: string) => {
+            const { error } = await (supabase as any)
+                .from('mediabuyer_payment_txns')
+                .delete()
+                .eq('mediabuyer_payment_id', payoutId);
             if (error) throw error;
         },
-        onSuccess: (_, vars) => {
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
-            toast({ title: 'Updated', description: `${vars.ids.length} payout(s) marked as ${vars.status}.` });
-            setSelected([]);
+            queryClient.invalidateQueries({ queryKey: ['mediabuyer-payment-txns'] });
+            toast({ title: 'Reversed', description: 'All payments on this payout have been reversed.' });
         },
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
@@ -508,15 +662,17 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
     const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+    // Partial-aware totals — same shape as seller list.
     const stats = useMemo(() => {
         let totalPaid = 0;
         let totalPending = 0;
         let thisMonth = 0;
         const thisMonthKey = format(new Date(), 'yyyy-MM');
         for (const p of payouts) {
-            const amt = Number(p.total_amount || 0);
-            if (p.status === 'paid') totalPaid += amt;
-            else totalPending += amt;
+            const total = Number(p.total_amount || 0);
+            const paid = Number(p.paid_amount || 0);
+            totalPaid += paid;
+            totalPending += Math.max(0, total - paid);
             if (p.payout_month === thisMonthKey) thisMonth += 1;
         }
         return { totalPaid, totalPending, thisMonth };
@@ -525,6 +681,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const counts = {
         all: payouts.length,
         pending: payouts.filter((p) => p.status === 'pending').length,
+        partial: payouts.filter((p) => p.status === 'partial').length,
         paid: payouts.filter((p) => p.status === 'paid').length,
     };
 
@@ -544,6 +701,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
                     {([
                         { key: 'all', label: 'All' },
                         { key: 'pending', label: 'Pending' },
+                        { key: 'partial', label: 'Partial' },
                         { key: 'paid', label: 'Paid' },
                     ] as const).map((t) => {
                         const active = statusFilter === t.key;
@@ -577,12 +735,12 @@ const MediaBuyerPayoutsList: React.FC = () => {
                     </div>
                     {selected.length > 0 && (
                         <Button
-                            onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })}
-                            disabled={markMutation.isPending}
+                            onClick={() => settleMutation.mutate(selected)}
+                            disabled={settleMutation.isPending}
                             className="h-10 px-5 rounded-full bg-ant-green hover:bg-ant-green/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
                         >
-                            {markMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            Mark {selected.length} paid
+                            {settleMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            Settle {selected.length} in full
                         </Button>
                     )}
                 </div>
@@ -612,8 +770,8 @@ const MediaBuyerPayoutsList: React.FC = () => {
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-ant-line bg-ant-light/50">
-                                    <th className="px-4 py-3 w-10">
+                                <tr className="border-b border-ant-line">
+                                    <th className="pl-5 pr-2 py-4 w-10">
                                         <Checkbox
                                             checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
                                             onCheckedChange={(v) => {
@@ -623,84 +781,122 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                             className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                         />
                                     </th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Media buyer</th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Month</th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Type</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivered</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Spend</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Total</th>
-                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Status</th>
-                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Actions</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Media buyer</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Type</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Spend</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Total</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Paid</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Status</th>
+                                    <th className="pl-3 pr-5 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {paginated.map((p) => {
-                                    const paid = p.status === 'paid';
+                                    const totalAmount = Number(p.total_amount || 0);
+                                    const paidAmount = Number(p.paid_amount || 0);
+                                    const pct = totalAmount > 0 ? Math.min(100, (paidAmount / totalAmount) * 100) : 0;
+                                    const isPaid = p.status === 'paid';
+                                    const isPartial = p.status === 'partial';
                                     const isCommission = p.payment_type === 'commission';
+                                    const statusMeta = isPaid
+                                        ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
+                                        : isPartial
+                                          ? { bg: 'bg-ant-blue/10', text: 'text-ant-blue', dot: 'bg-ant-blue' }
+                                          : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                     return (
-                                        <tr key={p.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0 tabular-nums">
-                                            <td className="px-4 py-3">
+                                        <tr key={p.id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
+                                            <td className="pl-5 pr-2 py-4">
                                                 <Checkbox
                                                     checked={selected.includes(p.id)}
                                                     onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))}
                                                     className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                                 />
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
+                                            <td className="px-3 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-9 w-9 shrink-0 rounded-lg border border-ant-line">
                                                         <AvatarImage src={p.mediabuyer?.avatar_url || ''} className="object-cover" />
-                                                        <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                        <AvatarFallback className="rounded-lg text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
                                                             {(p.mediabuyer?.name || '??').substring(0, 2).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="min-w-0">
-                                                        <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{p.mediabuyer?.name || '—'}</p>
-                                                        <p className="text-[11px] text-ant-mid truncate">{p.mediabuyer?.email}</p>
+                                                        <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{p.mediabuyer?.name || '—'}</p>
+                                                        <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">{p.mediabuyer?.email}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-[11px] text-ant-ink">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' : 'bg-ant-green/10 border-ant-green/25 text-ant-green')}>
+                                            <td className="px-3 py-4 text-[12px] text-ant-mid whitespace-nowrap">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
+                                            <td className="px-3 py-4">
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 text-ant-orange' : 'bg-ant-green/10 text-ant-green')}>
                                                     <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />
                                                     {p.payment_type}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
-                                            <td className="px-4 py-3 text-right text-[11px] text-ant-rose tabular-nums" title={fmtCurFull(Number(p.total_spend))}>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
+                                            <td className="px-3 py-4 text-right text-[12px] text-ant-rose tabular-nums" title={fmtCurFull(Number(p.total_spend))}>
                                                 {fmtCur(Number(p.total_spend))}
                                             </td>
-                                            <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_amount))}>
-                                                {fmtCur(Number(p.total_amount))}
-                                                <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(totalAmount)}>
+                                                {fmtCur(totalAmount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
-                                                    <span className={cn('h-1.5 w-1.5 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                            <td className="px-3 py-4 text-right" title={`${fmtCurFull(paidAmount)} paid of ${fmtCurFull(totalAmount)}`}>
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    <span className={cn('text-[13px] font-semibold tabular-nums leading-none', paidAmount > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
+                                                        {fmtCur(paidAmount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                    </span>
+                                                    {isPartial && (
+                                                        <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
+                                                            <div className="h-full rounded-full bg-ant-blue transition-all" style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-4">
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', statusMeta.bg, statusMeta.text)}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
                                                     {p.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {paid ? (
+                                            <td className="pl-3 pr-5 py-4 text-right">
+                                                <div className="inline-flex items-center gap-1.5">
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })}
-                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
+                                                        onClick={() => { setActiveRow(p); setHistoryOpen(true); }}
+                                                        className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                                                        title="Payment history"
                                                     >
-                                                        Unmark
+                                                        <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                ) : (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })}
-                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green hover:bg-ant-green/10 cursor-pointer"
-                                                    >
-                                                        Mark paid
-                                                    </Button>
-                                                )}
+                                                    {isPaid ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => {
+                                                                if (window.confirm('Reverse all payments on this payout?')) {
+                                                                    reverseAllMutation.mutate(p.id);
+                                                                }
+                                                            }}
+                                                            className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid hover:text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
+                                                        >
+                                                            Reverse
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => { setActiveRow(p); setRecordOpen(true); }}
+                                                            className={cn(
+                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white',
+                                                                isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
+                                                            )}
+                                                        >
+                                                            {isPartial ? 'Continue' : 'Record'}
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -723,6 +919,32 @@ const MediaBuyerPayoutsList: React.FC = () => {
                         <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                 </div>
+            )}
+
+            {activeRow && (
+                <>
+                    <RecordPaymentDialog
+                        open={recordOpen}
+                        onOpenChange={setRecordOpen}
+                        kind="mediabuyer"
+                        payoutId={activeRow.id}
+                        totalAmount={Number(activeRow.total_amount || 0)}
+                        paidAmount={Number(activeRow.paid_amount || 0)}
+                        collaboratorName={activeRow.mediabuyer?.name || 'Media buyer'}
+                        businessId={activeBusinessId}
+                    />
+                    <PaymentHistoryDialog
+                        open={historyOpen}
+                        onOpenChange={setHistoryOpen}
+                        kind="mediabuyer"
+                        payoutId={activeRow.id}
+                        totalAmount={Number(activeRow.total_amount || 0)}
+                        paidAmount={Number(activeRow.paid_amount || 0)}
+                        collaboratorName={activeRow.mediabuyer?.name || 'Media buyer'}
+                        businessId={activeBusinessId}
+                        onAddPayment={() => { setHistoryOpen(false); setRecordOpen(true); }}
+                    />
+                </>
             )}
         </div>
     );

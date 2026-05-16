@@ -65,8 +65,9 @@ export type MediaBuyerEarnings = {
     // Payout row if one already exists for (mediabuyer_id, month)
     existing_payout: {
         id: string;
-        status: 'pending' | 'paid';
+        status: 'pending' | 'partial' | 'paid';
         total_amount: number;
+        paid_amount: number;
         paid_at: string | null;
     } | null;
 };
@@ -110,7 +111,8 @@ type PaymentRow = {
     mediabuyer_id: string;
     payout_month: string;
     total_amount: number | string;
-    status: 'pending' | 'paid';
+    paid_amount: number | string;
+    status: 'pending' | 'partial' | 'paid';
     paid_at: string | null;
 };
 
@@ -202,7 +204,7 @@ export function useMediaBuyerEarnings(month: string) {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('mediabuyer_payments')
-                .select('id, mediabuyer_id, payout_month, total_amount, status, paid_at')
+                .select('id, mediabuyer_id, payout_month, total_amount, paid_amount, status, paid_at')
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('payout_month', month);
             if (error) throw error;
@@ -298,7 +300,13 @@ export function useMediaBuyerEarnings(month: string) {
                 prior_paid_amount,
                 remaining_amount,
                 existing_payout: existing
-                    ? { id: existing.id, status: existing.status, total_amount: Number(existing.total_amount || 0), paid_at: existing.paid_at }
+                    ? {
+                          id: existing.id,
+                          status: existing.status,
+                          total_amount: Number(existing.total_amount || 0),
+                          paid_amount: Number(existing.paid_amount || 0),
+                          paid_at: existing.paid_at,
+                      }
                     : null,
             };
         });

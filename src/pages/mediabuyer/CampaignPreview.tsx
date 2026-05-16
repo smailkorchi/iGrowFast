@@ -186,6 +186,32 @@ const AdMock: React.FC<{ campaign: Campaign; businessName: string; businessLogo:
     );
 };
 
+// ── Sparkline (tiny inline trend) ────────────────────────────────────────────
+const Sparkline: React.FC<{ values: number[]; color: string }> = ({ values, color }) => {
+    if (!values.length || values.every((v) => !Number.isFinite(v))) {
+        return <div className="w-full h-6" />;
+    }
+    const w = 100;
+    const h = 24;
+    const finite = values.map((v) => (Number.isFinite(v) ? v : 0));
+    const min = Math.min(...finite);
+    const max = Math.max(...finite);
+    const range = max - min || 1;
+    const step = values.length > 1 ? w / (values.length - 1) : 0;
+    const d = finite
+        .map((v, i) => {
+            const x = i * step;
+            const y = h - ((v - min) / range) * (h - 4) - 2;
+            return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+        })
+        .join(' ');
+    return (
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-6 mt-2" preserveAspectRatio="none">
+            <path d={d} stroke={color} strokeWidth={1.6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+};
+
 // ── Chart tooltip ─────────────────────────────────────────────────────────────
 const ChartTooltip: React.FC<any> = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
@@ -240,9 +266,75 @@ const CampaignPreview: React.FC = () => {
         enabled: !!activeBusinessId,
     });
 
-    const { daily, totals, mediabuyer, isLoading: loadingMetrics } = useCampaignMetrics(campaign);
-
+    const { daily, totals, mediabuyer, revenueBasis, isLoading: loadingMetrics } = useCampaignMetrics(campaign);
+    const isAdminView = revenueBasis === 'admin';
+    const revenueLabel = isAdminView ? 'Gross revenue' : 'Commission';
+    const profitColor = totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose';
+    const profitColorClass = totals.profit >= 0 ? 'border-ant-green/25 bg-ant-green-soft/40' : 'border-ant-rose/25 bg-ant-rose/8';
     const currency = campaign?.currency || 'MAD';
+
+    // ── Setup-card live snapshot helpers ────────────────────────────────────────
+    // Daily averages + best/worst day picks. Drive the new "Live snapshot" zone
+    // we tuck under the Setup grid so the card doesn't waste half its height.
+    const avgSpendPerDay = totals.days > 0 ? totals.spend / totals.days : 0;
+    const avgDelivPerDay = totals.days > 0 ? totals.delivered / totals.days : 0;
+    const dailyBudgetNum = Number(campaign?.daily_budget || 0);
+    const totalBudgetNum = Number(campaign?.total_budget || 0);
+    // Burn ratio depends on `spending_type` — daily budget vs total budget.
+    const burn = useMemo(() => {
+        if (campaign?.spending_type === 'ongoing' && dailyBudgetNum > 0) {
+            return {
+                kind: 'daily' as const,
+                pct: Math.min(200, (avgSpendPerDay / dailyBudgetNum) * 100),
+                label: `${fmtCurFull(avgSpendPerDay, currency)} avg / day · budget ${fmtCurFull(dailyBudgetNum, currency)}`,
+            };
+        }
+        if (totalBudgetNum > 0) {
+            return {
+                kind: 'total' as const,
+                pct: Math.min(200, (totals.spend / totalBudgetNum) * 100),
+                label: `${fmtCurFull(totals.spend, currency)} of ${fmtCurFull(totalBudgetNum, currency)} total`,
+            };
+        }
+        return null;
+    }, [campaign?.spending_type, dailyBudgetNum, totalBudgetNum, avgSpendPerDay, totals.spend, currency]);
+
+    // Timeline: anchor at campaign.start_date and either end_date or today.
+    // Position the "today" marker proportionally so the bar visually reads as a
+    // "how far in are we?" gauge.
+    const timeline = useMemo(() => {
+        if (!campaign?.start_date) return null;
+        const start = new Date(campaign.start_date).getTime();
+        const end = campaign.end_date ? new Date(campaign.end_date).getTime() : null;
+        const now = Date.now();
+        const horizon = end ?? now;
+        const totalSpan = Math.max(1, horizon - start);
+        const elapsed = Math.max(0, Math.min(totalSpan, now - start));
+        const pct = (elapsed / totalSpan) * 100;
+        const daysElapsed = Math.max(0, Math.floor(elapsed / 86_400_000));
+        const totalDays = Math.max(daysElapsed, Math.floor(totalSpan / 86_400_000));
+        return {
+            pct,
+            startLabel: format(new Date(start), 'dd MMM'),
+            endLabel: end ? format(new Date(end), 'dd MMM') : 'ongoing',
+            daysElapsed,
+            totalDays,
+            isPast: end != null && now > end,
+        };
+    }, [campaign?.start_date, campaign?.end_date]);
+
+    // Best / worst day picks — only meaningful once there's data. The user
+    // sees them as a 2-card strip below the snapshot tiles. We rank by
+    // delivered (admin) or by revenue (commission) so the highlighted day is
+    // always the one the viewer cares about.
+    const dayRanks = useMemo(() => {
+        if (!daily.length) return null;
+        const sortKey = (d: typeof daily[number]) => (isAdminView ? d.delivered : d.revenue);
+        const sorted = [...daily].sort((a, b) => sortKey(b) - sortKey(a));
+        const best = sorted[0];
+        const worst = sorted[sorted.length - 1];
+        return { best, worst };
+    }, [daily, isAdminView]);
 
     const chartData = useMemo(
         () =>
@@ -295,372 +387,578 @@ const CampaignPreview: React.FC = () => {
 
     return (
         <div className="ant-surface min-h-screen">
-            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
-                {/* Editorial header */}
-                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => navigate(basePath)}
-                            className="h-10 w-10 rounded-full border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light shrink-0 cursor-pointer"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                        </Button>
-                        <div className="space-y-2 min-w-0">
-                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                                Campaign · Report
-                            </div>
-                            <h1 className="font-display text-[28px] md:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink truncate">
-                                {campaign.name}
-                            </h1>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white capitalize"
-                                    style={{ backgroundColor: getPlatformColor(campaign.platform) }}
-                                >
-                                    <span>{getPlatformIcon(campaign.platform, 'w-3 h-3')}</span>
-                                    {campaign.platform}
-                                </span>
-                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', statusPill.bg, statusPill.border, statusPill.text)}>
-                                    <span className={cn('h-1.5 w-1.5 rounded-full', statusPill.dot)} />
-                                    {campaign.status}
-                                </span>
-                                <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-paper px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
-                                    {campaignTypeLabel}
-                                </span>
-                                {campaign.objective && (
-                                    <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-mid">
-                                        {campaign.objective}
+            <div className="mx-auto max-w-[1500px] px-4 md:px-8 py-6 md:py-8 space-y-5">
+                {/* ═══ HEADER — name, status, platform chips + Profit hero ═══ */}
+                <header className="rounded-3xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-1.5 w-full" style={{ background: `linear-gradient(to right, ${getPlatformColor(campaign.platform)}, ${getPlatformColor(campaign.platform)}80, transparent)` }} />
+                    <div className="p-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+                        <div className="flex items-start gap-4 min-w-0">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => navigate(basePath)}
+                                className="h-10 w-10 rounded-full border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light shrink-0 cursor-pointer"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                            </Button>
+                            <div className="space-y-2 min-w-0">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    Campaign · Report
+                                </div>
+                                <h1 className="font-display text-[28px] md:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink truncate">
+                                    {campaign.name}
+                                </h1>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white capitalize"
+                                        style={{ backgroundColor: getPlatformColor(campaign.platform) }}
+                                    >
+                                        <span>{getPlatformIcon(campaign.platform, 'w-3 h-3')}</span>
+                                        {campaign.platform}
                                     </span>
+                                    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', statusPill.bg, statusPill.border, statusPill.text)}>
+                                        <span className={cn('h-1.5 w-1.5 rounded-full', statusPill.dot)} />
+                                        {campaign.status}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-paper px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
+                                        {campaignTypeLabel}
+                                    </span>
+                                    {campaign.objective && (
+                                        <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-mid">
+                                            {campaign.objective}
+                                        </span>
+                                    )}
+                                    {totals.days > 0 && (
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-mid">
+                                            {totals.days} day{totals.days !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-stretch gap-3 shrink-0">
+                            <div className={cn('rounded-2xl border px-5 py-3 flex flex-col items-end min-w-[150px]', profitColorClass)}>
+                                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">{isAdminView ? 'Profit' : 'Net (commission − spend)'}</span>
+                                <span className={cn('font-display text-[24px] font-semibold tracking-[-0.02em] tabular-nums leading-none mt-1', profitColor)}>
+                                    {totals.profit >= 0 ? '+' : ''}{fmtCurFull(totals.profit, currency)}
+                                </span>
+                                <span className="text-[10px] text-ant-mid mt-1 tabular-nums">
+                                    {totals.roas == null ? '—' : `ROAS ${totals.roas.toFixed(2)}×`}
+                                </span>
+                            </div>
+                            <div className="flex flex-col gap-2 shrink-0">
+                                {canEdit ? (
+                                    <>
+                                        <Button
+                                            onClick={() => navigate(`${basePath}/${campaign.id}/manage`)}
+                                            className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                                        >
+                                            <ListChecks className="w-4 h-4" /> Manage data
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => navigate(`${basePath}/${campaign.id}/edit`)}
+                                            className="h-10 px-4 rounded-full text-[12px] font-semibold border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light gap-2 cursor-pointer"
+                                        >
+                                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <div className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full border border-ant-line bg-ant-light text-ant-mid">
+                                        <Lock className="w-3.5 h-3.5" />
+                                        <span className="text-[11px] uppercase tracking-[0.18em] font-semibold">Read only</span>
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {canEdit ? (
-                            <>
-                                <Button
-                                    onClick={() => navigate(`${basePath}/${campaign.id}/manage`)}
-                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
-                                >
-                                    <ListChecks className="w-4 h-4" /> Manage data
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => navigate(`${basePath}/${campaign.id}/edit`)}
-                                    className="h-10 px-4 rounded-full text-[12px] font-semibold border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light gap-2 cursor-pointer"
-                                >
-                                    <Edit2 className="w-3.5 h-3.5" /> Edit
-                                </Button>
-                            </>
-                        ) : (
-                            <div className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full border border-ant-line bg-ant-light text-ant-mid">
-                                <Lock className="w-3.5 h-3.5" />
-                                <span className="text-[11px] uppercase tracking-[0.18em] font-semibold">Read only</span>
-                            </div>
-                        )}
-                    </div>
                 </header>
 
-                {/* KPIs */}
+                {/* ═══ ① SETUP + AD PREVIEW (side by side, full width) ═══ */}
+                <div className="grid grid-cols-12 gap-5">
+                    <section className="col-span-12 lg:col-span-7 rounded-3xl border border-ant-line bg-ant-paper p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                Setup
+                            </div>
+                            {canEdit && (
+                                <button
+                                    onClick={() => navigate(`${basePath}/${campaign.id}/edit`)}
+                                    className="text-[11px] font-semibold text-ant-ink underline-offset-4 hover:underline cursor-pointer"
+                                >
+                                    Edit setup
+                                </button>
+                            )}
+                        </div>
+                        <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                            <div>
+                                <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Spending</dt>
+                                <dd className="font-display text-[15px] font-semibold text-ant-ink tabular-nums mt-0.5">
+                                    {campaign.spending_type === 'ongoing'
+                                        ? `${fmtCur(Number(campaign.daily_budget || 0), currency)}`
+                                        : `${fmtCur(Number(campaign.total_budget || 0), currency)}`}
+                                    <span className="text-[11px] text-ant-muted font-normal ml-1">
+                                        {campaign.spending_type === 'ongoing' ? '/ day' : 'total'}
+                                    </span>
+                                </dd>
+                                <dd className="text-[10px] text-ant-mid mt-0.5 capitalize">{campaign.spending_type || 'budget'}</dd>
+                            </div>
+                            {campaign.start_date && (
+                                <div>
+                                    <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Start</dt>
+                                    <dd className="font-display text-[15px] font-semibold text-ant-ink tabular-nums mt-0.5">{format(new Date(campaign.start_date), 'dd MMM yyyy')}</dd>
+                                    <dd className="text-[10px] text-ant-mid mt-0.5">{totals.days} day{totals.days !== 1 ? 's' : ''} running</dd>
+                                </div>
+                            )}
+                            <div>
+                                <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">End</dt>
+                                <dd className="font-display text-[15px] font-semibold text-ant-ink mt-0.5">
+                                    {campaign.end_date ? format(new Date(campaign.end_date), 'dd MMM yyyy') : '— ongoing —'}
+                                </dd>
+                                <dd className="text-[10px] text-ant-mid mt-0.5">{campaign.end_date ? 'closes on this date' : 'no end date set'}</dd>
+                            </div>
+                            <div>
+                                <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Conversion</dt>
+                                <dd className="font-display text-[15px] font-semibold text-ant-ink inline-flex items-center gap-2 mt-0.5">
+                                    {conversionMeta && <conversionMeta.icon className="w-3.5 h-3.5 text-ant-orange" />}
+                                    {conversionMeta?.label || campaign.conversion_type}
+                                </dd>
+                                {campaign.conversion_content && (
+                                    <dd className="text-[10px] font-mono text-ant-mid mt-0.5 truncate" title={campaign.conversion_content}>
+                                        {campaign.conversion_content}
+                                    </dd>
+                                )}
+                            </div>
+                            {mediabuyer && (
+                                <div>
+                                    <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Commission</dt>
+                                    <dd className="font-display text-[15px] font-semibold text-ant-orange tabular-nums mt-0.5">
+                                        {mediabuyer.payment_type === 'commission'
+                                            ? <>{fmtCur(Number(mediabuyer.commission_price || 0), currency)}<span className="text-[11px] text-ant-orange/70 font-normal ml-1">/ deliv</span></>
+                                            : mediabuyer.payment_type === 'salary' ? 'Salary' : '—'}
+                                    </dd>
+                                    {mediabuyer.payment_type === 'commission' && totals.delivered > 0 && (
+                                        <dd className="text-[10px] text-ant-mid mt-0.5 tabular-nums">
+                                            {totals.delivered} × {fmtCur(Number(mediabuyer.commission_price || 0), currency)} = {fmtCurFull(totals.mbCommissionRevenue, currency)}
+                                        </dd>
+                                    )}
+                                </div>
+                            )}
+                            <div>
+                                <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">{revenueLabel}</dt>
+                                <dd className="font-display text-[15px] font-semibold text-ant-green tabular-nums mt-0.5">
+                                    {fmtCurFull(totals.revenue, currency)}
+                                </dd>
+                                <dd className="text-[10px] text-ant-mid mt-0.5">
+                                    {isAdminView ? 'product-only, shipping stripped' : 'commission earnings'}
+                                </dd>
+                            </div>
+                        </dl>
+
+                        {/* Live snapshot — uses the otherwise-empty bottom half of the Setup card */}
+                        {!loadingMetrics && totals.days > 0 && (
+                            <>
+                                <div className="my-5 border-t border-ant-line" />
+
+                                {/* Lifetime mini-stats — Leads / Confirmed / Delivered / Profit */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                            Lifetime · {totals.days} day{totals.days !== 1 ? 's' : ''}
+                                        </div>
+                                        <span className="text-[10px] text-ant-mid tabular-nums">
+                                            avg {fmtNum(Math.round(avgDelivPerDay))} deliv / day
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <div className="rounded-xl border border-ant-line bg-ant-light/50 p-3">
+                                            <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">Leads</p>
+                                            <p className="font-display text-[18px] font-semibold text-ant-ink tabular-nums leading-tight mt-1">{fmtNum(totals.leads)}</p>
+                                            <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">
+                                                avg {fmtNum(totals.days > 0 ? Math.round(totals.leads / totals.days) : 0)} / day
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-ant-orange/25 bg-ant-orange-soft/40 p-3">
+                                            <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-orange">Confirmed</p>
+                                            <p className="font-display text-[18px] font-semibold text-ant-ink tabular-nums leading-tight mt-1">{fmtNum(totals.confirmed)}</p>
+                                            <p className="text-[10px] text-ant-orange/80 tabular-nums mt-0.5">{fmtPct(totals.confirmRate)} of leads</p>
+                                        </div>
+                                        <div className="rounded-xl border border-ant-green/25 bg-ant-green-soft/40 p-3">
+                                            <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-green">Delivered</p>
+                                            <p className="font-display text-[18px] font-semibold text-ant-ink tabular-nums leading-tight mt-1">{fmtNum(totals.delivered)}</p>
+                                            <p className="text-[10px] text-ant-green/80 tabular-nums mt-0.5">{fmtPct(totals.deliveryRate)} of conf.</p>
+                                        </div>
+                                        <div className={cn('rounded-xl border p-3', totals.profit >= 0 ? 'border-ant-green/25 bg-ant-green-soft/40' : 'border-ant-rose/25 bg-ant-rose/8')}>
+                                            <p className={cn('text-[9.5px] font-medium uppercase tracking-[0.2em]', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>{isAdminView ? 'Profit' : 'Net'}</p>
+                                            <p className={cn('font-display text-[18px] font-semibold tabular-nums leading-tight mt-1', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>
+                                                {totals.profit >= 0 ? '+' : ''}{fmtCur(totals.profit, currency)}
+                                            </p>
+                                            <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">{totals.roas == null ? '—' : `ROAS ${totals.roas.toFixed(2)}×`}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Timeline progress bar — only when we know the start. */}
+                                {timeline && (
+                                    <div className="mt-5">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                Timeline
+                                            </div>
+                                            <span className="text-[10px] text-ant-mid tabular-nums">
+                                                {timeline.daysElapsed} of {timeline.totalDays} day{timeline.totalDays !== 1 ? 's' : ''}{timeline.isPast ? ' · ended' : ''}
+                                            </span>
+                                        </div>
+                                        <div className="relative h-2 rounded-full bg-ant-line overflow-hidden">
+                                            <div
+                                                className="absolute inset-y-0 left-0 bg-ant-ink rounded-full"
+                                                style={{ width: `${timeline.pct}%` }}
+                                            />
+                                            {!timeline.isPast && timeline.pct > 1 && timeline.pct < 99 && (
+                                                <div
+                                                    className="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3 h-3 rounded-full bg-ant-orange border-2 border-ant-paper shadow-sm"
+                                                    style={{ left: `${timeline.pct}%` }}
+                                                />
+                                            )}
+                                        </div>
+                                        <div className="flex items-center justify-between mt-1.5 text-[10px] tabular-nums">
+                                            <span className="text-ant-mid">{timeline.startLabel}</span>
+                                            {!timeline.isPast && <span className="text-ant-orange font-semibold">Today</span>}
+                                            <span className="text-ant-mid">{timeline.endLabel}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Budget burn — only when we have a budget to compare against. */}
+                                {burn && (
+                                    <div className="mt-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                <span className={cn('h-1.5 w-1.5 rounded-full', burn.pct > 100 ? 'bg-ant-rose' : 'bg-ant-green')} />
+                                                {burn.kind === 'daily' ? 'Daily budget pace' : 'Total budget burn'}
+                                            </div>
+                                            <span className={cn('text-[10px] font-semibold tabular-nums', burn.pct > 100 ? 'text-ant-rose' : 'text-ant-ink')}>
+                                                {burn.pct.toFixed(0)}%
+                                            </span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-ant-line overflow-hidden">
+                                            <div
+                                                className={cn('h-full rounded-full', burn.pct > 100 ? 'bg-ant-rose' : burn.pct > 85 ? 'bg-ant-orange' : 'bg-ant-green')}
+                                                style={{ width: `${Math.min(100, burn.pct)}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-ant-mid mt-1.5 tabular-nums">{burn.label}</p>
+                                    </div>
+                                )}
+
+                                {/* Best / worst day strip */}
+                                {dayRanks && totals.days > 1 && (
+                                    <div className="mt-5 grid grid-cols-2 gap-2">
+                                        <div className="rounded-xl border border-ant-green/25 bg-ant-green-soft/30 p-3">
+                                            <div className="inline-flex items-center gap-1.5 text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-green mb-1">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                                Best day
+                                            </div>
+                                            <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight">
+                                                {format(new Date(dayRanks.best.date), 'EEE dd MMM')}
+                                            </p>
+                                            <p className="text-[10px] text-ant-mid mt-0.5 tabular-nums">
+                                                {dayRanks.best.delivered} deliv · {fmtCur(dayRanks.best.revenue, currency)}{isAdminView ? ' gross' : ' comm.'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-ant-rose/25 bg-ant-rose/8 p-3">
+                                            <div className="inline-flex items-center gap-1.5 text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-rose mb-1">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                                Worst day
+                                            </div>
+                                            <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight">
+                                                {format(new Date(dayRanks.worst.date), 'EEE dd MMM')}
+                                            </p>
+                                            <p className="text-[10px] text-ant-mid mt-0.5 tabular-nums">
+                                                {dayRanks.worst.delivered} deliv · {fmtCur(dayRanks.worst.spend, currency)} spent
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </section>
+
+                    <section className="col-span-12 lg:col-span-5 rounded-3xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="px-5 py-3 border-b border-ant-line flex items-center justify-between">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                Ad preview
+                            </div>
+                            <span className="text-[10px] text-ant-mid">{(campaign.media || []).length} medi{(campaign.media || []).length === 1 ? 'um' : 'a'}</span>
+                        </div>
+                        <div className="p-3">
+                            <AdMock campaign={campaign} businessName={business?.name || ''} businessLogo={business?.logo || null} />
+                        </div>
+                    </section>
+                </div>
+
+                {/* ═══ ② KPI tiles with sparklines ═══ */}
                 {loadingMetrics ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                         {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-12 rounded-lg" /></div>
+                            <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-16 rounded-lg" /></div>
                         ))}
                     </div>
                 ) : (
                     <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-                        <KpiTile
-                            label="Total spend"
-                            value={fmtCur(totals.spend, currency)}
-                            valueTitle={fmtCurFull(totals.spend, currency)}
-                            sub={`${totals.days} day${totals.days !== 1 ? 's' : ''}`}
-                            accent="rose"
-                            icon={Coins}
-                        />
-                        <KpiTile
-                            label="Leads"
-                            value={fmtNumCompact(totals.leads)}
-                            valueTitle={fmtNum(totals.leads)}
-                            sub="manual entry"
-                            accent="ink"
-                            icon={UsersIcon}
-                        />
-                        <KpiTile
-                            label="Confirmed"
-                            value={fmtNumCompact(totals.confirmed)}
-                            valueTitle={fmtNum(totals.confirmed)}
-                            sub={fmtPct(totals.confirmRate)}
-                            accent="orange"
-                            icon={CheckCircle2}
-                        />
-                        <KpiTile
-                            label="Delivered"
-                            value={fmtNumCompact(totals.delivered)}
-                            valueTitle={fmtNum(totals.delivered)}
-                            sub={fmtPct(totals.deliveryRate)}
-                            accent="green"
-                            icon={Target}
-                        />
-                        <KpiTile
-                            label="Cost / delivered"
-                            value={totals.costPerDelivered == null ? '—' : fmtCur(totals.costPerDelivered, currency)}
-                            valueTitle={totals.costPerDelivered == null ? undefined : fmtCurFull(totals.costPerDelivered, currency)}
-                            sub={`CPL ${totals.costPerLead == null ? '—' : fmtCur(totals.costPerLead, currency)}`}
-                            accent="orange"
-                            icon={Wallet}
-                        />
-                        <KpiTile
-                            label="Revenue"
-                            value={fmtCur(totals.revenue, currency)}
-                            valueTitle={fmtCurFull(totals.revenue, currency)}
-                            sub={mediabuyer?.payment_type === 'commission' ? `× ${fmtCur(Number(mediabuyer.commission_price || 0), currency)}/order` : 'commission'}
-                            accent="green"
-                            icon={TrendingUp}
-                        />
+                        {/* Spend */}
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />Spend</div>
+                                <Coins className="w-3.5 h-3.5 text-ant-rose/70" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtCurFull(totals.spend, currency)}>{fmtCur(totals.spend, currency)}</p>
+                            <p className="text-[10px] text-ant-mid mt-1 tabular-nums">{totals.days} day{totals.days !== 1 ? 's' : ''}</p>
+                            <Sparkline values={daily.map((d) => d.spend)} color="#c96356" />
+                        </div>
+                        {/* Leads */}
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />Leads</div>
+                                <UsersIcon className="w-3.5 h-3.5 text-ant-ink/70" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtNum(totals.leads)}>{fmtNumCompact(totals.leads)}</p>
+                            <p className="text-[10px] text-ant-mid mt-1">manual entry</p>
+                            <Sparkline values={daily.map((d) => d.leads)} color="#141413" />
+                        </div>
+                        {/* Confirmed */}
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />Confirmed</div>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-ant-orange/70" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtNum(totals.confirmed)}>{fmtNumCompact(totals.confirmed)}</p>
+                            <p className="text-[10px] text-ant-orange font-semibold mt-1 tabular-nums">{fmtPct(totals.confirmRate)} of leads</p>
+                            <Sparkline values={daily.map((d) => d.confirmed)} color="#d97757" />
+                        </div>
+                        {/* Delivered */}
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-green" />Delivered</div>
+                                <Target className="w-3.5 h-3.5 text-ant-green/70" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtNum(totals.delivered)}>{fmtNumCompact(totals.delivered)}</p>
+                            <p className="text-[10px] text-ant-green font-semibold mt-1 tabular-nums">{fmtPct(totals.deliveryRate)} of confirmed</p>
+                            <Sparkline values={daily.map((d) => d.delivered)} color="#788c5d" />
+                        </div>
+                        {/* Cost / delivered */}
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />Cost / Deliv</div>
+                                <Wallet className="w-3.5 h-3.5 text-ant-orange/70" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={totals.costPerDelivered == null ? undefined : fmtCurFull(totals.costPerDelivered, currency)}>
+                                {totals.costPerDelivered == null ? '—' : fmtCur(totals.costPerDelivered, currency)}
+                            </p>
+                            <p className="text-[10px] text-ant-mid mt-1 tabular-nums">CPL {totals.costPerLead == null ? '—' : fmtCur(totals.costPerLead, currency)}</p>
+                            <Sparkline values={daily.map((d) => d.costPerDelivered ?? 0)} color="#d97757" />
+                        </div>
+                        {/* Revenue (role-aware) */}
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-green" />{revenueLabel}</div>
+                                <TrendingUp className="w-3.5 h-3.5 text-ant-green/70" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtCurFull(totals.revenue, currency)}>{fmtCur(totals.revenue, currency)}</p>
+                            <p className="text-[10px] text-ant-mid mt-1">
+                                {isAdminView ? 'gross · product-only' : (mediabuyer?.payment_type === 'commission' ? `× ${fmtCur(Number(mediabuyer.commission_price || 0), currency)} / deliv` : 'commission')}
+                            </p>
+                            <Sparkline values={daily.map((d) => d.revenue)} color="#788c5d" />
+                        </div>
                     </section>
                 )}
 
-                {/* Main grid: charts + ad mock */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    <div className="lg:col-span-2 space-y-5">
-                        {/* Charts */}
-                        <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                            <div className="h-[3px] w-full bg-ant-orange" />
-                            <div className="p-5">
-                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid mb-4">
-                                    <TrendingUp className="w-3 h-3" />
-                                    Performance over time
-                                </div>
-                                {daily.length === 0 ? (
-                                    <EmptyCharts
-                                        canManage={canEdit}
-                                        onManage={() => navigate(`${basePath}/${campaign.id}/manage`)}
-                                    />
-                                ) : (
-                                    <Tabs defaultValue="volume">
-                                        <TabsList className="h-9 rounded-full p-1 bg-ant-light border border-ant-line inline-flex w-auto">
-                                            <TabsTrigger value="volume" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Volume</TabsTrigger>
-                                            <TabsTrigger value="cost" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Cost / KPI</TabsTrigger>
-                                            <TabsTrigger value="rates" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Rates</TabsTrigger>
-                                            <TabsTrigger value="finance" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Finance</TabsTrigger>
-                                        </TabsList>
-
-                                        <TabsContent value="volume" className="mt-4 outline-none">
-                                            <ResponsiveContainer width="100%" height={260}>
-                                                <BarChart data={chartData}>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
-                                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(230,225,214,0.5)' }} />
-                                                    <Bar dataKey="Leads" fill="#141413" radius={[6, 6, 0, 0]} />
-                                                    <Bar dataKey="Confirmed" fill="#D97706" radius={[6, 6, 0, 0]} />
-                                                    <Bar dataKey="Delivered" fill="#2D7A3E" radius={[6, 6, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </TabsContent>
-
-                                        <TabsContent value="cost" className="mt-4 outline-none">
-                                            <ResponsiveContainer width="100%" height={260}>
-                                                <LineChart data={chartData}>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
-                                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <Tooltip content={<ChartTooltip />} />
-                                                    <Line type="monotone" dataKey="CPL" stroke="#141413" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Cost / Lead" />
-                                                    <Line type="monotone" dataKey="CPC" stroke="#D97706" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Cost / Confirmed" />
-                                                    <Line type="monotone" dataKey="CPD" stroke="#2D7A3E" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Cost / Delivered" />
-                                                </LineChart>
-                                            </ResponsiveContainer>
-                                        </TabsContent>
-
-                                        <TabsContent value="rates" className="mt-4 outline-none">
-                                            <ResponsiveContainer width="100%" height={260}>
-                                                <AreaChart data={chartData}>
-                                                    <defs>
-                                                        <linearGradient id="confGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#D97706" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="#D97706" stopOpacity={0} />
-                                                        </linearGradient>
-                                                        <linearGradient id="delivGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
-                                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} unit="%" />
-                                                    <Tooltip content={<ChartTooltip />} />
-                                                    <Area type="monotone" dataKey="ConfRate" stroke="#D97706" strokeWidth={2} fill="url(#confGrad)" name="Confirmation %" />
-                                                    <Area type="monotone" dataKey="DelivRate" stroke="#2D7A3E" strokeWidth={2} fill="url(#delivGrad)" name="Delivery %" />
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        </TabsContent>
-
-                                        <TabsContent value="finance" className="mt-4 outline-none">
-                                            <ResponsiveContainer width="100%" height={260}>
-                                                <AreaChart data={chartData}>
-                                                    <defs>
-                                                        <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#B54040" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="#B54040" stopOpacity={0} />
-                                                        </linearGradient>
-                                                        <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
-                                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                                    <Tooltip content={<ChartTooltip />} />
-                                                    <Area type="monotone" dataKey="Spend" stroke="#B54040" strokeWidth={2} fill="url(#spendGrad)" name="Spend" />
-                                                    <Area type="monotone" dataKey="Revenue" stroke="#2D7A3E" strokeWidth={2} fill="url(#revGrad)" name="Revenue" />
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        </TabsContent>
-                                    </Tabs>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Daily breakdown table */}
-                        <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                            <div className="px-5 py-3.5 border-b border-ant-line flex items-center justify-between">
-                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                    <ListChecks className="w-3 h-3" />
-                                    Daily breakdown
-                                </div>
-                                <span className="text-[11px] font-semibold text-ant-mid tabular-nums">{daily.length} entries</span>
-                            </div>
-                            {daily.length === 0 ? (
-                                <div className="px-5 py-10 text-center">
-                                    <p className="font-serif italic text-[13px] text-ant-mid">No daily entries yet.</p>
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="border-b border-ant-line bg-ant-light/50">
-                                                <th className="text-left px-4 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Date</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Spend</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Leads</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Conf</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Deliv</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">CPL</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">CPC</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">CPD</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">%C</th>
-                                                <th className="text-right px-3 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">%L</th>
-                                                <th className="text-right px-4 py-3 text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Revenue</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {daily.map((d) => (
-                                                <tr key={d.date} className="border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums">
-                                                    <td className="px-4 py-3 text-[12px] font-semibold text-ant-ink">{format(new Date(d.date), 'EEE dd MMM')}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] font-semibold text-ant-ink">{fmtCurFull(d.spend, currency)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-ink">{fmtNum(d.leads)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-orange font-semibold">{fmtNum(d.confirmed)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-green font-semibold">{fmtNum(d.delivered)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerLead == null ? '—' : fmtCurFull(d.costPerLead, currency)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerConfirmed == null ? '—' : fmtCurFull(d.costPerConfirmed, currency)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerDelivered == null ? '—' : fmtCurFull(d.costPerDelivered, currency)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{fmtPct(d.confirmRate)}</td>
-                                                    <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{fmtPct(d.deliveryRate)}</td>
-                                                    <td className="text-right px-4 py-3 text-[12px] font-semibold text-ant-green">{fmtCurFull(d.revenue, currency)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                        <tfoot>
-                                            <tr className="bg-ant-ink text-white font-semibold tabular-nums">
-                                                <td className="px-4 py-3.5 text-[10px] uppercase tracking-[0.24em]">Totals</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px]">{fmtCurFull(totals.spend, currency)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px]">{fmtNum(totals.leads)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px]">{fmtNum(totals.confirmed)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px]">{fmtNum(totals.delivered)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerLead == null ? '—' : fmtCurFull(totals.costPerLead, currency)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerConfirmed == null ? '—' : fmtCurFull(totals.costPerConfirmed, currency)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerDelivered == null ? '—' : fmtCurFull(totals.costPerDelivered, currency)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{fmtPct(totals.confirmRate)}</td>
-                                                <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{fmtPct(totals.deliveryRate)}</td>
-                                                <td className="text-right px-4 py-3.5 text-[12px]">{fmtCurFull(totals.revenue, currency)}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            )}
+                {/* ═══ Performance chart (full width) ═══ */}
+                <section className="rounded-3xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="px-5 pt-4 pb-2 flex items-center justify-between flex-wrap gap-3">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <TrendingUp className="w-3 h-3" />
+                            Performance over time
                         </div>
                     </div>
+                    <div className="px-5 pb-5">
+                        {daily.length === 0 ? (
+                            <EmptyCharts
+                                canManage={canEdit}
+                                onManage={() => navigate(`${basePath}/${campaign.id}/manage`)}
+                            />
+                        ) : (
+                            <Tabs defaultValue="volume">
+                                <TabsList className="h-9 rounded-full p-1 bg-ant-light border border-ant-line inline-flex w-auto">
+                                    <TabsTrigger value="volume" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Volume</TabsTrigger>
+                                    <TabsTrigger value="cost" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Cost / KPI</TabsTrigger>
+                                    <TabsTrigger value="rates" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Rates</TabsTrigger>
+                                    <TabsTrigger value="finance" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Finance</TabsTrigger>
+                                </TabsList>
 
-                    {/* Sidebar: ad mock + details */}
-                    <div className="lg:col-span-1 space-y-5">
-                        <div className="lg:sticky lg:top-6 space-y-5">
-                            <div>
-                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid mb-3">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                                    Ad preview
-                                </div>
-                                <AdMock campaign={campaign} businessName={business?.name || ''} businessLogo={business?.logo || null} />
+                                <TabsContent value="volume" className="mt-4 outline-none">
+                                    <ResponsiveContainer width="100%" height={280}>
+                                        <BarChart data={chartData}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(230,225,214,0.5)' }} />
+                                            <Bar dataKey="Leads" fill="#141413" radius={[6, 6, 0, 0]} />
+                                            <Bar dataKey="Confirmed" fill="#D97706" radius={[6, 6, 0, 0]} />
+                                            <Bar dataKey="Delivered" fill="#2D7A3E" radius={[6, 6, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </TabsContent>
+
+                                <TabsContent value="cost" className="mt-4 outline-none">
+                                    <ResponsiveContainer width="100%" height={280}>
+                                        <LineChart data={chartData}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <Tooltip content={<ChartTooltip />} />
+                                            <Line type="monotone" dataKey="CPL" stroke="#141413" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Cost / Lead" />
+                                            <Line type="monotone" dataKey="CPC" stroke="#D97706" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Cost / Confirmed" />
+                                            <Line type="monotone" dataKey="CPD" stroke="#2D7A3E" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Cost / Delivered" />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </TabsContent>
+
+                                <TabsContent value="rates" className="mt-4 outline-none">
+                                    <ResponsiveContainer width="100%" height={280}>
+                                        <AreaChart data={chartData}>
+                                            <defs>
+                                                <linearGradient id="confGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#D97706" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#D97706" stopOpacity={0} />
+                                                </linearGradient>
+                                                <linearGradient id="delivGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} unit="%" />
+                                            <Tooltip content={<ChartTooltip />} />
+                                            <Area type="monotone" dataKey="ConfRate" stroke="#D97706" strokeWidth={2} fill="url(#confGrad)" name="Confirmation %" />
+                                            <Area type="monotone" dataKey="DelivRate" stroke="#2D7A3E" strokeWidth={2} fill="url(#delivGrad)" name="Delivery %" />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </TabsContent>
+
+                                <TabsContent value="finance" className="mt-4 outline-none">
+                                    <ResponsiveContainer width="100%" height={280}>
+                                        <AreaChart data={chartData}>
+                                            <defs>
+                                                <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#B54040" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#B54040" stopOpacity={0} />
+                                                </linearGradient>
+                                                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                            <Tooltip content={<ChartTooltip />} />
+                                            <Area type="monotone" dataKey="Spend" stroke="#B54040" strokeWidth={2} fill="url(#spendGrad)" name="Spend" />
+                                            <Area type="monotone" dataKey="Revenue" stroke="#2D7A3E" strokeWidth={2} fill="url(#revGrad)" name={revenueLabel} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </TabsContent>
+                            </Tabs>
+                        )}
+                    </div>
+                </section>
+
+                {/* ═══ ③ DAILY BREAKDOWN — full width, all 11 metrics + Profit ═══ */}
+                <section className="rounded-3xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-ant-line flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <ListChecks className="w-3 h-3" />
+                                Daily breakdown
                             </div>
-                            <div className="rounded-2xl border border-ant-line bg-ant-paper p-5 space-y-3 text-[12px]">
-                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                    Setup
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-ant-line">
-                                    <span className="text-[11px] font-semibold text-ant-mid">Spending</span>
-                                    <span className="font-semibold text-ant-ink tabular-nums">
-                                        {campaign.spending_type === 'ongoing'
-                                            ? `${fmtCur(Number(campaign.daily_budget || 0), currency)} / day`
-                                            : `${fmtCur(Number(campaign.total_budget || 0), currency)} total`}
-                                    </span>
-                                </div>
-                                {campaign.start_date && (
-                                    <div className="flex items-center justify-between pt-2 border-t border-ant-line">
-                                        <span className="text-[11px] font-semibold text-ant-mid">Start</span>
-                                        <span className="font-semibold text-ant-ink tabular-nums">{format(new Date(campaign.start_date), 'dd MMM yyyy')}</span>
-                                    </div>
-                                )}
-                                {campaign.end_date && (
-                                    <div className="flex items-center justify-between pt-2 border-t border-ant-line">
-                                        <span className="text-[11px] font-semibold text-ant-mid">End</span>
-                                        <span className="font-semibold text-ant-ink tabular-nums">{format(new Date(campaign.end_date), 'dd MMM yyyy')}</span>
-                                    </div>
-                                )}
-                                <div className="flex items-center justify-between pt-2 border-t border-ant-line">
-                                    <span className="text-[11px] font-semibold text-ant-mid">Conversion</span>
-                                    <span className="font-semibold text-ant-ink inline-flex items-center gap-1.5">
-                                        {conversionMeta && <conversionMeta.icon className="w-3.5 h-3.5 text-ant-orange" />}
-                                        {conversionMeta?.label || campaign.conversion_type}
-                                    </span>
-                                </div>
-                                {campaign.conversion_content && (
-                                    <div className="pt-3 border-t border-ant-line">
-                                        <p className="text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid mb-1.5">
-                                            {conversionMeta?.contentLabel}
-                                        </p>
-                                        <p className="font-mono text-[11px] text-ant-ink break-all bg-ant-light border border-ant-line rounded-lg p-2.5">{campaign.conversion_content}</p>
-                                    </div>
-                                )}
-                                {mediabuyer && (
-                                    <div className="flex items-center justify-between pt-2 border-t border-ant-line">
-                                        <span className="text-[11px] font-semibold text-ant-mid">Commission</span>
-                                        <span className="font-semibold text-ant-ink tabular-nums">
-                                            {mediabuyer.payment_type === 'commission'
-                                                ? `${fmtCur(Number(mediabuyer.commission_price || 0), currency)} / delivered`
-                                                : mediabuyer.payment_type === 'salary'
-                                                ? 'Salary'
-                                                : '—'}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
+                            <span className="text-[11px] text-ant-mid tabular-nums">{daily.length} entries · {isAdminView ? 'gross revenue' : 'commission'}</span>
                         </div>
                     </div>
-                </div>
+                    {daily.length === 0 ? (
+                        <div className="px-5 py-10 text-center">
+                            <p className="font-serif italic text-[13px] text-ant-mid">No daily entries yet.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-[12px]">
+                                <thead>
+                                    <tr className="border-b border-ant-line bg-ant-light/50">
+                                        <th className="text-left  px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid sticky left-0 bg-ant-light/50 z-10">Date</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">Spend</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">Leads</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-orange">Conf</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-green">Deliv</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">CPL</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">CPC</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">CPD</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-orange">% Conf</th>
+                                        <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-green">% Deliv</th>
+                                        <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-green">{revenueLabel}</th>
+                                        <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">Profit</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {daily.map((d) => {
+                                        const dProfitClass = d.profit >= 0 ? 'text-ant-green' : 'text-ant-rose';
+                                        return (
+                                            <tr key={d.date} className="border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums">
+                                                <td className="px-4 py-3 text-[12px] font-semibold text-ant-ink sticky left-0 bg-ant-paper">{format(new Date(d.date), 'EEE dd MMM')}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] font-semibold text-ant-ink">{fmtCurFull(d.spend, currency)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-ink">{fmtNum(d.leads)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-orange font-semibold">{fmtNum(d.confirmed)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-green font-semibold">{fmtNum(d.delivered)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerLead == null ? '—' : fmtCurFull(d.costPerLead, currency)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerConfirmed == null ? '—' : fmtCurFull(d.costPerConfirmed, currency)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerDelivered == null ? '—' : fmtCurFull(d.costPerDelivered, currency)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{fmtPct(d.confirmRate)}</td>
+                                                <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{fmtPct(d.deliveryRate)}</td>
+                                                <td className="text-right px-4 py-3 text-[12px] font-semibold text-ant-green">{fmtCurFull(d.revenue, currency)}</td>
+                                                <td className={cn('text-right px-4 py-3 text-[12px] font-semibold tabular-nums', dProfitClass)}>
+                                                    {d.profit >= 0 ? '+' : ''}{fmtCurFull(d.profit, currency)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-ant-ink text-white font-semibold tabular-nums">
+                                        <td className="px-4 py-3.5 text-[10px] uppercase tracking-[0.22em] sticky left-0 bg-ant-ink">Totals · {totals.days} day{totals.days !== 1 ? 's' : ''}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px]">{fmtCurFull(totals.spend, currency)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px]">{fmtNum(totals.leads)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-ant-orange">{fmtNum(totals.confirmed)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-ant-green">{fmtNum(totals.delivered)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerLead == null ? '—' : fmtCurFull(totals.costPerLead, currency)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerConfirmed == null ? '—' : fmtCurFull(totals.costPerConfirmed, currency)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerDelivered == null ? '—' : fmtCurFull(totals.costPerDelivered, currency)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-ant-orange">{fmtPct(totals.confirmRate)}</td>
+                                        <td className="text-right px-3 py-3.5 text-[12px] text-ant-green">{fmtPct(totals.deliveryRate)}</td>
+                                        <td className="text-right px-4 py-3.5 text-[12px]">{fmtCurFull(totals.revenue, currency)}</td>
+                                        <td className={cn('text-right px-4 py-3.5 text-[12px] font-semibold', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>
+                                            {totals.profit >= 0 ? '+' : ''}{fmtCurFull(totals.profit, currency)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    )}
+                </section>
             </div>
         </div>
     );

@@ -146,21 +146,49 @@ export function totalAccruedForCommission(
   return delivered.length;
 }
 
+/**
+ * Computes how much commission the seller is owed RIGHT NOW.
+ *
+ * Pre-partial-payouts model: callers passed `paidTally` = sum of
+ * `delivered_orders` across paid payout rows. A partial payment couldn't be
+ * represented — you either consumed all deliveries on the period or none.
+ *
+ * New model: callers pass `paidAmount` = `SUM(seller_payment_txns.amount)`
+ * across every disbursement (full + partial). We convert that money back into
+ * "delivery slots already paid" using the current commission price, then
+ * subtract from accrued deliveries. Equivalent to the old behavior when every
+ * payment is full; correct when there are partials.
+ *
+ * Backward-compat: the legacy `paidTally` field is still accepted. If callers
+ * pass it but not `paidAmount`, we infer `paidAmount = paidTally × price`. New
+ * callers should pass `paidAmount` directly (sum of all txn rows).
+ */
 export function computeUnpaidCommission(params: {
   basis: CommissionBasis;
   commissionPrice: number;
   orders: OrderForCommission[];
   isDelivered: (o: OrderForCommission) => boolean;
   sellerProductIds: string[];
-  /** Sum of seller_payments.delivered_orders for paid payouts */
-  paidTally: number;
+  /** New (preferred): SUM(seller_payment_txns.amount) — all paid + partial. */
+  paidAmount?: number;
+  /** Legacy: count of delivered_orders across paid payouts. Translated to cash. */
+  paidTally?: number;
 }): { accruedTotal: number; unpaidAccrued: number; unpaidCommission: number } {
-  const { basis, commissionPrice, orders, isDelivered, sellerProductIds, paidTally } = params;
+  const { basis, commissionPrice, orders, isDelivered, sellerProductIds, paidAmount, paidTally } = params;
   const accruedTotal = totalAccruedForCommission(orders, isDelivered, basis, sellerProductIds);
-  const unpaidAccrued = Math.max(0, accruedTotal - paidTally);
+  const price = Number(commissionPrice || 0);
+  const accruedCash = accruedTotal * price;
+  // Prefer explicit paidAmount; otherwise derive from legacy paidTally.
+  const paidCash = paidAmount != null
+    ? Math.max(0, Number(paidAmount) || 0)
+    : Math.max(0, Number(paidTally || 0) * price);
+  const unpaidCommission = Math.max(0, accruedCash - paidCash);
+  // Translate cash-owed back to delivery-equivalents so UIs that show "X deliveries unpaid"
+  // keep working. When price is 0 (salary buyer) we report 0 — no deliveries are accruing.
+  const unpaidAccrued = price > 0 ? unpaidCommission / price : 0;
   return {
     accruedTotal,
     unpaidAccrued,
-    unpaidCommission: unpaidAccrued * Number(commissionPrice || 0),
+    unpaidCommission,
   };
 }

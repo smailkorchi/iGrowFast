@@ -227,13 +227,16 @@ const SellerDashboard = () => {
             const rateConfirmedCount = orders.filter(o => isRateConfirmed(o, statusCats.pendingIds, trackedSet)).length;
             const confirmRate = orders.length > 0 ? (rateConfirmedCount / orders.length) * 100 : 0;
 
+            // Partial-payout-aware: sum `paid_amount` across all payout rows
+            // (pending + partial + paid). The trigger on seller_payment_txns
+            // keeps `paid_amount` in lockstep with disbursements, so this is
+            // the single source of truth for cash already received.
             const { data: paymentsData } = await supabase
                 .from('seller_payments')
-                .select('delivered_orders, status')
-                .eq('seller_id', userId)
-                .eq('status', 'paid');
+                .select('paid_amount, status')
+                .eq('seller_id', userId);
 
-            const alreadyPaidDeliveries = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+            const alreadyPaidAmount = (paymentsData || []).reduce((sum, p: any) => sum + (Number(p.paid_amount) || 0), 0);
 
             const { unpaidCommission: liveCommission, unpaidAccrued: unpaidDeliveries } = computeUnpaidCommission({
                 basis: commissionBasis,
@@ -241,7 +244,7 @@ const SellerDashboard = () => {
                 orders,
                 isDelivered,
                 sellerProductIds: attributedProducts,
-                paidTally: alreadyPaidDeliveries,
+                paidAmount: alreadyPaidAmount,
             });
 
             setStats({

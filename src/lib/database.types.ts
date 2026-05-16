@@ -4407,6 +4407,39 @@ export type Database = {
           },
         ]
       }
+      mediabuyer_payment_txns: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          "DigiCom Business": string | null
+          id: string
+          mediabuyer_payment_id: string
+          note: string | null
+          paid_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          mediabuyer_payment_id: string
+          note?: string | null
+          paid_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          mediabuyer_payment_id?: string
+          note?: string | null
+          paid_at?: string
+        }
+        Relationships: []
+      }
       mediabuyer_payments: {
         Row: {
           bank_snapshot: Json | null
@@ -4417,6 +4450,7 @@ export type Database = {
           "DigiCom Business": string
           id: string
           mediabuyer_id: string
+          paid_amount: number
           paid_at: string | null
           payment_type: string
           payout_month: string
@@ -4435,6 +4469,7 @@ export type Database = {
           "DigiCom Business": string
           id?: string
           mediabuyer_id: string
+          paid_amount?: number
           paid_at?: string | null
           payment_type: string
           payout_month: string
@@ -4453,6 +4488,7 @@ export type Database = {
           "DigiCom Business"?: string
           id?: string
           mediabuyer_id?: string
+          paid_amount?: number
           paid_at?: string | null
           payment_type?: string
           payout_month?: string
@@ -5908,6 +5944,39 @@ export type Database = {
           },
         ]
       }
+      seller_payment_txns: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          "DigiCom Business": string | null
+          id: string
+          note: string | null
+          paid_at: string
+          seller_payment_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          note?: string | null
+          paid_at?: string
+          seller_payment_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          note?: string | null
+          paid_at?: string
+          seller_payment_id?: string
+        }
+        Relationships: []
+      }
       seller_payments: {
         Row: {
           bank_snapshot: Json | null
@@ -5917,6 +5986,7 @@ export type Database = {
           delivered_orders: number | null
           "DigiCom Business": string | null
           id: string
+          paid_amount: number
           paid_at: string | null
           payout_month: string | null
           salary_earned: number | null
@@ -5932,6 +6002,7 @@ export type Database = {
           delivered_orders?: number | null
           "DigiCom Business"?: string | null
           id?: string
+          paid_amount?: number
           paid_at?: string | null
           payout_month?: string | null
           salary_earned?: number | null
@@ -5947,6 +6018,7 @@ export type Database = {
           delivered_orders?: number | null
           "DigiCom Business"?: string | null
           id?: string
+          paid_amount?: number
           paid_at?: string | null
           payout_month?: string | null
           salary_earned?: number | null

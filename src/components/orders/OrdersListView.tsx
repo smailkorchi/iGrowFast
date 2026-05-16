@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import {
-  User, MapPin, Truck, Eye, Package, MoreVertical, Edit2, Trash2,
-  Calendar, RefreshCcw, Pencil,
+  MapPin, Truck, Eye, Package, MoreVertical, Edit2, Trash2,
+  Calendar, RefreshCcw, Pencil, Package as PackageIcon,
 } from 'lucide-react';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { OrderPhoneContactDropdown, OrderContactSubmenu } from '@/components/orders/OrderPhoneQuickActions';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import SourceIcon from '@/components/orders/SourceIcon';
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { cn } from '@/lib/utils';
 
 interface OrdersListViewProps {
@@ -49,24 +50,24 @@ export default function OrdersListView({
 }: OrdersListViewProps) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-ant-line overflow-hidden mb-20 animate-in fade-in duration-300">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[1100px]">
+      <div className="w-full">
+        <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b-2 border-ant-line sticky top-0 z-10 bg-white/95 backdrop-blur-sm">
-              <th className="px-4 py-3.5 w-10">
+              <th className="px-3 py-3.5 w-10">
                 <Checkbox
                   checked={selectedOrders.length === orders.length && orders.length > 0}
                   onCheckedChange={() => toggleSelectAll(orders.map((o) => o.id))}
                   className="h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light"
                 />
               </th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Customer</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">City / Source</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Order Status</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Package</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Delivery</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Commercial</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid text-right">Amount</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Customer</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">City / Source</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Order Status</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Package</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Delivery</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Commercial</th>
+              <th className="px-3 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid text-right">Amount</th>
               <th className="px-3 py-3.5 w-[120px]" />
             </tr>
           </thead>
@@ -83,6 +84,22 @@ export default function OrdersListView({
               const pkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
               const pkgColor = order.package_status?.color || courierPkg?.color || null;
 
+              // First product (or accessory) with an image — the customer avatar
+              // was never filled, so we surface the actually-ordered product
+              // and reuse the products-page hover preview component.
+              const firstItemWithImage = (Array.isArray(order.items) ? order.items : [])
+                .find((it: any) => it?.product?.image_url || it?.accessory?.image_url);
+              const productThumb: string | null =
+                firstItemWithImage?.product?.image_url || firstItemWithImage?.accessory?.image_url || null;
+              const productLabel: string =
+                firstItemWithImage?.product?.name
+                || firstItemWithImage?.accessory?.name
+                || (order.items || []).find((i: any) => i?.product?.name || i?.accessory?.name)?.product?.name
+                || (order.items || []).find((i: any) => i?.accessory?.name)?.accessory?.name
+                || '';
+              const productCode: string =
+                firstItemWithImage?.product?.code || firstItemWithImage?.accessory?.code || '';
+
               const isSelected = selectedOrders.includes(order.id);
 
               return (
@@ -97,7 +114,7 @@ export default function OrdersListView({
                   )}
                 >
                   {/* Checkbox */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => toggleOrderSelection(order.id)}
@@ -106,21 +123,32 @@ export default function OrdersListView({
                   </td>
 
                   {/* Customer + Date */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div
-                        className={cn(
-                          'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
-                          isDuplicate ? 'bg-[#d4c438]/20' : 'bg-ant-ink/[0.05]'
-                        )}
-                      >
-                        <User className={cn('w-4 h-4', isDuplicate ? 'text-[#9a7f00]' : 'text-ant-mid')} />
-                      </div>
+                      <ImageHoverPreview imageUrl={productThumb} name={productLabel} code={productCode}>
+                        <div
+                          className={cn(
+                            'w-9 h-9 rounded-lg shrink-0 overflow-hidden flex items-center justify-center',
+                            isDuplicate ? 'ring-1 ring-[#d4c438]/40' : 'bg-ant-ink/[0.04] border border-ant-line/60'
+                          )}
+                        >
+                          {productThumb ? (
+                            <img
+                              src={productThumb}
+                              alt={productLabel}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <PackageIcon className="w-4 h-4 text-ant-mid" />
+                          )}
+                        </div>
+                      </ImageHoverPreview>
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
                           <span
                             className={cn('truncate', isDuplicate ? 'text-[#9a7f00]' : 'text-ant-ink')}
-                            title={isDuplicate ? 'Same phone number on multiple orders' : undefined}
+                            title={isDuplicate ? 'Same phone number on multiple orders' : order.name}
                           >
                             {order.name}
                           </span>
@@ -142,7 +170,7 @@ export default function OrdersListView({
                   </td>
 
                   {/* City / Source */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <div className="space-y-1">
                       <p className="text-[12px] font-bold text-ant-ink leading-tight flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-ant-ink/25 shrink-0" />
@@ -157,7 +185,7 @@ export default function OrdersListView({
                   </td>
 
                   {/* Order Status — Clickable */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <div className="space-y-1">
                       <button
                         type="button"
@@ -187,7 +215,7 @@ export default function OrdersListView({
                   </td>
 
                   {/* Package Status */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     {pkgLabel ? (
                       <span
                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide"
@@ -211,7 +239,7 @@ export default function OrdersListView({
                   </td>
 
                   {/* Delivery Provider / Courier */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     {(order.company?.name || order.courier?.name) ? (
                       <div className="flex items-center gap-2 min-w-0">
                         <TooltipProvider delayDuration={300}>
@@ -260,7 +288,7 @@ export default function OrdersListView({
                   </td>
 
                   {/* Commercial / Assignee */}
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     {order.assignee ? (
                       <div className="flex items-center gap-1.5">
                         <Avatar className="w-6 h-6 border border-white shadow-sm">
@@ -279,7 +307,7 @@ export default function OrdersListView({
                   </td>
 
                   {/* Amount */}
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-3 py-3 text-right">
                     <span className="text-sm font-black text-ant-ink tabular-nums">
                       {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                     </span>

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface SellerPayment {
     id: string;
@@ -36,6 +37,7 @@ interface SellerPayment {
     salary_earned: number;
     commission_earned: number;
     total_amount: number;
+    paid_amount: number;
     days_present: number;
     delivered_orders: number;
     bank_snapshot: any;
@@ -67,34 +69,38 @@ const SellerPayments = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
+            // Partial-payout-aware: pull every row with at least one disbursement
+            // (status='partial' or 'paid'). Show the actually-received `paid_amount`,
+            // not `total_amount`, in stats and chart — that's what the seller has
+            // touched. The trigger keeps paid_amount in lockstep with the txn table.
             const { data, error } = await supabase
                 .from('seller_payments')
                 .select('*')
                 .eq('seller_id', user.id)
-                .eq('status', 'paid')
+                .gt('paid_amount', 0)
                 .order('payout_month', { ascending: true });
             if (error) throw error;
 
-            const paidPayments = data || [];
-            setPayments([...paidPayments].reverse());
+            const rows = data || [];
+            setPayments([...rows].reverse());
 
-            const lifetime = paidPayments.reduce((sum, p) => sum + Number(p.total_amount), 0);
+            const lifetime = rows.reduce((sum, p: any) => sum + Number(p.paid_amount || 0), 0);
             const now = new Date();
             const thisMonthStr = format(now, 'yyyy-MM-01');
-            const thisMonth = paidPayments
+            const thisMonth = rows
                 .filter((p) => p.payout_month === thisMonthStr)
-                .reduce((sum, p) => sum + Number(p.total_amount), 0);
+                .reduce((sum, p: any) => sum + Number(p.paid_amount || 0), 0);
             const lastMonthStr = format(new Date(now.getFullYear(), now.getMonth() - 1), 'yyyy-MM-01');
-            const lastMonth = paidPayments
+            const lastMonth = rows
                 .filter((p) => p.payout_month === lastMonthStr)
-                .reduce((sum, p) => sum + Number(p.total_amount), 0);
+                .reduce((sum, p: any) => sum + Number(p.paid_amount || 0), 0);
             setStats({ lifetime, thisMonth, lastMonth });
 
-            const monthlyData = paidPayments.map((p) => {
+            const monthlyData = rows.map((p: any) => {
                 const date = p.payout_month ? parseISO(p.payout_month) : null;
                 return {
                     month: date && !isNaN(date.getTime()) ? format(date, 'MMM yyyy', { locale: fr }) : 'Inconnu',
-                    amount: Number(p.total_amount),
+                    amount: Number(p.paid_amount || 0),
                     commission: Number(p.commission_earned),
                 };
             });
@@ -261,7 +267,8 @@ const SellerPayments = () => {
                                             <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Période</th>
                                             <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Activité</th>
                                             <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Réglé le</th>
-                                            <th className="px-5 py-2.5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Net</th>
+                                            <th className="px-5 py-2.5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Dû</th>
+                                            <th className="px-5 py-2.5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Versé</th>
                                             <th className="px-5 py-2.5 pr-5 w-12" />
                                         </tr>
                                     </thead>
@@ -308,6 +315,27 @@ const SellerPayments = () => {
                                                                 <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                                                             </p>
                                                         </td>
+                                                        <td className="px-5 py-3 text-right" title={`${Number(p.paid_amount || 0).toLocaleString()} versé sur ${Number(p.total_amount).toLocaleString()}`}>
+                                                            {(() => {
+                                                                const paid = Number(p.paid_amount || 0);
+                                                                const total = Number(p.total_amount || 0);
+                                                                const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
+                                                                const isPartial = p.status === 'partial';
+                                                                return (
+                                                                    <div className="flex flex-col items-end gap-1.5">
+                                                                        <p className={cn('font-display text-[14px] font-semibold tabular-nums', paid > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
+                                                                            {paid.toLocaleString()}
+                                                                            <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                                        </p>
+                                                                        {isPartial && (
+                                                                            <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
+                                                                                <div className="h-full rounded-full bg-ant-blue transition-all" style={{ width: `${pct}%` }} />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </td>
                                                         <td className="px-5 py-3 pr-5 text-right">
                                                             <button
                                                                 type="button"
@@ -323,7 +351,7 @@ const SellerPayments = () => {
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan={6} className="p-0">
+                                                <td colSpan={7} className="p-0">
                                                     <div className="mx-5 my-5 rounded-xl border border-dashed border-ant-line bg-ant-light/50 py-10 flex flex-col items-center justify-center gap-3 text-center">
                                                         <div className="h-10 w-10 rounded-xl border border-ant-line bg-ant-paper flex items-center justify-center">
                                                             <Receipt className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
@@ -354,10 +382,23 @@ const SellerPayments = () => {
                                 <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
                                     <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
                                     Règlement · Détail
-                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green tracking-normal normal-case">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
-                                        Payé
-                                    </span>
+                                    {(() => {
+                                        const isPaid = selectedPayment.status === 'paid';
+                                        const isPartial = selectedPayment.status === 'partial';
+                                        const cls = isPaid
+                                            ? 'border-ant-green/25 bg-ant-green/10 text-ant-green'
+                                            : isPartial
+                                              ? 'border-ant-blue/25 bg-ant-blue/10 text-ant-blue'
+                                              : 'border-ant-orange/25 bg-ant-orange/10 text-ant-orange';
+                                        const dot = isPaid ? 'bg-ant-green' : isPartial ? 'bg-ant-blue' : 'bg-ant-orange';
+                                        const label = isPaid ? 'Payé' : isPartial ? 'Partiel' : 'En attente';
+                                        return (
+                                            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-normal normal-case', cls)}>
+                                                <span className={cn('h-1.5 w-1.5 rounded-full', dot)} />
+                                                {label}
+                                            </span>
+                                        );
+                                    })()}
                                 </div>
                                 <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight capitalize">
                                     {(() => {
@@ -374,11 +415,11 @@ const SellerPayments = () => {
                             </DialogHeader>
 
                             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto ant-scroll">
-                                {/* Commission card */}
+                                {/* Commission earned (gross) */}
                                 <div className="rounded-xl border border-ant-line bg-ant-light p-4">
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Commission</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Commission due</p>
                                     <p className="font-display text-[28px] font-semibold tabular-nums text-ant-ink leading-none mt-2">
-                                        {Number(selectedPayment.commission_earned).toLocaleString()}
+                                        {Number(selectedPayment.total_amount).toLocaleString()}
                                         <span className="text-[12px] text-ant-mid font-normal ml-1.5">MAD</span>
                                     </p>
                                     <div className="flex items-center justify-between pt-2 mt-2 border-t border-ant-line">
@@ -389,17 +430,37 @@ const SellerPayments = () => {
                                     </div>
                                 </div>
 
-                                {/* Total ink card */}
-                                <div className="rounded-xl bg-ant-ink p-4">
-                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                                        Total versé
-                                    </div>
-                                    <p className="font-display text-[28px] font-semibold tabular-nums text-white leading-none mt-2">
-                                        {Number(selectedPayment.total_amount).toLocaleString()}
-                                        <span className="text-[12px] text-white/50 font-normal ml-1.5">MAD</span>
-                                    </p>
-                                </div>
+                                {/* Versé (what was actually paid) */}
+                                {(() => {
+                                    const paid = Number(selectedPayment.paid_amount || 0);
+                                    const total = Number(selectedPayment.total_amount || 0);
+                                    const remaining = Math.max(0, total - paid);
+                                    const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
+                                    const isPartial = selectedPayment.status === 'partial';
+                                    return (
+                                        <div className="rounded-xl bg-ant-ink p-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                    Versé
+                                                </div>
+                                                <span className="text-[10px] font-semibold text-white/60 tabular-nums">{pct.toFixed(0)}%</span>
+                                            </div>
+                                            <p className="font-display text-[28px] font-semibold tabular-nums text-white leading-none">
+                                                {paid.toLocaleString()}
+                                                <span className="text-[12px] text-white/50 font-normal ml-1.5">MAD</span>
+                                            </p>
+                                            <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden">
+                                                <div className="h-full rounded-full bg-ant-orange transition-all" style={{ width: `${pct}%` }} />
+                                            </div>
+                                            {isPartial && remaining > 0 && (
+                                                <p className="text-[11px] text-white/60 tabular-nums">
+                                                    Reste <span className="font-semibold text-white">{remaining.toLocaleString()} MAD</span> à régler
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Bank info */}
                                 <div className="rounded-xl border border-ant-line bg-ant-paper p-4">

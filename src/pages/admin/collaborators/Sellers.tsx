@@ -88,6 +88,7 @@ interface SellerKPIs {
         month: string;
         commission_earned: number;
         total_amount: number;
+        paid_amount: number;
         days_present: number;
         delivered_orders: number;
         status: string;
@@ -308,9 +309,14 @@ const Sellers = () => {
                 const deliveryRate = sellerDeliveryDenom > 0 ? (delivered / sellerDeliveryDenom) * 100 : 0;
                 const cancellationRate = total > 0 ? ((cancelled + fake) / total) * 100 : 0;
 
-                const alreadyPaidDeliveries = sellerPayments
-                    .filter((p) => p.status === 'paid')
-                    .reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+                // Partial-payout-aware: aggregate `paid_amount` across every
+                // payout row (full + partial + pending). Pending rows return 0,
+                // partials return their running sum, full-paid rows return
+                // total_amount. The trigger keeps `paid_amount` in lockstep
+                // with `seller_payment_txns`, so this is the single source of
+                // truth for "how much cash has actually been disbursed".
+                const alreadyPaidAmount = sellerPayments
+                    .reduce((sum, p: any) => sum + (Number(p.paid_amount) || 0), 0);
 
                 const isDeliveredOrder = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
                 const basis = normalizeCommissionBasis(seller.commission_basis);
@@ -321,7 +327,7 @@ const Sellers = () => {
                     orders: sellerOrders,
                     isDelivered: isDeliveredOrder,
                     sellerProductIds,
-                    paidTally: alreadyPaidDeliveries,
+                    paidAmount: alreadyPaidAmount,
                 });
 
                 const totalRevenue = sellerOrders
@@ -331,8 +337,16 @@ const Sellers = () => {
                 const totalCommissionEarned = sellerEarnings.reduce((sum, e) => sum + (Number(e.commission_earned) || 0), 0);
                 const totalEarnings = sellerEarnings.reduce((sum, e) => sum + (Number(e.total_earned) || 0), 0);
 
-                const totalPaid = sellerPayments.filter((p) => p.status === 'paid').reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
-                const totalUnpaid = sellerPayments.filter((p) => p.status === 'pending').reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
+                // Totals now respect partials: paid = sum of all disbursements,
+                // unpaid = sum of every remaining balance across all rows.
+                const totalPaid = sellerPayments.reduce(
+                    (sum, p: any) => sum + (Number(p.paid_amount) || 0),
+                    0,
+                );
+                const totalUnpaid = sellerPayments.reduce(
+                    (sum, p: any) => sum + Math.max(0, (Number(p.total_amount) || 0) - (Number(p.paid_amount) || 0)),
+                    0,
+                );
 
                 const daysPresent = sellerPresences.length;
                 const avgDailyDelivered = daysPresent > 0 ? delivered / daysPresent : 0;
@@ -357,6 +371,7 @@ const Sellers = () => {
                     month: p.payout_month,
                     commission_earned: Number(p.commission_earned) || 0,
                     total_amount: Number(p.total_amount) || 0,
+                    paid_amount: Number((p as any).paid_amount) || 0,
                     days_present: p.days_present || 0,
                     delivered_orders: p.delivered_orders || 0,
                     status: p.status || 'pending',
@@ -871,25 +886,50 @@ const Sellers = () => {
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="border-b border-ant-line bg-ant-light/50">
-                                                {['Month', 'Days', 'Delivered', 'Commission', 'Total', 'Status'].map((h) => (
-                                                    <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{h}</th>
-                                                ))}
+                                            <tr className="border-b border-ant-line">
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Days</th>
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
+                                                <th className="px-4 py-3.5 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Total</th>
+                                                <th className="px-4 py-3.5 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Paid</th>
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {k.monthlyPayments.map((p, i) => {
-                                                const paid = p.status === 'paid';
+                                                const totalAmount = Number(p.total_amount) || 0;
+                                                const paidAmount = Number(p.paid_amount) || 0;
+                                                const pct = totalAmount > 0 ? Math.min(100, (paidAmount / totalAmount) * 100) : 0;
+                                                const isPaid = p.status === 'paid';
+                                                const isPartial = p.status === 'partial';
+                                                const statusMeta = isPaid
+                                                    ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
+                                                    : isPartial
+                                                      ? { bg: 'bg-ant-blue/10', text: 'text-ant-blue', dot: 'bg-ant-blue' }
+                                                      : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                                 return (
-                                                    <tr key={i} className="border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums">
-                                                        <td className="px-4 py-3 text-[12px] font-semibold text-ant-ink">{format(parseISO(p.month), 'MMM yyyy')}</td>
-                                                        <td className="px-4 py-3 text-[12px] text-ant-mid">{p.days_present}</td>
-                                                        <td className="px-4 py-3 text-[12px] text-ant-green font-semibold">{p.delivered_orders}</td>
-                                                        <td className="px-4 py-3 text-[12px] text-ant-ink">{p.commission_earned.toLocaleString()}</td>
-                                                        <td className="px-4 py-3 font-display text-[13px] font-semibold text-ant-ink">{p.total_amount.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">MAD</span></td>
-                                                        <td className="px-4 py-3">
-                                                            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
-                                                                <span className={cn('h-1.5 w-1.5 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                                    <tr key={i} className="border-t border-ant-line/60 hover:bg-ant-light/40 transition-colors tabular-nums">
+                                                        <td className="px-4 py-3.5 text-[12px] font-semibold text-ant-ink whitespace-nowrap">{format(parseISO(p.month), 'MMM yyyy')}</td>
+                                                        <td className="px-4 py-3.5 text-[12px] text-ant-mid">{p.days_present}</td>
+                                                        <td className="px-4 py-3.5 text-[13px] text-ant-green font-semibold">{p.delivered_orders}</td>
+                                                        <td className="px-4 py-3.5 text-right text-[13px] font-semibold text-ant-ink">
+                                                            {totalAmount.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                        </td>
+                                                        <td className="px-4 py-3.5 text-right" title={`${paidAmount.toLocaleString()} paid of ${totalAmount.toLocaleString()}`}>
+                                                            <div className="flex flex-col items-end gap-1.5">
+                                                                <span className={cn('text-[13px] font-semibold tabular-nums leading-none', paidAmount > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
+                                                                    {paidAmount.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                                </span>
+                                                                {isPartial && (
+                                                                    <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
+                                                                        <div className="h-full rounded-full bg-ant-blue transition-all" style={{ width: `${pct}%` }} />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3.5">
+                                                            <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', statusMeta.bg, statusMeta.text)}>
+                                                                <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
                                                                 {p.status}
                                                             </span>
                                                         </td>

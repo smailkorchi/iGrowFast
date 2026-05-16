@@ -28,11 +28,12 @@ type Payout = {
     salary_earned: number | string;
     commission_earned: number | string;
     total_amount: number | string;
+    paid_amount: number | string;
     delivered_orders: number;
     total_spend: number | string;
     campaigns_count: number;
     bank_snapshot: any;
-    status: 'pending' | 'paid';
+    status: 'pending' | 'partial' | 'paid';
     created_at: string;
     paid_at: string | null;
 };
@@ -86,14 +87,17 @@ const Payments: React.FC = () => {
     const myEarnings = useMemo(() => allRows.find((r) => r.mediabuyer_id === currentUserId) || null, [allRows, currentUserId]);
 
     const stats = useMemo(() => {
+        // Partial-payout-aware: paid = sum of trigger-maintained paid_amount,
+        // pending = sum of (total − paid). A half-settled row contributes to both.
         let totalPaid = 0;
         let totalPending = 0;
         let lifetime = 0;
         for (const p of payouts) {
             const amt = Number(p.total_amount || 0);
+            const paid = Number((p as any).paid_amount || 0);
             lifetime += amt;
-            if (p.status === 'paid') totalPaid += amt;
-            else totalPending += amt;
+            totalPaid += paid;
+            totalPending += Math.max(0, amt - paid);
         }
         return { totalPaid, totalPending, lifetime };
     }, [payouts]);
@@ -260,13 +264,30 @@ const Payments: React.FC = () => {
                                                 {p.payment_type === 'commission' ? 'Commission' : 'Salaire'}
                                             </span>
                                         </div>
-                                        <span className={cn(
-                                            'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] shrink-0',
-                                            p.status === 'paid' ? 'bg-ant-green/12 text-ant-green' : 'bg-ant-orange/12 text-ant-orange',
-                                        )}>
-                                            {p.status === 'paid' ? <CheckCircle2 className="w-2.5 h-2.5" /> : <span className="w-1 h-1 rounded-full bg-ant-orange" />}
-                                            {p.status === 'paid' ? 'Payé' : 'En attente'}
-                                        </span>
+                                        {(() => {
+                                            const totalAmt = Number(p.total_amount || 0);
+                                            const paidAmt = Number(p.paid_amount || 0);
+                                            const pct = totalAmt > 0 ? Math.round((paidAmt / totalAmt) * 100) : 0;
+                                            if (p.status === 'paid') {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] shrink-0 bg-ant-green/12 text-ant-green">
+                                                        <CheckCircle2 className="w-2.5 h-2.5" /> Payé
+                                                    </span>
+                                                );
+                                            }
+                                            if (p.status === 'partial') {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] shrink-0 bg-ant-blue/12 text-ant-blue">
+                                                        <span className="w-1 h-1 rounded-full bg-ant-blue" /> Partiel · {pct}%
+                                                    </span>
+                                                );
+                                            }
+                                            return (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] shrink-0 bg-ant-orange/12 text-ant-orange">
+                                                    <span className="w-1 h-1 rounded-full bg-ant-orange" /> En attente
+                                                </span>
+                                            );
+                                        })()}
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-ant-line">
                                         <div>
@@ -280,6 +301,11 @@ const Payments: React.FC = () => {
                                         <div className="text-right">
                                             <p className="text-[9px] uppercase tracking-[0.2em] text-ant-mid">Montant</p>
                                             <p className="font-display text-[14px] tabular-nums text-ant-ink">{fmtCur(Number(p.total_amount))}</p>
+                                            {p.status !== 'pending' && Number(p.paid_amount || 0) > 0 && (
+                                                <p className="text-[10px] text-ant-mid tabular-nums">
+                                                    <span className="text-ant-green font-semibold">{fmtCur(Number(p.paid_amount))}</span> versé
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                     {p.paid_at && (
@@ -326,15 +352,41 @@ const Payments: React.FC = () => {
                                             </td>
                                             <td className="text-right px-4 py-3 text-[12px] text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
                                             <td className="text-right px-4 py-3 text-[12px] text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_spend))}>{fmtCur(Number(p.total_spend))}</td>
-                                            <td className="text-right px-4 py-3 font-display text-[14px] text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
+                                            <td className="text-right px-4 py-3 font-display text-[14px] text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_amount))}>
+                                                <div className="flex flex-col items-end">
+                                                    {fmtCur(Number(p.total_amount))}
+                                                    {p.status !== 'pending' && Number(p.paid_amount || 0) > 0 && (
+                                                        <span className="text-[10px] text-ant-green tabular-nums">
+                                                            {fmtCur(Number(p.paid_amount))} versé
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="px-4 py-3">
-                                                <span className={cn(
-                                                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]',
-                                                    p.status === 'paid' ? 'bg-ant-green/12 text-ant-green' : 'bg-ant-orange/12 text-ant-orange',
-                                                )}>
-                                                    {p.status === 'paid' ? <CheckCircle2 className="w-2.5 h-2.5" /> : <span className="w-1 h-1 rounded-full bg-ant-orange" />}
-                                                    {p.status === 'paid' ? 'Payé' : 'En attente'}
-                                                </span>
+                                                {(() => {
+                                                    const totalAmt = Number(p.total_amount || 0);
+                                                    const paidAmt = Number(p.paid_amount || 0);
+                                                    const pct = totalAmt > 0 ? Math.round((paidAmt / totalAmt) * 100) : 0;
+                                                    if (p.status === 'paid') {
+                                                        return (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-green/12 text-ant-green">
+                                                                <CheckCircle2 className="w-2.5 h-2.5" /> Payé
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (p.status === 'partial') {
+                                                        return (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-blue/12 text-ant-blue">
+                                                                <span className="w-1 h-1 rounded-full bg-ant-blue" /> Partiel · {pct}%
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-orange/12 text-ant-orange">
+                                                            <span className="w-1 h-1 rounded-full bg-ant-orange" /> En attente
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="px-4 py-3 text-[12px] text-ant-ink tabular-nums">
                                                 {p.paid_at ? format(new Date(p.paid_at), 'dd MMM yyyy', { locale: fr }) : '—'}

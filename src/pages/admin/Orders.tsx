@@ -145,6 +145,7 @@ import {
     type OrderLineProductOption,
 } from '@/components/orders/OrderLineProductCombobox';
 import SourceIcon, { getSourceMeta } from '@/components/orders/SourceIcon';
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -549,6 +550,11 @@ const Orders = () => {
     const [filterConfirmedBy, setFilterConfirmedBy] = useState<string>('all');
     const [filterAssignedTo, setFilterAssignedTo] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
+    // Server-side pagination. The query fetches only the visible page; filters
+    // operate over the loaded subset, so users wanting to search across
+    // history should bump pageSize up to 500 or 1000.
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState<100 | 500 | 1000>(100);
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
     const [isAttributionOpen, setIsAttributionOpen] = useState(false);
@@ -837,11 +843,13 @@ const Orders = () => {
     // --- Queries ---
 
 
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['orders', activeBusinessId],
+    const { data: ordersResult, isLoading } = useQuery<{ rows: any[]; count: number }>({
+        queryKey: ['orders', activeBusinessId, page, pageSize],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
+            if (!activeBusinessId) return { rows: [], count: 0 };
+            const from = (page - 1) * pageSize;
+            const to = from + pageSize - 1;
+            const { data, error, count } = await (supabase as any)
                 .from('orders')
                 .select(`
                     *,
@@ -855,14 +863,49 @@ const Orders = () => {
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
-                `)
+                `, { count: 'exact' })
                 .eq('DigiCom Business', activeBusinessId)
                 .is('date_deleted', null)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .range(from, to);
 
             if (error) throw error;
-            return data;
+            return { rows: data || [], count: count || 0 };
         },
+    });
+    const orders = ordersResult?.rows ?? [];
+    const totalOrdersCount = ordersResult?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
+
+    // Business-wide lightweight aggregate — pulls every row that belongs to
+    // this business with ONLY the columns the filter predicate touches (no
+    // products/history/parcels deep joins). The same filter pipeline runs on
+    // top of this to drive the KPIs, so KPIs respect filters but ignore the
+    // page-size selector. Cached aggressively so page-size changes don't
+    // trigger another aggregate fetch.
+    const { data: aggregateOrders = [] } = useQuery<any[]>({
+        queryKey: ['orders-aggregate', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('orders')
+                .select(`
+                    id, price, replace, order_status_id, package_status_id,
+                    city_id, master_city_id, source_name, courier_id, company_id,
+                    date, created_at, updated_at, assignment_date, confirmation_date,
+                    annulation_date, date_livraison, reported_date,
+                    name, phone, confirmed_by_id, assign_id,
+                    items:order_items(product_id),
+                    parcels:company_parcels(tracking_code),
+                    courier_parcels(tracking_code)
+                `)
+                .eq('DigiCom Business', activeBusinessId)
+                .is('date_deleted', null);
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!activeBusinessId,
+        staleTime: 60 * 1000,
     });
 
 
@@ -2035,68 +2078,48 @@ const Orders = () => {
         return duplicates;
     }, [orders]);
 
-    const filteredOrders = useMemo(() => {
-        if (!orders) return [];
-        return orders.filter(o => {
-            const matchesSearch = orderMatchesTopSearch(o, searchQuery);
-
-            // `filterStatusIds` is set only when Orders was opened from a dashboard
-            // KPI card that aggregates a whole category (e.g. "Canceled" = cancelled
-            // ∪ fake ∪ double ∪ blacklisted). Takes effect only if the user hasn't
-            // picked a specific status from the dropdown (i.e. filterStatus === 'all').
-            const matchesStatus =
-                filterStatus !== 'all'
-                    ? o.order_status_id === filterStatus
-                    : filterStatusIds && filterStatusIds.length > 0
-                        ? !!o.order_status_id && filterStatusIds.includes(o.order_status_id)
-                        : true;
-            const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
-            const matchesSource = filterSource === "all" || o.source_name === filterSource;
-            const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
-
-            // Date/time filter
-            let matchesDate = true;
-            if (getDateRange) {
-                const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
-                const dateVal = o[fieldKey];
-                if (dateVal) {
-                    matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
-                } else {
-                    matchesDate = false;
-                }
+    // Reusable filter predicate — applied to both the paginated `orders`
+    // (drives what the user sees) and `aggregateOrders` (drives the KPI strip),
+    // so KPIs respect filters but stay stable across page-size changes.
+    const orderMatchesAllFilters = useMemo(() => (o: any) => {
+        const matchesSearch = orderMatchesTopSearch(o, searchQuery);
+        const matchesStatus =
+            filterStatus !== 'all'
+                ? o.order_status_id === filterStatus
+                : filterStatusIds && filterStatusIds.length > 0
+                    ? !!o.order_status_id && filterStatusIds.includes(o.order_status_id)
+                    : true;
+        const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
+        const matchesSource = filterSource === "all" || o.source_name === filterSource;
+        const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
+        let matchesDate = true;
+        if (getDateRange) {
+            const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
+            const dateVal = o[fieldKey];
+            if (dateVal) {
+                matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
+            } else {
+                matchesDate = false;
             }
+        }
+        const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
+        const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
+        const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
+        const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
+        const matchesPackageStatus =
+            filterPackageStatus !== 'all'
+                ? o.package_status_id === filterPackageStatus
+                : filterPackageStatusIds && filterPackageStatusIds.length > 0
+                    ? !!o.package_status_id && filterPackageStatusIds.includes(o.package_status_id)
+                    : true;
+        const matchesConfirmedBy = filterConfirmedBy === 'all' || o.confirmed_by_id === filterConfirmedBy;
+        const matchesAssignedTo = filterAssignedTo === 'all' || o.assign_id === filterAssignedTo;
+        const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
+        return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
+    }, [searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
 
-            // Customer name
-            const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
-
-            // Phone
-            const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
-
-            const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
-
-            // Product
-            const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
-
-            // Package status — same dual-mode semantics as order status above.
-            const matchesPackageStatus =
-                filterPackageStatus !== 'all'
-                    ? o.package_status_id === filterPackageStatus
-                    : filterPackageStatusIds && filterPackageStatusIds.length > 0
-                        ? !!o.package_status_id && filterPackageStatusIds.includes(o.package_status_id)
-                        : true;
-
-            // Confirmed by
-            const matchesConfirmedBy = filterConfirmedBy === 'all' || o.confirmed_by_id === filterConfirmedBy;
-
-            // Assigned to
-            const matchesAssignedTo = filterAssignedTo === 'all' || o.assign_id === filterAssignedTo;
-
-            // Exchange
-            const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
-
-            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
-        });
-    }, [orders, searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
+    const filteredOrders = useMemo(() => (orders || []).filter(orderMatchesAllFilters), [orders, orderMatchesAllFilters]);
+    const filteredAggregate = useMemo(() => aggregateOrders.filter(orderMatchesAllFilters), [aggregateOrders, orderMatchesAllFilters]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -2295,9 +2318,11 @@ const Orders = () => {
         setIsAddModalOpen(true);
     };
 
-    const totalRevenue = filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0);
-    const exchangeCount = filteredOrders.filter((o) => o.replace).length;
-    const avgOrderValue = filteredOrders.length > 0 ? Math.round(totalRevenue / filteredOrders.length) : 0;
+    // KPIs derive from the FULL filtered aggregate (independent of page size).
+    const totalRevenue = filteredAggregate.reduce((acc, o) => acc + (Number(o.price) || 0), 0);
+    const exchangeCount = filteredAggregate.filter((o) => o.replace).length;
+    const avgOrderValue = filteredAggregate.length > 0 ? Math.round(totalRevenue / filteredAggregate.length) : 0;
+    const filteredAggregateCount = filteredAggregate.length;
 
     return (
         <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
@@ -2345,7 +2370,7 @@ const Orders = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
                 <OrderKpi
                     label="Active orders"
-                    value={new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
+                    value={new Intl.NumberFormat('fr-FR').format(filteredAggregateCount)}
                     accent="#141413"
                     icon={ShoppingCart}
                 />
@@ -2682,13 +2707,31 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="inline-flex items-baseline gap-1.5 h-8 px-3 rounded-full bg-ant-paper border border-ant-line">
-                            <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums tracking-[-0.01em]">
-                                {filteredOrders.length.toLocaleString('fr-FR')}
-                            </span>
-                            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                orders
-                            </span>
+                        <div className="inline-flex items-center h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
+                            <div className="inline-flex items-baseline gap-1 px-3 tabular-nums">
+                                <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]">
+                                    {filteredOrders.length.toLocaleString('fr-FR')}
+                                </span>
+                                <span className="text-[10px] font-medium text-ant-mid">of</span>
+                                <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]" title={`Total ${filteredAggregateCount.toLocaleString('fr-FR')}`}>
+                                    {filteredAggregateCount.toLocaleString('fr-FR')}
+                                </span>
+                                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid ml-0.5">orders</span>
+                            </div>
+                            <div className="h-5 w-px bg-ant-line" />
+                            <div className="inline-flex items-center pl-2 pr-1">
+                                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid mr-1">Show</span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => { setPageSize(Number(e.target.value) as 100 | 500 | 1000); setPage(1); }}
+                                    className="bg-transparent h-6 pl-1 pr-1 text-[12px] font-semibold text-ant-ink cursor-pointer focus:outline-none appearance-none tabular-nums"
+                                    title="Rows loaded per page"
+                                >
+                                    <option value={100}>100</option>
+                                    <option value={500}>500</option>
+                                    <option value={1000}>1000</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3126,6 +3169,18 @@ const Orders = () => {
                                             const trackingCode = latestParcel?.tracking_code;
                                             const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
                                             const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
+                                            const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
+                                                .find((it: any) => it?.product?.image_url || it?.accessory?.image_url);
+                                            const cardProductThumb: string | null =
+                                                cardFirstItem?.product?.image_url || cardFirstItem?.accessory?.image_url || null;
+                                            const cardProductLabel: string =
+                                                cardFirstItem?.product?.name
+                                                || cardFirstItem?.accessory?.name
+                                                || (order.items || []).find((i: any) => i?.product?.name)?.product?.name
+                                                || (order.items || []).find((i: any) => i?.accessory?.name)?.accessory?.name
+                                                || '';
+                                            const cardProductCode: string =
+                                                cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
                                             return (
                                                 <div
                                         key={order.id}
@@ -3219,19 +3274,25 @@ const Orders = () => {
                                             {/* Row 2: Customer + Seller */}
                                             <div className="flex items-center justify-between gap-3">
                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                    <div
-                                                        className={cn(
-                                                            'w-9 h-9 rounded-xl flex shrink-0 items-center justify-center',
-                                                            isDuplicateClient ? 'bg-[#d4c438]' : 'bg-ant-ink/[0.06]'
-                                                        )}
-                                                    >
-                                                        <User
+                                                    <ImageHoverPreview imageUrl={cardProductThumb} name={cardProductLabel} code={cardProductCode}>
+                                                        <div
                                                             className={cn(
-                                                                'w-4 h-4',
-                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-ant-mid'
+                                                                'w-9 h-9 rounded-lg shrink-0 overflow-hidden flex items-center justify-center',
+                                                                isDuplicateClient ? 'ring-1 ring-[#d4c438]/40' : 'bg-ant-ink/[0.04] border border-ant-line/60'
                                                             )}
-                                                        />
-                                                    </div>
+                                                        >
+                                                            {cardProductThumb ? (
+                                                                <img
+                                                                    src={cardProductThumb}
+                                                                    alt={cardProductLabel}
+                                                                    className="w-full h-full object-cover"
+                                                                    loading="lazy"
+                                                                />
+                                                            ) : (
+                                                                <Package className="w-4 h-4 text-ant-mid" />
+                                                            )}
+                                                        </div>
+                                                    </ImageHoverPreview>
                                                     <div className="min-w-0">
                                                         <p
                                                             className={cn(
@@ -3375,6 +3436,31 @@ const Orders = () => {
                             isOrderCategory={isOrderCategory}
                             getCourierPackageStatus={getCourierPackageStatus}
                         />
+                    )}
+
+                    {/* Pagination (Prev/Next — page size lives in the pill above) */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => setPage(Math.max(1, page - 1))}
+                                disabled={page <= 1 || isLoading}
+                                className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-[12px] font-semibold text-ant-ink px-2 tabular-nums">
+                                {page} <span className="text-ant-mid font-normal">/ {totalPages}</span>
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                                disabled={page >= totalPages || isLoading}
+                                className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                Next
+                            </button>
+                        </div>
                     )}
 
                     {/* Bulk Edit Bar */}

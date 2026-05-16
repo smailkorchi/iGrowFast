@@ -133,6 +133,7 @@ import {
     type OrderLineProductOption,
 } from '@/components/orders/OrderLineProductCombobox';
 import SourceIcon, { getSourceMeta } from '@/components/orders/SourceIcon';
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -663,6 +664,10 @@ const Orders = () => {
     const [filterProduct, setFilterProduct] = useState<string>('all');
     const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
+    // Server-side pagination — fetch only the visible page; bump pageSize to
+    // search across more history without exhausting the database on every mount.
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState<100 | 500 | 1000>(100);
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [parcelTrackingOpen, setParcelTrackingOpen] = useState(false);
     const [historyDialogOrder, setHistoryDialogOrder] = useState<any>(null);
@@ -947,11 +952,13 @@ const Orders = () => {
     // --- Queries ---
 
 
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['orders', activeBusinessId, userId],
+    const { data: ordersResult, isLoading } = useQuery<{ rows: any[]; count: number }>({
+        queryKey: ['orders', activeBusinessId, userId, page, pageSize],
         queryFn: async () => {
-            if (!activeBusinessId || !userId) return [];
-            const { data, error } = await (supabase as any)
+            if (!activeBusinessId || !userId) return { rows: [], count: 0 };
+            const from = (page - 1) * pageSize;
+            const to = from + pageSize - 1;
+            const { data, error, count } = await (supabase as any)
                 .from('orders')
                 .select(`
                     *,
@@ -965,16 +972,50 @@ const Orders = () => {
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
-                `)
+                `, { count: 'exact' })
                 .eq('DigiCom Business', activeBusinessId)
                 .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
                 .is('date_deleted', null)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .range(from, to);
 
             if (error) throw error;
-            return data;
+            return { rows: data || [], count: count || 0 };
         },
         enabled: !!activeBusinessId && !!userId
+    });
+    const orders = ordersResult?.rows ?? [];
+    const totalOrdersCount = ordersResult?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
+
+    // Lightweight aggregate covering EVERY order this seller can see (no
+    // joins beyond what filters touch). Applied through the same filter
+    // pipeline as the paginated rows, so KPIs respect filters but never
+    // shift when the user bumps the page-size selector.
+    const { data: aggregateOrders = [] } = useQuery<any[]>({
+        queryKey: ['orders-aggregate', activeBusinessId, userId],
+        queryFn: async () => {
+            if (!activeBusinessId || !userId) return [];
+            const { data, error } = await (supabase as any)
+                .from('orders')
+                .select(`
+                    id, price, raw_price, replace, order_status_id, package_status_id,
+                    city_id, master_city_id, source_name, courier_id, company_id,
+                    date, created_at, updated_at, assignment_date, confirmation_date,
+                    annulation_date, date_livraison, reported_date,
+                    name, phone, assign_id,
+                    items:order_items(product_id),
+                    parcels:company_parcels(tracking_code),
+                    courier_parcels(tracking_code)
+                `)
+                .eq('DigiCom Business', activeBusinessId)
+                .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
+                .is('date_deleted', null);
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!activeBusinessId && !!userId,
+        staleTime: 60 * 1000,
     });
 
 
@@ -2109,40 +2150,39 @@ const Orders = () => {
         }
     };
 
-    const baseFilteredOrders = useMemo(() => {
-        if (!orders) return [];
-        return orders.filter((o: any) => {
-            const matchesSearch = orderMatchesTopSearch(o, searchQuery);
-
-            const matchesStatus = (filterStatus === "all" || o.order_status_id === filterStatus)
-                && (pillStatusIds.size === 0 || pillStatusIds.has(o.order_status_id));
-            const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
-            const matchesSource = filterSource === "all" || o.source_name === filterSource;
-            const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
-
-            let matchesDate = true;
-            if (getDateRange) {
-                const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
-                const dateVal = o[fieldKey];
-                if (dateVal) {
-                    matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
-                } else {
-                    matchesDate = false;
-                }
+    // Reusable predicate — applied to both the paginated `orders` and the
+    // full `aggregateOrders` so the KPI strip stays stable across page-size
+    // changes but still reacts to active filters.
+    const orderMatchesAllFilters = useMemo(() => (o: any) => {
+        const matchesSearch = orderMatchesTopSearch(o, searchQuery);
+        const matchesStatus = (filterStatus === "all" || o.order_status_id === filterStatus)
+            && (pillStatusIds.size === 0 || pillStatusIds.has(o.order_status_id));
+        const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
+        const matchesSource = filterSource === "all" || o.source_name === filterSource;
+        const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
+        let matchesDate = true;
+        if (getDateRange) {
+            const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
+            const dateVal = o[fieldKey];
+            if (dateVal) {
+                matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
+            } else {
+                matchesDate = false;
             }
+        }
+        const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
+        const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
+        const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
+        const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
+        const matchesPackageStatus = (filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus)
+            && (pillPackageStatusIds.size === 0 || pillPackageStatusIds.has(o.package_status_id));
+        const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
+        return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider
+            && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesExchange;
+    }, [searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillStatusIds, pillPackageStatusIds]);
 
-            const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
-            const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
-            const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
-            const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
-            const matchesPackageStatus = (filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus)
-                && (pillPackageStatusIds.size === 0 || pillPackageStatusIds.has(o.package_status_id));
-            const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
-
-            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider
-                && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesExchange;
-        });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillStatusIds, pillPackageStatusIds]);
+    const baseFilteredOrders = useMemo(() => (orders || []).filter(orderMatchesAllFilters), [orders, orderMatchesAllFilters]);
+    const baseFilteredAggregate = useMemo(() => aggregateOrders.filter(orderMatchesAllFilters), [aggregateOrders, orderMatchesAllFilters]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -2213,6 +2253,13 @@ const Orders = () => {
     const filteredOrders = useMemo(() => {
         return baseFilteredOrders.filter(o => isOrderInTab(o, activeTab));
     }, [baseFilteredOrders, activeTab]);
+
+    // KPI/pill totals — over the FULL filtered aggregate, not the visible page.
+    const filteredAggregate = useMemo(
+        () => baseFilteredAggregate.filter((o: any) => isOrderInTab(o, activeTab)),
+        [baseFilteredAggregate, activeTab],
+    );
+    const filteredAggregateCount = filteredAggregate.length;
 
     // Recheck status pill buckets for Confirmation/Suivi tabs.
     // Apply all base filters EXCEPT the one the pill itself controls.
@@ -2370,11 +2417,15 @@ const Orders = () => {
 
             const { data: paymentsData } = await supabase
                 .from('seller_payments')
-                .select('delivered_orders')
-                .eq('seller_id', userId)
-                .eq('status', 'paid');
+                .select('paid_amount')
+                .eq('seller_id', userId);
 
-            const alreadyPaid = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+            // Partial-payout-aware: `paid_amount` is the trigger-maintained
+            // running cash sum across every payout row (full + partial).
+            const alreadyPaidAmount = (paymentsData || []).reduce(
+                (sum, p: any) => sum + (Number(p.paid_amount) || 0),
+                0,
+            );
 
             const commissionOrders = allOrders.filter((o: any) => o.seller_id === userId);
             const isDelivered = (o: any) =>
@@ -2386,7 +2437,7 @@ const Orders = () => {
                 orders: commissionOrders,
                 isDelivered,
                 sellerProductIds,
-                paidTally: alreadyPaid,
+                paidAmount: alreadyPaidAmount,
             });
 
             setSellerStats({
@@ -2541,7 +2592,7 @@ const Orders = () => {
                         { label: 'Taux de livraison', value: `${sellerStats.deliveryRate.toFixed(1)}%`, sub: `${sellerStats.totalDelivered} livrées`, dot: 'bg-ant-green', text: 'text-ant-green' },
                         { label: 'Taux de confirmation', value: `${sellerStats.confirmRate.toFixed(1)}%`, sub: 'taux de succès', dot: 'bg-ant-ink', text: 'text-ant-ink' },
                         { label: 'Commission due', value: `${new Intl.NumberFormat('fr-FR').format(Math.round(sellerStats.unpaidCommission))}`, unit: 'MAD', sub: `${sellerStats.commissionRate} MAD / ${sellerStats.commissionBasis === 'per_unit' ? 'unité' : 'commande'}`, dot: 'bg-ant-orange', text: 'text-ant-orange' },
-                        { label: 'Mes commandes', value: new Intl.NumberFormat('fr-FR').format(filteredOrders.length), sub: 'vue actuelle', dot: 'bg-ant-mid', text: 'text-ant-ink' },
+                        { label: 'Mes commandes', value: new Intl.NumberFormat('fr-FR').format(filteredAggregateCount), sub: 'vue actuelle', dot: 'bg-ant-mid', text: 'text-ant-ink' },
                     ].map((s, i) => (
                         <div key={i} className="bg-ant-paper p-4">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
@@ -2760,9 +2811,32 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] font-semibold text-ant-ink/60">
-                            {filteredOrders.length} <span className="text-ant-mid font-normal">records</span>
-                        </span>
+                        <div className="inline-flex items-center h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
+                            <div className="inline-flex items-baseline gap-1 px-3 tabular-nums">
+                                <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]">
+                                    {filteredOrders.length.toLocaleString('fr-FR')}
+                                </span>
+                                <span className="text-[10px] font-medium text-ant-mid">of</span>
+                                <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]" title={`Total ${filteredAggregateCount.toLocaleString('fr-FR')}`}>
+                                    {filteredAggregateCount.toLocaleString('fr-FR')}
+                                </span>
+                                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid ml-0.5">records</span>
+                            </div>
+                            <div className="h-5 w-px bg-ant-line" />
+                            <div className="inline-flex items-center pl-2 pr-1">
+                                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid mr-1">Show</span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => { setPageSize(Number(e.target.value) as 100 | 500 | 1000); setPage(1); }}
+                                    className="bg-transparent h-6 pl-1 pr-1 text-[12px] font-semibold text-ant-ink cursor-pointer focus:outline-none appearance-none tabular-nums"
+                                    title="Rows loaded per page"
+                                >
+                                    <option value={100}>100</option>
+                                    <option value={500}>500</option>
+                                    <option value={1000}>1000</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -3094,6 +3168,18 @@ const Orders = () => {
                             const isDuplicateClient = duplicatePhones.has(order.phone);
                             const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
                             const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
+                            const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
+                                .find((it: any) => it?.product?.image_url || it?.accessory?.image_url);
+                            const cardProductThumb: string | null =
+                                cardFirstItem?.product?.image_url || cardFirstItem?.accessory?.image_url || null;
+                            const cardProductLabel: string =
+                                cardFirstItem?.product?.name
+                                || cardFirstItem?.accessory?.name
+                                || (order.items || []).find((i: any) => i?.product?.name)?.product?.name
+                                || (order.items || []).find((i: any) => i?.accessory?.name)?.accessory?.name
+                                || '';
+                            const cardProductCode: string =
+                                cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
                             return (
                                 <div
                                     key={order.id}
@@ -3168,19 +3254,25 @@ const Orders = () => {
 
                                         {/* Row 2: Customer */}
                                         <div className="flex items-center gap-2.5 min-w-0">
-                                            <div
-                                                className={cn(
-                                                    'w-9 h-9 rounded-xl flex shrink-0 items-center justify-center',
-                                                    isDuplicateClient ? 'bg-[#d4c438]' : 'bg-ant-ink/[0.06]'
-                                                )}
-                                            >
-                                                <User
+                                            <ImageHoverPreview imageUrl={cardProductThumb} name={cardProductLabel} code={cardProductCode}>
+                                                <div
                                                     className={cn(
-                                                        'w-4 h-4',
-                                                        isDuplicateClient ? 'text-[#9a7f00]' : 'text-ant-ink/50'
+                                                        'w-9 h-9 rounded-lg shrink-0 overflow-hidden flex items-center justify-center',
+                                                        isDuplicateClient ? 'ring-1 ring-[#d4c438]/40' : 'bg-ant-ink/[0.04] border border-ant-line/60'
                                                     )}
-                                                />
-                                            </div>
+                                                >
+                                                    {cardProductThumb ? (
+                                                        <img
+                                                            src={cardProductThumb}
+                                                            alt={cardProductLabel}
+                                                            className="w-full h-full object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    ) : (
+                                                        <Package className="w-4 h-4 text-ant-mid" />
+                                                    )}
+                                                </div>
+                                            </ImageHoverPreview>
                                             <div className="min-w-0">
                                                 <p
                                                     className={cn(
@@ -3310,6 +3402,31 @@ const Orders = () => {
                 )
             )
             }
+
+            {/* Pagination (Prev/Next — page size lives in the pill above) */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                    <button
+                        type="button"
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page <= 1 || isLoading}
+                        className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                        Previous
+                    </button>
+                    <span className="text-[12px] font-semibold text-ant-ink px-2 tabular-nums">
+                        {page} <span className="text-ant-mid font-normal">/ {totalPages}</span>
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setPage(Math.min(totalPages, page + 1))}
+                        disabled={page >= totalPages || isLoading}
+                        className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
 
             {/* Add/Edit Modal */}
             <Dialog
