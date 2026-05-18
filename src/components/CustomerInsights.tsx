@@ -50,7 +50,7 @@ interface MonthData {
 }
 
 const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className }) => {
-    const { deliveredPkgIds, cancelledIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
+    const { deliveredPkgIds, cancelledIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
     const [orders, setOrders] = useState<OrderRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
@@ -130,11 +130,24 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     }, [phone, activeBusinessId]);
 
     // Rolled-up KPIs for the intelligence strip.
+    //
+    // "Failed" captures every order this customer broke: cancelled / fake /
+    // double / blacklisted on the order side, AND packages that went out and
+    // came back (returned / returning / refused). Previously only the first
+    // half was counted, so a customer who returned every package they
+    // received showed up as "0 cancelled · Low risk" — exactly the bug the
+    // user flagged. "Spent" now only sums delivered orders, because the
+    // customer didn't actually pay for failed/in-progress ones.
     const stats = useMemo(() => {
+        const isDelivered = (o: OrderRecord) => isDeliveredForCommission(o, deliveredPkgIds);
+        const isFailed = (o: OrderRecord) =>
+            (!!o.order_status_id && cancelledIds.has(o.order_status_id))
+            || (!!o.package_status_id && returnedPkgIds.has(o.package_status_id));
+
         const total = orders.length;
-        const delivered = orders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds)).length;
-        const cancelled = orders.filter((o) => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
-        const totalSpent = orders.reduce((acc, o) => acc + o.raw_price, 0);
+        const delivered = orders.filter(isDelivered).length;
+        const failed = orders.filter(isFailed).length;
+        const totalSpent = orders.filter(isDelivered).reduce((acc, o) => acc + o.raw_price, 0);
         // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
         const tracked = orders.filter((o) => !!o.id && trackedOrderIds.has(o.id));
         const pullback = tracked.filter((o) =>
@@ -142,8 +155,8 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         );
         const deliveryDenom = tracked.length - pullback.length;
         const deliveryRate = deliveryDenom > 0 ? Math.round((delivered / deliveryDenom) * 100) : 0;
-        return { total, delivered, cancelled, totalSpent, deliveryRate };
-    }, [orders, deliveredPkgIds, cancelledIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+        return { total, delivered, failed, totalSpent, deliveryRate };
+    }, [orders, deliveredPkgIds, cancelledIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
 
     // Last 6 months of order volume — feeds the sparkline area chart.
     const chartData = useMemo((): MonthData[] => {
@@ -168,11 +181,18 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         return months;
     }, [orders]);
 
-    // Risk bucket based on cancellation rate.
+    // Risk bucket based on the customer's failure rate over RESOLVED orders
+    // (delivered + failed). In-progress orders don't dilute the score — a
+    // customer with 1 delivered + 1 returned is 50% risk, regardless of how
+    // many fresh orders they currently have in the pipeline. With no
+    // resolved orders yet, we don't pretend to know — return null so the
+    // pill is hidden.
     const riskLevel = useMemo(() => {
         if (stats.total === 0) return null;
-        const cancelRate = stats.total > 0 ? (stats.cancelled / stats.total) * 100 : 0;
-        if (cancelRate > 60) {
+        const resolved = stats.delivered + stats.failed;
+        if (resolved === 0) return null;
+        const failRate = (stats.failed / resolved) * 100;
+        if (failRate > 60) {
             return {
                 label: 'High risk',
                 tone: 'rose' as const,
@@ -180,7 +200,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                 chip: 'bg-ant-rose/10 text-ant-rose border-ant-rose/25',
             };
         }
-        if (cancelRate > 30) {
+        if (failRate > 30) {
             return {
                 label: 'Medium risk',
                 tone: 'orange' as const,
@@ -255,7 +275,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                     <div className="grid grid-cols-4 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
                         <InsightTile label="Total" value={stats.total} icon={ShoppingBag} accent="#141413" />
                         <InsightTile label="Delivered" value={stats.delivered} icon={Truck} accent="#788c5d" />
-                        <InsightTile label="Cancelled" value={stats.cancelled} icon={XCircle} accent="#c96356" />
+                        <InsightTile label="Failed" value={stats.failed} icon={XCircle} accent="#c96356" />
                         <InsightTile
                             label="Spent"
                             value={stats.totalSpent}
