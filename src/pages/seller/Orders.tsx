@@ -979,9 +979,13 @@ const Orders = () => {
     });
 
     // Back-compat aliases — every existing reader of `orders` / `isLoading`
-    // keeps working, but now sees the seller's full set.
+    // keeps working, but now sees the seller's full set. `isLoading` also
+    // covers the pre-auth window: until `userId` / `activeBusinessId` exist,
+    // the React Query is `enabled: false` so `aggregateLoading` reads
+    // `false` even though we don't have data yet — without this guard, the
+    // page would flash an empty-state card on every cold mount.
     const orders = aggregateOrders;
-    const isLoading = aggregateLoading;
+    const isLoading = aggregateLoading || !activeBusinessId || !userId;
 
     // History is lazy-fetched per-order when the detail modal opens (kept off
     // the main aggregate so the page-level fetch stays affordable).
@@ -2223,11 +2227,6 @@ const Orders = () => {
         setPage(1);
     }, [searchQuery, activeTab, filterStatus, pillStatusIds, pillPackageStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
 
-    // Clamp `page` when filteredAggregate shrinks past it (e.g. realtime delete).
-    useEffect(() => {
-        if (page > totalPages) setPage(totalPages);
-    }, [page, totalPages]);
-
     const tabCounts = useMemo(() => {
         const counts = { all: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, reportedToday: false, reportedNow: false };
         const now = new Date();
@@ -2276,6 +2275,12 @@ const Orders = () => {
         const from = (page - 1) * pageSize;
         return filteredAggregate.slice(from, from + pageSize);
     }, [filteredAggregate, page, pageSize]);
+
+    // Clamp `page` when filteredAggregate shrinks past it (e.g. realtime delete
+    // removes the row that was the last one on the current page).
+    useEffect(() => {
+        if (page > totalPages) setPage(totalPages);
+    }, [page, totalPages]);
 
     // Recheck status pill buckets for Confirmation/Suivi tabs.
     // Apply all base filters EXCEPT the one the pill itself controls.

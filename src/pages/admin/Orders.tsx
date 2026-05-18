@@ -876,9 +876,11 @@ const Orders = () => {
     });
 
     // Back-compat aliases — every existing reader of `orders` / `isLoading`
-    // keeps working, but now sees the full business set.
+    // keeps working, but now sees the full business set. Treat the pre-auth
+    // window (no `activeBusinessId` yet) as loading so we don't flash an
+    // empty-state card before the React Query is even enabled.
     const orders = aggregateOrders;
-    const isLoading = aggregateLoading;
+    const isLoading = aggregateLoading || !activeBusinessId;
 
     // History is the only join we left out of the aggregate (heavy + only
     // needed by the detail modal). Lazy-fetch it when the modal opens.
