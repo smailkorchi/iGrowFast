@@ -867,7 +867,8 @@ const Orders = () => {
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null)
+                .order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];
         },
