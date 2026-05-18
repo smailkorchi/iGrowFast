@@ -44,8 +44,33 @@ export function OrderStatusHistoryDialog({
     order,
     isOrderInCategory,
 }: OrderStatusHistoryDialogProps) {
+    // Lazy-fetch history when the dialog opens. The Orders pages now hand us
+    // rows sourced from the lightweight aggregate (no embedded history join),
+    // so we always pull it ourselves to stay correct regardless of caller.
+    const { data: fetchedHistory = [] } = useQuery<HistoryRecord[]>({
+        queryKey: ['order-history', order?.id],
+        queryFn: async () => {
+            if (!order?.id) return [];
+            const { data, error } = await (supabase as any)
+                .from('order_status_history')
+                .select('*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)')
+                .eq('order_id', order.id)
+                .order('created_at', { ascending: true });
+            if (error) throw error;
+            return (data || []) as HistoryRecord[];
+        },
+        enabled: !!order?.id && open,
+        staleTime: 30 * 1000,
+    });
+
+    // Prefer history already embedded on the order (legacy caller); fall back
+    // to the lazy-fetched rows when absent or empty.
+    const sourceRecords: HistoryRecord[] = (order?.history && order.history.length > 0)
+        ? order.history
+        : fetchedHistory;
+
     // Oldest first (top) → newest last (bottom)
-    const records = (order?.history || []).slice().sort((a, b) => {
+    const records = sourceRecords.slice().sort((a, b) => {
         const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
         const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
         return ta - tb;
