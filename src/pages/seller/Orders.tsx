@@ -566,14 +566,8 @@ const Orders = () => {
             setActiveTab(tab);
         }
     }, [searchParams]);
-    const [sellerStats, setSellerStats] = useState({
-        confirmRate: 0,
-        deliveryRate: 0,
-        unpaidCommission: 0,
-        totalDelivered: 0,
-        commissionRate: 0,
-        commissionBasis: 'per_order' as CommissionBasis,
-    });
+    // sellerStats is derived (useMemo) from `aggregateOrders` further down so
+    // KPI cards always reflect the seller's FULL order history, not the page.
 
     // Reported Modal States
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
@@ -712,7 +706,7 @@ const Orders = () => {
         const debouncedInvalidate = () => {
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId, userId] });
+                queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId, userId] });
             }, 500);
         };
 
@@ -933,7 +927,7 @@ const Orders = () => {
                         .eq('id', parcel.id);
                 }
 
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
             } else {
                 throw new Error(result?.error || 'Unknown error');
             }
@@ -952,13 +946,15 @@ const Orders = () => {
     // --- Queries ---
 
 
-    const { data: ordersResult, isLoading } = useQuery<{ rows: any[]; count: number }>({
-        queryKey: ['orders', activeBusinessId, userId, page, pageSize],
+    // Single source of truth: ONE query pulls every order this seller can see
+    // (assigned OR owned). Pagination is a pure client-side slice further
+    // down. `history` is the only heavy join skipped — it's lazy-fetched
+    // per-order when the detail modal opens.
+    const { data: aggregateOrders = [], isLoading: aggregateLoading } = useQuery<any[]>({
+        queryKey: ['orders-aggregate', activeBusinessId, userId],
         queryFn: async () => {
-            if (!activeBusinessId || !userId) return { rows: [], count: 0 };
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-            const { data, error, count } = await (supabase as any)
+            if (!activeBusinessId || !userId) return [];
+            const { data, error } = await (supabase as any)
                 .from('orders')
                 .select(`
                     *,
@@ -969,44 +965,8 @@ const Orders = () => {
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                    history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
-                `, { count: 'exact' })
-                .eq('DigiCom Business', activeBusinessId)
-                .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
-                .is('date_deleted', null)
-                .order('created_at', { ascending: false })
-                .range(from, to);
-
-            if (error) throw error;
-            return { rows: data || [], count: count || 0 };
-        },
-        enabled: !!activeBusinessId && !!userId
-    });
-    const orders = ordersResult?.rows ?? [];
-    const totalOrdersCount = ordersResult?.count ?? 0;
-    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
-
-    // Lightweight aggregate covering EVERY order this seller can see (no
-    // joins beyond what filters touch). Applied through the same filter
-    // pipeline as the paginated rows, so KPIs respect filters but never
-    // shift when the user bumps the page-size selector.
-    const { data: aggregateOrders = [] } = useQuery<any[]>({
-        queryKey: ['orders-aggregate', activeBusinessId, userId],
-        queryFn: async () => {
-            if (!activeBusinessId || !userId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`
-                    id, price, raw_price, replace, order_status_id, package_status_id,
-                    city_id, master_city_id, source_name, courier_id, company_id,
-                    date, created_at, updated_at, assignment_date, confirmation_date,
-                    annulation_date, date_livraison, reported_date,
-                    name, phone, assign_id,
-                    items:order_items(product_id),
-                    parcels:company_parcels(tracking_code),
-                    courier_parcels(tracking_code)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
@@ -1016,6 +976,29 @@ const Orders = () => {
         },
         enabled: !!activeBusinessId && !!userId,
         staleTime: 60 * 1000,
+    });
+
+    // Back-compat aliases — every existing reader of `orders` / `isLoading`
+    // keeps working, but now sees the seller's full set.
+    const orders = aggregateOrders;
+    const isLoading = aggregateLoading;
+
+    // History is lazy-fetched per-order when the detail modal opens (kept off
+    // the main aggregate so the page-level fetch stays affordable).
+    const { data: selectedOrderHistory = [] } = useQuery<any[]>({
+        queryKey: ['order-history', selectedOrder?.id],
+        queryFn: async () => {
+            if (!selectedOrder?.id) return [];
+            const { data, error } = await (supabase as any)
+                .from('order_status_history')
+                .select('*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)')
+                .eq('order_id', selectedOrder.id)
+                .order('created_at', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!selectedOrder?.id && isViewModalOpen,
+        staleTime: 30 * 1000,
     });
 
 
@@ -1539,9 +1522,11 @@ const Orders = () => {
 
     /** Cities that appear on this seller's orders (filter dropdown only; form still uses full `cities`). */
     const sellerFilterCities = useMemo(() => {
-        if (!orders?.length) return [] as { id: string; name: string }[];
+        // Source the dropdown from the FULL aggregate so options exist for
+        // every city in the seller's history, not just the visible page.
+        if (!aggregateOrders?.length) return [] as { id: string; name: string }[];
         const byId = new Map<string, { id: string; name: string }>();
-        for (const o of orders as any[]) {
+        for (const o of aggregateOrders as any[]) {
             const cid = o.master_city_id || o.city_id;
             if (!cid) continue;
             const embedded = o.city as { id?: string; name?: string } | null | undefined;
@@ -1549,7 +1534,7 @@ const Orders = () => {
             if (name) byId.set(cid, { id: cid, name });
         }
         return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [orders, cities]);
+    }, [aggregateOrders, cities]);
 
     /** Couriers / companies that appear on this seller's orders (filter dropdown only). */
     type SellerFilterProvider = {
@@ -1559,29 +1544,32 @@ const Orders = () => {
         imageUrl: string | null;
     };
     const sellerFilterProviders = useMemo<SellerFilterProvider[]>(() => {
-        if (!orders?.length) return [];
+        // Dropdown spans the seller's full history, not just the current page.
+        // Avatars come from the couriers/companies lookup queries (aggregate's
+        // joined courier/company rows only carry id/name to stay light).
+        if (!aggregateOrders?.length) return [];
         const list: SellerFilterProvider[] = [];
         const seen = new Set<string>();
-        for (const o of orders as any[]) {
+        for (const o of aggregateOrders as any[]) {
             if (o.courier_id && !seen.has(`c-${o.courier_id}`)) {
                 seen.add(`c-${o.courier_id}`);
-                const emb = o.courier as { name?: string; avatar_url?: string | null } | null | undefined;
+                const emb = o.courier as { name?: string } | null | undefined;
                 const row = (couriers as any[])?.find((c: any) => c.id === o.courier_id);
                 const name = emb?.name || row?.name || 'Courier';
-                const imageUrl = emb?.avatar_url ?? row?.avatar_url ?? null;
+                const imageUrl = row?.avatar_url ?? null;
                 list.push({ id: o.courier_id, name, type: 'courier', imageUrl });
             }
             if (o.company_id && !seen.has(`co-${o.company_id}`)) {
                 seen.add(`co-${o.company_id}`);
-                const emb = o.company as { name?: string; logo_url?: string | null } | null | undefined;
+                const emb = o.company as { name?: string } | null | undefined;
                 const row = (companies as any[])?.find((c: any) => c.id === o.company_id);
                 const name = emb?.name || row?.name || 'Company';
-                const imageUrl = emb?.logo_url ?? row?.logo_url ?? null;
+                const imageUrl = row?.logo_url ?? null;
                 list.push({ id: o.company_id, name, type: 'company', imageUrl });
             }
         }
         return list.sort((a, b) => a.name.localeCompare(b.name));
-    }, [orders, couriers, companies]);
+    }, [aggregateOrders, couriers, companies]);
 
     // Auto-select best provider and set fee when city changes
     React.useEffect(() => {
@@ -1767,7 +1755,7 @@ const Orders = () => {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             setIsAddModalOpen(false);
             // Defer form.reset so Radix completes its close cycle first.
@@ -1961,7 +1949,7 @@ const Orders = () => {
             return { id: selectedOrder.id };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
@@ -2015,7 +2003,7 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Status Updated" });
         },
@@ -2038,7 +2026,7 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
@@ -2185,8 +2173,11 @@ const Orders = () => {
             && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesExchange;
     }, [searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillStatusIds, pillPackageStatusIds]);
 
-    const baseFilteredOrders = useMemo(() => (orders || []).filter(orderMatchesAllFilters), [orders, orderMatchesAllFilters]);
+    // `baseFilteredOrders` is kept as an alias of `baseFilteredAggregate`
+    // because `orders === aggregateOrders` now — every consumer reading either
+    // gets the same full filtered set.
     const baseFilteredAggregate = useMemo(() => aggregateOrders.filter(orderMatchesAllFilters), [aggregateOrders, orderMatchesAllFilters]);
+    const baseFilteredOrders = baseFilteredAggregate;
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -2225,13 +2216,27 @@ const Orders = () => {
         setShowCalendar(false);
     };
 
+    // Snap back to page 1 whenever the active filter set, tab, or search bar
+    // changes. Without this, applying a filter while on page 6 would land the
+    // user on an empty page even though matches exist earlier in the list.
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery, activeTab, filterStatus, pillStatusIds, pillPackageStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
+
+    // Clamp `page` when filteredAggregate shrinks past it (e.g. realtime delete).
+    useEffect(() => {
+        if (page > totalPages) setPage(totalPages);
+    }, [page, totalPages]);
+
     const tabCounts = useMemo(() => {
         const counts = { all: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, reportedToday: false, reportedNow: false };
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
         const currentHour = now.getHours();
 
-        baseFilteredOrders.forEach(o => {
+        // Tab badges must count the FULL filtered aggregate (every order this
+        // seller can see that passes active filters), not just the current page.
+        baseFilteredAggregate.forEach((o: any) => {
             counts.all++;
             if (isOrderInTab(o, 'new')) counts.new++;
             if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
@@ -2252,11 +2257,7 @@ const Orders = () => {
             }
         });
         return counts;
-    }, [baseFilteredOrders]);
-
-    const filteredOrders = useMemo(() => {
-        return baseFilteredOrders.filter(o => isOrderInTab(o, activeTab));
-    }, [baseFilteredOrders, activeTab]);
+    }, [baseFilteredAggregate]);
 
     // KPI/pill totals — over the FULL filtered aggregate, not the visible page.
     const filteredAggregate = useMemo(
@@ -2264,6 +2265,17 @@ const Orders = () => {
         [baseFilteredAggregate, activeTab],
     );
     const filteredAggregateCount = filteredAggregate.length;
+
+    // Pagination is a pure client-side slice of the FILTERED aggregate. KPIs,
+    // tab counts, recheck pills and dropdowns all see the full set above; only
+    // the rendered rows shrink to one page. Filter / tab changes auto-reset
+    // page below so the user can never strand themselves on an empty page.
+    const totalOrdersCount = filteredAggregateCount;
+    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
+    const filteredOrders = useMemo(() => {
+        const from = (page - 1) * pageSize;
+        return filteredAggregate.slice(from, from + pageSize);
+    }, [filteredAggregate, page, pageSize]);
 
     // Recheck status pill buckets for Confirmation/Suivi tabs.
     // Apply all base filters EXCEPT the one the pill itself controls.
@@ -2303,7 +2315,9 @@ const Orders = () => {
                 count: 0,
             });
         }
-        for (const o of (orders as any[] | undefined) ?? []) {
+        // Count over the FULL aggregate so pill numbers match what the seller
+        // would see across every page, not just the current one.
+        for (const o of (aggregateOrders as any[] | undefined) ?? []) {
             if (!orderPassesNonStatusFilters(o)) continue;
             if (filterPackageStatus !== 'all' && o.package_status_id !== filterPackageStatus) continue;
             if (pillPackageStatusIds.size > 0 && !pillPackageStatusIds.has(o.package_status_id)) continue;
@@ -2326,7 +2340,7 @@ const Orders = () => {
         }
         return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orders, orderStatuses, activeTab, searchQuery, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillPackageStatusIds]);
+    }, [aggregateOrders, orderStatuses, activeTab, searchQuery, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillPackageStatusIds]);
 
     const recheckPackageStatusBuckets = useMemo(() => {
         if (activeTab !== 'suivi') return [] as StatusBucket[];
@@ -2356,7 +2370,9 @@ const Orders = () => {
                 });
             }
         }
-        for (const o of (orders as any[] | undefined) ?? []) {
+        // Count over the FULL aggregate so pill numbers match what the seller
+        // would see across every page, not just the current one.
+        for (const o of (aggregateOrders as any[] | undefined) ?? []) {
             if (!orderPassesNonStatusFilters(o)) continue;
             if (filterStatus !== 'all' && o.order_status_id !== filterStatus) continue;
             if (pillStatusIds.size > 0 && !pillStatusIds.has(o.order_status_id)) continue;
@@ -2368,94 +2384,97 @@ const Orders = () => {
         }
         return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orders, packageStatuses, activeTab, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange, pillStatusIds]);
+    }, [aggregateOrders, packageStatuses, activeTab, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange, pillStatusIds]);
 
-    // Calculate seller-specific statistics
-    useEffect(() => {
-        const calculateSellerStats = async () => {
-            if (!orders || !userId || !sellerProfile) return;
-
-            const allOrders = orders || [];
-
-            // Count delivered orders (package in delivered category)
-            const delivered = allOrders.filter(o =>
-                isDeliveredForCommission(o, statusCats.deliveredPkgIds)
-            ).length;
-
-            // `orders.tracking_number` is never populated; the authoritative
-            // source for "has tracking" is company_parcels.tracking_code or
-            // courier_parcels.tracking_code. The orders query already joins
-            // both tables (`parcels` + `courier_parcels`), so build the set
-            // directly from the embedded rows — no extra round-trip, and no
-            // dependency on sellerProfile carrying "DigiCom Business".
-            const trackedSet = new Set<string>();
-            allOrders.forEach((o: any) => {
-                if (!o?.id) return;
-                const parcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.parcels) ? o.parcels : [];
-                const courierParcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.courier_parcels) ? o.courier_parcels : [];
-                const hasCompanyTracking = parcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
-                const hasCourierTracking = courierParcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
-                if (hasCompanyTracking || hasCourierTracking) trackedSet.add(o.id);
-            });
-
-            // Confirmation rate: numerator = orders NOT in pending (new +
-            // postponed) OR with tracking. Denominator = total orders.
-            const statusMapsReady = statusCats.pendingIds.size > 0;
-            const rateConfirmedCount = allOrders.filter((o: any) => {
-                const hasTracking = !!o.id && trackedSet.has(o.id);
-                if (hasTracking) return true;
-                return statusMapsReady
-                    && !!o.order_status_id
-                    && !statusCats.pendingIds.has(o.order_status_id);
-            }).length;
-            const confirmRate = allOrders.length > 0 ? (rateConfirmedCount / allOrders.length) * 100 : 0;
-            const trackedCount = allOrders.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
-            const pullbackCount = allOrders.filter((o: any) =>
-                !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
-            ).length;
-            const deliveryDenom = trackedCount - pullbackCount;
-            const deliveryRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
-
-            const basis = normalizeCommissionBasis(sellerProfile.commission_basis);
-            const commissionRate = Number(sellerProfile.commission_price) || 0;
-
-            const { data: paymentsData } = await supabase
+    // Lifetime paid-out cash for this seller. Cached separately so it doesn't
+    // refetch on page changes. Drives the "Commission due" KPI.
+    const { data: sellerPaidAmount = 0 } = useQuery<number>({
+        queryKey: ['seller-payments-paid-sum', userId],
+        queryFn: async () => {
+            if (!userId) return 0;
+            const { data, error } = await supabase
                 .from('seller_payments')
                 .select('paid_amount')
                 .eq('seller_id', userId);
-
-            // Partial-payout-aware: `paid_amount` is the trigger-maintained
-            // running cash sum across every payout row (full + partial).
-            const alreadyPaidAmount = (paymentsData || []).reduce(
-                (sum, p: any) => sum + (Number(p.paid_amount) || 0),
+            if (error) throw error;
+            return (data || []).reduce(
+                (sum: number, p: any) => sum + (Number(p.paid_amount) || 0),
                 0,
             );
+        },
+        enabled: !!userId,
+        staleTime: 60 * 1000,
+    });
 
-            const commissionOrders = allOrders.filter((o: any) => o.seller_id === userId);
-            const isDelivered = (o: any) =>
-                isDeliveredForCommission(o, statusCats.deliveredPkgIds);
-
-            const { unpaidCommission } = computeUnpaidCommission({
-                basis,
-                commissionPrice: commissionRate,
-                orders: commissionOrders,
-                isDelivered,
-                sellerProductIds,
-                paidAmount: alreadyPaidAmount,
-            });
-
-            setSellerStats({
-                confirmRate,
-                deliveryRate,
-                unpaidCommission,
-                totalDelivered: delivered,
-                commissionRate,
-                commissionBasis: basis,
-            });
+    // Seller KPI cards — derived from the FULL aggregate (every order this
+    // seller can see), never the paginated page. Cards stay consistent across
+    // page-size / page-number changes.
+    const sellerStats = useMemo(() => {
+        const basis = normalizeCommissionBasis(sellerProfile?.commission_basis);
+        const commissionRate = Number(sellerProfile?.commission_price) || 0;
+        const empty = {
+            confirmRate: 0,
+            deliveryRate: 0,
+            unpaidCommission: 0,
+            totalDelivered: 0,
+            commissionRate,
+            commissionBasis: basis,
         };
+        if (!aggregateOrders?.length || !userId) return empty;
 
-        calculateSellerStats();
-    }, [orders, userId, sellerProfile, sellerProductIds, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
+        const allOrders = aggregateOrders;
+
+        const delivered = allOrders.filter((o: any) =>
+            isDeliveredForCommission(o, statusCats.deliveredPkgIds),
+        ).length;
+
+        const trackedSet = new Set<string>();
+        allOrders.forEach((o: any) => {
+            if (!o?.id) return;
+            const parcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.parcels) ? o.parcels : [];
+            const courierParcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.courier_parcels) ? o.courier_parcels : [];
+            const hasCompanyTracking = parcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
+            const hasCourierTracking = courierParcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
+            if (hasCompanyTracking || hasCourierTracking) trackedSet.add(o.id);
+        });
+
+        const statusMapsReady = statusCats.pendingIds.size > 0;
+        const rateConfirmedCount = allOrders.filter((o: any) => {
+            const hasTracking = !!o.id && trackedSet.has(o.id);
+            if (hasTracking) return true;
+            return statusMapsReady
+                && !!o.order_status_id
+                && !statusCats.pendingIds.has(o.order_status_id);
+        }).length;
+        const confirmRate = allOrders.length > 0 ? (rateConfirmedCount / allOrders.length) * 100 : 0;
+        const trackedCount = allOrders.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
+        const pullbackCount = allOrders.filter((o: any) =>
+            !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
+        ).length;
+        const deliveryDenom = trackedCount - pullbackCount;
+        const deliveryRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
+
+        const commissionOrders = allOrders.filter((o: any) => o.seller_id === userId);
+        const isDelivered = (o: any) =>
+            isDeliveredForCommission(o, statusCats.deliveredPkgIds);
+        const { unpaidCommission } = computeUnpaidCommission({
+            basis,
+            commissionPrice: commissionRate,
+            orders: commissionOrders,
+            isDelivered,
+            sellerProductIds,
+            paidAmount: sellerPaidAmount,
+        });
+
+        return {
+            confirmRate,
+            deliveryRate,
+            unpaidCommission,
+            totalDelivered: delivered,
+            commissionRate,
+            commissionBasis: basis,
+        };
+    }, [aggregateOrders, userId, sellerProfile, sellerProductIds, sellerPaidAmount, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -2815,8 +2834,8 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        <div className="inline-flex items-center h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
-                            <div className="inline-flex items-baseline gap-1 px-3 tabular-nums">
+                        <div className="inline-flex items-stretch h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
+                            <div className="inline-flex items-baseline gap-1 px-3 tabular-nums self-center">
                                 <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]">
                                     {filteredOrders.length.toLocaleString('fr-FR')}
                                 </span>
@@ -2826,20 +2845,35 @@ const Orders = () => {
                                 </span>
                                 <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid ml-0.5">records</span>
                             </div>
-                            <div className="h-5 w-px bg-ant-line" />
-                            <div className="inline-flex items-center pl-2 pr-1">
-                                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid mr-1">Show</span>
-                                <select
-                                    value={pageSize}
-                                    onChange={(e) => { setPageSize(Number(e.target.value) as 100 | 500 | 1000); setPage(1); }}
-                                    className="bg-transparent h-6 pl-1 pr-1 text-[12px] font-semibold text-ant-ink cursor-pointer focus:outline-none appearance-none tabular-nums"
-                                    title="Rows loaded per page"
-                                >
-                                    <option value={100}>100</option>
-                                    <option value={500}>500</option>
-                                    <option value={1000}>1000</option>
-                                </select>
-                            </div>
+                            <div className="w-px bg-ant-line" />
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        title="Rows per page"
+                                        className="inline-flex items-center gap-1.5 px-3 bg-ant-ink/[0.025] hover:bg-ant-ink/5 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ant-ink/20"
+                                    >
+                                        <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Show</span>
+                                        <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums tracking-[-0.01em]">{pageSize}</span>
+                                        <ChevronDown className="w-3 h-3 text-ant-mid" strokeWidth={2} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-[120px] rounded-xl border-ant-line shadow-xl p-1">
+                                    {[100, 500, 1000].map((n) => (
+                                        <DropdownMenuItem
+                                            key={n}
+                                            onClick={() => { setPageSize(n as 100 | 500 | 1000); setPage(1); }}
+                                            className={cn(
+                                                'rounded-lg px-3 py-1.5 text-[12px] font-semibold tabular-nums cursor-pointer flex items-center justify-between gap-3',
+                                                pageSize === n ? 'text-ant-ink bg-ant-ink/[0.04]' : 'text-ant-mid hover:text-ant-ink',
+                                            )}
+                                        >
+                                            <span>{n.toLocaleString('fr-FR')}</span>
+                                            <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">rows</span>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     </div>
                 </div>
@@ -5033,11 +5067,11 @@ const Orders = () => {
                                     </div>
 
                                     <div className="px-2">
-                                        {selectedOrder.history && selectedOrder.history.length > 0 ? (
+                                        {(() => { const hist = (selectedOrder.history && selectedOrder.history.length > 0) ? selectedOrder.history : selectedOrderHistory; return hist && hist.length > 0; })() ? (
                                             <div className="relative pl-8">
                                                 <div className="absolute left-[11px] top-4 bottom-4 w-0.5 bg-ant-line" />
                                                 <div className="space-y-0">
-                                                {[...selectedOrder.history].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
+                                                {[...((selectedOrder.history && selectedOrder.history.length > 0) ? selectedOrder.history : selectedOrderHistory)].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
                                                     const color = record.status?.color || '#94a3b8';
                                                     const isLast = idx === arr.length - 1;
                                                     const ordIcon = getOrdIcon(record.status_id);

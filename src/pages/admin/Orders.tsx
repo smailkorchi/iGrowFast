@@ -603,7 +603,7 @@ const Orders = () => {
         const debouncedInvalidate = () => {
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+                queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             }, 500);
         };
 
@@ -824,7 +824,7 @@ const Orders = () => {
                         .eq('id', parcel.id);
                 }
 
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
             } else {
                 throw new Error(result?.error || 'Unknown error');
             }
@@ -843,13 +843,16 @@ const Orders = () => {
     // --- Queries ---
 
 
-    const { data: ordersResult, isLoading } = useQuery<{ rows: any[]; count: number }>({
-        queryKey: ['orders', activeBusinessId, page, pageSize],
+    // Single source of truth: ONE query pulls every order this business owns
+    // (with the joins needed for filters, KPIs and the list view). Pagination
+    // is then a pure client-side slice of the filtered aggregate (see
+    // `filteredOrders` below). `history` is the only heavy join we skip — it
+    // gets lazy-fetched per-order when the detail modal opens.
+    const { data: aggregateOrders = [], isLoading: aggregateLoading } = useQuery<any[]>({
+        queryKey: ['orders-aggregate', activeBusinessId],
         queryFn: async () => {
-            if (!activeBusinessId) return { rows: [], count: 0 };
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-            const { data, error, count } = await (supabase as any)
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
                 .from('orders')
                 .select(`
                     *,
@@ -860,44 +863,8 @@ const Orders = () => {
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                    history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
-                `, { count: 'exact' })
-                .eq('DigiCom Business', activeBusinessId)
-                .is('date_deleted', null)
-                .order('created_at', { ascending: false })
-                .range(from, to);
-
-            if (error) throw error;
-            return { rows: data || [], count: count || 0 };
-        },
-    });
-    const orders = ordersResult?.rows ?? [];
-    const totalOrdersCount = ordersResult?.count ?? 0;
-    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
-
-    // Business-wide lightweight aggregate — pulls every row that belongs to
-    // this business with ONLY the columns the filter predicate touches (no
-    // products/history/parcels deep joins). The same filter pipeline runs on
-    // top of this to drive the KPIs, so KPIs respect filters but ignore the
-    // page-size selector. Cached aggressively so page-size changes don't
-    // trigger another aggregate fetch.
-    const { data: aggregateOrders = [] } = useQuery<any[]>({
-        queryKey: ['orders-aggregate', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`
-                    id, price, replace, order_status_id, package_status_id,
-                    city_id, master_city_id, source_name, courier_id, company_id,
-                    date, created_at, updated_at, assignment_date, confirmation_date,
-                    annulation_date, date_livraison, reported_date,
-                    name, phone, confirmed_by_id, assign_id,
-                    items:order_items(product_id),
-                    parcels:company_parcels(tracking_code),
-                    courier_parcels(tracking_code)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .is('date_deleted', null);
@@ -906,6 +873,29 @@ const Orders = () => {
         },
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
+    });
+
+    // Back-compat aliases — every existing reader of `orders` / `isLoading`
+    // keeps working, but now sees the full business set.
+    const orders = aggregateOrders;
+    const isLoading = aggregateLoading;
+
+    // History is the only join we left out of the aggregate (heavy + only
+    // needed by the detail modal). Lazy-fetch it when the modal opens.
+    const { data: selectedOrderHistory = [] } = useQuery<any[]>({
+        queryKey: ['order-history', selectedOrder?.id],
+        queryFn: async () => {
+            if (!selectedOrder?.id) return [];
+            const { data, error } = await (supabase as any)
+                .from('order_status_history')
+                .select('*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)')
+                .eq('order_id', selectedOrder.id)
+                .order('created_at', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!selectedOrder?.id && isViewModalOpen,
+        staleTime: 30 * 1000,
     });
 
 
@@ -1202,15 +1192,17 @@ const Orders = () => {
         }
     });
 
-    // Attribution Progress — computed locally from sellers + orders already on the page.
-    // The previous RPC approach had a parameter bug that silently returned []. Deriving
-    // from known-good in-memory data removes that whole failure mode.
+    // Attribution Progress — computed from the FULL business aggregate so
+    // "today's assigned" reflects every order this business owns today, not
+    // just the rows on the current page. (The previous RPC approach had a
+    // parameter bug that silently returned []; deriving from known-good
+    // in-memory data removes that whole failure mode.)
     const isAttributionFetching = false;
     const refetchAttribution = () => { /* no-op: derived state updates automatically */ };
     const attributionProgress = useMemo(() => {
         if (!sellers || sellers.length === 0) return [];
         const today = format(new Date(), 'yyyy-MM-dd');
-        const ordersList = (orders || []) as Array<{ seller_id?: string | null; assignment_date?: string | null; date?: string | null }>;
+        const ordersList = (aggregateOrders || []) as Array<{ seller_id?: string | null; assignment_date?: string | null; date?: string | null }>;
         return sellers
             .filter((s: { assignment?: number | null }) => Number(s.assignment || 0) > 0)
             .map((s: { id: string; name: string; avatar_url: string | null; assignment: number | null }) => {
@@ -1232,17 +1224,18 @@ const Orders = () => {
                     credit: 0,
                 };
             });
-    }, [sellers, orders]);
+    }, [sellers, aggregateOrders]);
 
-    // Total attribution stats
+    // Total attribution stats — unassigned count must span every order in the
+    // business, not just the current page.
     const attributionTotals = useMemo(() => {
         if (!attributionProgress?.length) return { totalQuota: 0, totalAssigned: 0, totalPct: 0, unassigned: 0 };
         const totalQuota = attributionProgress.reduce((a, s) => a + Number(s.assignment), 0);
         const totalAssigned = attributionProgress.reduce((a, s) => a + Number(s.orders_today), 0);
         const totalPct = totalQuota > 0 ? Math.round(totalAssigned / totalQuota * 100) : 0;
-        const unassigned = (orders?.filter(o => !o.seller_id).length) || 0;
+        const unassigned = (aggregateOrders?.filter((o: any) => !o.seller_id).length) || 0;
         return { totalQuota, totalAssigned, totalPct, unassigned };
-    }, [attributionProgress, orders]);
+    }, [attributionProgress, aggregateOrders]);
 
     // Mutation: manually trigger reattribution of unassigned orders
     const reattributeMutation = useMutation({
@@ -1254,7 +1247,7 @@ const Orders = () => {
             return data as number;
         },
         onSuccess: (count) => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             refetchAttribution();
             toast({ title: `${count} orders attributed`, description: 'Unassigned orders have been distributed among sellers.' });
         },
@@ -1710,7 +1703,7 @@ const Orders = () => {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             setIsAddModalOpen(false);
             // Defer form.reset so Radix completes its close cycle first.
             setTimeout(() => {
@@ -1894,7 +1887,7 @@ const Orders = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
             toast({ title: "Order Updated", description: "Changes saved successfully." });
@@ -1918,7 +1911,7 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             setOrderPendingDelete(null);
             toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
@@ -1983,7 +1976,7 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             setSelectedOrders([]);
             setIsBulkStatusModalOpen(false);
             setBulkStatusComment("");
@@ -2010,7 +2003,7 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             setSelectedOrders([]);
             setIsAttributionModalOpen(false);
             toast({ title: "Success", description: "Orders attributed successfully." });
@@ -2061,17 +2054,20 @@ const Orders = () => {
     };
 
     // --- Helpers ---
+    // Highlight rows whose phone is shared with ANOTHER order anywhere in the
+    // business (not just the visible page). Built from the full aggregate so
+    // the flag is stable regardless of pagination.
     const duplicatePhones = useMemo(() => {
-        if (!orders) return new Set<string>();
+        if (!aggregateOrders?.length) return new Set<string>();
         const phoneCounts: Record<string, number> = {};
-        orders.forEach(o => {
+        aggregateOrders.forEach((o: any) => {
             if (o.phone) {
                 const normalized = (o.phone || '').replace(/[\s-]/g, '');
                 phoneCounts[normalized] = (phoneCounts[normalized] || 0) + 1;
             }
         });
         const duplicates = new Set<string>();
-        orders.forEach(o => {
+        aggregateOrders.forEach((o: any) => {
             if (o.phone) {
                 const normalized = (o.phone || '').replace(/[\s-]/g, '');
                 if (phoneCounts[normalized] > 1) {
@@ -2080,7 +2076,7 @@ const Orders = () => {
             }
         });
         return duplicates;
-    }, [orders]);
+    }, [aggregateOrders]);
 
     // Reusable filter predicate — applied to both the paginated `orders`
     // (drives what the user sees) and `aggregateOrders` (drives the KPI strip),
@@ -2122,8 +2118,18 @@ const Orders = () => {
         return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
     }, [searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
 
-    const filteredOrders = useMemo(() => (orders || []).filter(orderMatchesAllFilters), [orders, orderMatchesAllFilters]);
     const filteredAggregate = useMemo(() => aggregateOrders.filter(orderMatchesAllFilters), [aggregateOrders, orderMatchesAllFilters]);
+
+    // Pagination is now a pure client-side slice of the FILTERED aggregate.
+    // This is the only place page-size touches anything — KPIs, dropdowns,
+    // counters all see the full filtered list above. Filter changes auto-reset
+    // page below so the user can never strand themselves on an empty page.
+    const totalOrdersCount = filteredAggregate.length;
+    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
+    const filteredOrders = useMemo(() => {
+        const from = (page - 1) * pageSize;
+        return filteredAggregate.slice(from, from + pageSize);
+    }, [filteredAggregate, page, pageSize]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -2166,6 +2172,19 @@ const Orders = () => {
         setFilterAssignedTo('all');
         setFilterExchange('all');
     };
+
+    // Snap back to page 1 whenever the active filter set changes OR the search
+    // bar mutates. Without this, applying a filter while on page 6 would land
+    // the user on an empty page even though matches exist earlier in the list.
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
+
+    // Also clamp the page when filteredAggregate shrinks past the current page
+    // (e.g. realtime delete removes the last row on the page).
+    useEffect(() => {
+        if (page > totalPages) setPage(totalPages);
+    }, [page, totalPages]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -2711,8 +2730,8 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="inline-flex items-center h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
-                            <div className="inline-flex items-baseline gap-1 px-3 tabular-nums">
+                        <div className="inline-flex items-stretch h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
+                            <div className="inline-flex items-baseline gap-1 px-3 tabular-nums self-center">
                                 <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]">
                                     {filteredOrders.length.toLocaleString('fr-FR')}
                                 </span>
@@ -2722,20 +2741,35 @@ const Orders = () => {
                                 </span>
                                 <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid ml-0.5">orders</span>
                             </div>
-                            <div className="h-5 w-px bg-ant-line" />
-                            <div className="inline-flex items-center pl-2 pr-1">
-                                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid mr-1">Show</span>
-                                <select
-                                    value={pageSize}
-                                    onChange={(e) => { setPageSize(Number(e.target.value) as 100 | 500 | 1000); setPage(1); }}
-                                    className="bg-transparent h-6 pl-1 pr-1 text-[12px] font-semibold text-ant-ink cursor-pointer focus:outline-none appearance-none tabular-nums"
-                                    title="Rows loaded per page"
-                                >
-                                    <option value={100}>100</option>
-                                    <option value={500}>500</option>
-                                    <option value={1000}>1000</option>
-                                </select>
-                            </div>
+                            <div className="w-px bg-ant-line" />
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        title="Rows per page"
+                                        className="inline-flex items-center gap-1.5 px-3 bg-ant-ink/[0.025] hover:bg-ant-ink/5 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ant-ink/20"
+                                    >
+                                        <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Show</span>
+                                        <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums tracking-[-0.01em]">{pageSize}</span>
+                                        <ChevronDown className="w-3 h-3 text-ant-mid" strokeWidth={2} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-[120px] rounded-xl border-ant-line shadow-xl p-1">
+                                    {[100, 500, 1000].map((n) => (
+                                        <DropdownMenuItem
+                                            key={n}
+                                            onClick={() => { setPageSize(n as 100 | 500 | 1000); setPage(1); }}
+                                            className={cn(
+                                                'rounded-lg px-3 py-1.5 text-[12px] font-semibold tabular-nums cursor-pointer flex items-center justify-between gap-3',
+                                                pageSize === n ? 'text-ant-ink bg-ant-ink/[0.04]' : 'text-ant-mid hover:text-ant-ink',
+                                            )}
+                                        >
+                                            <span>{n.toLocaleString('fr-FR')}</span>
+                                            <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">rows</span>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     </div>
                 </div>
@@ -5154,11 +5188,11 @@ const Orders = () => {
                                     </div>
 
                                     <div className="px-4">
-                                        {selectedOrder.history && selectedOrder.history.length > 0 ? (
+                                        {(() => { const hist = (selectedOrder.history && selectedOrder.history.length > 0) ? selectedOrder.history : selectedOrderHistory; return hist && hist.length > 0; })() ? (
                                             <div className="relative pl-10">
                                                 <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-ant-line via-ant-line to-ant-ink/30" />
                                                 <div className="space-y-0">
-                                                {[...selectedOrder.history].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
+                                                {[...((selectedOrder.history && selectedOrder.history.length > 0) ? selectedOrder.history : selectedOrderHistory)].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
                                                     const color = record.status?.color || '#94a3b8';
                                                     const isLast = idx === arr.length - 1;
                                                     const ordIcon = getOrdIcon(record.status_id);
