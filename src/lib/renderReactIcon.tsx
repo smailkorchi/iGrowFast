@@ -2,14 +2,14 @@ import { type ComponentType, useState, useEffect } from 'react';
 
 type IconComp = ComponentType<{ className?: string; style?: React.CSSProperties }>;
 
-// Only include the most useful packs (6 packs ≈ 8k icons — covers all delivery/status needs)
-// Fa (FontAwesome 5), Md (Material Design), Tb (Tabler), Hi2 (Heroicons 2), Lu (Lucide), Bs (Bootstrap)
+// Only the packs actually used by statuses: Fa (FontAwesome) is the primary, plus the
+// Tb (Tabler) and Bs (Bootstrap) sets that a couple of statuses use. Other packs were
+// removed because none of them are used and some never rendered (e.g. the old `Hi2`
+// loader exposed `Hi*`-named icons that no prefix matched), which polluted the picker
+// with thousands of blank entries.
 const packLoaders: Record<string, () => Promise<Record<string, IconComp>>> = {
-    Hi2: () => import('react-icons/hi2') as any,
     Fa: () => import('react-icons/fa') as any,
-    Md: () => import('react-icons/md') as any,
     Tb: () => import('react-icons/tb') as any,
-    Lu: () => import('react-icons/lu') as any,
     Bs: () => import('react-icons/bs') as any,
 };
 

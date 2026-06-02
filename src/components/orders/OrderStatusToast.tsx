@@ -1,6 +1,7 @@
 import { Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 
 export type OrderStatusToastPayload = {
     orderId: string;
@@ -10,6 +11,8 @@ export type OrderStatusToastPayload = {
     providerName: string | null;
     statusLabel: string | null;
     statusColor: string | null;
+    /** Master status icon (resolved by the caller). */
+    statusIcon?: string | null;
     statusCategory?: string | null;
 };
 
@@ -25,6 +28,7 @@ function StatusToastCard({
     providerName,
     statusLabel,
     statusColor,
+    statusIcon,
     onOpen,
     toastId,
 }: RenderArgs) {
@@ -84,7 +88,7 @@ function StatusToastCard({
 
                 <div className="shrink-0">
                     <span
-                        className="inline-flex max-w-[140px] items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold truncate"
+                        className="inline-flex max-w-[140px] items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold truncate"
                         style={{
                             borderColor: `${pillColor}40`,
                             backgroundColor: `${pillColor}14`,
@@ -92,7 +96,8 @@ function StatusToastCard({
                         }}
                         title={statusLabel || ''}
                     >
-                        {statusLabel || 'Mise à jour'}
+                        {statusIcon && <DynamicIcon name={statusIcon} className="w-3 h-3 shrink-0" />}
+                        <span className="truncate">{statusLabel || 'Mise à jour'}</span>
                     </span>
                 </div>
             </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { showOrderStatusToast } from './OrderStatusToast';
+import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
 type Role = 'admin' | 'seller';
 
@@ -28,6 +29,7 @@ interface Props {
  */
 export function OrderStatusNotifications({ role, targetPath }: Props) {
     const navigate = useNavigate();
+    const { resolve } = usePackageStatusResolver();
     const [scope, setScope] = useState<{ businessId: string | null; userId: string | null }>({
         businessId: null,
         userId: null,
@@ -144,6 +146,10 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                         newRow.tracking_number ||
                         null;
 
+                    // Always resolve to the master status (label + color + icon); the raw
+                    // realtime columns are a fallback only when no master matches.
+                    const resolved = resolve(newRow.package_status_label, null, newRow.package_status_color);
+
                     showOrderStatusToast(
                         {
                             orderId: newRow.id,
@@ -151,8 +157,9 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                             trackingCode,
                             providerLogo: provider?.logo_url || null,
                             providerName: provider?.name || null,
-                            statusLabel: newRow.package_status_label || null,
-                            statusColor: newRow.package_status_color || null,
+                            statusLabel: resolved?.label ?? newRow.package_status_label ?? null,
+                            statusColor: resolved?.color ?? newRow.package_status_color ?? null,
+                            statusIcon: resolved?.icon ?? null,
                         },
                         () => {
                             navigate(`${targetPath}?view=${newRow.id}`);
@@ -165,7 +172,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [scope, role, targetPath, navigate]);
+    }, [scope, role, targetPath, navigate, resolve]);
 
     return null;
 }

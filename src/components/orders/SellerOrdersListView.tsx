@@ -15,6 +15,7 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import SourceIcon from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { cn } from '@/lib/utils';
+import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
 interface SellerOrdersListViewProps {
   orders: any[];
@@ -41,6 +42,7 @@ export default function SellerOrdersListView({
   getCourierPackageStatus,
   reportedStatusId,
 }: SellerOrdersListViewProps) {
+  const { resolve } = usePackageStatusResolver();
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-ant-line overflow-hidden mb-20 animate-in fade-in duration-300">
       <div className="w-full">
@@ -66,8 +68,13 @@ export default function SellerOrdersListView({
               const canTrack = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
 
               const courierPkg = getCourierPackageStatus(order);
-              const pkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
-              const pkgColor = order.package_status?.color || courierPkg?.color || null;
+              const rawPkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
+              const rawPkgColor = order.package_status?.color || courierPkg?.color || null;
+              // Always resolve to the master status (label + color + icon); raw only as fallback.
+              const resolvedPkg = rawPkgLabel ? resolve(rawPkgLabel, order.package_status?.label, rawPkgColor) : null;
+              const pkgLabel = resolvedPkg?.label ?? rawPkgLabel;
+              const pkgColor = resolvedPkg?.color ?? rawPkgColor;
+              const pkgIcon = resolvedPkg?.icon ?? order.package_status?.icon ?? null;
 
               // First product (or accessory) with an image — surface what was
               // actually ordered. Reuses the products-page hover preview.
@@ -197,8 +204,8 @@ export default function SellerOrdersListView({
                           color: pkgColor || 'rgba(0,31,63,0.45)',
                         }}
                       >
-                        {order.package_status?.icon ? (
-                          <DynamicIcon name={order.package_status.icon} className="w-3.5 h-3.5 shrink-0" />
+                        {pkgIcon ? (
+                          <DynamicIcon name={pkgIcon} className="w-3.5 h-3.5 shrink-0" />
                         ) : pkgColor ? (
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: pkgColor }} />
                         ) : (

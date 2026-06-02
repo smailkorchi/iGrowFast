@@ -19,6 +19,7 @@ import {
     AlertTriangle,
 } from 'lucide-react';
 import { IconPicker } from '@/components/ui/IconPicker';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 import {
     Dialog,
     DialogContent,
@@ -623,9 +624,11 @@ const Status = () => {
                                     </div>
                                 </section>
 
-                                {/* Chapter 02 — Appearance */}
-                                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                                    <div className="h-[3px] w-full bg-ant-orange" />
+                                {/* Chapter 02 — Appearance. No `overflow-hidden` here: the IconPicker
+                                    dropdown is absolutely positioned and must be able to extend past
+                                    this section (an overflow clip was hiding the icon grid). */}
+                                <section className="rounded-2xl border border-ant-line bg-ant-paper">
+                                    <div className="h-[3px] w-full bg-ant-orange rounded-t-2xl" />
                                     <div className="px-4 py-3 border-b border-ant-line">
                                         <div className="flex items-center gap-2">
                                             <span className="font-display text-[10px] text-ant-orange">02</span>
@@ -1165,10 +1168,19 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
             !status.active && 'opacity-60',
         )}
     >
-        <span
-            className="w-1 h-8 rounded-full shrink-0"
-            style={{ backgroundColor: status.color || '#D97706' }}
-        />
+        {status.icon ? (
+            <span
+                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center"
+                style={{ backgroundColor: `${status.color || '#D97706'}1f`, color: status.color || '#D97706' }}
+            >
+                <DynamicIcon name={status.icon} className="w-4 h-4" />
+            </span>
+        ) : (
+            <span
+                className="w-1 h-8 rounded-full shrink-0"
+                style={{ backgroundColor: status.color || '#D97706' }}
+            />
+        )}
         <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-display text-[13px] text-ant-ink truncate">{status.label}</span>

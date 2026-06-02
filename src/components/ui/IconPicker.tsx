@@ -6,38 +6,35 @@ import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 80;
 
-// Curated delivery/status icons shown by default before any search
+// Curated delivery/status icons shown by default before any search.
+// Restricted to the only packs DynamicIcon now supports: Fa (FontAwesome), Tb (Tabler),
+// Bs (Bootstrap) — the libraries the statuses actually use. (Md/Lu/Bi/Hi/Ci/Go/Pi/Fi were
+// removed; several never rendered.)
 const FEATURED_ICONS = [
     // Delivery & Shipping
     'FaTruck', 'FaTruckMoving', 'FaTruckLoading', 'FaShippingFast', 'FaTruckPickup',
-    'TbTruckDelivery', 'CiDeliveryTruck', 'MdDeliveryDining', 'MdLocalShipping', 'MdOutlineLocalShipping',
-    'TbPackage', 'TbPackages', 'FiPackage', 'BiPackage', 'BiSolidPackage', 'GoPackage', 'LuPackage', 'PiPackageBold',
-    'FaBox', 'FaBoxOpen', 'FaBoxes', 'LuBoxes', 'TbBox',
-    'FaWarehouse', 'LuWarehouse', 'MdWarehouse',
+    'FaBox', 'FaBoxOpen', 'FaBoxes', 'FaWarehouse',
+    'TbTruckDelivery', 'TbPackage', 'TbPackages', 'TbBox',
+    'BsTruck', 'BsBox', 'BsBoxSeam',
     // Status-related
     'FaCheckCircle', 'FaCheck', 'FaTimesCircle', 'FaBan', 'FaClock', 'FaPause', 'FaRedo', 'FaUndo',
-    'MdCancel', 'MdCheckCircle', 'MdPending', 'MdSchedule', 'MdOutlineCancel',
-    'BiCheckCircle', 'BiXCircle', 'BiTimeFive', 'BiRefresh',
     'TbCircleCheck', 'TbCircleX', 'TbClock', 'TbRefresh', 'TbRepeat',
-    'HiCheckCircle', 'HiXCircle', 'HiClock',
+    'BsCheckCircle', 'BsXCircle', 'BsClockHistory', 'BsArrowRepeat',
     // Location & Navigation
-    'FaMapMarkerAlt', 'MdLocationOn', 'MdOutlineLocationOn', 'TbMapPin', 'HiLocationMarker',
-    'FaRoute', 'MdDirections', 'TbRoute',
+    'FaMapMarkerAlt', 'FaRoute', 'TbMapPin', 'TbRoute', 'BsGeoAlt',
     // People & Contact
-    'FaUser', 'FaUserCheck', 'FaPhone', 'FaPhoneAlt', 'MdCall', 'MdPerson',
-    'TbUser', 'TbUserCheck', 'TbPhone',
+    'FaUser', 'FaUserCheck', 'FaPhone', 'FaPhoneAlt',
+    'TbUser', 'TbUserCheck', 'TbPhone', 'BsPerson', 'BsTelephone',
     // Commerce
     'FaShoppingCart', 'FaReceipt', 'FaMoneyBillWave', 'FaCreditCard', 'FaStore',
-    'MdShoppingCart', 'MdReceipt', 'MdPayment', 'MdStorefront',
-    'TbShoppingCart', 'TbReceipt', 'TbCash',
+    'TbShoppingCart', 'TbReceipt', 'TbCash', 'BsReceipt', 'BsCart',
     // Alerts & Info
     'FaExclamationTriangle', 'FaInfoCircle', 'FaBell', 'FaEye',
-    'MdWarning', 'MdInfo', 'MdNotifications',
-    'TbAlertTriangle', 'TbInfoCircle', 'TbBell',
+    'TbAlertTriangle', 'TbInfoCircle', 'TbBell', 'BsExclamationTriangle', 'BsInfoCircle', 'BsBell',
     // Arrows & Actions
     'FaArrowRight', 'FaArrowLeft', 'FaArrowUp', 'FaArrowDown',
-    'BsArrowReturnLeft', 'BsArrowReturnRight',
     'TbArrowBack', 'TbArrowForward', 'TbArrowsExchange',
+    'BsArrowReturnLeft', 'BsArrowReturnRight',
 ];
 
 // No sync getNames — we use async loading in the component
@@ -81,13 +78,17 @@ export function IconPicker({
     }, [isOpen, allNames.length]);
 
     const filtered = useMemo(() => {
+        // Once the packs are loaded, drop any featured name that isn't a real icon
+        // (guards against blanks if a curated name doesn't exist in the trimmed packs).
+        const allSet = new Set(allNames);
+        const featured = allNames.length ? FEATURED_ICONS.filter(n => allSet.has(n)) : FEATURED_ICONS;
         if (!search.trim()) {
             // Show featured icons immediately, no need for allNames
-            if (page === 1) return FEATURED_ICONS;
-            if (!allNames.length) return FEATURED_ICONS;
-            const featuredSet = new Set(FEATURED_ICONS);
+            if (page === 1) return featured;
+            if (!allNames.length) return featured;
+            const featuredSet = new Set(featured);
             const rest = allNames.filter(n => !featuredSet.has(n));
-            return [...FEATURED_ICONS, ...rest.slice(0, PAGE_SIZE * (page - 1))];
+            return [...featured, ...rest.slice(0, PAGE_SIZE * (page - 1))];
         }
         // Need allNames for search
         const source = allNames.length > 0 ? allNames : FEATURED_ICONS;

@@ -268,7 +268,9 @@ const PROVIDER_FIELD_SCHEMA: Record<string, ProviderConfigField[]> = {
     vitex: ['business_name', 'api_base_url', 'api_key', 'api_login', 'api_password'],
     quicklivraison: ['business_name', 'api_base_url', 'api_key', 'api_login', 'api_password'],
     ozon: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
-    coliaty: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_public_key', 'api_secret_key'],
+    // Coliaty is fully on the public API now (Bearer public:secret). The dashboard
+    // email/password (api_login/api_password) is no longer used — dropped from the form.
+    coliaty: ['business_name', 'api_base_url', 'api_public_key', 'api_secret_key'],
     ameex: ['business_name', 'business_id', 'api_base_url', 'api_key', 'api_login', 'api_password'],
     digylog: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_key'],
     delvoexpress: ['business_name', 'api_base_url', 'api_login', 'api_password', 'api_key'],

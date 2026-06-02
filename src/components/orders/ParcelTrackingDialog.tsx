@@ -306,7 +306,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                                     className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg"
                                                                     style={{ color, backgroundColor: `${color}15` }}
                                                                 >
-                                                                    {status}
+                                                                    {matched?.label || status}
                                                                 </span>
                                                                 {sitInfo && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>

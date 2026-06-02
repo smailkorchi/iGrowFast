@@ -3,6 +3,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { DynamicIcon } from '@/lib/renderReactIcon';
+import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import {
     Search,
     Package,
@@ -88,6 +90,7 @@ const fmtMAD = (n: number) => new Intl.NumberFormat('fr-FR').format(n || 0);
 
 const CourierOrders = () => {
     const { toast } = useToast();
+    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState<TabKey>('all');
@@ -466,8 +469,9 @@ const CourierOrders = () => {
                     <div className="md:hidden space-y-2">
                         {filteredRows.map((row) => {
                             const { order, parcel_status, parcel_tracking_code } = row;
-                            const color = parcel_status?.color || '#b0aea5';
-                            const label = parcel_status?.label || 'Nouveau';
+                            const rps = parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null;
+                            const color = rps?.color || parcel_status?.color || '#b0aea5';
+                            const label = rps?.label || parcel_status?.label || 'Nouveau';
                             return (
                                 <button
                                     key={row.parcel_id}
@@ -541,8 +545,9 @@ const CourierOrders = () => {
                             <tbody>
                                 {filteredRows.map((row) => {
                                     const { order, parcel_status, parcel_tracking_code } = row;
-                                    const color = parcel_status?.color || '#b0aea5';
-                                    const label = parcel_status?.label || 'Nouveau';
+                                    const rps = parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null;
+                                    const color = rps?.color || parcel_status?.color || '#b0aea5';
+                                    const label = rps?.label || parcel_status?.label || 'Nouveau';
                                     return (
                                         <tr
                                             key={row.parcel_id}
@@ -633,6 +638,7 @@ function CourierOrderSheet({
 }) {
     const isOpen = !!row;
     const [pickerOpen, setPickerOpen] = useState(false);
+    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
 
     useEffect(() => {
         if (!isOpen) setPickerOpen(false);
@@ -641,7 +647,11 @@ function CourierOrderSheet({
     if (!row) return null;
 
     const { order, parcel_status, parcel_tracking_code, parcel_reference, note_reference } = row;
-    const color = parcel_status?.color || '#b0aea5';
+    // Always resolve to the master status; raw synthetic value only as fallback.
+    const rps = parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null;
+    const color = rps?.color || parcel_status?.color || '#b0aea5';
+    const masterStatusLabel = rps?.label || parcel_status?.label || 'Non défini';
+    const masterStatusIcon = rps?.icon ?? null;
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
@@ -712,8 +722,12 @@ function CourierOrderSheet({
                                     className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.14em]"
                                     style={{ backgroundColor: `${color}28`, color: '#faf9f5' }}
                                 >
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                    {parcel_status?.label || 'Non défini'}
+                                    {masterStatusIcon ? (
+                                        <DynamicIcon name={masterStatusIcon} className="w-2.5 h-2.5 shrink-0" />
+                                    ) : (
+                                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                    )}
+                                    {masterStatusLabel}
                                 </span>
                             </div>
                             <button

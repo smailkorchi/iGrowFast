@@ -4,6 +4,40 @@ import type { DevisClientBlock, DevisLine } from '@/lib/devis/types';
 
 type CityRow = { name?: string | null } | null;
 
+/**
+ * Loads package_statuses once and returns a sync resolver that maps a raw provider
+ * status to its MASTER label (delivery_service_statuses -> label -> code), falling back
+ * to the raw value only when nothing matches. The BL PDF is text-only (no icon/color),
+ * so we just need the master label. @react-pdf can't use hooks, hence this build-time pass.
+ */
+async function loadPkgStatusResolver(
+  supabase: SupabaseClient,
+): Promise<(raw: string | null | undefined) => string | null> {
+  try {
+    const { data } = await supabase
+      .from('package_statuses')
+      .select('label, code, delivery_service_statuses')
+      .eq('active', true);
+    const rows = (data || []) as Array<{ label: string | null; code: string | null; delivery_service_statuses: string[] | null }>;
+    const byDss = new Map<string, string>();
+    const byLabel = new Map<string, string>();
+    const byCode = new Map<string, string>();
+    for (const r of rows) {
+      if (!r.label) continue;
+      r.delivery_service_statuses?.forEach((s) => { if (s) byDss.set(s.toLowerCase(), r.label as string); });
+      byLabel.set(r.label.toLowerCase(), r.label);
+      if (r.code) byCode.set(r.code.toLowerCase(), r.label);
+    }
+    return (raw) => {
+      if (!raw) return null;
+      const lower = String(raw).toLowerCase();
+      return byDss.get(lower) || byLabel.get(lower) || byCode.get(lower) || String(raw);
+    };
+  } catch {
+    return (raw) => (raw ? String(raw) : null);
+  }
+}
+
 function mergeLine(map: Map<string, DevisLine>, label: string, qty: number, unitPrice: number, productId: string | null) {
   const key = label.trim();
   if (!key || qty <= 0) return;
@@ -110,11 +144,12 @@ export async function hydrateBonLivraisonFromOrder(
     .eq('order_id', orderId)
     .eq('DigiCom Business', businessId);
 
+  const resolvePkg = await loadPkgStatusResolver(supabase);
   const parcels: BonLivraisonParcelSnapshot[] = (parcelRows || []).map((p: Record<string, unknown>) => ({
     id: p.id as string,
     tracking_code: p.tracking_code ? String(p.tracking_code) : null,
     reference: p.reference ? String(p.reference) : null,
-    status_label: p.status_label ? String(p.status_label) : null,
+    status_label: resolvePkg(p.status_label as string | null | undefined),
     recipient_name: o.name ? String(o.name) : null,
     recipient_phone: o.phone ? String(o.phone) : null,
     order_id: orderId,
@@ -198,6 +233,7 @@ export async function hydrateBonLivraisonFromCompanyNote(
   const map = new Map<string, DevisLine>();
   const phones = new Set<string>();
   const parcels: BonLivraisonParcelSnapshot[] = [];
+  const resolvePkg = await loadPkgStatusResolver(supabase);
 
   for (const row of parcelRows || []) {
     const pr = row as Record<string, unknown>;
@@ -213,7 +249,7 @@ export async function hydrateBonLivraisonFromCompanyNote(
       id: pr.id as string,
       tracking_code: pr.tracking_code ? String(pr.tracking_code) : null,
       reference: pr.reference ? String(pr.reference) : null,
-      status_label: pr.status_label ? String(pr.status_label) : null,
+      status_label: resolvePkg(pr.status_label as string | null | undefined),
       recipient_name: ord?.name ? String(ord.name) : null,
       recipient_phone: ord?.phone ? String(ord.phone) : null,
       order_id: oid,
@@ -299,6 +335,7 @@ export async function hydrateBonLivraisonFromCourierNote(
   const map = new Map<string, DevisLine>();
   const phones = new Set<string>();
   const parcels: BonLivraisonParcelSnapshot[] = [];
+  const resolvePkg = await loadPkgStatusResolver(supabase);
 
   for (const row of parcelRows || []) {
     const pr = row as Record<string, unknown>;
@@ -314,7 +351,7 @@ export async function hydrateBonLivraisonFromCourierNote(
       id: pr.id as string,
       tracking_code: pr.tracking_code ? String(pr.tracking_code) : null,
       reference: pr.reference ? String(pr.reference) : null,
-      status_label: pr.status_label ? String(pr.status_label) : null,
+      status_label: resolvePkg(pr.status_label as string | null | undefined),
       recipient_name: ord?.name ? String(ord.name) : null,
       recipient_phone: ord?.phone ? String(ord.phone) : null,
       order_id: oid,

@@ -212,38 +212,46 @@ const DeliveryNote = () => {
                 const providerColor = result.data?.statusColor || result.data?.color;
 
                 if (providerStatus) {
-                    // map to internal status (containment → RPC → ilike fallback)
+                    // Map to the master package_statuses. The track/history endpoint's latest
+                    // event can be a rawer, UNMAPPED code than what get_parcel_info returns on
+                    // load (e.g. "REÇU" vs the master "Reçu à la destination"). Only adopt the
+                    // tracked status when it resolves to a known master — otherwise we'd flash a
+                    // "ghost" status that isn't in package_statuses and flips back on reload.
                     const matched = await matchPackageStatus(supabase, providerStatus);
-                    await supabase
-                        .from('company_parcels')
-                        .update({
-                            status_id: matched?.id ?? null,
-                            status_label: matched?.label ?? providerStatus,
-                            status_color: matched?.color ?? providerColor ?? null,
-                        })
-                        .eq('id', parcel.id);
-                }
+                    if (matched) {
+                        const finalColor = matched.color ?? providerColor ?? null;
+                        await supabase
+                            .from('company_parcels')
+                            .update({
+                                status_id: matched.id,
+                                status_label: matched.label,
+                                status_color: finalColor,
+                            })
+                            .eq('id', parcel.id);
 
-                // Update local state for immediate feedback
-                if (noteDetails?.parcels) {
-                    setNoteDetails({
-                        ...noteDetails,
-                        parcels: noteDetails.parcels.map((p: any) =>
-                            p.id === parcel.id
-                                ? {
-                                    ...p,
-                                    status_label: providerStatus,
-                                    status_color: providerColor,
-                                    real_time_status_label: providerStatus,
-                                    real_time_status_color: providerColor
-                                }
-                                : p
-                        )
-                    });
-                }
+                        // Local state — use the MAPPED label/color so the preview row stays
+                        // consistent with the resolved master status (no ghost flash).
+                        if (noteDetails?.parcels) {
+                            setNoteDetails({
+                                ...noteDetails,
+                                parcels: noteDetails.parcels.map((p: any) =>
+                                    p.id === parcel.id
+                                        ? {
+                                            ...p,
+                                            status_id: matched.id,
+                                            status_label: matched.label,
+                                            status_color: finalColor,
+                                            real_time_status_label: matched.label,
+                                            real_time_status_color: finalColor
+                                        }
+                                        : p
+                                )
+                            });
+                        }
 
-                // Invalidate query
-                queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+                        queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+                    }
+                }
             } else {
                 console.error("Tracking result failed:", result.error);
                 throw new Error(result.error || 'Unknown error');
@@ -904,13 +912,13 @@ const DeliveryNote = () => {
             if (isCompanyNote) {
                 const { data } = await supabase
                     .from('company_parcels')
-                    .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id')
+                    .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id, order:orders(name, phone)')
                     .eq('company_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             } else {
                 const { data } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('id, reference, order_id, status_id, status_label, status_color, tracking_code, courier_id, created_at')
+                    .select('id, reference, order_id, status_id, status_label, status_color, tracking_code, courier_id, created_at, order:orders(name, phone)')
                     .eq('courier_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             }
@@ -1607,7 +1615,7 @@ const DeliveryNote = () => {
 
             {/* Preview Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="ant-surface sm:max-w-[720px] rounded-2xl border border-ant-line p-0 overflow-hidden bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
+                <DialogContent className="ant-surface w-[96vw] sm:max-w-[900px] rounded-2xl border border-ant-line p-0 overflow-hidden bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
                     <div className="p-8 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                         <div className="flex justify-between items-start gap-6">
                             <div>
@@ -1680,44 +1688,59 @@ const DeliveryNote = () => {
                             <table className="w-full">
                                 <thead className="bg-ant-ink/[0.03]">
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Tracking Code</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Order Ref</th>
-                                        <th className="px-6 py-4 text-center text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Status</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Action</th>
+                                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Tracking Code</th>
+                                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Customer</th>
+                                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Phone</th>
+                                        <th className="px-4 py-4 text-center text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Status</th>
+                                        <th className="px-4 py-4 text-right text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-brand-navy/5">
                                     {!noteDetails ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-ant-muted">Loading parcels...</td>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-ant-muted">Loading parcels...</td>
                                         </tr>
                                     ) : noteDetails.parcels.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-ant-muted">No parcels in this delivery note</td>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-ant-muted">No parcels in this delivery note</td>
                                         </tr>
                                     ) : (
                                         noteDetails.parcels.map((parcel: any) => (
                                             <tr key={parcel.id} className="hover:bg-ant-light transition-colors">
-                                                <td className="px-6 py-4 font-bold text-sm text-ant-ink">{parcel.tracking_code || parcel.reference}</td>
-                                                <td className="px-6 py-4 text-xs font-medium text-ant-muted">{parcel.order_id?.slice(0, 8)}</td>
-                                                <td className="px-6 py-4 text-center">
-                                                    {parcel.real_time_status_label ? (
-                                                        <Badge
-                                                            className="border-none text-[8px] font-semibold px-2 py-0.5 rounded-lg shadow-none"
-                                                            style={{
-                                                                backgroundColor: parcel.real_time_status_color ? `${parcel.real_time_status_color}15` : '#10b98115',
-                                                                color: parcel.real_time_status_color || '#10b981'
-                                                            }}
-                                                        >
-                                                            {parcel.real_time_status_label}
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge className="bg-ant-green/10 text-ant-green border-none text-[8px] font-semibold px-2 py-0.5 rounded-lg shadow-none">
-                                                            {parcel.status_label || 'Nouveau'}
-                                                        </Badge>
-                                                    )}
+                                                <td className="px-4 py-4 font-bold text-sm text-ant-ink whitespace-nowrap">{parcel.tracking_code || parcel.reference}</td>
+                                                <td className="px-4 py-4">
+                                                    <div className="max-w-[220px] truncate text-sm font-semibold text-ant-ink/80" title={parcel.order?.name || ''}>{parcel.order?.name || '—'}</div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right">
+                                                <td className="px-4 py-4 text-xs font-medium text-ant-muted whitespace-nowrap">
+                                                    {parcel.order?.phone ? (
+                                                        <a href={`tel:${parcel.order.phone}`} className="hover:text-ant-ink transition-colors tabular-nums">{parcel.order.phone}</a>
+                                                    ) : '—'}
+                                                </td>
+                                                <td className="px-4 py-4 text-center">
+                                                    {(() => {
+                                                        // Resolve to the master package_statuses (name + color + icon),
+                                                        // same mapping as the tracking timeline / ParcelTrackingDialog —
+                                                        // instead of the raw provider label/color.
+                                                        const matched = matchPkgStatus(
+                                                            parcel.real_time_status_label || parcel.status_label,
+                                                            parcel.status_label
+                                                        );
+                                                        const label = matched?.label || parcel.real_time_status_label || parcel.status_label || 'Nouveau';
+                                                        const color = matched?.color || parcel.real_time_status_color || parcel.status_color || '#10b981';
+                                                        const icon = matched?.icon;
+                                                        return (
+                                                            <Badge
+                                                                className="border-none text-[10px] font-semibold px-2 py-0.5 rounded-lg shadow-none inline-flex items-center gap-1 max-w-[170px] whitespace-nowrap align-middle"
+                                                                style={{ backgroundColor: `${color}15`, color }}
+                                                                title={label}
+                                                            >
+                                                                {icon && <DynamicIcon name={icon} className="w-3 h-3 shrink-0" />}
+                                                                <span className="truncate">{label}</span>
+                                                            </Badge>
+                                                        );
+                                                    })()}
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
                                                     <div className="flex flex-nowrap items-center justify-end gap-0.5">
                                                         {parcel.tracking_code && (
                                                             <Button
@@ -1875,9 +1898,8 @@ const DeliveryNote = () => {
                                         <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('10x10')}>
                                             10cm / 10cm
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('A4')}>
-                                            A4 (4 tickets)
-                                        </DropdownMenuItem>
+                                        {/* A4 (4 tickets) removed: the public Coliaty API exposes a single label
+                                            layout only (GET /pickup-note/{ref}/generate-labels, no -a4 variant). */}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             ) : (noteDetails?.provider?.provider_type === 'ozon' || noteDetails?.provider?.provider_type === 'OZON') ? (
@@ -2172,7 +2194,7 @@ const DeliveryNote = () => {
                                             <div className="space-y-1.5">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color: statusColor, backgroundColor: `${statusColor}15` }}>
-                                                        {status}
+                                                        {matched?.label || status}
                                                     </span>
                                                     {sitInfo && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>{sitInfo.label}</span>}
                                                 </div>

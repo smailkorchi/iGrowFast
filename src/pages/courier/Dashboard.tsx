@@ -20,6 +20,8 @@ import {
     Hash,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { DynamicIcon } from '@/lib/renderReactIcon';
+import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { cn } from '@/lib/utils';
 import QrScanModal from '@/components/scanner/QrScanModal';
 import { format } from 'date-fns';
@@ -77,6 +79,7 @@ const isSameDay = (a: Date, b: Date) =>
 const CourierDashboard = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
     const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     const { data: me } = useQuery({
@@ -469,7 +472,12 @@ const CourierDashboard = () => {
                     </div>
                 ) : (
                     <div className="divide-y divide-ant-line">
-                        {recent.map((p) => (
+                        {recent.map((p) => {
+                          const rs = resolvePkgStatus(p.status_label, null, p.status_color);
+                          const sLabel = rs?.label ?? p.status_label;
+                          const sColor = rs?.color ?? p.status_color;
+                          const sIcon = rs?.icon ?? null;
+                          return (
                             <button
                                 key={p.id}
                                 type="button"
@@ -496,15 +504,20 @@ const CourierDashboard = () => {
                                 <span
                                     className="text-[9px] font-semibold uppercase tracking-[0.15em] px-2 py-1 rounded-full shrink-0 inline-flex items-center gap-1"
                                     style={{
-                                        backgroundColor: `${p.status_color || '#b0aea5'}14`,
-                                        color: p.status_color || '#6b6a63',
+                                        backgroundColor: `${sColor || '#b0aea5'}14`,
+                                        color: sColor || '#6b6a63',
                                     }}
                                 >
-                                    <span className="w-1 h-1 rounded-full" style={{ backgroundColor: p.status_color || '#b0aea5' }} />
-                                    {p.status_label || '—'}
+                                    {sIcon ? (
+                                        <DynamicIcon name={sIcon} className="w-2.5 h-2.5 shrink-0" />
+                                    ) : (
+                                        <span className="w-1 h-1 rounded-full" style={{ backgroundColor: sColor || '#b0aea5' }} />
+                                    )}
+                                    {sLabel || '—'}
                                 </span>
                             </button>
-                        ))}
+                          );
+                        })}
                     </div>
                 )}
             </section>

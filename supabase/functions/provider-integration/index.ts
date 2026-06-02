@@ -194,15 +194,15 @@ class OzonAdapter {
 }
 
 class ColiatyAdapter {
+    // Fully migrated to the customer/public API (https://customer-api-v1.coliaty.com,
+    // Bearer {public}:{secret}, NO /api/client prefix). Pickup-note create/add/remove/
+    // labels are now public — the old dashboard (app.coliaty.com, email/password JWT) is
+    // no longer used at all, removing the api_login/api_password dependency and the
+    // Cloudflare-challenge exposure on app.coliaty.com.
     constructor(credentials) {
         this.baseUrl = credentials.api_base_url || 'https://customer-api-v1.coliaty.com';
-        this.dashboardBaseUrl = 'https://app.coliaty.com';
         this.apiKeyPublic = credentials.api_public_key || '';
         this.apiKeySecret = credentials.api_secret_key || '';
-        this.login = credentials.api_login || '';
-        this.password = credentials.api_password || '';
-        this.jwtToken = null;
-        this.jwtExpiresAt = null;
     }
 
     getAuthHeader() {
@@ -243,22 +243,6 @@ class ColiatyAdapter {
 
         if (raw.length > MAX) return raw.substring(0, MAX);
         return 'Colis';
-    }
-
-    async getDashboardToken() {
-        if (this.jwtToken && this.jwtExpiresAt && Date.now() < this.jwtExpiresAt - 300000) {
-            return this.jwtToken;
-        }
-        const res = await fetch(`${this.dashboardBaseUrl}/api/v1/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: this.login, password: this.password })
-        });
-        if (!res.ok) throw new Error('Dashboard Login Failed');
-        const data = await res.json();
-        this.jwtToken = data.token;
-        this.jwtExpiresAt = Date.now() + (data.token_expires_in * 1000);
-        return this.jwtToken;
     }
 
     async trackParcel(code, externalId) {
@@ -306,31 +290,6 @@ class ColiatyAdapter {
             history: history,
             _original: result
         };
-    }
-
-    async getPrintUrl(deliveryNoteRef, labelFormat = '10x10') {
-        const token = await this.getDashboardToken();
-        const response = await fetch(`${this.dashboardBaseUrl}/api/v1/delivery-notes/${deliveryNoteRef}/print`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ type: labelFormat })
-        });
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Failed to get print URL: ${errText}`);
-        }
-        const result = await response.json();
-        const url = result.data?.url || result.data?.pdf_url;
-        if (typeof url === 'string') return url;
-
-        // If data itself is the URL string
-        if (typeof result.data === 'string') return result.data;
-
-        console.error('Coliaty print response unexpected format:', JSON.stringify(result));
-        throw new Error('Coliaty print URL not found in response');
     }
 
     async createParcel(parcelData, supabase) {
@@ -425,19 +384,14 @@ class ColiatyAdapter {
     async createDeliveryNote() {
         console.log('📋 Coliaty: Creating pickup note (bon de ramassage)...');
 
-        // Get JWT token for dashboard API
-        const token = await this.getDashboardToken();
-
-        const response = await fetch(`${this.dashboardBaseUrl}/api/v1/pickup-note/create`, {
+        // Public API: empty body, Bearer public:secret. Returns { data: { reference } }.
+        const response = await fetch(`${this.baseUrl}/pickup-note/create`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': this.getAuthHeader(),
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                description: `Bon de ramassage créé via API`,
-                colis_ids: [] // Empty initially, parcels added later
-            })
+            body: JSON.stringify({})
         });
 
         if (!response.ok) {
@@ -463,12 +417,13 @@ class ColiatyAdapter {
         console.log('📋 Coliaty: Adding parcels to pickup note:', deliveryNoteRef);
         console.log('Parcel codes:', parcelCodes);
 
-        const token = await this.getDashboardToken();
-
-        const response = await fetch(`${this.dashboardBaseUrl}/api/v1/pickup-note/add-parcels`, {
+        // Public API: identical body + response to the old dashboard call. Same-phone
+        // DUPLICATEs come back in error_parcels with error_id + error_can_ignore (verified
+        // live on the public surface), so the duplicate-ignore chain is unaffected.
+        const response = await fetch(`${this.baseUrl}/pickup-note/add-parcels`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': this.getAuthHeader(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -486,6 +441,43 @@ class ColiatyAdapter {
         const result = await response.json();
         console.log('Parcels added to pickup note:', JSON.stringify(result, null, 2));
 
+        return {
+            success: result.success,
+            message: result.message,
+            data: result.data
+        };
+    }
+
+    // Remove parcels from a pickup note (public API). Mirrors a local "remove parcel from
+    // delivery note" so Coliaty's note stays in sync. Partial-success response shape matches
+    // add-parcels: { data: { success_parcels, error_parcels } }. A parcel not in the note
+    // comes back in error_parcels ("Le colis n'est pas dans ce bon") — benign for our caller.
+    async removeParcelsFromNote(deliveryNoteRef, parcelCodes) {
+        const codes = (parcelCodes || []).filter(Boolean);
+        if (codes.length === 0) {
+            return { success: true, data: { success_parcels: {}, error_parcels: {} } };
+        }
+        console.log('📋 Coliaty: removing parcels from pickup note:', deliveryNoteRef, codes);
+
+        const response = await fetch(`${this.baseUrl}/pickup-note/remove-parcels`, {
+            method: 'POST',
+            headers: {
+                'Authorization': this.getAuthHeader(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                pickup_note_reference: deliveryNoteRef,
+                parcel_codes: codes
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Coliaty remove-parcels error:', errorText);
+            throw new Error(`Failed to remove parcels from pickup note: ${errorText}`);
+        }
+
+        const result = await response.json();
         return {
             success: result.success,
             message: result.message,
@@ -552,23 +544,37 @@ class ColiatyAdapter {
     }
 
     async deleteNote(reference) {
-        console.log('🗑️ Coliaty: Deleting pickup note:', reference);
-
-        const token = await this.getDashboardToken();
-
-        const response = await fetch(`${this.dashboardBaseUrl}/api/v1/pickup-note/${reference}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+        // The public API has NO pickup-note delete. Best-effort: read the note and remove
+        // all its parcels so the provider note matches our local (authoritative) delete.
+        // The empty note shell may linger on Coliaty's side, but no parcels stay attached.
+        // Never throws — the local delete already succeeded; this is provider cleanup only.
+        console.log('🗑️ Coliaty: emptying pickup note (no public delete):', reference);
+        try {
+            const detailRes = await fetch(`${this.baseUrl}/pickup-note/detail/${reference}`, {
+                method: 'GET',
+                headers: { 'Authorization': this.getAuthHeader(), 'Accept': 'application/json' }
+            });
+            if (!detailRes.ok) {
+                console.error('Coliaty deleteNote: detail fetch failed', detailRes.status);
+                return { success: true };
             }
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Coliaty Error Response:', errorText);
+            const detail = await detailRes.json();
+            const codes = (detail?.data?.parcels || [])
+                .map((p) => p?.parcel_code)
+                .filter(Boolean);
+            if (codes.length > 0) {
+                const rmRes = await fetch(`${this.baseUrl}/pickup-note/remove-parcels`, {
+                    method: 'POST',
+                    headers: { 'Authorization': this.getAuthHeader(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pickup_note_reference: reference, parcel_codes: codes })
+                });
+                if (!rmRes.ok) {
+                    console.error('Coliaty deleteNote: remove-parcels failed', rmRes.status, (await rmRes.text()).substring(0, 200));
+                }
+            }
+        } catch (e) {
+            console.error('Coliaty deleteNote best-effort error:', e?.message || e);
         }
-
         return { success: true };
     }
 
@@ -615,22 +621,17 @@ class ColiatyAdapter {
 
     async getPrintUrl(deliveryNoteRef, labelFormat, printType = 'labels') {
         console.log('🖨️ Coliaty: Getting print PDF for pickup note:', deliveryNoteRef);
-        console.log('Format:', labelFormat);
+        console.log('Format:', labelFormat, '(public API has a single label layout — A4 variant not available)');
         console.log('Print type:', printType, '(ignored - Coliaty returns PDF labels)');
 
-        // Get JWT token for dashboard API
-        const token = await this.getDashboardToken();
-
-        // Determine endpoint based on label format
-        // labelFormat can be 'A4' or '10x10' (default)
-        const endpoint = labelFormat === 'A4'
-            ? `${this.dashboardBaseUrl}/api/v1/pickup-note/${deliveryNoteRef}/generate-labels-a4`
-            : `${this.dashboardBaseUrl}/api/v1/pickup-note/${deliveryNoteRef}/generate-labels`;
+        // Public API: single labels endpoint (no -a4 variant), Bearer public:secret.
+        // Returns the PDF directly (Content-Type application/pdf), same as before.
+        const endpoint = `${this.baseUrl}/pickup-note/${deliveryNoteRef}/generate-labels`;
 
         const response = await fetch(endpoint, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': this.getAuthHeader(),
                 'Accept': 'application/pdf'
             }
         });
@@ -4044,6 +4045,14 @@ Deno.serve(async (req) => {
                 console.log('Parcel codes:', data.parcel_codes);
                 result = await adapter.addParcelsToNote(data.delivery_note_ref, data.parcel_codes, supabase);
                 console.log('Parcels added:', JSON.stringify(result, null, 2));
+                break;
+            case 'remove_parcels_from_delivery_note':
+                console.log('Removing parcels from delivery note:', data.delivery_note_ref, data.parcel_codes);
+                if (typeof adapter.removeParcelsFromNote !== 'function') {
+                    throw new Error(`${type} ne supporte pas remove_parcels_from_delivery_note.`);
+                }
+                result = await adapter.removeParcelsFromNote(data.delivery_note_ref, data.parcel_codes);
+                console.log('Parcels removed:', JSON.stringify(result, null, 2));
                 break;
             case 'ignore_parcel_errors':
                 console.log('Ignoring parcel errors:', data.error_ids);

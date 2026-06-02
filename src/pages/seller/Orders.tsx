@@ -95,6 +95,7 @@ import { OrderStatusHistoryDialog } from '@/components/orders/OrderStatusHistory
 import SellerOrdersListView from '@/components/orders/SellerOrdersListView';
 import QuickStatusChangeModal from '@/components/orders/QuickStatusChangeModal';
 import { DynamicIcon } from '@/lib/renderReactIcon';
+import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
@@ -1041,6 +1042,8 @@ const Orders = () => {
         }
         return fallback;
     };
+    // Shared resolver — master status label+color+icon, raw only as fallback.
+    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
 
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown', activeBusinessId],
@@ -3245,8 +3248,12 @@ const Orders = () => {
                                                 </span>
                                                 {(() => {
                                                     const courierPkg = getCourierPackageStatus(order);
-                                                    const pkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
-                                                    const pkgColor = order.package_status?.color || courierPkg?.color || null;
+                                                    const rawPkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
+                                                    const rawPkgColor = order.package_status?.color || courierPkg?.color || null;
+                                                    const rPkg = rawPkgLabel ? resolvePkgStatus(rawPkgLabel, order.package_status?.label, rawPkgColor) : null;
+                                                    const pkgLabel = rPkg?.label ?? rawPkgLabel;
+                                                    const pkgColor = rPkg?.color ?? rawPkgColor;
+                                                    const pkgIcon = rPkg?.icon ?? order.package_status?.icon ?? null;
                                                     if (!pkgLabel) return null;
                                                     return (
                                                         <span
@@ -3256,7 +3263,7 @@ const Orders = () => {
                                                                 color: pkgColor || 'rgba(0,31,63,0.5)',
                                                             }}
                                                         >
-                                                            <Truck className="w-3 h-3" />
+                                                            {pkgIcon ? <DynamicIcon name={pkgIcon} className="w-3 h-3" /> : <Truck className="w-3 h-3" />}
                                                             {pkgLabel}
                                                         </span>
                                                     );
@@ -4697,8 +4704,12 @@ const Orders = () => {
                                         </span>
                                         {(() => {
                                             const courierPkg = getCourierPackageStatus(selectedOrder);
-                                            const pkgLabel = selectedOrder.package_status?.label || selectedOrder.package_status_label || courierPkg?.label;
-                                            const pkgColor = selectedOrder.package_status?.color || courierPkg?.color || null;
+                                            const rawPkgLabel = selectedOrder.package_status?.label || selectedOrder.package_status_label || courierPkg?.label;
+                                            const rawPkgColor = selectedOrder.package_status?.color || courierPkg?.color || null;
+                                            const rPkg = rawPkgLabel ? resolvePkgStatus(rawPkgLabel, selectedOrder.package_status?.label, rawPkgColor) : null;
+                                            const pkgLabel = rPkg?.label ?? rawPkgLabel;
+                                            const pkgColor = rPkg?.color ?? rawPkgColor;
+                                            const pkgIcon = rPkg?.icon ?? selectedOrder.package_status?.icon ?? null;
                                             if (!pkgLabel) return null;
                                             const color = pkgColor || '#6B6760';
                                             return (
@@ -4710,8 +4721,8 @@ const Orders = () => {
                                                         color,
                                                     }}
                                                 >
-                                                    {selectedOrder.package_status?.icon ? (
-                                                        <DynamicIcon name={selectedOrder.package_status.icon} className="w-3 h-3" style={{ color }} />
+                                                    {pkgIcon ? (
+                                                        <DynamicIcon name={pkgIcon} className="w-3 h-3" style={{ color }} />
                                                     ) : pkgColor ? (
                                                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
                                                     ) : (
@@ -5029,9 +5040,11 @@ const Orders = () => {
                                             <p className="text-[11px] text-ant-mid">Aucun colis créé pour cette commande.</p>
                                         </div>
                                     ) : (() => {
-                                        const pkgMatch = matchPkgColor(orderParcel.status_label || '', orderParcel.status_label || '');
-                                        const pColor = pkgMatch.color;
-                                        const pIcon = pkgMatch.icon;
+                                        // Master status label + color + icon; raw only as fallback.
+                                        const rPkg = resolvePkgStatus(orderParcel.status_label, orderParcel.status_label, orderParcel.status_color);
+                                        const pColor = rPkg?.color || '#94a3b8';
+                                        const pIcon = rPkg?.icon || null;
+                                        const pLabel = rPkg?.label || orderParcel.status_label || 'En attente';
                                         return (
                                         <div className="flex items-center justify-between p-4 bg-ant-ink/[0.02] rounded-2xl border border-ant-ink/[0.05]">
                                             <div className="flex items-center gap-2.5 min-w-0">
@@ -5040,7 +5053,7 @@ const Orders = () => {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <span className="text-[9px] font-bold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ color: pColor, backgroundColor: `${pColor}15` }}>
-                                                        {orderParcel.status_label || 'En attente'}
+                                                        {pLabel}
                                                     </span>
                                                     {orderParcel.tracking_code && (
                                                         <p className="text-[10px] font-mono text-ant-mid truncate mt-0.5">{orderParcel.tracking_code}</p>
