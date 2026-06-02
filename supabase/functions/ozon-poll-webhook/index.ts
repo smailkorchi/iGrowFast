@@ -90,7 +90,11 @@ Deno.serve(async (req: Request) => {
                     continue;
                 }
 
-                await processParcels(activeParcels, providerId, businessId, webhookSecret, supabaseUrl, serviceKey);
+                const results = await processParcels(activeParcels, providerId, businessId, webhookSecret, supabaseUrl, serviceKey);
+                totalChecked += results.checked;
+                totalChanged += results.changed;
+                totalSkipped += results.skipped;
+                totalFailed += results.failed;
                 continue;
             }
 
@@ -169,7 +173,8 @@ async function processParcels(
                     continue;
                 }
 
-                const trackData = await trackRes.json();
+                const wrapped = await trackRes.json();
+                const trackData = wrapped?.data || wrapped; // provider-integration wraps in { success, data }
 
                 // Extract latest status from Ozon response
                 const ozonStatus = trackData?.status || trackData?.statusLabel;

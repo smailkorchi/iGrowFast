@@ -493,6 +493,64 @@ class ColiatyAdapter {
         };
     }
 
+    // Ignore Coliaty "parcel errors" (e.g. same-phone DUPLICATE) raised when adding
+    // parcels to a pickup note. These come back in addParcelsToNote's `error_parcels`
+    // with `error_id` + `error_can_ignore:true`. Endpoint is the CUSTOMER-API surface
+    // (Bearer public:secret), NOT the dashboard JWT one. After ignoring, re-adding the
+    // same parcel code to the note succeeds. Batch endpoint accepts up to 50 ids.
+    async ignoreParcelErrors(errorIds) {
+        const ids = Array.from(
+            new Set((errorIds || []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0))
+        );
+        if (ids.length === 0) {
+            return { success: true, ignored: [], failed: [], message: 'No parcel errors to ignore' };
+        }
+        console.log('🔁 Coliaty: ignoring parcel errors:', ids);
+
+        const ignored = [];
+        const failed = [];
+
+        for (let i = 0; i < ids.length; i += 50) {
+            const chunk = ids.slice(i, i + 50);
+            const response = await fetch(`${this.baseUrl}/parcel/error/ignore/batch`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: this.getAuthHeader()
+                },
+                body: JSON.stringify({ error_ids: chunk })
+            });
+            const text = await response.text();
+            if (!response.ok) {
+                console.error('Coliaty ignore-errors HTTP error:', response.status, text.substring(0, 300));
+                for (const id of chunk) failed.push({ error_id: id, message: `HTTP ${response.status}` });
+                continue;
+            }
+            let json;
+            try {
+                json = JSON.parse(text);
+            } catch (_) {
+                for (const id of chunk) failed.push({ error_id: id, message: 'non-JSON response' });
+                continue;
+            }
+            // Batch shape: { data: { ignored_errors: {"123": {...}}, error_errors: {"124": {...}} } }
+            const okMap = json?.data?.ignored_errors || {};
+            const badMap = json?.data?.error_errors || {};
+            for (const id of chunk) {
+                const key = String(id);
+                if (okMap[key]?.ignored || (json?.success && Object.keys(okMap).length === 0 && Object.keys(badMap).length === 0)) {
+                    ignored.push(id);
+                } else if (badMap[key]) {
+                    failed.push({ error_id: id, message: badMap[key]?.message || 'could not be ignored' });
+                } else {
+                    failed.push({ error_id: id, message: json?.message || 'not acknowledged by Coliaty' });
+                }
+            }
+        }
+
+        return { success: failed.length === 0, ignored, failed };
+    }
+
     async deleteNote(reference) {
         console.log('🗑️ Coliaty: Deleting pickup note:', reference);
 
@@ -3986,6 +4044,14 @@ Deno.serve(async (req) => {
                 console.log('Parcel codes:', data.parcel_codes);
                 result = await adapter.addParcelsToNote(data.delivery_note_ref, data.parcel_codes, supabase);
                 console.log('Parcels added:', JSON.stringify(result, null, 2));
+                break;
+            case 'ignore_parcel_errors':
+                console.log('Ignoring parcel errors:', data.error_ids);
+                if (typeof adapter.ignoreParcelErrors !== 'function') {
+                    throw new Error(`${type} ne supporte pas ignore_parcel_errors.`);
+                }
+                result = await adapter.ignoreParcelErrors(data.error_ids);
+                console.log('Parcel errors ignored:', JSON.stringify(result, null, 2));
                 break;
             case 'finalize_delivery_note':
                 console.log('Finalizing delivery note:', data.delivery_note_ref);

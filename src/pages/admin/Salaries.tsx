@@ -44,6 +44,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useSellerEarnings, type SellerEarnings } from '@/hooks/useSellerEarnings';
+import { useSellerLiveOwed, type SellerLiveOwed } from '@/hooks/useSellerLiveOwed';
 import { useMediaBuyerEarnings, type MediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
@@ -178,127 +179,150 @@ const SellerPayoutsList: React.FC = () => {
     // Partial-payment dialogs — the "Record payment" composer + the history list.
     const [recordOpen, setRecordOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
-    const [activeRow, setActiveRow] = useState<SellerPayout | null>(null);
+    const [activeSeller, setActiveSeller] = useState<SellerLiveOwed | null>(null);
 
-    const { data: payouts = [], isLoading } = useQuery<SellerPayout[]>({
-        queryKey: ['seller-payouts', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('seller_payments')
-                .select('*, seller:users!seller_payments_seller_id_fkey(name, email, avatar_url)')
-                .eq('DigiCom Business', activeBusinessId)
-                .order('created_at', { ascending: false });
-            if (error) {
-                const { data: d2 } = await (supabase as any)
-                    .from('seller_payments')
-                    .select('*, seller:users(name, email, avatar_url)')
-                    .eq('DigiCom Business', activeBusinessId)
-                    .order('created_at', { ascending: false });
-                return (d2 || []) as SellerPayout[];
-            }
-            return (data || []) as SellerPayout[];
-        },
-        enabled: !!activeBusinessId,
-    });
+    // ONE live row per seller — accrued/paid/owed/status computed live from
+    // orders + txns (same source as the seller profile), NOT the frozen monthly
+    // seller_payments snapshots that made the table show stale numbers.
+    const liveOwed = useSellerLiveOwed();
+    const isLoading = liveOwed.isLoading;
 
-    // "Settle in full" — for each non-fully-paid row, insert one txn covering
-    // the remaining balance. The trigger flips status to 'paid' automatically.
-    // Replaces the old direct `status` toggle so all paid amounts are auditable.
+    // Re-fetch live data when a dialog opens so amounts reflect deliveries/payments
+    // that landed after the page loaded.
+    React.useEffect(() => {
+        if (recordOpen || historyOpen) {
+            queryClient.invalidateQueries({ queryKey: ['seller-live-owed-orders'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-live-owed-payments'] });
+        }
+    }, [recordOpen, historyOpen, queryClient]);
+
+    const monthKey = format(new Date(), 'yyyy-MM') + '-01';
+    const invalidateAll = () =>
+        ['seller-payouts', 'seller-payment-txns', 'seller-live-owed-users', 'seller-live-owed-orders', 'seller-live-owed-payments']
+            .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+
+    // Canonical payout row a payment attaches to for a seller:
+    // current-month row -> else first existing row -> else none (insert at pay time).
+    const resolveCanonical = (o: SellerLiveOwed) => {
+        const prows = o.paymentRows;
+        const canonical = prows.find((r) => r.payout_month === monthKey) || prows[0] || null;
+        const otherRowsTotal = prows
+            .filter((r) => r.id !== canonical?.id)
+            .reduce((s, r) => s + r.total_amount, 0);
+        return { canonical, otherRowsTotal };
+    };
+
+    // Pay a seller's full LIVE remaining: top up (or insert) the canonical row so
+    // its total_amount covers live accrued, then insert one txn for the remaining.
+    // Order is load-bearing — only the txn insert fires the balance trigger.
     const settleMutation = useMutation({
-        mutationFn: async (ids: string[]) => {
-            const rows = payouts.filter((p) => ids.includes(p.id));
+        mutationFn: async (sellerIds: string[]) => {
             const { data: { user } } = await supabase.auth.getUser();
-            const inserts = rows
-                .map((p) => {
-                    const remaining = Math.max(0, Number(p.total_amount || 0) - Number(p.paid_amount || 0));
-                    return { p, remaining };
-                })
-                .filter(({ remaining }) => remaining > 0)
-                .map(({ p, remaining }) => ({
-                    seller_payment_id: p.id,
-                    amount: remaining,
-                    paid_at: new Date().toISOString(),
-                    note: 'Settled in full from Salaries bulk action',
-                    created_by: user?.id || null,
+            let inserted = 0;
+            for (const sid of sellerIds) {
+                const o = liveOwed.byId(sid);
+                if (!o || o.remaining <= 0.005) continue;
+                const { canonical, otherRowsTotal } = resolveCanonical(o);
+                const canonicalTotal = Math.max(0, o.accruedTotal - otherRowsTotal);
+                let targetId = canonical?.id || '';
+                if (!targetId) {
+                    const { data: ins, error: insErr } = await (supabase as any)
+                        .from('seller_payments')
+                        .insert({
+                            seller_id: sid, payout_month: monthKey, salary_earned: 0,
+                            commission_earned: canonicalTotal, total_amount: canonicalTotal,
+                            days_present: 0, delivered_orders: 0, status: 'pending',
+                            'DigiCom Business': activeBusinessId,
+                        })
+                        .select('id').single();
+                    if (insErr) throw insErr;
+                    targetId = ins.id;
+                } else if (canonicalTotal > (canonical?.total_amount || 0) + 0.0001) {
+                    const { error: upErr } = await (supabase as any)
+                        .from('seller_payments')
+                        .update({ total_amount: canonicalTotal, commission_earned: canonicalTotal })
+                        .eq('id', targetId);
+                    if (upErr) throw upErr;
+                }
+                const { error: txErr } = await (supabase as any).from('seller_payment_txns').insert({
+                    seller_payment_id: targetId, amount: o.remaining, paid_at: new Date().toISOString(),
+                    note: 'Settled in full from Salaries bulk action', created_by: user?.id || null,
                     'DigiCom Business': activeBusinessId,
-                }));
-            if (!inserts.length) return { inserted: 0 };
-            const { error } = await (supabase as any).from('seller_payment_txns').insert(inserts);
-            if (error) throw error;
-            return { inserted: inserts.length };
+                });
+                if (txErr) throw txErr;
+                inserted++;
+            }
+            return { inserted };
         },
         onSuccess: (res) => {
-            queryClient.invalidateQueries({ queryKey: ['seller-payouts'] });
-            queryClient.invalidateQueries({ queryKey: ['seller-payment-txns'] });
-            toast({ title: 'Settled', description: `${res.inserted} payout(s) marked as fully paid.` });
+            invalidateAll();
+            toast({ title: 'Settled', description: `${res.inserted} seller(s) paid in full.` });
             setSelected([]);
         },
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
 
-    // Reverse-all on a payout: deletes every txn. Trigger drops paid_amount=0
-    // and status='pending' automatically.
+    // Reverse ALL disbursements for a seller (every txn across all their rows).
     const reverseAllMutation = useMutation({
-        mutationFn: async (payoutId: string) => {
+        mutationFn: async (sellerId: string) => {
+            const o = liveOwed.byId(sellerId);
+            const ids = (o?.paymentRows || []).map((r) => r.id);
+            if (!ids.length) return;
             const { error } = await (supabase as any)
                 .from('seller_payment_txns')
                 .delete()
-                .eq('seller_payment_id', payoutId);
+                .in('seller_payment_id', ids);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['seller-payouts'] });
-            queryClient.invalidateQueries({ queryKey: ['seller-payment-txns'] });
-            toast({ title: 'Reversed', description: 'All payments on this payout have been reversed.' });
+            invalidateAll();
+            toast({ title: 'Reversed', description: 'All payments for this seller have been reversed.' });
         },
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
 
+    const rows = liveOwed.all;
+
     const filtered = useMemo(() => {
-        let out = payouts;
-        if (statusFilter !== 'all') out = out.filter((p) => p.status === statusFilter);
+        let out = rows;
+        if (statusFilter !== 'all') out = out.filter((o) => o.status === statusFilter);
         const q = search.toLowerCase().trim();
-        if (q) out = out.filter((p) => (p.seller?.name || '').toLowerCase().includes(q) || (p.seller?.email || '').toLowerCase().includes(q));
-        return out;
-    }, [payouts, statusFilter, search]);
+        if (q) out = out.filter((o) => o.name.toLowerCase().includes(q) || o.email.toLowerCase().includes(q));
+        return [...out].sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
+    }, [rows, statusFilter, search]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
     const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-    // Stats now aggregate `paid_amount` directly (trigger-maintained running sum)
-    // and use `(total_amount − paid_amount)` for the open balance. This survives
-    // partials: a row halfway settled contributes its portion to both buckets.
     const stats = useMemo(() => {
-        let totalPaid = 0;
-        let totalPending = 0;
-        let thisMonth = 0;
-        const startOfThisMonth = startOfMonth(new Date());
-        for (const p of payouts) {
-            const total = Number(p.total_amount || 0);
-            const paid = Number(p.paid_amount || 0);
-            totalPaid += paid;
-            totalPending += Math.max(0, total - paid);
-            if (new Date(p.created_at) >= startOfThisMonth) thisMonth += 1;
+        let totalPaid = 0, totalPending = 0, settled = 0;
+        for (const o of rows) {
+            totalPaid += o.paidAcrossRows;
+            totalPending += o.remaining;
+            if (o.status === 'paid' && o.accruedTotal > 0) settled++;
         }
-        return { totalPaid, totalPending, thisMonth };
-    }, [payouts]);
+        return { totalPaid, totalPending, settled };
+    }, [rows]);
 
     const counts = {
-        all: payouts.length,
-        pending: payouts.filter((p) => p.status === 'pending').length,
-        partial: payouts.filter((p) => p.status === 'partial').length,
-        paid: payouts.filter((p) => p.status === 'paid').length,
+        all: rows.length,
+        pending: rows.filter((o) => o.status === 'pending').length,
+        partial: rows.filter((o) => o.status === 'partial').length,
+        paid: rows.filter((o) => o.status === 'paid').length,
     };
+
+    const activeCanonical = activeSeller ? resolveCanonical(activeSeller) : null;
+    // alias so the shared empty-state copy that references `payouts.length` compiles
+    const payouts = rows;
 
     return (
         <div className="space-y-5">
-            {/* KPI strip */}
+            {/* KPI strip — live per-seller aggregates */}
             <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                 <PayoutKpi label="Total paid" value={fmtCur(stats.totalPaid)} suffix="MAD" accent="green" icon={Wallet} />
-                <PayoutKpi label="Total pending" value={fmtCur(stats.totalPending)} suffix="MAD" accent="orange" icon={Coins} />
-                <PayoutKpi label="This month" value={String(stats.thisMonth)} suffix="payouts" accent="ink" icon={CalendarDays} />
-                <PayoutKpi label="Payouts total" value={String(payouts.length)} suffix="records" accent="ink" icon={Layers} />
+                <PayoutKpi label="Total owed" value={fmtCur(stats.totalPending)} suffix="MAD" accent="orange" icon={Coins} />
+                <PayoutKpi label="Sellers" value={String(rows.length)} suffix="commercials" accent="ink" icon={Layers} />
+                <PayoutKpi label="Fully settled" value={String(stats.settled)} suffix="sellers" accent="ink" icon={CalendarDays} />
             </section>
 
             {/* Toolbar */}
@@ -379,69 +403,67 @@ const SellerPayoutsList: React.FC = () => {
                                 <tr className="border-b border-ant-line">
                                     <th className="pl-5 pr-2 py-4 w-10">
                                         <Checkbox
-                                            checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
+                                            checked={paginated.length > 0 && paginated.every((o) => selected.includes(o.seller_id))}
                                             onCheckedChange={(v) => {
-                                                if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
-                                                else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
+                                                if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((o) => o.seller_id)])));
+                                                else setSelected(selected.filter((id) => !paginated.some((o) => o.seller_id === id)));
                                             }}
                                             className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                         />
                                     </th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Seller</th>
-                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
                                     <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
-                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Days</th>
-                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Total</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Earned</th>
                                     <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Paid</th>
+                                    <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Owed</th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Status</th>
                                     <th className="pl-3 pr-5 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginated.map((p) => {
-                                    const totalAmount = Number(p.total_amount || 0);
-                                    const paidAmount = Number(p.paid_amount || 0);
-                                    const pct = totalAmount > 0 ? Math.min(100, (paidAmount / totalAmount) * 100) : 0;
-                                    const isPaid = p.status === 'paid';
-                                    const isPartial = p.status === 'partial';
-                                    const statusMeta = isPaid
+                                {paginated.map((o) => {
+                                    const pct = o.accruedTotal > 0 ? Math.min(100, (o.paidAcrossRows / o.accruedTotal) * 100) : 0;
+                                    const isPartial = o.status === 'partial';
+                                    const hasOwed = o.remaining > 0.005;
+                                    const statusMeta = o.status === 'paid'
                                         ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
                                         : isPartial
                                           ? { bg: 'bg-ant-blue/10', text: 'text-ant-blue', dot: 'bg-ant-blue' }
                                           : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                     return (
-                                        <tr key={p.id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
+                                        <tr key={o.seller_id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
                                             <td className="pl-5 pr-2 py-4">
                                                 <Checkbox
-                                                    checked={selected.includes(p.id)}
-                                                    onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))}
+                                                    checked={selected.includes(o.seller_id)}
+                                                    disabled={!hasOwed}
+                                                    onCheckedChange={(v) => setSelected(v ? [...selected, o.seller_id] : selected.filter((id) => id !== o.seller_id))}
                                                     className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                                 />
                                             </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <Avatar className="h-9 w-9 shrink-0 rounded-lg border border-ant-line">
-                                                        <AvatarImage src={p.seller?.avatar_url || ''} className="object-cover" />
+                                                        <AvatarImage src={o.avatar_url || ''} className="object-cover" />
                                                         <AvatarFallback className="rounded-lg text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                            {(p.seller?.name || '??').substring(0, 2).toUpperCase()}
+                                                            {(o.name || '??').substring(0, 2).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="min-w-0">
-                                                        <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{p.seller?.name || '—'}</p>
-                                                        <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">{p.seller?.email}</p>
+                                                        <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{o.name}</p>
+                                                        <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">
+                                                            {o.email} · {o.commissionPrice} MAD/{o.commissionBasis === 'per_unit' ? 'unit' : 'order'}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-3 py-4 text-[12px] text-ant-mid whitespace-nowrap">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
-                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
-                                            <td className="px-3 py-4 text-right text-[12px] text-ant-mid tabular-nums">{fmtNum(p.days_present)}</td>
-                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(totalAmount)}>
-                                                {fmtCur(totalAmount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(o.deliveredCount)}</td>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(o.accruedTotal)}>
+                                                {fmtCur(o.accruedTotal)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                             </td>
-                                            <td className="px-3 py-4 text-right" title={`${fmtCurFull(paidAmount)} paid of ${fmtCurFull(totalAmount)}`}>
+                                            <td className="px-3 py-4 text-right" title={`${fmtCurFull(o.paidAcrossRows)} paid of ${fmtCurFull(o.accruedTotal)}`}>
                                                 <div className="flex flex-col items-end gap-1.5">
-                                                    <span className={cn('text-[13px] font-semibold tabular-nums leading-none', paidAmount > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
-                                                        {fmtCur(paidAmount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                    <span className={cn('text-[13px] font-semibold tabular-nums leading-none', o.paidAcrossRows > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
+                                                        {fmtCur(o.paidAcrossRows)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                                     </span>
                                                     {isPartial && (
                                                         <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
@@ -450,10 +472,13 @@ const SellerPayoutsList: React.FC = () => {
                                                     )}
                                                 </div>
                                             </td>
+                                            <td className={cn('px-3 py-4 text-right text-[13px] font-semibold tabular-nums', hasOwed ? 'text-ant-orange' : 'text-ant-mid/50')} title={fmtCurFull(o.remaining)}>
+                                                {fmtCur(o.remaining)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                            </td>
                                             <td className="px-3 py-4">
                                                 <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', statusMeta.bg, statusMeta.text)}>
                                                     <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
-                                                    {p.status}
+                                                    {o.status}
                                                 </span>
                                             </td>
                                             <td className="pl-3 pr-5 py-4 text-right">
@@ -461,19 +486,19 @@ const SellerPayoutsList: React.FC = () => {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => { setActiveRow(p); setHistoryOpen(true); }}
+                                                        onClick={() => { setActiveSeller(o); setHistoryOpen(true); }}
                                                         className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                                                         title="Payment history"
                                                     >
                                                         <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                    {isPaid ? (
+                                                    {!hasOwed && o.paidAcrossRows > 0 ? (
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
                                                             onClick={() => {
-                                                                if (window.confirm('Reverse all payments on this payout?')) {
-                                                                    reverseAllMutation.mutate(p.id);
+                                                                if (window.confirm(`Reverse ALL payments for ${o.name}?`)) {
+                                                                    reverseAllMutation.mutate(o.seller_id);
                                                                 }
                                                             }}
                                                             className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid hover:text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
@@ -483,13 +508,14 @@ const SellerPayoutsList: React.FC = () => {
                                                     ) : (
                                                         <Button
                                                             size="sm"
-                                                            onClick={() => { setActiveRow(p); setRecordOpen(true); }}
+                                                            disabled={!hasOwed}
+                                                            onClick={() => { setActiveSeller(o); setRecordOpen(true); }}
                                                             className={cn(
-                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white',
+                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white disabled:opacity-40 disabled:cursor-not-allowed',
                                                                 isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
                                                             )}
                                                         >
-                                                            {isPartial ? 'Continue' : 'Record'}
+                                                            {isPartial ? 'Continue' : 'Pay'}
                                                         </Button>
                                                     )}
                                                 </div>
@@ -517,26 +543,31 @@ const SellerPayoutsList: React.FC = () => {
                 </div>
             )}
 
-            {activeRow && (
+            {activeSeller && (
                 <>
                     <RecordPaymentDialog
                         open={recordOpen}
                         onOpenChange={setRecordOpen}
                         kind="seller"
-                        payoutId={activeRow.id}
-                        totalAmount={Number(activeRow.total_amount || 0)}
-                        paidAmount={Number(activeRow.paid_amount || 0)}
-                        collaboratorName={activeRow.seller?.name || 'Seller'}
+                        payoutId={activeCanonical?.canonical?.id || ''}
+                        totalAmount={0}
+                        paidAmount={0}
+                        collaboratorName={activeSeller.name}
                         businessId={activeBusinessId}
+                        sellerAccruedTotal={activeSeller.accruedTotal}
+                        sellerPaidAcrossRows={activeSeller.paidAcrossRows}
+                        sellerId={activeSeller.seller_id}
+                        sellerCanonicalRowTotal={activeCanonical?.canonical?.total_amount || 0}
+                        sellerOtherRowsTotal={activeCanonical?.otherRowsTotal || 0}
                     />
                     <PaymentHistoryDialog
                         open={historyOpen}
                         onOpenChange={setHistoryOpen}
                         kind="seller"
-                        payoutId={activeRow.id}
-                        totalAmount={Number(activeRow.total_amount || 0)}
-                        paidAmount={Number(activeRow.paid_amount || 0)}
-                        collaboratorName={activeRow.seller?.name || 'Seller'}
+                        payoutId={activeCanonical?.canonical?.id || ''}
+                        totalAmount={activeSeller.accruedTotal}
+                        paidAmount={activeSeller.paidAcrossRows}
+                        collaboratorName={activeSeller.name}
                         businessId={activeBusinessId}
                         onAddPayment={() => { setHistoryOpen(false); setRecordOpen(true); }}
                     />

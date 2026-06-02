@@ -171,7 +171,8 @@ async function processParcels(
                     continue;
                 }
 
-                const trackData = await trackRes.json();
+                const wrapped = await trackRes.json();
+                const trackData = wrapped?.data || wrapped; // provider-integration wraps in { success, data }
 
                 // QL adapter returns { status: <raw QL code>, statusLabel: <French label>, ... }
                 const qlStatus = trackData?.status || trackData?.statusLabel;

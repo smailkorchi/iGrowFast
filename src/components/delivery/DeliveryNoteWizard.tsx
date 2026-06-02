@@ -31,6 +31,7 @@ import {
     Download,
     Layers,
     ListChecks,
+    AlertTriangle,
     X
 } from 'lucide-react';
 
@@ -215,6 +216,33 @@ type CreatedParcelEntry = {
 
 type DeliveryNoteEntry = { note: { id: string; reference: string }; providerId: string; isNew: boolean };
 
+/**
+ * A Coliaty same-phone DUPLICATE error raised when adding a parcel to the pickup note.
+ * Carries everything needed to either ignore it (Coliaty `error_id`) and re-add the
+ * parcel, or skip it (clean up the orphan `parcelId`). Note context lets us re-add to
+ * the exact same delivery note the first attempt targeted.
+ */
+type DuplicateEntry = {
+    providerId: string;
+    errorId: number;
+    code: string;
+    message: string;
+    order: WizardOrder | null;
+    parcelId: string | null;
+    deliveryNoteId: string;
+    deliveryNoteRef: string;
+    externalId: string | null;
+};
+
+/** Per-provider result of an add-parcels attempt, surfacing Coliaty duplicates. */
+type AddNoteResult = DeliveryNoteEntry & {
+    deliveryNoteId: string;
+    deliveryNoteRef: string;
+    externalId: string | null;
+    duplicates: { error_id: number; code: string; message: string }[];
+    otherErrors: { code: string; message: string }[];
+};
+
 export function orderMatchesSellerProducts(order: OrderForSellerProductsMatch, userId: string, productSet: Set<string>): boolean {
     if (order.seller_id !== userId && order.assign_id !== userId) return false;
     const items = order.items;
@@ -231,11 +259,15 @@ interface DeliveryNoteWizardProps {
 }
 
 export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockProviderId, sellerScope }) => {
-    const [step, setStep] = useState<'provider' | 'select-orders' | 'creating' | 'review' | 'finalizing'>('provider');
+    const [step, setStep] = useState<'provider' | 'select-orders' | 'creating' | 'review' | 'duplicates' | 'finalizing'>('provider');
     const [selectedProviderId, setSelectedProviderId] = useState<string>(lockProviderId || '');
     const [providerSearch, setProviderSearch] = useState('');
     const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>([]);
     const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>([]);
+    // Coliaty same-phone duplicates surfaced at the add-to-pickup-note step, plus the
+    // subset (by Coliaty error_id) the user chose to ignore/keep.
+    const [duplicateParcels, setDuplicateParcels] = useState<DuplicateEntry[]>([]);
+    const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<Set<number>>(new Set());
     const [currentProvider, setCurrentProvider] = useState<string>('');
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
     // Free-text search inside the Select-orders step. Matches any visible
@@ -753,31 +785,73 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             console.log('✅ Edge Function Success. Updating local DB...');
 
+            const addJson = await addResponse.json().catch(() => ({} as Record<string, unknown>));
+
             // Sendit-specific: on first add, the adapter upgrades the draft reference
             // (SENDIT-DRAFT-...) to the real pickup code (PXXXXXXX). Sync our local record.
-            try {
-                const addJson = await addResponse.clone().json();
-                const newRef = addJson?.data?.reference as string | undefined;
-                const prevRef = addJson?.data?.previous_reference as string | undefined;
-                if (addJson?.data?.changed_reference && newRef && prevRef && newRef !== prevRef) {
-                    console.log(`🔄 Sendit reference upgraded: ${prevRef} → ${newRef}`);
-                    await supabase
-                        .from('company_delivery_notes')
-                        .update({ reference: newRef, external_id: newRef })
-                        .eq('id', deliveryNoteId);
-                    deliveryNoteRef = newRef;
-                    externalId = newRef;
+            const sendit = (addJson as { data?: Record<string, unknown> })?.data as Record<string, unknown> | undefined;
+            const newRef = sendit?.reference as string | undefined;
+            const prevRef = sendit?.previous_reference as string | undefined;
+            if (sendit?.changed_reference && newRef && prevRef && newRef !== prevRef) {
+                console.log(`🔄 Sendit reference upgraded: ${prevRef} → ${newRef}`);
+                await supabase
+                    .from('company_delivery_notes')
+                    .update({ reference: newRef, external_id: newRef })
+                    .eq('id', deliveryNoteId);
+                deliveryNoteRef = newRef;
+                externalId = newRef;
+            }
+
+            // Coliaty duplicate detection. The edge wraps the adapter result as
+            // { data: { data: { success_parcels, error_parcels } } }. Only Coliaty
+            // returns this shape; every other provider falls through to the legacy
+            // "link everything we asked for" behaviour (acceptedCodes = all codes).
+            const addData = (sendit?.data as Record<string, unknown>) || {};
+            const okParcels = addData.success_parcels;
+            const errParcels = addData.error_parcels;
+            const isColiatyShape = okParcels !== undefined || errParcels !== undefined;
+
+            const acceptedCodes = new Set<string>();
+            const duplicates: { error_id: number; code: string; message: string }[] = [];
+            const otherErrors: { code: string; message: string }[] = [];
+
+            if (!isColiatyShape) {
+                // Legacy / non-Coliaty providers: behave exactly as before.
+                for (const code of parcelCodes) acceptedCodes.add(code);
+            } else {
+                if (okParcels && !Array.isArray(okParcels)) {
+                    for (const code of Object.keys(okParcels as Record<string, unknown>)) acceptedCodes.add(code);
+                } else if (Array.isArray(okParcels)) {
+                    for (const code of okParcels as string[]) acceptedCodes.add(code);
                 }
-            } catch (_) { /* non-Sendit responses have no body to parse here */ }
+                if (errParcels && !Array.isArray(errParcels)) {
+                    for (const [code, raw] of Object.entries(errParcels as Record<string, Record<string, unknown>>)) {
+                        const info = raw || {};
+                        const errorId = Number(info.error_id);
+                        const canIgnore = info.error_can_ignore === true && Number.isFinite(errorId) && errorId > 0;
+                        const msg = String(info.error_message || info.message || '');
+                        if (canIgnore) {
+                            duplicates.push({ error_id: errorId, code, message: msg || 'Colis en double' });
+                        } else if (
+                            // "Le colis est déjà dans un bon de ramassage" for THIS note → already added.
+                            /d[ée]j[àa] dans un bon/i.test(msg) &&
+                            String(info.pickup_note_reference || '') === String(deliveryNoteRef)
+                        ) {
+                            acceptedCodes.add(code);
+                        } else {
+                            otherErrors.push({ code, message: msg || 'Erreur' });
+                        }
+                    }
+                }
+            }
 
-            // 3. Update database records
-            // Update parcels with delivery note ID
+            // 3. Link only the parcels Coliaty actually accepted into the note.
             const parcelIds = createdParcels
-                .filter(p => parcelCodes.includes(p.tracking_code))
+                .filter(p => p.tracking_code && acceptedCodes.has(p.tracking_code))
                 .map(p => p.parcel?.id)
-                .filter(Boolean);
+                .filter(Boolean) as string[];
 
-            console.log('🆔 Parcel IDs to link:', parcelIds);
+            console.log('🆔 Accepted parcel IDs to link:', parcelIds, '| duplicates:', duplicates.length, '| otherErrors:', otherErrors.length);
 
             if (parcelIds.length > 0) {
                 const { error: linkError } = await supabase
@@ -802,7 +876,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .update({ parcel_count: count || 0 })
                 .eq('id', deliveryNoteId);
 
-            return { note: { id: deliveryNoteId, reference: deliveryNoteRef }, providerId, isNew: !existingNote };
+            return {
+                note: { id: deliveryNoteId, reference: deliveryNoteRef },
+                providerId,
+                isNew: !existingNote,
+                deliveryNoteId,
+                deliveryNoteRef,
+                externalId,
+                duplicates,
+                otherErrors,
+            } as AddNoteResult;
         },
         onSuccess: (result) => {
             setDeliveryNotes(prev => [...prev, result]);
@@ -862,6 +945,21 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setStep('review');
     };
 
+    const finalizeAndClose = (noteCount: number, extra?: string) => {
+        queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+        queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
+
+        toast({
+            title: "Success!",
+            description: `Created ${noteCount} delivery note(s) and updated order statuses${extra ? ` · ${extra}` : ''}`
+        });
+
+        onOpenChange(false);
+        resetWizard();
+    };
+
     const handleConfirmDeliveryNotes = async () => {
         setStep('finalizing');
 
@@ -888,6 +986,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
         console.log('📦 Starting delivery note confirmation for:', parcelsByProvider);
 
+        const collectedDuplicates: DuplicateEntry[] = [];
+
         for (const [pId, codes] of Object.entries(parcelsByProvider)) {
             const providerId = pId as string;
             const parcelCodes = codes as string[];
@@ -896,7 +996,30 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             console.log(`🚀 Finalizing note for provider ${providerId} with ${parcelCodes.length} parcels`);
             try {
-                await createDeliveryNoteMutation.mutateAsync({ providerId, parcelCodes });
+                const res = (await createDeliveryNoteMutation.mutateAsync({ providerId, parcelCodes })) as AddNoteResult;
+
+                for (const d of res.duplicates || []) {
+                    const entry = createdParcels.find(p => p.tracking_code === d.code);
+                    collectedDuplicates.push({
+                        providerId,
+                        errorId: d.error_id,
+                        code: d.code,
+                        message: d.message,
+                        order: entry?.order ?? null,
+                        parcelId: entry?.parcel?.id ?? null,
+                        deliveryNoteId: res.deliveryNoteId,
+                        deliveryNoteRef: res.deliveryNoteRef,
+                        externalId: res.externalId,
+                    });
+                }
+
+                if (res.otherErrors?.length) {
+                    toast({
+                        title: "Some parcels were rejected",
+                        description: `${res.otherErrors.length} parcel(s) could not be added: ${res.otherErrors.map(e => e.message).slice(0, 2).join('; ')}`,
+                        variant: "destructive"
+                    });
+                }
             } catch (err) {
                 console.error(`❌ Confirmation failed for provider ${providerId}:`, err);
                 toast({
@@ -907,18 +1030,130 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
         }
 
-        queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
-        queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
+        // Coliaty surfaced same-phone duplicates → let the user decide before closing.
+        if (collectedDuplicates.length > 0) {
+            setDuplicateParcels(collectedDuplicates);
+            setSelectedDuplicateIds(new Set(collectedDuplicates.map(d => d.errorId)));
+            setStep('duplicates');
+            return;
+        }
 
-        toast({
-            title: "Success!",
-            description: `Created ${Object.keys(parcelsByProvider).length} delivery note(s) and updated order statuses`
-        });
+        finalizeAndClose(Object.keys(parcelsByProvider).length);
+    };
 
-        onOpenChange(false);
-        resetWizard();
+    // Apply the user's duplicate decision: ignore (keep) the selected parcels via
+    // Coliaty's error-ignore endpoint then re-add them to their note; skip the rest
+    // and clean up their orphan company_parcels rows so our DB never claims a parcel
+    // is in a note when Coliaty rejected it.
+    const handleApplyDuplicateDecision = async () => {
+        setStep('finalizing');
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            toast({ title: "Not authenticated", description: "Please log in again.", variant: "destructive" });
+            setStep('duplicates');
+            return;
+        }
+
+        const postEdge = (action: string, providerId: string, payload: Record<string, unknown>) =>
+            fetch(EDGE_FUNCTION_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                body: JSON.stringify({ action, provider_id: providerId, data: payload })
+            });
+
+        const toIgnore = duplicateParcels.filter(d => selectedDuplicateIds.has(d.errorId));
+        const toSkip = duplicateParcels.filter(d => !selectedDuplicateIds.has(d.errorId));
+
+        // Group the ignore set by provider (note context is identical within a provider).
+        const byProvider = new Map<string, DuplicateEntry[]>();
+        for (const d of toIgnore) {
+            if (!byProvider.has(d.providerId)) byProvider.set(d.providerId, []);
+            byProvider.get(d.providerId)!.push(d);
+        }
+
+        let ignoredCount = 0;
+        for (const [providerId, items] of byProvider.entries()) {
+            const ctx = items[0];
+            try {
+                // 1. Acknowledge the duplicate errors on Coliaty's side.
+                const ignoreRes = await postEdge('ignore_parcel_errors', providerId, {
+                    error_ids: items.map(i => i.errorId),
+                });
+                if (!ignoreRes.ok) {
+                    const e = await ignoreRes.json().catch(() => ({}));
+                    throw new Error(e.error || 'ignore_parcel_errors failed');
+                }
+
+                // 2. Re-add the now-accepted parcels to the same delivery note.
+                const addRes = await postEdge('add_parcels_to_delivery_note', providerId, {
+                    delivery_note_ref: ctx.deliveryNoteRef,
+                    delivery_note_id: ctx.deliveryNoteId,
+                    external_id: ctx.externalId,
+                    parcel_codes: items.map(i => i.code),
+                });
+                const addJson = await addRes.json().catch(() => ({}));
+                const addData = (addJson?.data?.data as Record<string, unknown>) || {};
+                const stillErr = addData.error_parcels;
+                const stillErrCodes = stillErr && !Array.isArray(stillErr)
+                    ? new Set(Object.keys(stillErr as Record<string, unknown>))
+                    : new Set<string>();
+
+                // 3. Link the parcels that made it in this time.
+                const linkIds = items
+                    .filter(i => !stillErrCodes.has(i.code) && i.parcelId)
+                    .map(i => i.parcelId) as string[];
+                if (linkIds.length > 0) {
+                    await supabase
+                        .from('company_parcels')
+                        .update({ company_delivery_note_id: ctx.deliveryNoteId })
+                        .in('id', linkIds);
+                }
+                ignoredCount += linkIds.length;
+
+                if (stillErrCodes.size > 0) {
+                    toast({
+                        title: "Still rejected after ignore",
+                        description: `${stillErrCodes.size} parcel(s) were not accepted even after ignoring.`,
+                        variant: "destructive"
+                    });
+                }
+
+                // Refresh the note's parcel count.
+                const { count } = await supabase
+                    .from('company_parcels')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('company_delivery_note_id', ctx.deliveryNoteId);
+                await supabase
+                    .from('company_delivery_notes')
+                    .update({ parcel_count: count || 0 })
+                    .eq('id', ctx.deliveryNoteId);
+            } catch (err) {
+                console.error(`❌ Ignore/re-add failed for provider ${providerId}:`, err);
+                toast({
+                    title: "Could not keep duplicates",
+                    description: (err as Error).message,
+                    variant: "destructive"
+                });
+            }
+        }
+
+        // Skipped duplicates: drop the orphan parcel rows (they are not in any note).
+        const skipIds = toSkip.map(d => d.parcelId).filter(Boolean) as string[];
+        if (skipIds.length > 0) {
+            await supabase
+                .from('company_parcels')
+                .delete()
+                .in('id', skipIds)
+                .is('company_delivery_note_id', null);
+        }
+
+        const notesTouched = new Set(duplicateParcels.map(d => d.deliveryNoteId)).size;
+        const extra = [
+            ignoredCount ? `${ignoredCount} duplicate(s) kept` : '',
+            toSkip.length ? `${toSkip.length} skipped` : '',
+        ].filter(Boolean).join(', ');
+        finalizeAndClose(Math.max(notesTouched, deliveryNotes.length), extra);
     };
 
     const resetWizard = () => {
@@ -926,10 +1161,27 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setSelectedProviderId('');
         setCreatedParcels([]);
         setDeliveryNotes([]);
+        setDuplicateParcels([]);
+        setSelectedDuplicateIds(new Set());
         setCurrentProvider('');
         setSelectedOrderIds(new Set());
         setOrderSearch('');
     };
+
+    // The wizard stays MOUNTED across opens (the parent always renders it), and it only
+    // resets state on a clean finish — not when the user closes via X / Escape / outside
+    // click, nor on the duplicates "Back". Without this, an abandoned run leaves stale
+    // `step`, `createdParcels`, `duplicateParcels` behind; the next open then re-submits
+    // already-noted parcels, which Coliaty answers with the benign "déjà dans un bon de
+    // ramassage" instead of a same-phone DUPLICATE — so the ignore step silently never
+    // shows again ("works once, then stops"). Reset on every open to guarantee a clean run.
+    React.useEffect(() => {
+        if (open) {
+            resetWizard();
+            if (lockProviderId) setSelectedProviderId(lockProviderId);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const filteredProviders = useMemo(() => {
         if (!availableProviders) return [];
@@ -1327,6 +1579,96 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         </div>
                     </>
                 )}
+
+                {step === 'duplicates' && (() => {
+                    const total = duplicateParcels.length;
+                    const selectedCount = duplicateParcels.filter(d => selectedDuplicateIds.has(d.errorId)).length;
+                    const allSelected = total > 0 && selectedCount === total;
+                    const toggle = (id: number) => setSelectedDuplicateIds(prev => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id); else next.add(id);
+                        return next;
+                    });
+                    const primaryLabel = selectedCount === 0
+                        ? 'Skip all & finish'
+                        : selectedCount === total
+                            ? `Keep all ${total} & finish`
+                            : `Keep ${selectedCount} & finish`;
+                    return (
+                        <>
+                            <div className="bg-ant-ink p-8 text-white relative">
+                                <DialogHeader>
+                                    <DialogTitle className="text-2xl font-semibold text-white flex items-center gap-3">
+                                        <AlertTriangle className="w-7 h-7 text-ant-orange" />
+                                        Duplicate Parcels
+                                    </DialogTitle>
+                                    <DialogDescription className="text-white/60 font-medium">
+                                        Coliaty flagged {total} parcel{total > 1 ? 's' : ''} as duplicate{total > 1 ? 's' : ''} (a parcel with the same phone already exists). Choose which to keep — kept parcels are added to the delivery note; the rest are skipped.
+                                    </DialogDescription>
+                                </DialogHeader>
+                            </div>
+
+                            <div className="p-8 space-y-4">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="text-sm text-ant-muted">
+                                        {selectedCount} of {total} selected to keep
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedDuplicateIds(allSelected ? new Set() : new Set(duplicateParcels.map(d => d.errorId)))}
+                                        className="flex items-center gap-2 text-sm font-bold text-ant-ink hover:text-ant-ink/70 transition-colors shrink-0 px-3 h-10 rounded-xl border border-slate-200 cursor-pointer"
+                                    >
+                                        <Checkbox checked={allSelected} className="pointer-events-none" />
+                                        {allSelected ? 'Deselect all' : `Select all · ${total}`}
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                    {duplicateParcels.map((d) => {
+                                        const checked = selectedDuplicateIds.has(d.errorId);
+                                        return (
+                                            <button
+                                                key={d.errorId}
+                                                type="button"
+                                                onClick={() => toggle(d.errorId)}
+                                                className={`w-full p-3 rounded-xl border transition-colors duration-200 text-left flex items-center gap-3 cursor-pointer ${
+                                                    checked ? 'border-ant-orange/40 bg-ant-orange/5' : 'border-slate-200 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <Checkbox checked={checked} className="pointer-events-none" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-bold text-sm text-ant-ink truncate">{d.order?.name || d.code}</div>
+                                                    <div className="text-xs text-ant-muted mt-0.5 truncate">
+                                                        {d.order?.phone || '—'}
+                                                        {d.order?.city?.name ? ` · ${d.order.city.name}` : ''}
+                                                        {` · ${d.code}`}
+                                                    </div>
+                                                    <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-ant-orange/10 px-2 py-1 text-[11px] font-medium text-ant-orange max-w-full">
+                                                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                                                        <span className="truncate">{d.message}</span>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <DialogFooter>
+                                    <Button variant="ghost" onClick={() => setStep('review')} className="cursor-pointer">
+                                        Back
+                                    </Button>
+                                    <Button
+                                        onClick={handleApplyDuplicateDecision}
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl cursor-pointer"
+                                    >
+                                        {selectedCount > 0 && <CheckCircle2 className="w-4 h-4 mr-2" />}
+                                        {primaryLabel}
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {step === 'finalizing' && (
                     <div className="p-16 text-center space-y-6">

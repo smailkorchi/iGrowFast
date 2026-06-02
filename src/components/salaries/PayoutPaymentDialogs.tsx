@@ -41,7 +41,15 @@ const fkColumn = (k: PayoutKind) =>
 
 const queryInvalidationKeys = (k: PayoutKind) =>
     k === 'seller'
-        ? ['seller-payouts', 'seller-payouts-stats', 'seller-payment-txns']
+        ? [
+              'seller-payouts',
+              'seller-payouts-stats',
+              'seller-payment-txns',
+              // live-owed hook keys so the dialog + list + profile re-derive after pay
+              'seller-live-owed-users',
+              'seller-live-owed-orders',
+              'seller-live-owed-payments',
+          ]
         : ['mb-payouts', 'mb-payouts-stats', 'mediabuyer-payment-txns'];
 
 // ── Record Payment Dialog ────────────────────────────────────────────────────
@@ -49,12 +57,21 @@ interface RecordPaymentDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     kind: PayoutKind;
-    payoutId: string;
+    payoutId: string;            // may be '' for seller when no canonical row exists yet
     totalAmount: number;
     paidAmount: number;
     collaboratorName: string;
     businessId: string | null;
     currency?: string;
+    // ── seller-only LIVE owed (Option 1). When kind==='seller' and
+    //    sellerAccruedTotal is provided, the dialog displays/pays against live
+    //    owed and lazily tops up the canonical payout row at pay time so the
+    //    full accrued-but-unbilled commission is payable in one action.
+    sellerAccruedTotal?: number;       // live accrued cash (matches the seller profile)
+    sellerPaidAcrossRows?: number;     // Σ paid_amount across ALL the seller's rows
+    sellerId?: string;                 // to INSERT a catch-up row when none exists
+    sellerCanonicalRowTotal?: number;  // current total_amount of the canonical row (0 if none)
+    sellerOtherRowsTotal?: number;     // Σ total_amount of the seller's OTHER rows
 }
 
 export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
@@ -67,11 +84,21 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     collaboratorName,
     businessId,
     currency = 'MAD',
+    sellerAccruedTotal,
+    sellerPaidAcrossRows,
+    sellerId,
+    sellerCanonicalRowTotal,
+    sellerOtherRowsTotal,
 }) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    const remaining = Math.max(0, Number(totalAmount || 0) - Number(paidAmount || 0));
+    // Seller live-owed mode: display + pay against live accrued − paid, not the
+    // frozen row's total_amount. mediabuyer keeps the row-based remaining.
+    const isSellerLive = kind === 'seller' && sellerAccruedTotal != null;
+    const displayTotal = isSellerLive ? Number(sellerAccruedTotal || 0) : Number(totalAmount || 0);
+    const displayPaid = isSellerLive ? Number(sellerPaidAcrossRows || 0) : Number(paidAmount || 0);
+    const remaining = Math.max(0, displayTotal - displayPaid);
     const [amount, setAmount] = useState<string>('');
     const [paidAt, setPaidAt] = useState<string>('');
     const [note, setNote] = useState('');
@@ -92,15 +119,75 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     const mutation = useMutation({
         mutationFn: async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            const { error } = await (supabase as any).from(txnTable(kind)).insert({
-                [fkColumn(kind)]: payoutId,
+
+            // ── Media buyer (and any non-seller-live caller): unchanged single
+            //    txn insert against its own frozen row. ──
+            if (!isSellerLive) {
+                const { error } = await (supabase as any).from(txnTable(kind)).insert({
+                    [fkColumn(kind)]: payoutId,
+                    amount: numericAmount,
+                    paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
+                    note: note.trim() || null,
+                    created_by: user?.id || null,
+                    'DigiCom Business': businessId,
+                });
+                if (error) throw error;
+                return;
+            }
+
+            // ── Seller live-owed (Option 1): lazy top-up THEN txn. ──
+            // canonicalTotal = live accrued − Σ total_amount of OTHER rows, so the
+            // canonical row alone carries the full bill without double-billing
+            // siblings. Never lower an already-higher total (price-cut safety).
+            const canonicalTotal = Math.max(
+                0,
+                Number(sellerAccruedTotal || 0) - Number(sellerOtherRowsTotal || 0),
+            );
+
+            let targetId = payoutId;
+
+            if (!targetId) {
+                // No canonical row — create the catch-up row first, capture its id.
+                const monthKey = format(new Date(), 'yyyy-MM') + '-01';
+                const { data: ins, error: insErr } = await (supabase as any)
+                    .from('seller_payments')
+                    .insert({
+                        seller_id: sellerId,
+                        payout_month: monthKey,
+                        salary_earned: 0,
+                        commission_earned: canonicalTotal,
+                        total_amount: canonicalTotal,
+                        days_present: 0,
+                        delivered_orders: 0,
+                        status: 'pending',
+                        'DigiCom Business': businessId,
+                    })
+                    .select('id')
+                    .single();
+                if (insErr) throw insErr;
+                targetId = ins.id;
+            } else if (canonicalTotal > Number(sellerCanonicalRowTotal || 0) + 0.0001) {
+                // STEP 1 (load-bearing ORDER): bump total_amount BEFORE the txn so
+                // refresh_seller_payment_balance recomputes status against the new
+                // total. A bare total_amount UPDATE does NOT fire the trigger; the
+                // txn insert below is what re-derives paid_amount/status.
+                const { error: upErr } = await (supabase as any)
+                    .from('seller_payments')
+                    .update({ total_amount: canonicalTotal, commission_earned: canonicalTotal })
+                    .eq('id', targetId);
+                if (upErr) throw upErr;
+            }
+
+            // STEP 2: the disbursement txn — THIS fires the balance trigger.
+            const { error: txErr } = await (supabase as any).from('seller_payment_txns').insert({
+                seller_payment_id: targetId,
                 amount: numericAmount,
                 paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
                 note: note.trim() || null,
                 created_by: user?.id || null,
                 'DigiCom Business': businessId,
             });
-            if (error) throw error;
+            if (txErr) throw txErr;
         },
         onSuccess: () => {
             queryInvalidationKeys(kind).forEach((key) => {
@@ -142,13 +229,13 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                         <div className="rounded-lg border border-ant-line bg-ant-light/50 px-3 py-2">
                             <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">Total earned</p>
                             <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums mt-0.5">
-                                {fmtCurFull(totalAmount, currency)}
+                                {fmtCurFull(displayTotal, currency)}
                             </p>
                         </div>
                         <div className="rounded-lg border border-ant-green/25 bg-ant-green-soft/40 px-3 py-2">
                             <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-green">Already paid</p>
                             <p className="font-display text-[14px] font-semibold text-ant-green tabular-nums mt-0.5">
-                                {fmtCurFull(paidAmount, currency)}
+                                {fmtCurFull(displayPaid, currency)}
                             </p>
                         </div>
                         <div className="rounded-lg border border-ant-orange/25 bg-ant-orange-soft/30 px-3 py-2">
