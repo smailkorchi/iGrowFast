@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';
 import { format } from 'date-fns';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
 
@@ -76,6 +77,10 @@ const ReturnNote = () => {
     // every order in the chosen destination group when the wizard moves from
     // step 0 → step 1; user can uncheck any line they don't want in the note.
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    // True once the user manually changes the selection (click / select-all). Drives the
+    // import behaviour: a fresh (untouched) import replaces the selection; once the user
+    // has manually selected, an import is added on top.
+    const [selectionTouched, setSelectionTouched] = useState(false);
     // Free-text search inside the Select-orders step. Matches against every
     // piece of information we can scrape off the order (name, phone, tracking,
     // product names, tracking). Reset alongside the rest of the wizard state.
@@ -1186,7 +1191,10 @@ const ReturnNote = () => {
                         })}
                     </div>
 
-                    <div className="p-6">
+                    {/* min-w-0: this is a CSS-grid item (DialogContent is `grid`); without it
+                        the item's default min-width:auto can override max-w-3xl and stretch the
+                        whole modal wide when long order/product names report a big min-content. */}
+                    <div className="p-6 min-w-0">
                         {wizardStep === 0 && (
                             <div className="space-y-3">
                                 {activeGroups.length === 0 ? (
@@ -1249,6 +1257,7 @@ const ReturnNote = () => {
                                             if (selectedGroup) {
                                                 setSelectedOrderIds(new Set(selectedGroup.orders.map(o => o.id)));
                                             }
+                                            setSelectionTouched(false);
                                             setWizardStep(1);
                                         }}
                                         className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light font-medium text-[12px] gap-1.5 disabled:opacity-50"
@@ -1299,6 +1308,24 @@ const ReturnNote = () => {
                                         </div>
                                     </div>
 
+                                    <OrderTrackingImport
+                                        orders={selectedGroup.orders.map(o => ({
+                                            id: o.id,
+                                            trackingCodes: [
+                                                o.tracking_number,
+                                                ...((o.parcels || []).map(p => p.tracking_code)),
+                                                ...((o.courier_parcels || []).map(p => p.tracking_code)),
+                                            ],
+                                        }))}
+                                        totalAvailable={selectedGroup.orders.length}
+                                        selectedCount={selectedOrderIds.size}
+                                        onApply={(ids) => {
+                                            // Untouched (default) selection → replace with the import;
+                                            // a manual selection already exists → add the import on top.
+                                            setSelectedOrderIds(prev => selectionTouched ? new Set([...prev, ...ids]) : new Set(ids));
+                                        }}
+                                    />
+
                                     <div className="flex items-center gap-2">
                                         <div className="relative flex-1">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
@@ -1322,6 +1349,7 @@ const ReturnNote = () => {
                                         <button
                                             type="button"
                                             onClick={() => {
+                                                setSelectionTouched(true);
                                                 setSelectedOrderIds(allSelected
                                                     ? new Set()
                                                     : new Set(selectedGroup.orders.map(o => o.id)));
@@ -1359,6 +1387,7 @@ const ReturnNote = () => {
                                                     key={o.id}
                                                     type="button"
                                                     onClick={() => {
+                                                        setSelectionTouched(true);
                                                         setSelectedOrderIds(prev => {
                                                             const next = new Set(prev);
                                                             if (next.has(o.id)) next.delete(o.id);

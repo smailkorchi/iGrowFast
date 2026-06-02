@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';
 import { format } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
@@ -68,6 +69,8 @@ const Payments = () => {
     const [wizardStep, setWizardStep] = useState(0);
     const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    // Untouched import replaces the selection; once manually selected, an import adds.
+    const [selectionTouched, setSelectionTouched] = useState(false);
     // Free-text search inside the wizard's Select-orders step. Matches against
     // every bit of info on the order — name, phone, tracking, product names,
     // price. Reset alongside the rest of the wizard state.
@@ -1001,6 +1004,7 @@ const Payments = () => {
                                         onClick={() => {
                                             const group = activeGroups.find(g => g.target_id === selectedTarget);
                                             if (group) setSelectedOrderIds(new Set(group.orders.map(o => o.id)));
+                                            setSelectionTouched(false);
                                             setWizardStep(1);
                                         }}
                                         className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light font-medium text-[12px] gap-1.5 disabled:opacity-50"
@@ -1053,6 +1057,7 @@ const Payments = () => {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => {
+                                                setSelectionTouched(true);
                                                 if (allSelected) setSelectedOrderIds(new Set());
                                                 else setSelectedOrderIds(new Set(allOrders.map((o) => o.id)));
                                             }}
@@ -1061,6 +1066,22 @@ const Payments = () => {
                                             {allSelected ? 'Deselect all' : `Select all · ${allOrders.length}`}
                                         </Button>
                                     </div>
+
+                                    <OrderTrackingImport
+                                        orders={allOrders.map((o) => ({
+                                            id: o.id,
+                                            trackingCodes: [
+                                                (o as { tracking_number?: string | null }).tracking_number,
+                                                ...((o.parcels || []).map(p => p.tracking_code)),
+                                                ...((o.courier_parcels || []).map(p => p.tracking_code)),
+                                            ],
+                                        }))}
+                                        totalAvailable={allOrders.length}
+                                        selectedCount={selectedOrderIds.size}
+                                        onApply={(ids) => {
+                                            setSelectedOrderIds(prev => selectionTouched ? new Set([...prev, ...ids]) : new Set(ids));
+                                        }}
+                                    />
 
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
@@ -1097,6 +1118,7 @@ const Payments = () => {
                                                 <div
                                                     key={order.id}
                                                     onClick={() => {
+                                                        setSelectionTouched(true);
                                                         setSelectedOrderIds((prev) => {
                                                             const next = new Set(prev);
                                                             if (next.has(order.id)) next.delete(order.id);
