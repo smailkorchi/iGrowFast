@@ -259,21 +259,69 @@ interface DeliveryNoteWizardProps {
     sellerScope?: DeliveryNoteSellerScope;
 }
 
+type WizardSnapshot = {
+    v: number;
+    step: 'provider' | 'select-orders' | 'creating' | 'review' | 'duplicates' | 'finalizing';
+    selectedProviderId: string;
+    createdParcels: CreatedParcelEntry[];
+    deliveryNotes: DeliveryNoteEntry[];
+    duplicateParcels: DuplicateEntry[];
+    selectedDuplicateIds: number[];
+    currentProvider: string;
+    selectedOrderIds: string[];
+};
+
+// The wizard persists an IN-PROGRESS run (parcels already created on the provider) to
+// localStorage, so navigating away or reloading to fix a failed order never loses it —
+// provider parcels can't be cancelled, so dropping progress would orphan them. Only a
+// run with at least one created parcel is restored. Cleared on explicit close (X / Cancel
+// / Esc) and on successful finish; a plain navigation/reload keeps it.
+function readWizardSnapshot(key: string): WizardSnapshot | null {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const s = JSON.parse(raw) as WizardSnapshot;
+        if (!s || s.v !== 1 || !Array.isArray(s.createdParcels) || s.createdParcels.length === 0) return null;
+        return s;
+    } catch { return null; }
+}
+function writeWizardSnapshot(key: string, snap: WizardSnapshot) {
+    try { localStorage.setItem(key, JSON.stringify(snap)); } catch { /* quota / serialize */ }
+}
+function clearWizardSnapshot(key: string) {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
 export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockProviderId, sellerScope }) => {
-    const [step, setStep] = useState<'provider' | 'select-orders' | 'creating' | 'review' | 'duplicates' | 'finalizing'>('provider');
-    const [selectedProviderId, setSelectedProviderId] = useState<string>(lockProviderId || '');
+    const _bizId = typeof window !== 'undefined' ? localStorage.getItem('activeBusinessId') : null;
+    const STORAGE_KEY = `dnw:progress:${_bizId || 'none'}`;
+    // Read any persisted in-progress run ONCE on mount.
+    const [persisted] = useState<WizardSnapshot | null>(() => readWizardSnapshot(STORAGE_KEY));
+    // Restore to a usable step: a run interrupted mid-'creating'/'finalizing' has no
+    // live mutation after a reload, so land on 'review' (shows successes/failures, retry,
+    // and Generate) instead of a spinner that never resolves.
+    const [step, setStep] = useState<'provider' | 'select-orders' | 'creating' | 'review' | 'duplicates' | 'finalizing'>(
+        persisted
+            ? (persisted.step === 'creating' || persisted.step === 'finalizing' ? 'review' : persisted.step)
+            : 'provider'
+    );
+    const [selectedProviderId, setSelectedProviderId] = useState<string>(persisted?.selectedProviderId ?? (lockProviderId || ''));
     const [providerSearch, setProviderSearch] = useState('');
-    const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>([]);
-    const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>([]);
+    const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>(persisted?.createdParcels ?? []);
+    const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>(persisted?.deliveryNotes ?? []);
     // Coliaty same-phone duplicates surfaced at the add-to-pickup-note step, plus the
     // subset (by Coliaty error_id) the user chose to ignore/keep.
-    const [duplicateParcels, setDuplicateParcels] = useState<DuplicateEntry[]>([]);
-    const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<Set<number>>(new Set());
-    const [currentProvider, setCurrentProvider] = useState<string>('');
-    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    const [duplicateParcels, setDuplicateParcels] = useState<DuplicateEntry[]>(persisted?.duplicateParcels ?? []);
+    const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<Set<number>>(new Set(persisted?.selectedDuplicateIds ?? []));
+    const [currentProvider, setCurrentProvider] = useState<string>(persisted?.currentProvider ?? '');
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set(persisted?.selectedOrderIds ?? []));
     // Free-text search inside the Select-orders step. Matches any visible
     // order info — name, phone, tracking, product names + codes, city, price.
     const [orderSearch, setOrderSearch] = useState('');
+    // Restored in-progress run keeps the wizard visible even if the parent prop is still
+    // closed (e.g. after a navigation that reset the parent's open state).
+    const [restoredOpen, setRestoredOpen] = useState<boolean>(() => !!persisted);
+    const isOpen = open || restoredOpen;
 
     // Update selectedProviderId when lockProviderId changes
     React.useEffect(() => {
@@ -674,11 +722,26 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const [retryingOrderId, setRetryingOrderId] = useState<string | null>(null);
     const [retryingAll, setRetryingAll] = useState(false);
 
+    // Re-pull an order's CURRENT data from the DB before retrying, so a fix made
+    // elsewhere (wrong city, phone, address, exchange tracking, even a changed provider)
+    // is picked up instead of re-sending the stale in-memory copy that already failed.
+    // Fresh DB data wins; any transient UI-only field on the existing object is preserved.
+    const refetchOrderForRetry = async (order: WizardOrder): Promise<WizardOrder> => {
+        const { data: fresh } = await supabase
+            .from('orders')
+            .select(`*, city:master_cities!inner(id, name, zone_id), company:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL}), items:order_items(*, product:products(name, code))`)
+            .eq('id', order.id)
+            .maybeSingle();
+        return (fresh ? { ...order, ...(fresh as object) } : order) as WizardOrder;
+    };
+
     const retryParcel = async (order: WizardOrder) => {
         if (!order.company_id) return;
         setRetryingOrderId(order.id);
         try {
-            await createParcelsMutation.mutateAsync({ providerId: order.company_id, orders: [order] });
+            const refreshed = await refetchOrderForRetry(order);
+            const providerId = refreshed.company_id || order.company_id;
+            await createParcelsMutation.mutateAsync({ providerId, orders: [refreshed] });
         } catch (e) {
             // mutateAsync only throws on a hard failure (e.g. no session); per-parcel
             // failures come back as entries, not throws.
@@ -696,7 +759,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             for (const entry of failed) {
                 setRetryingOrderId(entry.order.id);
                 try {
-                    await createParcelsMutation.mutateAsync({ providerId: entry.order.company_id!, orders: [entry.order] });
+                    const refreshed = await refetchOrderForRetry(entry.order);
+                    const providerId = refreshed.company_id || entry.order.company_id!;
+                    await createParcelsMutation.mutateAsync({ providerId, orders: [refreshed] });
                 } catch (e) {
                     console.error('Retry-all item failed:', e);
                 }
@@ -1219,7 +1284,38 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setCurrentProvider('');
         setSelectedOrderIds(new Set());
         setOrderSearch('');
+        // A reset means the run is finished or abandoned — drop any persisted progress.
+        clearWizardSnapshot(STORAGE_KEY);
+        setRestoredOpen(false);
     };
+
+    // Close handler: an explicit dismissal (X / Cancel / Esc) abandons the run and clears
+    // persisted progress. A plain navigation/reload does NOT go through here (the dialog
+    // just unmounts), so its snapshot survives and is restored on the next mount.
+    const handleOpenChange = (next: boolean) => {
+        if (!next) resetWizard();
+        onOpenChange(next);
+    };
+
+    // Persist an in-progress run on every meaningful change.
+    React.useEffect(() => {
+        const inProgress = (open || restoredOpen)
+            && createdParcels.length > 0
+            && (step === 'creating' || step === 'review' || step === 'duplicates' || step === 'finalizing');
+        if (!inProgress) return;
+        writeWizardSnapshot(STORAGE_KEY, {
+            v: 1,
+            step,
+            selectedProviderId,
+            createdParcels,
+            deliveryNotes,
+            duplicateParcels,
+            selectedDuplicateIds: [...selectedDuplicateIds],
+            currentProvider,
+            selectedOrderIds: [...selectedOrderIds],
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, restoredOpen, step, selectedProviderId, createdParcels, deliveryNotes, duplicateParcels, selectedDuplicateIds, currentProvider, selectedOrderIds]);
 
     // The wizard stays MOUNTED across opens (the parent always renders it), and it only
     // resets state on a clean finish — not when the user closes via X / Escape / outside
@@ -1230,6 +1326,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     // shows again ("works once, then stops"). Reset on every open to guarantee a clean run.
     React.useEffect(() => {
         if (open) {
+            // Resume an in-progress / restored run instead of wiping it. A fresh open
+            // (no created parcels) resets to a clean wizard as before.
+            if (createdParcels.length > 0) {
+                if (lockProviderId) setSelectedProviderId(lockProviderId);
+                return;
+            }
             resetWizard();
             if (lockProviderId) setSelectedProviderId(lockProviderId);
         }
@@ -1241,7 +1343,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     // the provider's dashboard. Warn before unload while any successful parcel is still
     // unsaved. (Browsers render their own generic confirmation text — the message string
     // is best-effort and not shown verbatim by Chrome/Firefox.)
-    const hasUnsavedParcels = open && createdParcels.some(p => !p.error);
+    const hasUnsavedParcels = isOpen && createdParcels.some(p => !p.error);
     React.useEffect(() => {
         if (!hasUnsavedParcels) return;
         const handler = (e: BeforeUnloadEvent) => {
@@ -1270,7 +1372,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const failedParcels = createdParcels.filter(p => p.error);
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent
                 className="sm:max-w-[700px] grid-cols-[minmax(0,1fr)] rounded-2xl border-none p-0 overflow-hidden"
                 onInteractOutside={(e) => e.preventDefault()}
@@ -1405,7 +1507,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             )}
 
                             <DialogFooter>
-                                <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                                <Button variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button>
                                 <Button
                                     onClick={handleProviderSelect}
                                     disabled={!selectedProviderId}
