@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
+import { syncParcelTracking, type TrackableParcel } from '@/lib/orders/syncOrderTracking';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     Dialog,
@@ -318,9 +319,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     // Free-text search inside the Select-orders step. Matches any visible
     // order info — name, phone, tracking, product names + codes, city, price.
     const [orderSearch, setOrderSearch] = useState('');
-    // Restored in-progress run keeps the wizard visible even if the parent prop is still
-    // closed (e.g. after a navigation that reset the parent's open state).
-    const [restoredOpen, setRestoredOpen] = useState<boolean>(() => !!persisted);
+    // A restored run does NOT auto-open the modal (that would blur/block the page). The
+    // state is seeded from the snapshot and a floating "Resume" button is shown instead;
+    // the user opens it when ready. restoredOpen is flipped true by that button.
+    const [restoredOpen, setRestoredOpen] = useState<boolean>(false);
     const isOpen = open || restoredOpen;
 
     // Update selectedProviderId when lockProviderId changes
@@ -735,6 +737,27 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         return (fresh ? { ...order, ...(fresh as object) } : order) as WizardOrder;
     };
 
+    // After parcels are linked into a note, the carrier/package status is NOT in the
+    // create/add-parcels response — the rows still read "Nouveau" until something fetches
+    // live status (the Track button, the note-page sync loop, or a webhook). Pull it now,
+    // for every freshly-linked parcel, via the same proven path the Track button uses.
+    // Fire-and-forget + bounded concurrency: a tracking failure must never affect the
+    // already-succeeded note creation.
+    const syncLinkedParcelStatuses = async (parcels: TrackableParcel[]) => {
+        const targets = parcels.filter(p => p.id && p.tracking_code && p.provider_id);
+        if (targets.length === 0) return;
+        let cursor = 0;
+        const worker = async () => {
+            while (cursor < targets.length) {
+                const i = cursor++;
+                try { await syncParcelTracking(targets[i]); } catch { /* non-blocking */ }
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, targets.length) }, () => worker()));
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+    };
+
     const retryParcel = async (order: WizardOrder) => {
         if (!order.company_id) return;
         setRetryingOrderId(order.id);
@@ -957,10 +980,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
 
             // 3. Link only the parcels Coliaty actually accepted into the note.
-            const parcelIds = createdParcels
-                .filter(p => p.tracking_code && acceptedCodes.has(p.tracking_code))
-                .map(p => p.parcel?.id)
-                .filter(Boolean) as string[];
+            const acceptedEntries = createdParcels
+                .filter(p => p.tracking_code && acceptedCodes.has(p.tracking_code) && p.parcel?.id);
+            const parcelIds = acceptedEntries.map(p => p.parcel!.id) as string[];
 
             console.log('🆔 Accepted parcel IDs to link:', parcelIds, '| duplicates:', duplicates.length, '| otherErrors:', otherErrors.length);
 
@@ -978,6 +1000,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     console.error('❌ Error linking parcels to note:', linkError);
                     throw linkError;
                 }
+
+                // Pull live carrier status for the just-linked parcels so they show
+                // "En attente de ramassage" immediately instead of staying "Nouveau"
+                // until the user clicks Track. Fire-and-forget — never blocks the run.
+                void syncLinkedParcelStatuses(acceptedEntries.map(p => ({
+                    id: p.parcel!.id,
+                    provider_id: providerId,
+                    tracking_code: p.tracking_code as string,
+                    external_id: (p.parcel as { external_id?: string | null })?.external_id ?? null,
+                })));
             } else {
                 // Nothing accepted this round (all duplicates/errors) — keep count honest.
                 const { count } = await supabase
@@ -1064,6 +1096,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
         queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
 
         toast({
@@ -1236,6 +1269,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         p_delivery_note_id: ctx.deliveryNoteId,
                         p_parcel_ids: linkIds,
                     });
+                    // Same live-status pull as the primary path so kept duplicates also
+                    // leave "Nouveau" without needing the Track button.
+                    void syncLinkedParcelStatuses(items
+                        .filter(i => !stillErrCodes.has(i.code) && i.parcelId)
+                        .map(i => ({
+                            id: i.parcelId as string,
+                            provider_id: providerId,
+                            tracking_code: i.code,
+                            external_id: null,
+                        })));
                 }
                 ignoredCount += linkIds.length;
 
@@ -1289,12 +1332,20 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setRestoredOpen(false);
     };
 
-    // Close handler: an explicit dismissal (X / Cancel / Esc) abandons the run and clears
-    // persisted progress. A plain navigation/reload does NOT go through here (the dialog
-    // just unmounts), so its snapshot survives and is restored on the next mount.
+    // Close handler: X / Cancel / Esc just HIDES the wizard and KEEPS the progress (the
+    // snapshot + in-memory state survive) so the user can fix an order elsewhere and
+    // resume. Provider parcels can't be cancelled, so closing must never silently drop
+    // them. Clearing is explicit, via discardProgress() / Start Over, or on success.
     const handleOpenChange = (next: boolean) => {
-        if (!next) resetWizard();
+        if (!next) setRestoredOpen(false);
         onOpenChange(next);
+    };
+
+    // Explicit abandon: wipe the run (state + snapshot). The already-created parcels stay
+    // on the provider as orphans — there is no cancel endpoint — so this is intentional.
+    const discardProgress = () => {
+        resetWizard();
+        onOpenChange(false);
     };
 
     // Persist an in-progress run on every meaningful change.
@@ -1372,9 +1423,32 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const failedParcels = createdParcels.filter(p => p.error);
 
     return (
+        <>
+            {/* Resume affordance: when an in-progress run exists but the wizard is closed,
+                a floating pill lets the user reopen it (after navigating away to fix an
+                order). Keeps the page fully interactive — no modal blur while parked. */}
+            {createdParcels.length > 0 && !isOpen && (
+                <button
+                    type="button"
+                    onClick={() => setRestoredOpen(true)}
+                    className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 rounded-2xl bg-ant-ink px-4 py-3 text-white shadow-xl ring-1 ring-white/10 hover:bg-ant-ink/90 transition-colors"
+                >
+                    <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ant-orange/70" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ant-orange" />
+                    </span>
+                    <span className="text-left leading-tight">
+                        <span className="block text-[13px] font-semibold">Reprendre la création</span>
+                        <span className="block text-[11px] text-white/60">
+                            {createdParcels.length} colis non finalisé{createdParcels.length > 1 ? 's' : ''}
+                        </span>
+                    </span>
+                    <RotateCw className="w-4 h-4 ml-1 text-white/80" />
+                </button>
+            )}
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent
-                className="sm:max-w-[700px] grid-cols-[minmax(0,1fr)] rounded-2xl border-none p-0 overflow-hidden"
+                className="sm:max-w-[700px] grid-cols-[minmax(0,1fr)] rounded-2xl border-none p-0 overflow-hidden [&>button]:text-white [&>button]:opacity-80 [&>button]:hover:opacity-100 [&>button]:z-50"
                 onInteractOutside={(e) => e.preventDefault()}
             >
                 {step === 'provider' && (
@@ -1752,33 +1826,44 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             )}
                         </div>
 
-                        <div className="p-8 pt-0">
-                            <DialogFooter>
-                                {/* Start Over only when EVERYTHING failed — otherwise the
-                                    successful parcels already exist on the provider and
-                                    restarting would orphan them. */}
-                                {successfulParcels.length === 0 && (
-                                    <Button variant="ghost" onClick={resetWizard} disabled={retryingAll || retryingOrderId !== null}>Start Over</Button>
-                                )}
-                                {failedParcels.length > 1 && (
+                        <div className="p-8 pt-0 space-y-3">
+                            <p className="text-[11px] text-ant-muted">
+                                Fermer (✕) garde la progression — un bouton « Reprendre » apparaîtra pour y revenir.
+                                « Annuler la progression » abandonne les colis (ils resteront chez le transporteur).
+                            </p>
+                            <DialogFooter className="sm:justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    {/* All failed → Start Over (nothing on the provider to keep).
+                                        Some succeeded → explicit Discard (orphans the created parcels). */}
+                                    {successfulParcels.length === 0 ? (
+                                        <Button variant="ghost" onClick={resetWizard} disabled={retryingAll || retryingOrderId !== null}>Start Over</Button>
+                                    ) : (
+                                        <Button variant="ghost" onClick={discardProgress} disabled={retryingAll || retryingOrderId !== null} className="text-ant-rose hover:bg-ant-rose/10">
+                                            Annuler la progression
+                                        </Button>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {failedParcels.length > 1 && (
+                                        <Button
+                                            variant="outline"
+                                            onClick={retryAllFailed}
+                                            disabled={retryingAll || retryingOrderId !== null}
+                                            className="rounded-2xl border-ant-rose/30 text-ant-rose hover:bg-ant-rose/10"
+                                        >
+                                            {retryingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCw className="w-4 h-4 mr-2" />}
+                                            Réessayer tout ({failedParcels.length})
+                                        </Button>
+                                    )}
                                     <Button
-                                        variant="outline"
-                                        onClick={retryAllFailed}
-                                        disabled={retryingAll || retryingOrderId !== null}
-                                        className="rounded-2xl border-ant-rose/30 text-ant-rose hover:bg-ant-rose/10"
+                                        onClick={handleConfirmDeliveryNotes}
+                                        disabled={successfulParcels.length === 0 || retryingAll || retryingOrderId !== null}
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl"
                                     >
-                                        {retryingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCw className="w-4 h-4 mr-2" />}
-                                        Réessayer tout ({failedParcels.length})
+                                        <FileText className="w-4 h-4 mr-2" />
+                                        Generate Delivery Notes
                                     </Button>
-                                )}
-                                <Button
-                                    onClick={handleConfirmDeliveryNotes}
-                                    disabled={successfulParcels.length === 0 || retryingAll || retryingOrderId !== null}
-                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl"
-                                >
-                                    <FileText className="w-4 h-4 mr-2" />
-                                    Generate Delivery Notes
-                                </Button>
+                                </div>
                             </DialogFooter>
                         </div>
                     </>
@@ -1885,5 +1970,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 )}
             </DialogContent>
         </Dialog>
+        </>
     );
 };

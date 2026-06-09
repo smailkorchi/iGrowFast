@@ -154,7 +154,8 @@ const Accessories = () => {
         setViewMode('list');
     }, [location.key]);
 
-    const [attachedProducts, setAttachedProducts] = useState<{ product_id: string; default_quantity: number }[]>([]);
+    type AttachMode = 'fixed' | 'per_item' | 'per_order';
+    const [attachedProducts, setAttachedProducts] = useState<{ product_id: string; default_quantity: number; attach_mode: AttachMode }[]>([]);
     const [productSearch, setProductSearch] = useState("");
     const [bulkAttachmentQty, setBulkAttachmentQty] = useState("1");
 
@@ -195,13 +196,17 @@ const Accessories = () => {
     const fetchAttachedProducts = async (accessoryId: string) => {
         const { data, error } = await supabase
             .from('product_accessories')
-            .select('product_id, default_quantity')
+            .select('product_id, default_quantity, attach_mode')
             .eq('accessory_id', accessoryId);
         if (error) {
             console.error('Error fetching attachments:', error);
             return [];
         }
-        return data || [];
+        return (data || []).map((d: any) => ({
+            product_id: d.product_id,
+            default_quantity: d.default_quantity,
+            attach_mode: (d.attach_mode as AttachMode) || 'fixed',
+        }));
     };
 
     const form = useForm<AccessoryFormValues>({
@@ -269,6 +274,7 @@ const Accessories = () => {
                     product_id: ap.product_id,
                     accessory_id: accessoryId,
                     default_quantity: ap.default_quantity,
+                    attach_mode: ap.attach_mode || 'fixed',
                     'DigiCom Business': activeBusinessId,
                 }));
                 const { error: insertError } = await supabase
@@ -485,13 +491,19 @@ const Accessories = () => {
             if (exists) {
                 return prev.filter(p => p.product_id !== productId);
             }
-            return [...prev, { product_id: productId, default_quantity: 1 }];
+            return [...prev, { product_id: productId, default_quantity: 1, attach_mode: 'fixed' }];
         });
     };
 
     const updateAttachmentQuantity = (productId: string, qty: number) => {
         setAttachedProducts(prev =>
             prev.map(p => p.product_id === productId ? { ...p, default_quantity: Math.max(1, qty) } : p)
+        );
+    };
+
+    const updateAttachmentMode = (productId: string, mode: AttachMode) => {
+        setAttachedProducts(prev =>
+            prev.map(p => p.product_id === productId ? { ...p, attach_mode: mode } : p)
         );
     };
 
@@ -512,7 +524,7 @@ const Accessories = () => {
             const map = new Map(prev.map((ap) => [ap.product_id, ap]));
             for (const product of list) {
                 if (!map.has(product.id)) {
-                    map.set(product.id, { product_id: product.id, default_quantity: 1 });
+                    map.set(product.id, { product_id: product.id, default_quantity: 1, attach_mode: 'fixed' });
                 }
             }
             return Array.from(map.values());
@@ -1204,16 +1216,39 @@ const Accessories = () => {
                                                             </div>
 
                                                             {isAttached && (
-                                                                <div className="inline-flex items-center gap-1.5 shrink-0">
-                                                                    <span className="text-[10px] font-semibold text-ant-mid uppercase tracking-[0.18em]">Qty</span>
-                                                                    <Input
-                                                                        type="number"
-                                                                        min={1}
-                                                                        value={attachment!.default_quantity}
-                                                                        onChange={(e) => updateAttachmentQuantity(product.id, parseInt(e.target.value) || 1)}
-                                                                        className="w-16 h-8 rounded-lg border-ant-line bg-ant-paper text-center text-[12px] font-semibold tabular-nums"
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                    />
+                                                                <div className="inline-flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                                    <div className="inline-flex items-center rounded-lg border border-ant-line bg-ant-paper p-0.5">
+                                                                        {(['fixed', 'per_item', 'per_order'] as AttachMode[]).map((m) => (
+                                                                            <button
+                                                                                key={m}
+                                                                                type="button"
+                                                                                title={
+                                                                                    m === 'fixed'
+                                                                                        ? 'Fixed quantity per line'
+                                                                                        : m === 'per_item'
+                                                                                            ? 'Multiplies with product quantity (qty × product qty)'
+                                                                                            : 'One per order — shown on the first line only, never multiplies'
+                                                                                }
+                                                                                onClick={() => updateAttachmentMode(product.id, m)}
+                                                                                className={cn(
+                                                                                    'px-2 h-7 rounded-md text-[10px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                                                                    attachment!.attach_mode === m ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                                                                                )}
+                                                                            >
+                                                                                {m === 'fixed' ? 'Fixed' : m === 'per_item' ? 'Per item' : 'Per order'}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className="text-[10px] font-semibold text-ant-mid uppercase tracking-[0.18em]">Qty</span>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min={1}
+                                                                            value={attachment!.default_quantity}
+                                                                            onChange={(e) => updateAttachmentQuantity(product.id, parseInt(e.target.value) || 1)}
+                                                                            className="w-16 h-8 rounded-lg border-ant-line bg-ant-paper text-center text-[12px] font-semibold tabular-nums"
+                                                                        />
+                                                                    </div>
                                                                 </div>
                                                             )}
                                                         </div>

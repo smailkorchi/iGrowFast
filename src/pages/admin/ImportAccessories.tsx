@@ -137,20 +137,29 @@ const ImportAccessories = () => {
             let completed = 0;
 
             for (const r of valid) {
+                const trimmedImage = r.image_url.trim();
                 const payload = {
                     name: r.name.trim(),
                     code: r.code.trim(),
                     cost_price: r.cost_price,
                     stock: r.stock,
                     active: r.active,
-                    image_url: r.image_url.trim() || null,
+                    image_url: trimmedImage || null,
                     'DigiCom Business': activeBusinessId,
                 };
 
                 if (r.existing_id) {
+                    // Do not blank out an existing accessory's image when the import row
+                    // has no image. Only write image_url if the CSV provided one.
+                    const updatePayload = trimmedImage
+                        ? payload
+                        : (() => {
+                              const { image_url: _omit, ...rest } = payload;
+                              return rest;
+                          })();
                     const { error } = await supabase
                         .from('accessories')
-                        .update(payload)
+                        .update(updatePayload)
                         .eq('id', r.existing_id);
                     if (error) console.error('Accessory update failed', r.code, error);
                 } else {

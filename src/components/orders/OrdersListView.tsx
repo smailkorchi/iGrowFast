@@ -117,7 +117,12 @@ export default function OrdersListView({
                     isSelected
                       ? 'bg-ant-ink/[0.025] border-l-[3px] border-l-brand-navy/25'
                       : 'border-l-[3px] border-l-transparent hover:bg-ant-ink/[0.012]',
-                    idx % 2 === 0 && !isSelected && 'bg-ant-ink/[0.005]'
+                    idx % 2 === 0 && !isSelected && 'bg-ant-ink/[0.005]',
+                    // Duplicate-phone rows: a clean, soft wash of the brand orange across
+                    // the whole row. Last in the list so tailwind-merge overrides the
+                    // zebra/selection background.
+                    isDuplicate && !isSelected && 'bg-ant-orange/[0.06] hover:bg-ant-orange/[0.10] border-l-ant-orange/50',
+                    isDuplicate && isSelected && 'bg-ant-orange/[0.12] border-l-ant-orange/60'
                   )}
                 >
                   {/* Checkbox */}
@@ -136,7 +141,7 @@ export default function OrdersListView({
                         <div
                           className={cn(
                             'w-9 h-9 rounded-lg shrink-0 overflow-hidden flex items-center justify-center',
-                            isDuplicate ? 'ring-1 ring-[#d4c438]/40' : 'bg-ant-ink/[0.04] border border-ant-line/60'
+                            isDuplicate ? 'ring-1 ring-ant-orange/30' : 'bg-ant-ink/[0.04] border border-ant-line/60'
                           )}
                         >
                           {productThumb ? (
@@ -154,7 +159,7 @@ export default function OrdersListView({
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
                           <span
-                            className={cn('truncate', isDuplicate ? 'text-[#9a7f00]' : 'text-ant-ink')}
+                            className={cn('truncate', isDuplicate ? 'text-ant-orange' : 'text-ant-ink')}
                             title={isDuplicate ? 'Same phone number on multiple orders' : order.name}
                           >
                             {order.name}

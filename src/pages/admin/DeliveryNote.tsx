@@ -312,6 +312,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
         } catch (error: any) {
             const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
@@ -622,6 +623,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
 
             // If the modal is open, update the local state
             if (selectedNote?.id === note.id) {
@@ -713,6 +715,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
 
             if (selectedNote?.id === note.id) {
                 setSelectedNote({ ...note, is_finalized: false });
@@ -800,6 +803,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
 
         } catch (error) {

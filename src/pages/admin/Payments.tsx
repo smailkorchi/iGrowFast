@@ -61,7 +61,6 @@ interface PaymentNote {
 const Payments = () => {
     const { getOrderByCategory, getPkgByCategory } = useStatusCategories();
     const unpaidStatusId = getOrderByCategory('unpaid')?.id;
-    const paidStatusId = getOrderByCategory('paid')?.id;
     const deliveredPkgId = getPkgByCategory('delivered')?.id;
 
     const [activeTab, setActiveTab] = useState<'company' | 'courier'>('company');
@@ -311,19 +310,17 @@ const Payments = () => {
     const markPaidMutation = useMutation({
         mutationFn: async (note: PaymentNote) => {
             const notesTable = note.kind === 'courier' ? 'courier_payment_notes' : 'company_payment_notes';
+            // Flip the note to paid. A DB trigger (payment_note_cascade_paid) then sets
+            // every linked order to PAID + payed=true, deriving the order set from the
+            // link table — not from this client's (possibly stale) note.line_items — so
+            // no order is ever skipped. The pin trigger (orders_keep_paid_when_noted)
+            // keeps them PAID afterwards: a delivered-status webhook can no longer demote
+            // an order that belongs to a paid note.
             const { error: noteErr } = await (supabase as any)
                 .from(notesTable)
                 .update({ status: 'paid', paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
                 .eq('id', note.id);
             if (noteErr) throw noteErr;
-            const orderIds = note.line_items.map(li => li.order_id);
-            if (orderIds.length > 0 && paidStatusId) {
-                const { error: ordErr } = await (supabase as any)
-                    .from('orders')
-                    .update({ order_status_id: paidStatusId, payed: true, updated_at: new Date().toISOString() })
-                    .in('id', orderIds);
-                if (ordErr) throw ordErr;
-            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payment-notes'] });

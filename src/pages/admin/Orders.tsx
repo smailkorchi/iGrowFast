@@ -620,6 +620,24 @@ const Orders = () => {
                 { event: 'INSERT', schema: 'public', table: 'orders' },
                 () => { debouncedInvalidate(); }
             )
+            .on(
+                'postgres_changes' as any,
+                { event: 'DELETE', schema: 'public', table: 'orders' },
+                () => { debouncedInvalidate(); }
+            )
+            // Parcel rows carry the carrier/package status the list joins. Their changes
+            // (post-link sync, webhooks, note-page sync loop, links/unlinks) must refresh
+            // the list too — RLS scopes the stream to this tenant automatically.
+            .on(
+                'postgres_changes' as any,
+                { event: '*', schema: 'public', table: 'company_parcels' },
+                () => { debouncedInvalidate(); }
+            )
+            .on(
+                'postgres_changes' as any,
+                { event: '*', schema: 'public', table: 'courier_parcels' },
+                () => { debouncedInvalidate(); }
+            )
             .subscribe();
 
         return () => {
@@ -875,6 +893,12 @@ const Orders = () => {
         },
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
+        // Realtime only covers changes made WHILE this page is mounted. Anything that
+        // happened on another page (e.g. deleting a delivery note reverts the order) is
+        // missed by the subscription, so always refetch when we land here or refocus the
+        // tab — otherwise the 60s-stale cache shows the pre-change state until a hard refresh.
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
     });
 
     // Back-compat aliases — every existing reader of `orders` / `isLoading`
@@ -1134,7 +1158,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('product_accessories')
-                .select('product_id, accessory_id, default_quantity, created_at')
+                .select('product_id, accessory_id, default_quantity, attach_mode, created_at')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -4505,18 +4529,31 @@ const Orders = () => {
                                                                                     }
                                                                                     const attachments = productAccessoriesForOrders?.filter((pa: any) => pa.product_id === val);
                                                                                     if (attachments && attachments.length > 0) {
+                                                                                        const prodQty = Number(form.getValues(`items.${index}.quantity`)) || 1;
+                                                                                        const allItems = form.getValues('items') || [];
                                                                                         const currentAccessories = form.getValues(`items.${index}.accessories`) || [];
                                                                                         const newAccessories = [...currentAccessories];
                                                                                         attachments.forEach((attachment: any) => {
+                                                                                            const mode = attachment.attach_mode || 'fixed';
                                                                                             const existingAttached = newAccessories.find((a: any) => a.accessory_id === attachment.accessory_id);
-                                                                                            if (!existingAttached) {
-                                                                                                const acc = accessories?.find((a: any) => a.id === attachment.accessory_id);
-                                                                                                newAccessories.push({
-                                                                                                    accessory_id: attachment.accessory_id,
-                                                                                                    accessory_quantity: attachment.default_quantity || 1,
-                                                                                                    accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0
-                                                                                                });
+                                                                                            if (existingAttached) return;
+                                                                                            // Per-order accessory (e.g. carton): only once for the whole
+                                                                                            // order, kept on the first line that carries it. Skip if any
+                                                                                            // other line already has it.
+                                                                                            if (mode === 'per_order') {
+                                                                                                const elsewhere = allItems.some((it: any, i: number) =>
+                                                                                                    i !== index && (it.accessories || []).some((a: any) => a.accessory_id === attachment.accessory_id)
+                                                                                                );
+                                                                                                if (elsewhere) return;
                                                                                             }
+                                                                                            const base = attachment.default_quantity || 1;
+                                                                                            const qty = mode === 'per_item' ? base * prodQty : base;
+                                                                                            const acc = accessories?.find((a: any) => a.id === attachment.accessory_id);
+                                                                                            newAccessories.push({
+                                                                                                accessory_id: attachment.accessory_id,
+                                                                                                accessory_quantity: qty,
+                                                                                                accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0
+                                                                                            });
                                                                                         });
                                                                                         form.setValue(`items.${index}.accessories`, newAccessories);
                                                                                     }
@@ -4560,7 +4597,32 @@ const Orders = () => {
                                                             render={({ field }) => (
                                                                 <FormItem className="space-y-1">
                                                                     <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Qty</FormLabel>
-                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-ant-ink/10 bg-ant-ink/[0.03] text-sm font-bold text-ant-ink text-center px-1" />
+                                                                    <Input
+                                                                        type="number"
+                                                                        {...field}
+                                                                        disabled={!hasProduct}
+                                                                        onChange={(e) => {
+                                                                            field.onChange(e);
+                                                                            // Only PER-ITEM accessories scale with product qty
+                                                                            // (e.g. venteur default 2 → 4 when qty goes 1→2).
+                                                                            // Fixed and per-order accessories never change here;
+                                                                            // ad-hoc add-ons (no attachment) are left alone.
+                                                                            const newQty = Number(e.target.value);
+                                                                            if (!Number.isFinite(newQty) || newQty <= 0) return;
+                                                                            const productId = form.getValues(`items.${index}.product_id`);
+                                                                            const accs = form.getValues(`items.${index}.accessories`) || [];
+                                                                            accs.forEach((acc: any, accIdx: number) => {
+                                                                                if (!acc.accessory_id || acc.accessory_id === 'none') return;
+                                                                                const pa = productAccessoriesForOrders?.find(
+                                                                                    (p: any) => p.product_id === productId && p.accessory_id === acc.accessory_id
+                                                                                );
+                                                                                if (pa && (pa as any).attach_mode === 'per_item') {
+                                                                                    form.setValue(`items.${index}.accessories.${accIdx}.accessory_quantity`, ((pa as any).default_quantity || 1) * newQty);
+                                                                                }
+                                                                            });
+                                                                        }}
+                                                                        className="h-9 rounded-lg border border-ant-ink/10 bg-ant-ink/[0.03] text-sm font-bold text-ant-ink text-center px-1"
+                                                                    />
                                                                 </FormItem>
                                                             )}
                                                         />

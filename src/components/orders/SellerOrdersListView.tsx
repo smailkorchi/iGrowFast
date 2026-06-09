@@ -99,7 +99,10 @@ export default function SellerOrdersListView({
                   className={cn(
                     'border-b border-ant-line transition-all duration-200 group',
                     'hover:bg-ant-ink/[0.012]',
-                    idx % 2 === 0 && 'bg-ant-ink/[0.005]'
+                    idx % 2 === 0 && 'bg-ant-ink/[0.005]',
+                    // Duplicate-phone rows: clean, soft brand-orange wash across the row.
+                    // Last so tailwind-merge overrides the zebra background.
+                    isDuplicate && 'bg-ant-orange/[0.06] hover:bg-ant-orange/[0.10] border-l-[3px] border-l-ant-orange/50'
                   )}
                 >
                   {/* Customer + Date */}
@@ -109,7 +112,7 @@ export default function SellerOrdersListView({
                         <div
                           className={cn(
                             'w-9 h-9 rounded-lg shrink-0 overflow-hidden flex items-center justify-center',
-                            isDuplicate ? 'ring-1 ring-[#d4c438]/40' : 'bg-ant-ink/[0.04] border border-ant-line/60'
+                            isDuplicate ? 'ring-1 ring-ant-orange/30' : 'bg-ant-ink/[0.04] border border-ant-line/60'
                           )}
                         >
                           {productThumb ? (
@@ -127,7 +130,7 @@ export default function SellerOrdersListView({
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
                           <span
-                            className={cn('truncate', isDuplicate ? 'text-[#9a7f00]' : 'text-ant-ink')}
+                            className={cn('truncate', isDuplicate ? 'text-ant-orange' : 'text-ant-ink')}
                             title={isDuplicate ? 'Same phone number on multiple orders' : order.name}
                           >
                             {order.name}

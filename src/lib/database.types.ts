@@ -5309,6 +5309,7 @@ export type Database = {
       product_accessories: {
         Row: {
           accessory_id: string
+          attach_mode: string
           created_at: string | null
           default_quantity: number
           "DigiCom Business": string | null
@@ -5317,6 +5318,7 @@ export type Database = {
         }
         Insert: {
           accessory_id: string
+          attach_mode?: string
           created_at?: string | null
           default_quantity?: number
           "DigiCom Business"?: string | null
@@ -5325,6 +5327,7 @@ export type Database = {
         }
         Update: {
           accessory_id?: string
+          attach_mode?: string
           created_at?: string | null
           default_quantity?: number
           "DigiCom Business"?: string | null
