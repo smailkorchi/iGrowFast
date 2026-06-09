@@ -1,0 +1,21 @@
+# SPA client-side routing: serve index.html for any non-file/non-dir request
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Long-cache hashed build assets
+  <FilesMatch "\.(js|css|woff2?|ttf|png|jpg|jpeg|webp|svg|webm)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Never cache the service worker or the HTML shell (must come last to win)
+  <FilesMatch "(sw\.js|index\.html)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>

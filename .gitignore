@@ -26,8 +26,13 @@ dist-ssr
 # Secrets / infrastructure docs with credentials
 .env
 .env.*
+.ssh.env
 docs/infrastructure-secrets.md
 
 # Google service account credentials
 digicom-*.json
 google-*.json
+
+# GitHub Actions deploy keypair (local only)
+deploy_key
+deploy_key.pub

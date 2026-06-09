@@ -1,0 +1,60 @@
+name: Build and Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Guard: fail the job if the build produced no usable output.
+      # vite can exit 0 with empty/broken output in edge cases; this blocks
+      # a hollow deploy from ever reaching the server.
+      - name: Verify build output
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html missing - build is empty, aborting deploy"; exit 1; }
+          echo "Build output OK ($(find dist -type f | wc -l) files)."
+
+      # If ANY step above fails, the job stops here and deploy is SKIPPED.
+      # public_html is never touched. GitHub emails the repo owner on failure.
+
+      - name: Deploy dist/ to igrowfast.com public_html
+        if: success()
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: "89.116.105.160"
+          REMOTE_USER: "u543529703"
+          REMOTE_PORT: "65002"
+          SOURCE: "dist/"
+          TARGET: "/home/u543529703/domains/igrowfast.com/public_html/"
+          # -r recurse, -l symlinks, -t keep mtimes (enables incremental
+          # transfers), -z compress, -v verbose, -O omit dir-time updates
+          # (avoids chtime errors on shared hosting). No -p: new files inherit
+          # the server's default web-safe perms (644 files / 755 dirs).
+          # --delete removes server files no longer in the build (clean deploy).
+          ARGS: "-rltzvO --delete"
+          # Protect ACME/SSL challenge dir on the server from --delete.
+          EXCLUDE: "/.well-known/"
