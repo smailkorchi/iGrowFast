@@ -810,7 +810,7 @@ const ReturnNote = () => {
     const courierCount = (returnNotes || []).filter((n: ReturnNote) => n.kind === 'courier').length;
 
     return (
-        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+        <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
             {/* Editorial header */}
             <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
                 <div className="space-y-1.5">

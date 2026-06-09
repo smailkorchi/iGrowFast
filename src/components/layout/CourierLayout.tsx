@@ -79,7 +79,7 @@ const CourierLayout: React.FC<CourierLayoutProps> = ({ children }) => {
 
             <main className="flex-1 min-w-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
                 <div className="px-3 pt-3 pb-[calc(96px+env(safe-area-inset-bottom))] md:px-6 md:py-6 md:pb-6">
-                    <div className="max-w-[1440px] mx-auto w-full">
+                    <div className="w-full">
                         {children}
                     </div>
                 </div>

@@ -392,7 +392,7 @@ const BusinessOverview = () => {
     if (!activeBusinessId) {
         return (
             <div className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     <HeaderShell />
                     <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper p-16 text-center">
                         <p className="font-serif italic text-[13px] text-ant-mid">No active business selected.</p>
@@ -405,7 +405,7 @@ const BusinessOverview = () => {
     if (isLoading) {
         return (
             <div className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     <HeaderShell />
                     <Skeleton className="h-44 rounded-2xl" />
                     <Skeleton className="h-24 rounded-2xl" />
@@ -418,7 +418,7 @@ const BusinessOverview = () => {
     if (isError || !business) {
         return (
             <div className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     <HeaderShell />
                     <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper p-16 text-center">
                         <p className="font-serif italic text-[13px] text-ant-mid">Could not load business details.</p>
@@ -447,7 +447,7 @@ const BusinessOverview = () => {
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     {/* Editorial header */}
                     <HeaderShell>
                         <Button

@@ -854,27 +854,31 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             console.log('🆔 Accepted parcel IDs to link:', parcelIds, '| duplicates:', duplicates.length, '| otherErrors:', otherErrors.length);
 
             if (parcelIds.length > 0) {
-                const { error: linkError } = await supabase
-                    .from('company_parcels')
-                    .update({ company_delivery_note_id: deliveryNoteId })
-                    .in('id', parcelIds);
+                // Atomic: link accepted parcels, recount the note, and flip their
+                // orders CONFIRMED -> PROCESSED (guarded; never demotes UNPAID/PAID/
+                // RETURN). Stock trigger deducts once. Replaces the old bare update +
+                // separate recount.
+                const { error: linkError } = await (supabase as any).rpc('link_company_parcels_to_delivery_note', {
+                    p_delivery_note_id: deliveryNoteId,
+                    p_parcel_ids: parcelIds,
+                });
 
                 if (linkError) {
                     console.error('❌ Error linking parcels to note:', linkError);
                     throw linkError;
                 }
+            } else {
+                // Nothing accepted this round (all duplicates/errors) — keep count honest.
+                const { count } = await supabase
+                    .from('company_parcels')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('company_delivery_note_id', deliveryNoteId);
+
+                await supabase
+                    .from('company_delivery_notes')
+                    .update({ parcel_count: count || 0 })
+                    .eq('id', deliveryNoteId);
             }
-
-            // Update delivery note parcel count
-            const { count } = await supabase
-                .from('company_parcels')
-                .select('*', { count: 'exact', head: true })
-                .eq('company_delivery_note_id', deliveryNoteId);
-
-            await supabase
-                .from('company_delivery_notes')
-                .update({ parcel_count: count || 0 })
-                .eq('id', deliveryNoteId);
 
             return {
                 note: { id: deliveryNoteId, reference: deliveryNoteRef },
@@ -1099,15 +1103,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     ? new Set(Object.keys(stillErr as Record<string, unknown>))
                     : new Set<string>();
 
-                // 3. Link the parcels that made it in this time.
+                // 3. Link the parcels that made it in this time — atomic link + recount
+                //    + guarded CONFIRMED -> PROCESSED flip via the same RPC.
                 const linkIds = items
                     .filter(i => !stillErrCodes.has(i.code) && i.parcelId)
                     .map(i => i.parcelId) as string[];
                 if (linkIds.length > 0) {
-                    await supabase
-                        .from('company_parcels')
-                        .update({ company_delivery_note_id: ctx.deliveryNoteId })
-                        .in('id', linkIds);
+                    await (supabase as any).rpc('link_company_parcels_to_delivery_note', {
+                        p_delivery_note_id: ctx.deliveryNoteId,
+                        p_parcel_ids: linkIds,
+                    });
                 }
                 ignoredCount += linkIds.length;
 
@@ -1118,16 +1123,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         variant: "destructive"
                     });
                 }
-
-                // Refresh the note's parcel count.
-                const { count } = await supabase
-                    .from('company_parcels')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('company_delivery_note_id', ctx.deliveryNoteId);
-                await supabase
-                    .from('company_delivery_notes')
-                    .update({ parcel_count: count || 0 })
-                    .eq('id', ctx.deliveryNoteId);
             } catch (err) {
                 console.error(`❌ Ignore/re-add failed for provider ${providerId}:`, err);
                 toast({

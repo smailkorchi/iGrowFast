@@ -470,7 +470,7 @@ const ImportProducts = () => {
 
     return (
         <div className="ant-surface min-h-screen">
-            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+            <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                 <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
                     <div className="space-y-2">
                         <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">

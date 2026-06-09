@@ -280,50 +280,13 @@ const DeliveryNote = () => {
         const isCourierNote = !selectedNote?.provider_id && !!selectedNote?.courier_id;
         try {
             if (isCourierNote) {
-                if (selectedNote.is_finalized) {
-                    throw new Error('note_finalized');
-                }
-
-                // Fetch the parcel's order first so we can reset it.
-                const { data: parcelRow, error: parcelLookupError } = await (supabase as any)
-                    .from('courier_parcels')
-                    .select('order_id')
-                    .eq('id', parcelId)
-                    .maybeSingle();
-                if (parcelLookupError) throw parcelLookupError;
-                const orderId = parcelRow?.order_id;
-
-                // Delete the parcel itself.
-                const { error: delError } = await (supabase as any)
-                    .from('courier_parcels')
-                    .delete()
-                    .eq('id', parcelId);
-                if (delError) throw delError;
-
-                // Reset the order back to confirmed and clear its courier pointer.
-                if (orderId) {
-                    const { data: confirmedStatus } = await supabase
-                        .from('order_statuses')
-                        .select('id')
-                        .eq('label', 'CONFIRMER')
-                        .single();
-                    if (confirmedStatus) {
-                        await (supabase as any)
-                            .from('orders')
-                            .update({ order_status_id: confirmedStatus.id, courier_id: null })
-                            .eq('id', orderId);
-                    }
-                }
-
-                // Refresh parcel_count on the note.
-                const { count } = await (supabase as any)
-                    .from('courier_parcels')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('courier_delivery_note_id', selectedNote.id);
-                await (supabase as any)
-                    .from('courier_delivery_notes')
-                    .update({ parcel_count: count || 0 })
-                    .eq('id', selectedNote.id);
+                // Atomic + guarded (multi-parcel check, full field clear, revert
+                // PROCESSED -> CONFIRMED only). Parity with the company path.
+                const { error: rpcError } = await (supabase as any).rpc('remove_courier_parcel_from_delivery_note', {
+                    p_parcel_id: parcelId,
+                    p_delivery_note_id: selectedNote.id,
+                });
+                if (rpcError) throw rpcError;
             } else {
                 if (!selectedNote?.provider_id) return;
                 await removeCompanyParcelFromDeliveryNote(parcelId, selectedNote.id);
@@ -619,7 +582,10 @@ const DeliveryNote = () => {
                 if (error) throw error;
             }
 
-            // Set all linked orders to PROCESSED → DB trigger deducts stock.
+            // Backstop only: orders are already flipped to PROCESSED at link time.
+            // Here we promote any STILL-CONFIRMED linked order (e.g. in-flight notes
+            // created before this change) — guarded so it never demotes UNPAID/PAID/
+            // RETURN. Closing a note has zero effect on orders that already moved on.
             const parcelsTable = isCourierNote ? 'courier_parcels' : 'company_parcels';
             const noteIdField = isCourierNote ? 'courier_delivery_note_id' : 'company_delivery_note_id';
 
@@ -630,18 +596,20 @@ const DeliveryNote = () => {
                 .not('order_id', 'is', null);
 
             if (linkedParcels && linkedParcels.length > 0) {
-                const { data: processedStatus } = await supabase
+                const { data: statuses } = await supabase
                     .from('order_statuses')
-                    .select('id')
-                    .eq('label', 'PROCESSED')
-                    .single();
+                    .select('id, code')
+                    .in('code', ['PROCESSED', 'CONFIRMED']);
+                const processedId = (statuses || []).find((s: any) => s.code === 'PROCESSED')?.id;
+                const confirmedId = (statuses || []).find((s: any) => s.code === 'CONFIRMED')?.id;
 
-                if (processedStatus) {
+                if (processedId && confirmedId) {
                     const orderIds = linkedParcels.map((p: any) => p.order_id);
                     await supabase
                         .from('orders')
-                        .update({ order_status_id: processedStatus.id })
-                        .in('id', orderIds);
+                        .update({ order_status_id: processedId })
+                        .in('id', orderIds)
+                        .eq('order_status_id', confirmedId);
                 }
             }
 
@@ -732,31 +700,10 @@ const DeliveryNote = () => {
                 if (error) throw error;
             }
 
-            // Set all linked orders back to CONFIRMED → DB trigger restores stock
-            const parcelsTable = isCourierNote ? 'courier_parcels' : 'company_parcels';
-            const noteIdField = isCourierNote ? 'courier_delivery_note_id' : 'company_delivery_note_id';
-
-            const { data: linkedParcels } = await (supabase as any)
-                .from(parcelsTable)
-                .select('order_id')
-                .eq(noteIdField, note.id)
-                .not('order_id', 'is', null);
-
-            if (linkedParcels && linkedParcels.length > 0) {
-                const { data: confirmedStatus } = await supabase
-                    .from('order_statuses')
-                    .select('id')
-                    .eq('label', 'CONFIRMER')
-                    .single();
-
-                if (confirmedStatus) {
-                    const orderIds = linkedParcels.map((p: any) => p.order_id);
-                    await supabase
-                        .from('orders')
-                        .update({ order_status_id: confirmedStatus.id })
-                        .in('id', orderIds);
-                }
-            }
+            // Reopening a note does NOT remove orders from it — they are still in the
+            // note — so order status is intentionally left UNTOUCHED (stays PROCESSED,
+            // or whatever it legitimately advanced to). No status write, no stock churn.
+            // Status only changes when a parcel/note is actually created or removed.
 
             toast({
                 title: "Bon réouvert",
@@ -820,17 +767,21 @@ const DeliveryNote = () => {
                     console.error("Provider deletion failed (non-critical):", e);
                 }
             } else {
-                const noteIdField = 'courier_delivery_note_id';
-                const { error: parcelsError } = await supabase
-                    .from('courier_parcels')
-                    .delete()
-                    .eq(noteIdField, selectedNote.id);
-                if (parcelsError) throw parcelsError;
-                const { error: noteError } = await supabase
-                    .from('courier_delivery_notes')
-                    .delete()
-                    .eq('id', selectedNote.id);
-                if (noteError) throw noteError;
+                if (selectedNote.is_finalized) {
+                    toast({
+                        title: 'Suppression impossible',
+                        description: 'Seuls les bons ouverts (non finalisés) peuvent être supprimés.',
+                        variant: 'destructive',
+                    });
+                    return;
+                }
+                // Guarded RPC: deletes parcels + note AND reverts each fully-unlinked
+                // order PROCESSED -> CONFIRMED (it previously reset nothing → phantom
+                // PROCESSED + leaked stock).
+                const { error: rpcError } = await (supabase as any).rpc('delete_open_courier_delivery_note', {
+                    p_delivery_note_id: selectedNote.id,
+                });
+                if (rpcError) throw rpcError;
             }
 
             toast({
@@ -1449,7 +1400,7 @@ const DeliveryNote = () => {
     const activeTotal = activeTab === 'company' ? totalCompany : totalCourier;
 
     return (
-        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+        <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
             {/* Editorial header */}
             <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
                 <div className="space-y-1.5">

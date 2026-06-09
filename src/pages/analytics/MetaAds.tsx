@@ -270,7 +270,7 @@ const MetaAdsPage: React.FC = () => {
 
     return (
         <div
-            className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4"
+            className="ant-surface px-2 md:px-3 py-2 space-y-4"
             style={META_THEME_VARS}
         >
             {/* Editorial header */}

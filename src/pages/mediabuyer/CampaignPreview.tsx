@@ -387,7 +387,7 @@ const CampaignPreview: React.FC = () => {
 
     return (
         <div className="ant-surface min-h-screen">
-            <div className="mx-auto max-w-[1500px] px-4 md:px-8 py-6 md:py-8 space-y-5">
+            <div className="px-4 md:px-8 py-6 md:py-8 space-y-5">
                 {/* ═══ HEADER — name, status, platform chips + Profit hero ═══ */}
                 <header className="rounded-3xl border border-ant-line bg-ant-paper overflow-hidden">
                     <div className="h-1.5 w-full" style={{ background: `linear-gradient(to right, ${getPlatformColor(campaign.platform)}, ${getPlatformColor(campaign.platform)}80, transparent)` }} />

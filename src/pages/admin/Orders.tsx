@@ -2354,7 +2354,7 @@ const Orders = () => {
     const filteredAggregateCount = filteredAggregate.length;
 
     return (
-        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+        <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
             {/* Editorial header — orders is the seller's working tool, so the
                 title gets its own row with WebhookHealthIndicator as a status
                 stripe, and the search + primary CTA live in a dedicated bar

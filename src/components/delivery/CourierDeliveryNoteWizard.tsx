@@ -429,23 +429,25 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                 .filter(Boolean);
 
             if (parcelIds.length > 0) {
-                const { error: linkError } = await (supabase as any)
-                    .from('courier_parcels')
-                    .update({ courier_delivery_note_id: deliveryNoteId })
-                    .in('id', parcelIds);
+                // Atomic: link parcels, recount, and flip orders CONFIRMED -> PROCESSED
+                // (guarded; never demotes UNPAID/PAID/RETURN). Stock trigger deducts once.
+                const { error: linkError } = await (supabase as any).rpc('link_courier_parcels_to_delivery_note', {
+                    p_delivery_note_id: deliveryNoteId,
+                    p_parcel_ids: parcelIds,
+                });
                 if (linkError) throw linkError;
+            } else {
+                // Nothing to link — keep count honest.
+                const { count } = await (supabase as any)
+                    .from('courier_parcels')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('courier_delivery_note_id', deliveryNoteId);
+
+                await (supabase as any)
+                    .from('courier_delivery_notes')
+                    .update({ parcel_count: count || 0 })
+                    .eq('id', deliveryNoteId);
             }
-
-            // Refresh parcel_count
-            const { count } = await (supabase as any)
-                .from('courier_parcels')
-                .select('*', { count: 'exact', head: true })
-                .eq('courier_delivery_note_id', deliveryNoteId);
-
-            await (supabase as any)
-                .from('courier_delivery_notes')
-                .update({ parcel_count: count || 0 })
-                .eq('id', deliveryNoteId);
 
             return { note: { id: deliveryNoteId, reference: deliveryNoteRef }, courierId, isNew: !existingNote };
         },

@@ -188,7 +188,7 @@ const BusinessPayments = () => {
     if (!activeBusinessId) {
         return (
             <div className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     <HeaderShell />
                     <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper p-16 text-center">
                         <p className="font-serif italic text-[13px] text-ant-mid">No active business selected.</p>
@@ -201,7 +201,7 @@ const BusinessPayments = () => {
     if (isLoading) {
         return (
             <div className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     <HeaderShell />
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                         {Array.from({ length: 4 }).map((_, i) => (
@@ -217,7 +217,7 @@ const BusinessPayments = () => {
     if (isError) {
         return (
             <div className="ant-surface min-h-screen">
-                <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                     <HeaderShell />
                     <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper p-16 text-center">
                         <p className="font-serif italic text-[13px] text-ant-mid">Could not load payments.</p>
@@ -229,7 +229,7 @@ const BusinessPayments = () => {
 
     return (
         <div className="ant-surface min-h-screen">
-            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+            <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
                 <HeaderShell />
 
                 {/* KPI strip */}
