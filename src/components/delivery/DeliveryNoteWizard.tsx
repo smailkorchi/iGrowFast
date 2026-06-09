@@ -32,6 +32,7 @@ import {
     Layers,
     ListChecks,
     AlertTriangle,
+    RotateCw,
     X
 } from 'lucide-react';
 
@@ -657,9 +658,54 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             return results;
         },
         onSuccess: (results) => {
-            setCreatedParcels(prev => [...prev, ...results]);
+            // Merge by order id: the initial batch appends; a single-order RETRY replaces
+            // that order's entry IN PLACE (failed -> success) without touching the others.
+            setCreatedParcels(prev => {
+                const byId = new Map(prev.map(p => [p.order.id, p]));
+                for (const r of results) byId.set(r.order.id, r);
+                return Array.from(byId.values());
+            });
         }
     });
+
+    // Per-order retry for parcels that failed at creation (connection/timeout, etc.).
+    // Re-runs the exact same creation path (which sweeps any prior null-note row first,
+    // so no duplicate), then merges the result in place. Keeps all other entries intact.
+    const [retryingOrderId, setRetryingOrderId] = useState<string | null>(null);
+    const [retryingAll, setRetryingAll] = useState(false);
+
+    const retryParcel = async (order: WizardOrder) => {
+        if (!order.company_id) return;
+        setRetryingOrderId(order.id);
+        try {
+            await createParcelsMutation.mutateAsync({ providerId: order.company_id, orders: [order] });
+        } catch (e) {
+            // mutateAsync only throws on a hard failure (e.g. no session); per-parcel
+            // failures come back as entries, not throws.
+            console.error('Retry failed:', e);
+        } finally {
+            setRetryingOrderId(null);
+        }
+    };
+
+    const retryAllFailed = async () => {
+        setRetryingAll(true);
+        try {
+            // Snapshot the current failures and retry sequentially (avoid provider rate limits).
+            const failed = createdParcels.filter(p => p.error && p.order.company_id);
+            for (const entry of failed) {
+                setRetryingOrderId(entry.order.id);
+                try {
+                    await createParcelsMutation.mutateAsync({ providerId: entry.order.company_id!, orders: [entry.order] });
+                } catch (e) {
+                    console.error('Retry-all item failed:', e);
+                }
+            }
+        } finally {
+            setRetryingOrderId(null);
+            setRetryingAll(false);
+        }
+    };
 
     // Create delivery note for provider — consolidates across all zones
     const createDeliveryNoteMutation = useMutation({
@@ -991,6 +1037,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         console.log('📦 Starting delivery note confirmation for:', parcelsByProvider);
 
         const collectedDuplicates: DuplicateEntry[] = [];
+        const failedProviders: string[] = [];
 
         for (const [pId, codes] of Object.entries(parcelsByProvider)) {
             const providerId = pId as string;
@@ -1026,9 +1073,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 }
             } catch (err) {
                 console.error(`❌ Confirmation failed for provider ${providerId}:`, err);
+                failedProviders.push(providerId);
                 toast({
-                    title: "Confirmation Failed",
-                    description: `Could not finish delivery note for one of the providers: ${err.message}`,
+                    title: "Échec — réessayez",
+                    description: `Le bon n'a pas pu être finalisé pour un transporteur. Les colis existent déjà chez le transporteur : cliquez de nouveau sur « Generate Delivery Notes » pour les relier au bon et éviter de les laisser orphelins.`,
                     variant: "destructive"
                 });
             }
@@ -1039,6 +1087,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             setDuplicateParcels(collectedDuplicates);
             setSelectedDuplicateIds(new Set(collectedDuplicates.map(d => d.errorId)));
             setStep('duplicates');
+            return;
+        }
+
+        // BLOCK the auto-close if any provider's note step failed. Those parcels exist
+        // on the provider but are not yet in a note (orphan risk, and no cancel endpoint
+        // to undo them). Keep the modal on the review screen so the user can retry —
+        // retrying reuses the open draft and re-links the already-created parcels
+        // idempotently instead of abandoning them.
+        if (failedProviders.length > 0) {
+            setStep('review');
             return;
         }
 
@@ -1570,9 +1628,22 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                         Failed to create ({failedParcels.length})
                                     </div>
                                     {failedParcels.map((item, idx) => (
-                                        <div key={idx} className="p-4 bg-ant-rose/10 rounded-2xl border border-red-200">
-                                            <div className="font-bold text-red-900">{item.order.name}</div>
-                                            <div className="text-xs text-ant-rose mt-1">{item.error}</div>
+                                        <div key={idx} className="p-4 bg-ant-rose/10 rounded-2xl border border-red-200 flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-red-900">{item.order.name}</div>
+                                                <div className="text-xs text-ant-rose mt-1 break-words">{item.error}</div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => retryParcel(item.order)}
+                                                disabled={retryingOrderId === item.order.id || retryingAll}
+                                                className="shrink-0 rounded-xl border-ant-rose/30 text-ant-rose hover:bg-ant-rose/10"
+                                            >
+                                                {retryingOrderId === item.order.id
+                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    : <><RotateCw className="w-3.5 h-3.5 mr-1.5" />Réessayer</>}
+                                            </Button>
                                         </div>
                                     ))}
                                 </div>
@@ -1585,11 +1656,22 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                     successful parcels already exist on the provider and
                                     restarting would orphan them. */}
                                 {successfulParcels.length === 0 && (
-                                    <Button variant="ghost" onClick={resetWizard}>Start Over</Button>
+                                    <Button variant="ghost" onClick={resetWizard} disabled={retryingAll || retryingOrderId !== null}>Start Over</Button>
+                                )}
+                                {failedParcels.length > 1 && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={retryAllFailed}
+                                        disabled={retryingAll || retryingOrderId !== null}
+                                        className="rounded-2xl border-ant-rose/30 text-ant-rose hover:bg-ant-rose/10"
+                                    >
+                                        {retryingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCw className="w-4 h-4 mr-2" />}
+                                        Réessayer tout ({failedParcels.length})
+                                    </Button>
                                 )}
                                 <Button
                                     onClick={handleConfirmDeliveryNotes}
-                                    disabled={successfulParcels.length === 0}
+                                    disabled={successfulParcels.length === 0 || retryingAll || retryingOrderId !== null}
                                     className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl"
                                 >
                                     <FileText className="w-4 h-4 mr-2" />
