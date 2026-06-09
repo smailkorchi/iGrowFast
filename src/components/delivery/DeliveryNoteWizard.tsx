@@ -1178,6 +1178,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
+    // Reload / tab-close guard. Once a parcel is created it already exists on the
+    // provider; reloading before the delivery note is generated leaves it ORPHANED in
+    // the provider's dashboard. Warn before unload while any successful parcel is still
+    // unsaved. (Browsers render their own generic confirmation text — the message string
+    // is best-effort and not shown verbatim by Chrome/Firefox.)
+    const hasUnsavedParcels = open && createdParcels.some(p => !p.error);
+    React.useEffect(() => {
+        if (!hasUnsavedParcels) return;
+        const handler = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = 'Des colis ont été créés mais le bon de livraison n’est pas encore généré. Si vous quittez maintenant, ils resteront orphelins dans le tableau de bord du transporteur.';
+            return e.returnValue;
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [hasUnsavedParcels]);
+
     const filteredProviders = useMemo(() => {
         if (!availableProviders) return [];
         return availableProviders.filter(p =>
@@ -1196,7 +1213,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[700px] grid-cols-[minmax(0,1fr)] rounded-2xl border-none p-0 overflow-hidden">
+            <DialogContent
+                className="sm:max-w-[700px] grid-cols-[minmax(0,1fr)] rounded-2xl border-none p-0 overflow-hidden"
+                onInteractOutside={(e) => e.preventDefault()}
+            >
                 {step === 'provider' && (
                     <>
                         <div className="bg-ant-ink p-8 text-white relative">
@@ -1561,7 +1581,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                         <div className="p-8 pt-0">
                             <DialogFooter>
-                                <Button variant="ghost" onClick={resetWizard}>Start Over</Button>
+                                {/* Start Over only when EVERYTHING failed — otherwise the
+                                    successful parcels already exist on the provider and
+                                    restarting would orphan them. */}
+                                {successfulParcels.length === 0 && (
+                                    <Button variant="ghost" onClick={resetWizard}>Start Over</Button>
+                                )}
                                 <Button
                                     onClick={handleConfirmDeliveryNotes}
                                     disabled={successfulParcels.length === 0}
