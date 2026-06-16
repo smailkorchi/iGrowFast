@@ -3986,6 +3986,14 @@ const Orders = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Sales Channel</FormLabel>
+                                                    {(selectedOrder as any)?.channel?.name ? (
+                                                        // Sheet-sourced order: the sales channel IS the connected sheet (read-only),
+                                                        // not the free-text "source" column from the sheet.
+                                                        <div className="h-10 rounded-lg border border-ant-line bg-ant-light/50 px-3 flex items-center gap-2 text-[13px] font-medium text-ant-ink">
+                                                            <FileSpreadsheet className="w-4 h-4 text-[#0F9D58] shrink-0" />
+                                                            <span className="truncate">{(selectedOrder as any).channel.name}</span>
+                                                        </div>
+                                                    ) : (
                                                     <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink">
@@ -4010,6 +4018,7 @@ const Orders = () => {
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
+                                                    )}
                                                     <FormMessage />
                                                 </FormItem>
                                             )}
@@ -4889,9 +4898,11 @@ const Orders = () => {
                                                 {(selectedOrder as any).channel.name}
                                             </Badge>
                                         )}
-                                        <Badge variant="outline" className="border-ant-ink/10 text-ant-ink font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
-                                            {selectedOrder.source_name}
-                                        </Badge>
+                                        {!(selectedOrder as any).channel?.name && selectedOrder.source_name && (
+                                            <Badge variant="outline" className="border-ant-ink/10 text-ant-ink font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
+                                                {selectedOrder.source_name}
+                                            </Badge>
+                                        )}
                                         {selectedOrder.replace && (
                                             <Badge className="bg-ant-rose text-white font-semibold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
                                                 Exchange
