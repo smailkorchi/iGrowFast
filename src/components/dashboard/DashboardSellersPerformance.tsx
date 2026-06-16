@@ -142,7 +142,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                     'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label, category), package_statuses(label, category)'
                 )
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

@@ -61,7 +61,8 @@ export const UsersSection = ({ businessId }: UsersSectionProps) => {
                     .from('orders')
                     .select('seller_id, courier_id, updated_at')
                     .eq('DigiCom Business', businessId)
-                    .gte('updated_at', sinceIso),
+                    .gte('updated_at', sinceIso)
+                    .neq('source_review_status', 'pending'),
                 (supabase as any)
                     .from('campaign_daily_entries')
                     .select('created_by, entry_date')

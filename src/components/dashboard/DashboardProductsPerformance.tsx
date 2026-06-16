@@ -180,7 +180,7 @@ export const DashboardProductsPerformance = ({
                     'id, date, shipping_cost, order_status_id, package_status_id, package_status_label, tracking_number, source_name, seller_id, order_statuses(code, label, category), package_statuses(label, category)'
                 )
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

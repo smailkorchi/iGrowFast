@@ -2475,6 +2475,67 @@ export type Database = {
           },
         ]
       }
+      channel_aliases: {
+        Row: {
+          alias_key: string
+          alias_type: string
+          canonical_id: string | null
+          canonical_value: string | null
+          channel_id: string | null
+          created_at: string
+          created_by: string | null
+          "DigiCom Business": string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          alias_key: string
+          alias_type: string
+          canonical_id?: string | null
+          canonical_value?: string | null
+          channel_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business": string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          alias_key?: string
+          alias_type?: string
+          canonical_id?: string | null
+          canonical_value?: string | null
+          channel_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_aliases_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "sales_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_aliases_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "channel_aliases_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cities: {
         Row: {
           ameex_code: string | null
@@ -4438,7 +4499,15 @@ export type Database = {
           note?: string | null
           paid_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mediabuyer_payment_txns_mediabuyer_payment_id_fkey"
+            columns: ["mediabuyer_payment_id"]
+            isOneToOne: false
+            referencedRelation: "mediabuyer_payments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mediabuyer_payments: {
         Row: {
@@ -4884,12 +4953,15 @@ export type Database = {
           date: string | null
           date_deleted: string | null
           date_livraison: string | null
+          deleted_by_id: string | null
           delivered: boolean | null
           delivery_fees_id: string | null
           delivery_note: string | null
           delivery_type: string | null
           delvoexpress_old_tracking: string | null
           "DigiCom Business": string | null
+          external_row_id: string | null
+          external_source_key: string | null
           forcelog_old_tracking: string | null
           free_shipping: boolean | null
           id: string
@@ -4917,6 +4989,7 @@ export type Database = {
           shipping_cost: number | null
           source_id: string | null
           source_name: string | null
+          source_review_status: string
           stock_changed: boolean | null
           tracking_number: string | null
           updated_at: string | null
@@ -4942,12 +5015,15 @@ export type Database = {
           date?: string | null
           date_deleted?: string | null
           date_livraison?: string | null
+          deleted_by_id?: string | null
           delivered?: boolean | null
           delivery_fees_id?: string | null
           delivery_note?: string | null
           delivery_type?: string | null
           delvoexpress_old_tracking?: string | null
           "DigiCom Business"?: string | null
+          external_row_id?: string | null
+          external_source_key?: string | null
           forcelog_old_tracking?: string | null
           free_shipping?: boolean | null
           id?: string
@@ -4975,6 +5051,7 @@ export type Database = {
           shipping_cost?: number | null
           source_id?: string | null
           source_name?: string | null
+          source_review_status?: string
           stock_changed?: boolean | null
           tracking_number?: string | null
           updated_at?: string | null
@@ -5000,12 +5077,15 @@ export type Database = {
           date?: string | null
           date_deleted?: string | null
           date_livraison?: string | null
+          deleted_by_id?: string | null
           delivered?: boolean | null
           delivery_fees_id?: string | null
           delivery_note?: string | null
           delivery_type?: string | null
           delvoexpress_old_tracking?: string | null
           "DigiCom Business"?: string | null
+          external_row_id?: string | null
+          external_source_key?: string | null
           forcelog_old_tracking?: string | null
           free_shipping?: boolean | null
           id?: string
@@ -5033,6 +5113,7 @@ export type Database = {
           shipping_cost?: number | null
           source_id?: string | null
           source_name?: string | null
+          source_review_status?: string
           stock_changed?: boolean | null
           tracking_number?: string | null
           updated_at?: string | null
@@ -5085,6 +5166,13 @@ export type Database = {
             columns: ["current_courier_return_note_id"]
             isOneToOne: false
             referencedRelation: "courier_return_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_deleted_by_id_fkey"
+            columns: ["deleted_by_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -5761,43 +5849,67 @@ export type Database = {
       }
       sales_channels: {
         Row: {
+          column_map: Json | null
           consumer_key: string | null
           consumer_secret: string | null
           created_at: string | null
           "DigiCom Business": string | null
           id: string
+          is_active: boolean
+          last_modified_seen: string | null
+          last_sync_cursor: Json | null
+          last_synced_at: string | null
           name: string
           spreadsheet_id: string | null
           spreadsheet_name: string | null
           start_row: number | null
+          sync_cadence: string
+          sync_error: string | null
+          sync_status: string | null
           type: string
           updated_at: string | null
           url: string | null
         }
         Insert: {
+          column_map?: Json | null
           consumer_key?: string | null
           consumer_secret?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
           id?: string
+          is_active?: boolean
+          last_modified_seen?: string | null
+          last_sync_cursor?: Json | null
+          last_synced_at?: string | null
           name: string
           spreadsheet_id?: string | null
           spreadsheet_name?: string | null
           start_row?: number | null
+          sync_cadence?: string
+          sync_error?: string | null
+          sync_status?: string | null
           type: string
           updated_at?: string | null
           url?: string | null
         }
         Update: {
+          column_map?: Json | null
           consumer_key?: string | null
           consumer_secret?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
           id?: string
+          is_active?: boolean
+          last_modified_seen?: string | null
+          last_sync_cursor?: Json | null
+          last_synced_at?: string | null
           name?: string
           spreadsheet_id?: string | null
           spreadsheet_name?: string | null
           start_row?: number | null
+          sync_cadence?: string
+          sync_error?: string | null
+          sync_status?: string | null
           type?: string
           updated_at?: string | null
           url?: string | null
@@ -5978,7 +6090,15 @@ export type Database = {
           paid_at?: string
           seller_payment_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "seller_payment_txns_seller_payment_id_fkey"
+            columns: ["seller_payment_id"]
+            isOneToOne: false
+            referencedRelation: "seller_payments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       seller_payments: {
         Row: {
@@ -6098,6 +6218,89 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_ingest_rows: {
+        Row: {
+          channel_id: string
+          content_hash: string
+          created_at: string
+          "DigiCom Business": string
+          external_row_id: string
+          fetched_at: string
+          id: string
+          issues: Json | null
+          mapped: Json | null
+          order_id: string | null
+          raw: Json
+          resolved: Json | null
+          sheet_row_number: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          content_hash: string
+          created_at?: string
+          "DigiCom Business": string
+          external_row_id: string
+          fetched_at?: string
+          id?: string
+          issues?: Json | null
+          mapped?: Json | null
+          order_id?: string | null
+          raw: Json
+          resolved?: Json | null
+          sheet_row_number?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          content_hash?: string
+          created_at?: string
+          "DigiCom Business"?: string
+          external_row_id?: string
+          fetched_at?: string
+          id?: string
+          issues?: Json | null
+          mapped?: Json | null
+          order_id?: string | null
+          raw?: Json
+          resolved?: Json | null
+          sheet_row_number?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_ingest_rows_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "sales_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_ingest_rows_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "ai_business_health"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sheet_ingest_rows_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_ingest_rows_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -9399,6 +9602,8 @@ export type Database = {
     }
     Functions: {
       _ai_order_is_locked: { Args: { p_order_id: string }; Returns: boolean }
+      _sheet_default_map: { Args: never; Returns: Json }
+      _sheet_pick: { Args: { p_aliases: Json; p_raw: Json }; Returns: string }
       _wa_thread_by_jid: {
         Args: { p_business_id: string; p_instance_id: string; p_jid: string }
         Returns: string
@@ -9730,6 +9935,8 @@ export type Database = {
         Returns: undefined
       }
       ai_usage_rollup: { Args: never; Returns: number }
+      approve_sheet_order: { Args: { p_order_id: string }; Returns: Json }
+      attribute_single_order: { Args: { p_order_id: string }; Returns: string }
       audit_log_dispatch_geo: { Args: never; Returns: undefined }
       audit_log_reap_geo: { Args: never; Returns: undefined }
       check_expired_licenses: { Args: never; Returns: undefined }
@@ -9757,6 +9964,10 @@ export type Database = {
         Args: { p_delivery_note_id: string }
         Returns: undefined
       }
+      delete_open_courier_delivery_note: {
+        Args: { p_delivery_note_id: string }
+        Returns: undefined
+      }
       get_daily_attribution_progress: {
         Args: { p_business_id: string; p_date?: string }
         Returns: {
@@ -9773,14 +9984,27 @@ export type Database = {
       get_meta_ads_token: { Args: { p_connection_id: string }; Returns: string }
       get_meta_app_secret: { Args: never; Returns: string }
       get_meta_oauth_state_secret: { Args: never; Returns: string }
+      ingest_sheet_rows: {
+        Args: { p_channel_id: string; p_rows: Json }
+        Returns: Json
+      }
       invoke_ozon_poll: { Args: { p_trigger?: string }; Returns: number }
       invoke_quicklivraison_poll: {
         Args: { p_trigger?: string }
         Returns: number
       }
+      invoke_sheets_poll: { Args: { p_trigger?: string }; Returns: number }
       invoke_tracking_sync: { Args: { p_trigger?: string }; Returns: number }
       invoke_vitex_poll: { Args: { p_trigger?: string }; Returns: number }
       is_owner: { Args: never; Returns: boolean }
+      link_company_parcels_to_delivery_note: {
+        Args: { p_delivery_note_id: string; p_parcel_ids: string[] }
+        Returns: Json
+      }
+      link_courier_parcels_to_delivery_note: {
+        Args: { p_delivery_note_id: string; p_parcel_ids: string[] }
+        Returns: Json
+      }
       log_audit: { Args: { payload: Json }; Returns: string }
       match_package_status: {
         Args: { p_status_value: string }
@@ -9815,7 +10039,19 @@ export type Database = {
         Args: { p_business_id: string; p_phone_normalized: string }
         Returns: undefined
       }
+      refresh_mediabuyer_payment_balance: {
+        Args: { p_payment_id: string }
+        Returns: undefined
+      }
+      refresh_seller_payment_balance: {
+        Args: { p_payment_id: string }
+        Returns: undefined
+      }
       remove_company_parcel_from_delivery_note: {
+        Args: { p_delivery_note_id: string; p_parcel_id: string }
+        Returns: undefined
+      }
+      remove_courier_parcel_from_delivery_note: {
         Args: { p_delivery_note_id: string; p_parcel_id: string }
         Returns: undefined
       }

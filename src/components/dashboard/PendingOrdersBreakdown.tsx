@@ -36,7 +36,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
                 .from('orders')
                 .select('id, date, created_at, price, order_status_id, tracking_number')
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

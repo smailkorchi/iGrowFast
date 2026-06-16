@@ -71,7 +71,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
                 .from('orders')
                 .select('id, date, courier_id, order_status_id, package_status_id, package_status_label, tracking_number, package_statuses(label, category)')
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null)
+                .is('date_deleted', null).neq('source_review_status', 'pending')
                 .not('courier_id', 'is', null);
             return (data || []) as unknown as OrderRow[];
         },

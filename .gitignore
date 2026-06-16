@@ -32,6 +32,8 @@ docs/infrastructure-secrets.md
 # Google service account credentials
 digicom-*.json
 google-*.json
+igrowfast-*.json
+*.iam.gserviceaccount.com.json
 
 # GitHub Actions deploy keypair (local only)
 deploy_key

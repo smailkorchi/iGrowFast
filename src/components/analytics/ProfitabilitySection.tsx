@@ -65,7 +65,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                     'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, package_status_label, tracking_number, courier_id, company_id, master_city_id, city_id, order_statuses(code), package_statuses(label, category), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 )
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

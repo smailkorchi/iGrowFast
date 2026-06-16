@@ -94,7 +94,7 @@ export function useSellerLiveOwed() {
                 .from('orders')
                 .select('id, seller_id, package_status_id, order_items(product_id, quantity)')
                 .in('seller_id', sellerIds)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             if (error) throw error;
             return (data || []) as any[];
         },

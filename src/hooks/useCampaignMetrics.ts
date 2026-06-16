@@ -165,7 +165,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
                 .ilike('source_name', source)
                 .gte('date', shiftYmd(dateRange.from, -1))
                 .lte('date', `${shiftYmd(dateRange.to, 1)}T23:59:59.999Z`)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             if (error) throw error;
             return (data || []) as OrderRow[];
         },

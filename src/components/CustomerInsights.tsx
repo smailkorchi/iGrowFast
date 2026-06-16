@@ -84,7 +84,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                     `)
                     .eq('DigiCom Business', activeBusinessId)
                     .ilike('phone', `%${cleaned}%`)
-                    .is('date_deleted', null)
+                    .is('date_deleted', null).neq('source_review_status', 'pending')
                     .order('date', { ascending: false });
 
                 if (error) throw error;

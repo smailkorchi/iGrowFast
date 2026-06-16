@@ -73,7 +73,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                     'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label)',
                 )
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

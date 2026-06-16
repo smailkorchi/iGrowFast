@@ -123,7 +123,7 @@ const ReturnNote = () => {
                 .eq('package_status_id', RETOURNE_PACKAGE_STATUS_ID)
                 .is('current_return_note_id', null)
                 .is('current_courier_return_note_id', null)
-                .is('date_deleted', null)
+                .is('date_deleted', null).neq('source_review_status', 'pending')
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data || []) as ReturnOrder[];

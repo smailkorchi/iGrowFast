@@ -144,7 +144,7 @@ const Couriers = () => {
                 .select('id, courier_id, order_status_id, package_status_id, shipping_cost, include_delivery_in_total, master_city_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .in('courier_id', courierIds)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             if (error) throw error;
             return (data || []) as OrderRow[];
         },

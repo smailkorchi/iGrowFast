@@ -74,6 +74,7 @@ const salesChannelSchema = z.object({
     spreadsheet_id: z.string().optional().or(z.literal('')),
     spreadsheet_name: z.string().optional().or(z.literal('')),
     start_row: z.coerce.number().min(1, "Row must be at least 1").default(1),
+    sync_cadence: z.enum(['manual', '15min', 'hourly']).default('manual'),
 });
 
 type SalesChannelFormValues = z.infer<typeof salesChannelSchema>;
@@ -209,6 +210,28 @@ const SalesChannels = () => {
         }
     });
 
+    const checkNowMutation = useMutation({
+        mutationFn: async (channelId: string) => {
+            const { data, error } = await supabase.functions.invoke('sheets-sync', {
+                body: { action: 'sync_channel', channel_id: channelId },
+            });
+            if (error) throw new Error(error.message);
+            const res = data as { ok: boolean; error?: string; inserted?: number; skipped?: number; needs_review?: number };
+            if (!res?.ok) throw new Error(res?.error || 'Sync failed');
+            return res;
+        },
+        onSuccess: (res: any) => {
+            queryClient.invalidateQueries({ queryKey: ['sales_channels'] });
+            toast({
+                title: 'Sync complete',
+                description: `${res.inserted ?? 0} new draft(s), ${res.skipped ?? 0} already imported${res.needs_review ? `, ${res.needs_review} need attention` : ''}. Review them in Sheet Review.`,
+            });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+        },
+    });
+
     const handleUpsert = (values: SalesChannelFormValues) => {
         upsertMutation.mutate(values);
     };
@@ -222,6 +245,7 @@ const SalesChannels = () => {
                 spreadsheet_id: channel.spreadsheet_id || '',
                 spreadsheet_name: channel.spreadsheet_name || '',
                 start_row: channel.start_row || 1,
+                sync_cadence: channel.sync_cadence || 'manual',
             });
         } else {
             setEditingChannel(null);
@@ -231,6 +255,7 @@ const SalesChannels = () => {
                 spreadsheet_id: '',
                 spreadsheet_name: '',
                 start_row: 1,
+                sync_cadence: 'manual',
             });
         }
         setIsUpsertOpen(true);
@@ -337,6 +362,8 @@ const SalesChannels = () => {
                                 channel={channel}
                                 onEdit={() => openUpsert(channel)}
                                 onDelete={() => setChannelToDelete(channel)}
+                                onCheck={() => checkNowMutation.mutate(channel.id)}
+                                isChecking={checkNowMutation.isPending && checkNowMutation.variables === channel.id}
                             />
                         ))}
                     </div>
@@ -452,6 +479,28 @@ const SalesChannels = () => {
                                                 </FormItem>
                                             )}
                                         />
+                                        <FormField
+                                            control={form.control}
+                                            name="sync_cadence"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Auto-sync</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink w-56">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="rounded-xl border-ant-line">
+                                                            <SelectItem value="manual" className="text-[12px]">Manual — Check now only</SelectItem>
+                                                            <SelectItem value="15min" className="text-[12px]">Every 15 minutes</SelectItem>
+                                                            <SelectItem value="hourly" className="text-[12px]">Hourly</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <p className="text-[9px] uppercase tracking-[0.18em] text-ant-mid">Synced orders always wait for your approval</p>
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
                                 </div>
 
@@ -512,7 +561,7 @@ const SalesChannels = () => {
 };
 
 // --- Channel Card ---
-const ChannelCard = ({ channel, onEdit, onDelete }: any) => {
+const ChannelCard = ({ channel, onEdit, onDelete, onCheck, isChecking }: any) => {
     const sheetUrl = channel.spreadsheet_id
         ? `https://docs.google.com/spreadsheets/d/${channel.spreadsheet_id}`
         : null;
@@ -545,8 +594,8 @@ const ChannelCard = ({ channel, onEdit, onDelete }: any) => {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[160px]">
-                            <DropdownMenuItem className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-ink">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-ant-green" /> Check data
+                            <DropdownMenuItem onClick={onCheck} disabled={isChecking} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-ink">
+                                {isChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-ant-green" />} Check now
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="my-1 bg-ant-line" />
                             <DropdownMenuItem onClick={onEdit} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-ink">

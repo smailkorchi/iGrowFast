@@ -187,7 +187,7 @@ export function useMediaBuyerEarnings(month: string) {
                 .eq('DigiCom Business', activeBusinessId)
                 .gte('date', shiftYmd(from, -1))
                 .lte('date', `${shiftYmd(to, 1)}T23:59:59.999Z`)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             if (error) throw error;
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
             return ((data || []) as OrderRow[]).filter((o) =>

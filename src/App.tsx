@@ -20,6 +20,7 @@ import Products from "./pages/admin/Products";
 import Accessories from "./pages/admin/Accessories";
 import Analytics from "./pages/admin/Analytics";
 import SalesChannels from "./pages/admin/SalesChannels";
+import SheetReview from "./pages/admin/SheetReview";
 import Customers from "./pages/admin/Customers";
 import Users from "./pages/admin/Users";
 import AdsHistory from "./pages/AdsHistory";
@@ -290,6 +291,7 @@ const App = () => (
                     <Route path="/google-analytics" element={<GoogleAnalyticsPage />} />
                     <Route path="/meta-ads" element={<MetaAdsPage />} />
                     <Route path="/sales-channels" element={<SalesChannels />} />
+                    <Route path="/sheet-review" element={<SheetReview />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/ads-history" element={<AdsHistory />} />

@@ -234,7 +234,7 @@ const Customers = () => {
                     package_statuses(label)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
-                .is('date_deleted', null)
+                .is('date_deleted', null).neq('source_review_status', 'pending')
                 .order('date', { ascending: false });
 
             if (error) throw error;

@@ -159,7 +159,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                 .from('orders')
                 .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, order_items(product_id, unit_price, quantity)')
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return (data || []) as AdsOrderForMatching[];
         },
         enabled: !!businessId,

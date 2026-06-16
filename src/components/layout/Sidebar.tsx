@@ -123,6 +123,7 @@ const navigation: NavSection[] = [
     {
         items: [
             { icon: Plug, label: 'Sales Channels', path: '/sales-channels' },
+            { icon: ClipboardList, label: 'Sheet Review', path: '/sheet-review' },
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
         ],

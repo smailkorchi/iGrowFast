@@ -90,7 +90,7 @@ export function SellerSelfPerformanceSection({
             } else {
                 q = q.eq('seller_id', sellerId);
             }
-            q = q.is('date_deleted', null);
+            q = q.is('date_deleted', null).neq('source_review_status', 'pending');
             const { data, error } = await q;
             if (error) throw error;
             return data || [];

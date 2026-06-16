@@ -991,6 +991,7 @@ const Orders = () => {
                 .eq('DigiCom Business', activeBusinessId)
                 .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
                 .is('date_deleted', null)
+                .neq('source_review_status', 'pending')
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];

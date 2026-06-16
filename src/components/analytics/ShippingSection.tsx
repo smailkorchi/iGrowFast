@@ -52,7 +52,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                 .from('orders')
                 .select('id, date, updated_at, shipping_cost, delivery_type, company_id, courier_id, order_status_id, package_status_id, package_status_label, date_livraison, tracking_number, master_city_id, master_cities(name, lat, lng), package_statuses(label, category)')
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

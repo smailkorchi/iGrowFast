@@ -31,7 +31,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                 .from('orders')
                 .select('id, date, order_status_id, package_status_id, package_status_label, company_id, courier_id')
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

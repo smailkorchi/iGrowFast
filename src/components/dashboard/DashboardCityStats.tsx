@@ -46,7 +46,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                     'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, master_city_id, master_cities(name), order_status_id, package_statuses(label)',
                 )
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

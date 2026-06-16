@@ -53,7 +53,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
                 .from('orders')
                 .select('id, phone, name, price, date, order_status_id, package_status_id, master_city_id, master_cities(name, region)')
                 .eq('DigiCom Business', businessId)
-                .is('date_deleted', null);
+                .is('date_deleted', null).neq('source_review_status', 'pending');
             return data || [];
         },
         enabled: !!businessId,

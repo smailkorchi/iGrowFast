@@ -160,7 +160,7 @@ export default function BonCommandePage() {
         .from('orders')
         .select('name, phone, address, city:master_cities(name)')
         .eq('DigiCom Business', activeBusinessId!)
-        .is('date_deleted', null);
+        .is('date_deleted', null).neq('source_review_status', 'pending');
       if (error) throw error;
       const map = new Map<string, OrderDerivedClient>();
       (orders || []).forEach((o: Record<string, unknown>) => {
