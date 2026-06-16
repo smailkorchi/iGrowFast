@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -48,12 +48,18 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
     const { data: orders } = useQuery({
         queryKey: ['analytics-orders-sellers-v3', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            // Paginated so we never truncate at the 1000-row default cap.
+            return await fetchAllRows(
+                'orders',
+                'id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });
@@ -63,17 +69,17 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
     const { data: sellerEarnings } = useQuery({
         queryKey: ['analytics-seller-daily-earnings-section', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('seller_daily_earnings')
-                .select('seller_id, date, commission_earned, total_earned, delivered_count')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{
+            return await fetchAllRows<{
                 seller_id: string;
                 date: string;
                 commission_earned: number | string | null;
                 total_earned: number | string | null;
                 delivered_count: number | null;
-            }>;
+            }>(
+                'seller_daily_earnings',
+                'seller_id, date, commission_earned, total_earned, delivered_count',
+                { filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }] },
+            );
         },
         enabled: !!businessId,
     });

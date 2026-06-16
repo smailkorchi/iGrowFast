@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Users } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
@@ -80,20 +80,21 @@ export function SellerSelfPerformanceSection({
     const { data: orders, isLoading: loadingOrders } = useQuery({
         queryKey: ['seller-self-performance-orders', businessId || 'no-biz', sellerId],
         queryFn: async () => {
-            let q = supabase
-                .from('orders')
-                .select(
-                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label, category), package_statuses(label, category)'
-                );
-            if (businessId) {
-                q = q.eq('DigiCom Business', businessId);
-            } else {
-                q = q.eq('seller_id', sellerId);
-            }
-            q = q.is('date_deleted', null).neq('source_review_status', 'pending');
-            const { data, error } = await q;
-            if (error) throw error;
-            return data || [];
+            // Paginated (fetchAllRows) so we never silently truncate at PostgREST's
+            // 1000-row default — that cap dropped a high-volume seller's newest
+            // orders and undercounted delivered/attributed/confirmed counts.
+            const filters: { column: string; op: 'eq' | 'neq' | 'is'; value: unknown }[] = [
+                businessId
+                    ? { column: 'DigiCom Business', op: 'eq', value: businessId }
+                    : { column: 'seller_id', op: 'eq', value: sellerId },
+                { column: 'date_deleted', op: 'is', value: null },
+                { column: 'source_review_status', op: 'neq', value: 'pending' },
+            ];
+            return await fetchAllRows(
+                'orders',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label, category), package_statuses(label, category)',
+                { filters },
+            );
         },
         enabled: !!sellerId,
         // Always refetch on mount so the seller and admin dashboards can't drift

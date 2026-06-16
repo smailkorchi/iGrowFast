@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
@@ -129,15 +129,17 @@ const SellerStatistics = () => {
                 .single();
             const sellerBusinessId = (sellerProfile as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
 
-            let ordersBuilder = supabase
-                .from('orders')
-                .select('id, city_id, order_status_id, package_status_id, package_status_label, tracking_number, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))')
-                .eq('seller_id', user.id)
-                .is('date_deleted', null);
-            if (sellerBusinessId) {
-                ordersBuilder = ordersBuilder.eq('DigiCom Business', sellerBusinessId);
-            }
-            const { data: ordersData, error: ordersError } = await ordersBuilder;
+            // Paginated so a seller exceeding 1000 orders is never truncated.
+            const ordersFilters: { column: string; op: 'eq' | 'is'; value: unknown }[] = [
+                { column: 'seller_id', op: 'eq', value: user.id },
+                { column: 'date_deleted', op: 'is', value: null },
+            ];
+            if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
+            const ordersData = await fetchAllRows<any>(
+                'orders',
+                'id, city_id, order_status_id, package_status_id, package_status_label, tracking_number, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
+                { filters: ordersFilters },
+            );
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
@@ -155,15 +157,15 @@ const SellerStatistics = () => {
             // confirmed counts / rates drift from the real state.
             const trackedSet = new Set<string>();
             if (sellerBusinessId) {
-                const [{ data: cpRows }, { data: xpRows }] = await Promise.all([
-                    supabase
-                        .from('company_parcels')
-                        .select('order_id, tracking_code')
-                        .eq('DigiCom Business', sellerBusinessId),
-                    supabase
-                        .from('courier_parcels')
-                        .select('order_id, tracking_code')
-                        .eq('DigiCom Business', sellerBusinessId),
+                const [cpRows, xpRows] = await Promise.all([
+                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                        'company_parcels', 'order_id, tracking_code',
+                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
+                    ),
+                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                        'courier_parcels', 'order_id, tracking_code',
+                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
+                    ),
                 ]);
                 (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
                     if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
@@ -181,8 +183,6 @@ const SellerStatistics = () => {
             // disagree on the same orders.
             const isConfirmedOrBeyond = (o: any) => hasTracking(o) || statusCats.confirmedIds.has(o.order_status_id);
             const isFake = (o: any) => statusCats.isOrderInCategories(o.order_status_id, ['fake', 'double']);
-
-            if (ordersError) throw ordersError;
 
             const distMap: Record<string, number> = {};
             orders?.forEach(o => {

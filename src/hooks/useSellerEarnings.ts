@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Seller monthly earnings — bulk computation for admin payout flow.
@@ -127,15 +127,19 @@ export function useSellerEarnings(month: string) {
         queryKey: ['seller-earnings-daily', activeBusinessId, month, sellerIds.sort().join(',')],
         queryFn: async () => {
             if (!activeBusinessId || sellerIds.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('seller_daily_earnings')
-                .select('seller_id, date, commission_earned, delivered_count')
-                .eq('DigiCom Business', activeBusinessId)
-                .in('seller_id', sellerIds)
-                .gte('date', bounds.from)
-                .lte('date', bounds.to);
-            if (error) throw error;
-            return (data || []) as DailyEarning[];
+            // Paginated so the payout-generation source never caps at 1000 view rows.
+            return await fetchAllRows<DailyEarning>(
+                'seller_daily_earnings',
+                'seller_id, date, commission_earned, delivered_count',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'seller_id', op: 'in', value: sellerIds },
+                        { column: 'date', op: 'gte', value: bounds.from },
+                        { column: 'date', op: 'lte', value: bounds.to },
+                    ],
+                },
+            );
         },
         enabled: !!activeBusinessId && sellerIds.length > 0,
     });

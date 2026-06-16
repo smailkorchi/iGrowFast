@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
@@ -138,11 +138,22 @@ const SellerProfile = () => {
 
                 // Fetch real performance stats
                 const sellerBusinessId = (seller as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
-                const { data: ordersData, error: ordersError } = await supabase
-                    .from('orders')
-                    .select('id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label)')
-                    .eq('seller_id', session.user.id)
-                    .is('date_deleted', null);
+                // Paginated so a seller exceeding 1000 orders is never truncated.
+                let ordersData: any[] = [];
+                try {
+                    ordersData = await fetchAllRows<any>(
+                        'orders',
+                        'id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label)',
+                        {
+                            filters: [
+                                { column: 'seller_id', op: 'eq', value: session.user.id },
+                                { column: 'date_deleted', op: 'is', value: null },
+                            ],
+                        },
+                    );
+                } catch {
+                    ordersData = [];
+                }
 
                 // Fetch parcel tracking up front — `orders.tracking_number`
                 // is never populated; the authoritative source for "has
@@ -150,15 +161,15 @@ const SellerProfile = () => {
                 // the per-product stats block below can reuse it.
                 const trackedSet = new Set<string>();
                 if (sellerBusinessId) {
-                    const [{ data: cpRows }, { data: xpRows }] = await Promise.all([
-                        supabase
-                            .from('company_parcels')
-                            .select('order_id, tracking_code')
-                            .eq('DigiCom Business', sellerBusinessId),
-                        supabase
-                            .from('courier_parcels')
-                            .select('order_id, tracking_code')
-                            .eq('DigiCom Business', sellerBusinessId),
+                    const [cpRows, xpRows] = await Promise.all([
+                        fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                            'company_parcels', 'order_id, tracking_code',
+                            { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
+                        ),
+                        fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                            'courier_parcels', 'order_id, tracking_code',
+                            { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
+                        ),
                     ]);
                     (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
                         if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
@@ -168,7 +179,7 @@ const SellerProfile = () => {
                     });
                 }
 
-                if (!ordersError && ordersData) {
+                if (ordersData) {
                     const ordersList = ordersData;
                     const total = ordersList.length;
                     const delivered = ordersList.filter(o => isDeliveredForCommission(o, statusCats.deliveredPkgIds)).length;

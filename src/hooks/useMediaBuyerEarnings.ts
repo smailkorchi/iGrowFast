@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { getPlatformSource } from '@/lib/campaignConstants';
 import { toBusinessDate, shiftYmd } from '@/lib/dateBuckets';
@@ -181,16 +181,18 @@ export function useMediaBuyerEarnings(month: string) {
         queryKey: ['mb-earnings-orders', activeBusinessId, month, sourceList.join(',')],
         queryFn: async () => {
             if (!activeBusinessId || sourceList.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select('id, date, source_name, package_status_id')
-                .eq('DigiCom Business', activeBusinessId)
-                .gte('date', shiftYmd(from, -1))
-                .lte('date', `${shiftYmd(to, 1)}T23:59:59.999Z`)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            if (error) throw error;
+            // Paginated so we never truncate at the 1000-row default cap.
+            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, package_status_id', {
+                filters: [
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    { column: 'date', op: 'gte', value: shiftYmd(from, -1) },
+                    { column: 'date', op: 'lte', value: `${shiftYmd(to, 1)}T23:59:59.999Z` },
+                    { column: 'date_deleted', op: 'is', value: null },
+                    { column: 'source_review_status', op: 'neq', value: 'pending' },
+                ],
+            });
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
-            return ((data || []) as OrderRow[]).filter((o) =>
+            return data.filter((o) =>
                 o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false
             );
         },

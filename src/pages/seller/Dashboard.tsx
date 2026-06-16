@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     computeUnpaidCommission,
@@ -151,15 +151,17 @@ const SellerDashboard = () => {
             const commissionBasis = normalizeCommissionBasis(sellerData?.commission_basis as string | null | undefined);
             const sellerBusinessId = (sellerData as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
 
-            let ordersQuery = supabase
-                .from('orders')
-                .select('id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
-                .eq('seller_id', userId)
-                .is('date_deleted', null);
-            if (sellerBusinessId) {
-                ordersQuery = ordersQuery.eq('DigiCom Business', sellerBusinessId);
-            }
-            const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
+            // Paginated so a seller exceeding 1000 orders is never truncated.
+            const ordersFilters: { column: string; op: 'eq' | 'is'; value: unknown }[] = [
+                { column: 'seller_id', op: 'eq', value: userId },
+                { column: 'date_deleted', op: 'is', value: null },
+            ];
+            if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
+            const ordersData = await fetchAllRows<any>(
+                'orders',
+                'id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
+                { filters: ordersFilters },
+            );
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
@@ -176,15 +178,15 @@ const SellerDashboard = () => {
             // is company_parcels.tracking_code / courier_parcels.tracking_code.
             const trackedSet = new Set<string>();
             if (sellerBusinessId) {
-                const [{ data: cpRows }, { data: xpRows }] = await Promise.all([
-                    supabase
-                        .from('company_parcels')
-                        .select('order_id, tracking_code')
-                        .eq('DigiCom Business', sellerBusinessId),
-                    supabase
-                        .from('courier_parcels')
-                        .select('order_id, tracking_code')
-                        .eq('DigiCom Business', sellerBusinessId),
+                const [cpRows, xpRows] = await Promise.all([
+                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                        'company_parcels', 'order_id, tracking_code',
+                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
+                    ),
+                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                        'courier_parcels', 'order_id, tracking_code',
+                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
+                    ),
                 ]);
                 (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
                     if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);

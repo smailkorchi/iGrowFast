@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useCampaignBasePath } from '@/hooks/useCampaignBasePath';
 import { getPlatformSource, type Campaign, type CampaignDailyEntry } from '@/lib/campaignConstants';
@@ -156,18 +156,21 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
             if (!activeBusinessId || !source || !dateRange.from || !dateRange.to) return [];
             // orders.date is timestamptz; entry_date is local. Widen by 1 day each side and
             // re-bucket client-side to business TZ.
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(
-                    'id, date, source_name, order_status_id, package_status_id, price, raw_price, shipping_cost, include_delivery_in_total, order_items(product_id, quantity, unit_price, total_price)'
-                )
-                .eq('DigiCom Business', activeBusinessId)
-                .ilike('source_name', source)
-                .gte('date', shiftYmd(dateRange.from, -1))
-                .lte('date', `${shiftYmd(dateRange.to, 1)}T23:59:59.999Z`)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            if (error) throw error;
-            return (data || []) as OrderRow[];
+            // Paginated so we never truncate at the 1000-row default cap.
+            return await fetchAllRows<OrderRow>(
+                'orders',
+                'id, date, source_name, order_status_id, package_status_id, price, raw_price, shipping_cost, include_delivery_in_total, order_items(product_id, quantity, unit_price, total_price)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'source_name', op: 'ilike', value: source },
+                        { column: 'date', op: 'gte', value: shiftYmd(dateRange.from, -1) },
+                        { column: 'date', op: 'lte', value: `${shiftYmd(dateRange.to, 1)}T23:59:59.999Z` },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!activeBusinessId && !!source && !!dateRange.from && !!dateRange.to,
     });

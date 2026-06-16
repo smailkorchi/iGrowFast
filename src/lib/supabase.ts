@@ -21,13 +21,15 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
  */
 const PAGE_SIZE = 1000;
 
+export type FetchAllFilterOp = 'eq' | 'neq' | 'in' | 'is' | 'gte' | 'lte' | 'gt' | 'lt' | 'ilike';
+
 export async function fetchAllRows<T = Record<string, unknown>>(
     table: string,
     select: string,
     options?: {
         orderBy?: string;
         ascending?: boolean;
-        filters?: { column: string; op: 'eq' | 'neq' | 'in'; value: unknown }[];
+        filters?: { column: string; op: FetchAllFilterOp; value: unknown }[];
     }
 ): Promise<T[]> {
     const all: T[] = [];
@@ -39,17 +41,24 @@ export async function fetchAllRows<T = Record<string, unknown>>(
             .select(select)
             .range(from, from + PAGE_SIZE - 1);
 
-        if (options?.orderBy) {
-            query = query.order(options.orderBy, {
-                ascending: options.ascending ?? true,
-            });
-        }
+        // A stable order is REQUIRED for correct .range() pagination — without it
+        // PostgREST can return rows in an unstable physical order across pages,
+        // duplicating/skipping rows. Default to primary key 'id'.
+        query = query.order(options?.orderBy ?? 'id', {
+            ascending: options?.ascending ?? true,
+        });
 
         if (options?.filters) {
             for (const f of options.filters) {
                 if (f.op === 'eq') query = query.eq(f.column, f.value);
                 else if (f.op === 'neq') query = query.neq(f.column, f.value);
                 else if (f.op === 'in') query = query.in(f.column, f.value as unknown[]);
+                else if (f.op === 'is') query = query.is(f.column, f.value as null | boolean);
+                else if (f.op === 'gte') query = query.gte(f.column, f.value);
+                else if (f.op === 'lte') query = query.lte(f.column, f.value);
+                else if (f.op === 'gt') query = query.gt(f.column, f.value);
+                else if (f.op === 'lt') query = query.lt(f.column, f.value);
+                else if (f.op === 'ilike') query = query.ilike(f.column, f.value as string);
             }
         }
 

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Users, ChevronDown, AlertTriangle } from 'lucide-react';
@@ -136,14 +136,18 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     const { data: orders } = useQuery({
         queryKey: ['dashboard-sellers-performance-orders', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select(
-                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label, category), package_statuses(label, category)'
-                )
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            // Paginated so we never truncate at the 1000-row default cap.
+            return await fetchAllRows(
+                'orders',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label, category), package_statuses(label, category)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
         // Always refetch on mount so the seller and admin dashboards can't drift

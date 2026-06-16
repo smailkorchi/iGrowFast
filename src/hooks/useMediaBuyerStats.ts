@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { getPlatformSource, type Campaign, type CampaignDailyEntry } from '@/lib/campaignConstants';
@@ -146,16 +146,18 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             // Widen the server-side window by 1 day on each end so the 00:00–00:59
             // local hour (whose UTC day is the previous calendar date) is fetched.
             // Client-side bucketing below re-attributes each order by business-TZ date.
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select('id, date, source_name, order_status_id, package_status_id')
-                .eq('DigiCom Business', activeBusinessId)
-                .gte('date', shiftYmd(range.from, -1))
-                .lte('date', `${shiftYmd(range.to, 1)}T23:59:59.999Z`)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            if (error) throw error;
+            // Paginated so we never truncate at the 1000-row default cap.
+            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, order_status_id, package_status_id', {
+                filters: [
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    { column: 'date', op: 'gte', value: shiftYmd(range.from, -1) },
+                    { column: 'date', op: 'lte', value: `${shiftYmd(range.to, 1)}T23:59:59.999Z` },
+                    { column: 'date_deleted', op: 'is', value: null },
+                    { column: 'source_review_status', op: 'neq', value: 'pending' },
+                ],
+            });
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
-            return ((data || []) as OrderRow[]).filter((o) =>
+            return data.filter((o) =>
                 o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false
             );
         },

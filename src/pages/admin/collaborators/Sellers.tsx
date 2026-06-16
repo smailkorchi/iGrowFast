@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Users as UsersIcon,
     MapPin,
@@ -204,27 +204,28 @@ const Sellers = () => {
 
             const sellerIds = sellersData.map((s) => s.id);
 
-            const { data: ordersData } = await supabase
-                .from('orders')
-                .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)')
-                .in('seller_id', sellerIds)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
+            // Paginated (fetchAllRows) so we never truncate at PostgREST's 1000-row
+            // default — that cap was undercounting high-volume sellers' delivered,
+            // revenue and live-commission figures.
+            const orders = await fetchAllRows<any>(
+                'orders',
+                'id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)',
+                {
+                    filters: [
+                        { column: 'seller_id', op: 'in', value: sellerIds },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
 
-            const orders = (ordersData || []) as any[];
+            const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
 
-            const { data: earningsData } = await supabase
-                .from('seller_daily_earnings')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId);
-
-            const earnings = earningsData || [];
-
-            const { data: presencesData } = await supabase
-                .from('seller_presences')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId);
-
-            const presences = presencesData || [];
+            const presences = await fetchAllRows<any>('seller_presences', '*', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
 
             const { data: paymentsData } = await supabase
                 .from('seller_payments')

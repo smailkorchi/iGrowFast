@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/supabase';
+
+type ParcelRow = { order_id: string | null; tracking_code: string | null };
 
 /**
  * Returns the set of order_ids that have a tracking_code in either
@@ -20,12 +22,9 @@ export function useTrackedOrders(businessId: string | null | undefined) {
         queryKey: ['tracked-orders-company-parcels', businessId],
         queryFn: async () => {
             if (!businessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('company_parcels')
-                .select('order_id, tracking_code')
-                .eq('DigiCom Business', businessId);
-            if (error) throw error;
-            return (data || []) as Array<{ order_id: string | null; tracking_code: string | null }>;
+            return await fetchAllRows<ParcelRow>('company_parcels', 'order_id, tracking_code', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }],
+            });
         },
         enabled: !!businessId,
         staleTime: 0,
@@ -36,12 +35,9 @@ export function useTrackedOrders(businessId: string | null | undefined) {
         queryKey: ['tracked-orders-courier-parcels', businessId],
         queryFn: async () => {
             if (!businessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_parcels')
-                .select('order_id, tracking_code')
-                .eq('DigiCom Business', businessId);
-            if (error) throw error;
-            return (data || []) as Array<{ order_id: string | null; tracking_code: string | null }>;
+            return await fetchAllRows<ParcelRow>('courier_parcels', 'order_id, tracking_code', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }],
+            });
         },
         enabled: !!businessId,
         staleTime: 0,

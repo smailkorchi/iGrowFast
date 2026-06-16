@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/supabase';
 import { format } from 'date-fns';
 
 export interface SellerCommissionTotals {
@@ -31,18 +31,20 @@ export function useSellerCommissionTotals(
       const deliveredTotals = new Map<string, number>();
       if (!businessId) return { totals, deliveredTotals };
 
-      let q = supabase
-        .from('seller_daily_earnings')
-        .select('seller_id, date, commission_earned, delivered_count')
-        .eq('DigiCom Business', businessId);
+      // Paginated so the canonical commission source never caps at 1000 view rows.
+      const filters: { column: string; op: 'eq' | 'gte' | 'lte'; value: unknown }[] = [
+        { column: 'DigiCom Business', op: 'eq', value: businessId },
+      ];
+      if (from) filters.push({ column: 'date', op: 'gte', value: format(from, 'yyyy-MM-dd') });
+      if (to) filters.push({ column: 'date', op: 'lte', value: format(to, 'yyyy-MM-dd') });
 
-      if (from) q = q.gte('date', format(from, 'yyyy-MM-dd'));
-      if (to) q = q.lte('date', format(to, 'yyyy-MM-dd'));
+      const data = await fetchAllRows<{
+        seller_id: string | null;
+        commission_earned: number | string | null;
+        delivered_count: number | string | null;
+      }>('seller_daily_earnings', 'seller_id, date, commission_earned, delivered_count', { filters });
 
-      const { data, error } = await q;
-      if (error) throw error;
-
-      for (const row of data || []) {
+      for (const row of data) {
         const sid = row.seller_id as string | null;
         if (!sid) continue;
         totals.set(sid, (totals.get(sid) || 0) + Number(row.commission_earned || 0));
