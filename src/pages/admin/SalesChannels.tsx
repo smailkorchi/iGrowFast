@@ -68,6 +68,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 
 const salesChannelSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -76,6 +77,7 @@ const salesChannelSchema = z.object({
     spreadsheet_name: z.string().optional().or(z.literal('')),
     start_row: z.coerce.number().min(1, "Row must be at least 1").default(1),
     sync_cadence: z.enum(['manual', '15min', 'hourly']).default('manual'),
+    has_header: z.boolean().default(true),
 });
 
 type SalesChannelFormValues = z.infer<typeof salesChannelSchema>;
@@ -281,6 +283,7 @@ const SalesChannels = () => {
                 spreadsheet_name: channel.spreadsheet_name || '',
                 start_row: channel.start_row || 1,
                 sync_cadence: channel.sync_cadence || 'manual',
+                has_header: channel.has_header !== false,
             });
         } else {
             setEditingChannel(null);
@@ -291,6 +294,7 @@ const SalesChannels = () => {
                 spreadsheet_name: '',
                 start_row: 1,
                 sync_cadence: 'manual',
+                has_header: true,
             });
         }
         setIsUpsertOpen(true);
@@ -504,6 +508,21 @@ const SalesChannels = () => {
                                                 )}
                                             />
                                         </div>
+                                        <FormField
+                                            control={form.control}
+                                            name="has_header"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center justify-between gap-3 rounded-xl border border-ant-line bg-ant-paper px-3 py-2.5">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel className="text-[11px] font-semibold text-ant-ink">First row is a header</FormLabel>
+                                                        <p className="text-[10px] text-ant-mid leading-tight">Skips row 1 (the column names). Turn off only if your data starts on row 1.</p>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
                                         <FormField
                                             control={form.control}
                                             name="start_row"

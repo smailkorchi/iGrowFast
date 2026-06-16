@@ -62,6 +62,18 @@ async function googleToken(): Promise<string> {
   return TOKEN.token;
 }
 
+// Spreadsheet column letter for a 0-based index (0 -> A, 26 -> AA) — used when the sheet has no header.
+function colLetter(i: number): string {
+  let s = '';
+  let n = i + 1;
+  while (n > 0) {
+    const m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
 async function readSheet(spreadsheetId: string, tab: string | null): Promise<string[][]> {
   const t = await googleToken();
   const range = tab ? encodeURIComponent(tab) : 'A:ZZ';
@@ -84,12 +96,23 @@ async function syncChannel(admin: any, ch: any) {
     return { channel_id: ch.id, ok: false, error: msg };
   }
 
-  const headerIdx = startRow - 2 >= 0 ? startRow - 2 : 0; // header row is the one above the first data row
-  const headers = (values[headerIdx] ?? []).map((h) => String(h ?? '').trim());
-  if (!headers.length) return { channel_id: ch.id, ok: false, error: `no header row at row ${headerIdx + 1}` };
+  // Header handling: a header row is ALWAYS row 1 (mapped by name). Data starts at start_row, clamped below
+  // the header so the header can never be ingested as an order. With no header, columns are addressed by
+  // letter (A, B, ...) so a positional column_map can still work.
+  const hasHeader = ch.has_header !== false;
+  let startData = startRow;
+  if (hasHeader && startData < 2) startData = 2; // data must sit below the row-1 header
+  const headerIdx = hasHeader ? 0 : -1;
+  const headers = hasHeader
+    ? (values[0] ?? []).map((h) => String(h ?? '').trim())
+    : (values[startData - 1] ?? []).map((_, idx) => colLetter(idx));
+  if (hasHeader && !headers.some((h) => h)) {
+    return { channel_id: ch.id, ok: false, error: 'no header found in row 1 — turn off "First row is a header" if your sheet has none' };
+  }
 
   const rows: Array<{ rn: number; raw: Record<string, string> }> = [];
-  for (let i = startRow - 1; i < values.length; i++) {
+  for (let i = startData - 1; i < values.length; i++) {
+    if (i === headerIdx) continue; // never ingest the header row, even if start_row points at it
     const cells = values[i] ?? [];
     if (!cells.some((c) => String(c ?? '').trim() !== '')) continue; // skip blank rows
     const raw: Record<string, string> = {};

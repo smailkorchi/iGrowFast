@@ -132,7 +132,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, FileSpreadsheet } from "lucide-react";
 import { buildOrderItemRecords, type OrderLineForRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
 import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
 import { Switch } from "@/components/ui/switch";
@@ -882,6 +882,7 @@ const Orders = () => {
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
+                    channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
@@ -1363,6 +1364,7 @@ const Orders = () => {
                         courier:users!orders_courier_id_fkey(id, name, avatar_url),
                         assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                         company:providers(id, name, logo_url),
+                    channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                         history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                         parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
@@ -4881,6 +4883,12 @@ const Orders = () => {
                                                 </div>
                                             );
                                         })()}
+                                        {(selectedOrder as any).channel?.name && (
+                                            <Badge variant="outline" className="border-ant-line bg-ant-green/[0.07] text-ant-ink font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px] gap-1.5" title={`Sheet channel: ${(selectedOrder as any).channel.name}`}>
+                                                <FileSpreadsheet className="w-3.5 h-3.5 text-[#0F9D58]" />
+                                                {(selectedOrder as any).channel.name}
+                                            </Badge>
+                                        )}
                                         <Badge variant="outline" className="border-ant-ink/10 text-ant-ink font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
                                             {selectedOrder.source_name}
                                         </Badge>
