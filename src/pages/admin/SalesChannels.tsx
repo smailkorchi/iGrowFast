@@ -17,6 +17,7 @@ import {
     CheckCircle2,
     Sparkles,
     Link2,
+    Copy,
     type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -83,6 +84,34 @@ type SalesChannelFormValues = z.infer<typeof salesChannelSchema>;
 const extractSheetId = (input: string): string => {
     const m = (input || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
     return m ? m[1] : (input || '').trim();
+};
+
+// The service-account email each business must share its sheet with (Viewer access).
+const SHEETS_SA_EMAIL = 'sheets@igrowfast.iam.gserviceaccount.com';
+
+const SaEmailShare: React.FC = () => {
+    const [copied, setCopied] = useState(false);
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(SHEETS_SA_EMAIL);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+        } catch { /* clipboard unavailable */ }
+    };
+    return (
+        <div className="flex items-center gap-2.5 rounded-xl border border-ant-orange/25 bg-ant-orange/[0.06] px-3 py-2.5">
+            <Database className="w-4 h-4 text-ant-orange shrink-0" />
+            <span className="text-[11px] text-ant-mid shrink-0 hidden sm:inline">Share your sheet (Viewer) with</span>
+            <code className="text-[11px] md:text-[12px] font-mono text-ant-ink truncate flex-1 min-w-0">{SHEETS_SA_EMAIL}</code>
+            <button
+                type="button"
+                onClick={copy}
+                className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-paper px-3 py-1 text-[11px] font-semibold text-ant-ink hover:bg-ant-light cursor-pointer shrink-0 transition-colors"
+            >
+                {copied ? <><CheckCircle2 className="w-3.5 h-3.5 text-ant-green" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+            </button>
+        </div>
+    );
 };
 
 const LOGOS: Record<string, string> = {
@@ -316,6 +345,8 @@ const SalesChannels = () => {
                     </div>
                 </header>
 
+                <SaEmailShare />
+
                 {/* KPI strip */}
                 {isLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
@@ -446,6 +477,7 @@ const SalesChannels = () => {
                                             <Database className="w-3 h-3" />
                                             Google Sheets credentials
                                         </div>
+                                        <SaEmailShare />
                                         <div className="grid grid-cols-2 gap-3">
                                             <FormField
                                                 control={form.control}
