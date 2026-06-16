@@ -101,7 +101,7 @@ const SaEmailShare: React.FC = () => {
         } catch { /* clipboard unavailable */ }
     };
     return (
-        <div className="flex items-center gap-2.5 rounded-xl border border-ant-orange/25 bg-ant-orange/[0.06] px-3 py-2.5">
+        <div className="flex items-center gap-2.5 rounded-xl border border-ant-orange/25 bg-ant-orange/[0.06] px-3 py-2.5 min-w-0">
             <Database className="w-4 h-4 text-ant-orange shrink-0" />
             <span className="text-[11px] text-ant-mid shrink-0 hidden sm:inline">Share your sheet (Viewer) with</span>
             <code className="text-[11px] md:text-[12px] font-mono text-ant-ink truncate flex-1 min-w-0">{SHEETS_SA_EMAIL}</code>
@@ -412,9 +412,9 @@ const SalesChannels = () => {
 
                 {/* Upsert Modal */}
                 <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                    <DialogContent className="max-w-lg p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                    <DialogContent className="max-w-xl w-[calc(100vw-2rem)] p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
                         <Form {...form}>
-                            <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
+                            <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col min-w-0 w-full">
                                 <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="space-y-1.5 min-w-0">
@@ -437,7 +437,7 @@ const SalesChannels = () => {
                                     </div>
                                 </DialogHeader>
 
-                                <div className="ant-scroll p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                                <div className="ant-scroll p-6 space-y-4 max-h-[65vh] overflow-y-auto overflow-x-hidden min-w-0">
                                     <div className="grid grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
@@ -513,7 +513,7 @@ const SalesChannels = () => {
                                             name="has_header"
                                             render={({ field }) => (
                                                 <FormItem className="flex items-center justify-between gap-3 rounded-xl border border-ant-line bg-ant-paper px-3 py-2.5">
-                                                    <div className="space-y-0.5">
+                                                    <div className="space-y-0.5 min-w-0">
                                                         <FormLabel className="text-[11px] font-semibold text-ant-ink">First row is a header</FormLabel>
                                                         <p className="text-[10px] text-ant-mid leading-tight">Skips row 1 (the column names). Turn off only if your data starts on row 1.</p>
                                                     </div>
