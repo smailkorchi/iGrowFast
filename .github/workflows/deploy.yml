@@ -40,8 +40,21 @@ jobs:
       # If ANY step above fails, the job stops here and deploy is SKIPPED.
       # public_html is never touched. GitHub emails the repo owner on failure.
 
-      - name: Deploy dist/ to igrowfast.com public_html
+      # Hostinger SSH intermittently times out from GitHub runners
+      # (ssh: connect to host ... port 65002: Connection timed out -> rsync 255).
+      # Retry the deploy up to 3 times, each a fresh connection, with backoff.
+      # Only the FINAL attempt (no continue-on-error) can fail the job, so a
+      # transient timeout self-heals instead of skipping the deploy.
+      #
+      # ssh-deploy ARGS: -r recurse, -l symlinks, -t keep mtimes (incremental),
+      # -z compress, -v verbose, -O omit dir-time updates (avoids chtime errors
+      # on shared hosting). No -p: new files inherit web-safe perms (644/755).
+      # --delete removes server files no longer in the build. EXCLUDE protects
+      # the ACME/SSL challenge dir from --delete.
+      - name: Deploy to igrowfast.com (attempt 1)
+        id: deploy1
         if: success()
+        continue-on-error: true
         uses: easingthemes/ssh-deploy@v5.1.0
         with:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -50,11 +63,41 @@ jobs:
           REMOTE_PORT: "65002"
           SOURCE: "dist/"
           TARGET: "/home/u543529703/domains/igrowfast.com/public_html/"
-          # -r recurse, -l symlinks, -t keep mtimes (enables incremental
-          # transfers), -z compress, -v verbose, -O omit dir-time updates
-          # (avoids chtime errors on shared hosting). No -p: new files inherit
-          # the server's default web-safe perms (644 files / 755 dirs).
-          # --delete removes server files no longer in the build (clean deploy).
           ARGS: "-rltzvO --delete"
-          # Protect ACME/SSL challenge dir on the server from --delete.
+          EXCLUDE: "/.well-known/"
+
+      - name: Wait before deploy attempt 2
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to igrowfast.com (attempt 2)
+        id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: "89.116.105.160"
+          REMOTE_USER: "u543529703"
+          REMOTE_PORT: "65002"
+          SOURCE: "dist/"
+          TARGET: "/home/u543529703/domains/igrowfast.com/public_html/"
+          ARGS: "-rltzvO --delete"
+          EXCLUDE: "/.well-known/"
+
+      - name: Wait before deploy attempt 3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 45
+
+      - name: Deploy to igrowfast.com (attempt 3, final)
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: "89.116.105.160"
+          REMOTE_USER: "u543529703"
+          REMOTE_PORT: "65002"
+          SOURCE: "dist/"
+          TARGET: "/home/u543529703/domains/igrowfast.com/public_html/"
+          ARGS: "-rltzvO --delete"
           EXCLUDE: "/.well-known/"

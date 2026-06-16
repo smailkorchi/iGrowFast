@@ -10,7 +10,7 @@ export type CommissionBasis = "per_order" | "per_unit";
  *   `SELECT pg_get_viewdef('public.seller_daily_earnings'::regclass, true);` and trigger sources on `orders`.
  * - **Delivery day for “today” KPIs (client):** `date_livraison` when set, else `updated_at`, only for orders that pass `isDeliveredForCommission`.
  * - **Unpaid commission:** `computeUnpaidCommission` must use the **full** order history for the seller (same scope as lifetime `paidTally` from paid `seller_payments`), not a date-filtered subset.
- * - **Per-unit with empty `users.products`:** All line quantities on the order count (lenient fallback); when products are assigned, only those SKUs count.
+ * - **Per-unit with empty `users.products`:** commission is **0** (a seller earns only on their assigned SKUs). Matches the DB function `sum_order_units_for_seller_products`, the `seller_daily_earnings` view, and the payout flow exactly — no display-vs-payout drift.
  */
 
 /**
@@ -82,11 +82,15 @@ type OrderForCommission = {
 export function sumAssignedProductUnits(order: OrderForCommission, sellerProductIds: string[]): number {
   const items = order.order_items ?? order.items ?? [];
   const set = new Set((sellerProductIds || []).filter(Boolean));
-  const countAllLines = set.size === 0;
+  // No assigned products = no commission. This MUST match the DB function
+  // `sum_order_units_for_seller_products` (which returns 0 for empty
+  // users.products) so the seller-facing displays and the payout/Salaries flow
+  // can never disagree for a per_unit seller with no assigned catalog.
+  if (set.size === 0) return 0;
   return items.reduce((sum: number, row: OrderLine) => {
     const pid = row.product_id;
     if (!pid) return sum;
-    if (!countAllLines && !set.has(pid)) return sum;
+    if (!set.has(pid)) return sum;
     return sum + Number(row.quantity || 0);
   }, 0);
 }
