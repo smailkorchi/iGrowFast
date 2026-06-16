@@ -79,6 +79,12 @@ const salesChannelSchema = z.object({
 
 type SalesChannelFormValues = z.infer<typeof salesChannelSchema>;
 
+// Accepts a full Google Sheets URL (.../spreadsheets/d/<ID>/edit...) or a bare ID; returns just the ID.
+const extractSheetId = (input: string): string => {
+    const m = (input || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return m ? m[1] : (input || '').trim();
+};
+
 const LOGOS: Record<string, string> = {
     "Google Sheets": "https://cdn.pixabay.com/photo/2017/03/08/21/21/spreadsheet-2127832_1280.png"
 };
@@ -446,9 +452,9 @@ const SalesChannels = () => {
                                                 name="spreadsheet_id"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Spreadsheet ID</FormLabel>
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Spreadsheet link or ID</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="ID from URL" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-mono text-ant-ink placeholder:text-ant-mid" />
+                                                            <Input placeholder="Paste the Google Sheets link" {...field} onChange={(e) => field.onChange(extractSheetId(e.target.value))} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-mono text-ant-ink placeholder:text-ant-mid" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
