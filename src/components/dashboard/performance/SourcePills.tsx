@@ -23,6 +23,7 @@ const SOURCE_COLORS: Record<string, string> = {
   'phone call': 'bg-ant-blue/10 text-ant-ink',
   connaissance: 'bg-ant-orange/[0.12] text-ant-ink',
   reorder: 'bg-ant-green/10 text-ant-ink',
+  website: 'bg-ant-blue/10 text-ant-ink',
   other: 'bg-ant-line-soft text-ant-muted',
 };
 

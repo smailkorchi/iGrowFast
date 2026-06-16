@@ -280,13 +280,16 @@ const DeliveryNote = () => {
         const isCourierNote = !selectedNote?.provider_id && !!selectedNote?.courier_id;
         try {
             if (isCourierNote) {
-                // Atomic + guarded (multi-parcel check, full field clear, revert
-                // PROCESSED -> CONFIRMED only). Parity with the company path.
-                const { error: rpcError } = await (supabase as any).rpc('remove_courier_parcel_from_delivery_note', {
+                // Authoritative removal. The RPC atomically re-checks
+                // finalized / ownership / single-parcel and deletes the parcel;
+                // the AFTER DELETE trigger clear_order_logistics_when_no_parcels()
+                // clears the order's logistics mirror and reverts
+                // PROCESSED->CONFIRMED (terminal statuses left untouched).
+                const { error } = await (supabase as any).rpc('remove_courier_parcel_from_delivery_note', {
                     p_parcel_id: parcelId,
                     p_delivery_note_id: selectedNote.id,
                 });
-                if (rpcError) throw rpcError;
+                if (error) throw error;
             } else {
                 if (!selectedNote?.provider_id) return;
                 await removeCompanyParcelFromDeliveryNote(parcelId, selectedNote.id);

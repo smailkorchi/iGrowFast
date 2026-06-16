@@ -297,6 +297,7 @@ const SALES_SOURCES = [
     "phone call",
     "connaissance",
     "reorder",
+    "website",
     "other"
 ];
 

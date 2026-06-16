@@ -1,6 +1,10 @@
 {
   "mcpServers": {
-    "supabase": {
+    "supabase-igrowfast": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp"
+    },
+    "supabase-whatsappmancer": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp"
     }

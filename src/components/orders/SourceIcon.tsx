@@ -16,6 +16,7 @@ const SOURCE_MAP: Record<string, { icon: React.ElementType; color: string; label
   'phone call': { icon: Phone,       color: '#6366f1', label: 'Phone' },
   connaissance: { icon: Users,       color: '#8b5cf6', label: 'Connaissance' },
   reorder:      { icon: RotateCcw,   color: '#f59e0b', label: 'Reorder' },
+  website:      { icon: Globe,       color: '#0ea5e9', label: 'Website' },
 };
 
 const DEFAULT_SOURCE = { icon: Globe, color: '#6b7280', label: 'Other' };
