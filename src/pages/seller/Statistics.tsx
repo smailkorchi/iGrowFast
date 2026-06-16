@@ -263,13 +263,15 @@ const SellerStatistics = () => {
             });
             setRevenueData(Object.values(monthlyMap));
 
+            // Realized = cash actually paid out to the seller = Σ paid_amount across
+            // ALL payout rows. The old code summed total_amount only for status='paid'
+            // rows, which dropped partial payouts (ghita: 4800 paid -> showed 0).
             const { data: payments, error: paymentsError } = await supabase
                 .from('seller_payments')
-                .select('total_amount')
-                .eq('seller_id', user.id)
-                .eq('status', 'paid');
+                .select('paid_amount')
+                .eq('seller_id', user.id);
             if (paymentsError) throw paymentsError;
-            const totalRealized = payments?.reduce((acc, curr) => acc + Number(curr.total_amount), 0) || 0;
+            const totalRealized = payments?.reduce((acc, curr) => acc + Number(curr.paid_amount), 0) || 0;
 
             const { count: presenceCount, error: presenceError } = await supabase
                 .from('seller_presences')
@@ -326,12 +328,16 @@ const SellerStatistics = () => {
             const successRate = deliveryEff;
             const integrityScore = totalOrdersCount > 0 ? (1 - (fakeOrders / totalOrdersCount)) * 100 : 100;
 
+            // Owed = accrued − ALL cash paid (Σ paid_amount across every payout
+            // row, incl. partials). The old code summed delivered_orders only for
+            // status='paid' rows, which dropped partial payouts entirely and made
+            // "commission en attente" show the full accrual (6,420 instead of
+            // 1,620). Mirrors the seller Dashboard's owed calc exactly.
             const { data: paymentsData } = await supabase
                 .from('seller_payments')
-                .select('delivered_orders, status')
-                .eq('seller_id', user.id)
-                .eq('status', 'paid');
-            const alreadyPaidDeliveries = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+                .select('paid_amount')
+                .eq('seller_id', user.id);
+            const alreadyPaidAmount = (paymentsData || []).reduce((sum, p) => sum + (Number(p.paid_amount) || 0), 0);
 
             const { unpaidCommission: liveCommission } = computeUnpaidCommission({
                 basis: commissionBasis,
@@ -339,7 +345,7 @@ const SellerStatistics = () => {
                 orders: orders || [],
                 isDelivered,
                 sellerProductIds,
-                paidTally: alreadyPaidDeliveries,
+                paidAmount: alreadyPaidAmount,
             });
 
             setStats({ successRate, totalRealized, efficiency, totalOrders: totalAttributed, deliveredOrders: deliveredOrdersCount, growth, confirmRate, integrityScore, deliveryEff, liveCommission, commissionBasis });
