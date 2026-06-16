@@ -32,6 +32,7 @@ interface PerformanceStats {
     integrityScore: number;
     deliveryEff: number;
     liveCommission: number;
+    earnedCommission: number;
     commissionBasis: CommissionBasis;
 }
 
@@ -80,6 +81,7 @@ const SellerStatistics = () => {
         integrityScore: 0,
         deliveryEff: 0,
         liveCommission: 0,
+        earnedCommission: 0,
         commissionBasis: 'per_order',
     });
     const [revenueData, setRevenueData] = useState<ChartData[]>([]);
@@ -339,7 +341,7 @@ const SellerStatistics = () => {
                 .eq('seller_id', user.id);
             const alreadyPaidAmount = (paymentsData || []).reduce((sum, p) => sum + (Number(p.paid_amount) || 0), 0);
 
-            const { unpaidCommission: liveCommission } = computeUnpaidCommission({
+            const { unpaidCommission: liveCommission, accruedTotal } = computeUnpaidCommission({
                 basis: commissionBasis,
                 commissionPrice: Number(commissionRate) || 0,
                 orders: orders || [],
@@ -347,8 +349,11 @@ const SellerStatistics = () => {
                 sellerProductIds,
                 paidAmount: alreadyPaidAmount,
             });
+            // Gross commission earned (delivered units/orders × rate), independent of
+            // how much has been paid — drives the per-order earning rate card.
+            const earnedCommission = accruedTotal * (Number(commissionRate) || 0);
 
-            setStats({ successRate, totalRealized, efficiency, totalOrders: totalAttributed, deliveredOrders: deliveredOrdersCount, growth, confirmRate, integrityScore, deliveryEff, liveCommission, commissionBasis });
+            setStats({ successRate, totalRealized, efficiency, totalOrders: totalAttributed, deliveredOrders: deliveredOrdersCount, growth, confirmRate, integrityScore, deliveryEff, liveCommission, earnedCommission, commissionBasis });
         } catch (error) {
             console.error('Error fetching analytics:', error);
             toast({ title: "Data Error", description: "Failed to load performance metrics.", variant: "destructive" });
@@ -512,9 +517,9 @@ const SellerStatistics = () => {
                             </div>
                             <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
                                 <div className="bg-ant-paper p-3">
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Revenu / unité</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Revenu / commande</p>
                                     <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">
-                                        {stats.deliveredOrders > 0 ? (stats.totalRealized / stats.deliveredOrders).toFixed(0) : 0}
+                                        {stats.deliveredOrders > 0 ? (stats.earnedCommission / stats.deliveredOrders).toFixed(0) : 0}
                                         <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                                     </p>
                                 </div>
