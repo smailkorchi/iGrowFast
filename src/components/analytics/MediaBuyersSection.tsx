@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     commissionAccruedForDeliveredOrder,
@@ -102,13 +102,17 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
     const { data: entries, isLoading: loadingEntries } = useQuery({
         queryKey: ['analytics-mb-entries', businessId, fromYmd, toYmd],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('campaign_daily_entries')
-                .select('entry_date, spend, leads, platform, created_by')
-                .eq('DigiCom Business', businessId)
-                .gte('entry_date', fromYmd)
-                .lte('entry_date', toYmd);
-            return (data || []) as unknown as EntryRow[];
+            return await fetchAllRows<EntryRow>(
+                'campaign_daily_entries',
+                'entry_date, spend, leads, platform, created_by',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'entry_date', op: 'gte', value: fromYmd },
+                        { column: 'entry_date', op: 'lte', value: toYmd },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });
@@ -116,14 +120,17 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
     const { data: orders, isLoading: loadingOrders } = useQuery({
         queryKey: ['analytics-mb-orders', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select(
-                    'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)'
-                )
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return (data || []) as unknown as MBOrderRow[];
+            return await fetchAllRows<MBOrderRow>(
+                'orders',
+                'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

@@ -92,7 +92,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             if (!businessId) return [];
             const { data } = await supabase
                 .from('seller_payments')
-                .select('id, seller_id, total_amount, status')
+                .select('id, seller_id, total_amount, paid_amount, status')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -130,12 +130,16 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             commissionBySeller.set(row.seller_id, (commissionBySeller.get(row.seller_id) || 0) + Number(row.commission_earned || 0));
         });
 
+        // PAID (LIFETIME) = total cash actually disbursed across ALL payout rows
+        // (paid_amount, trigger-maintained from seller_payment_txns). Must NOT filter
+        // status==='paid' — that dropped PARTIAL payouts (e.g. a seller paid 4800 of
+        // 5240 was shown as 0). Matches the Salaries page "Total paid".
         const totalPaidToSellers = (sellerPayments || [])
-            .filter(sp => sp.status === 'paid')
-            .reduce((s, sp) => s + Number(sp.total_amount || 0), 0);
+            .reduce((s, sp) => s + Number(sp.paid_amount || 0), 0);
+        // PENDING PAYOUTS = unpaid balance still owed on generated payout rows
+        // (total_amount − paid_amount), summed across every row regardless of status.
         const totalPendingToSellers = (sellerPayments || [])
-            .filter(sp => sp.status === 'pending')
-            .reduce((s, sp) => s + Number(sp.total_amount || 0), 0);
+            .reduce((s, sp) => s + Math.max(0, Number(sp.total_amount || 0) - Number(sp.paid_amount || 0)), 0);
 
         const totalPresences = (presences || []).filter(p => {
             if (!p.date) return false;

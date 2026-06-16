@@ -266,7 +266,12 @@ const SellerDashboard = () => {
                 commissionBasis,
             });
 
-            setRecentOrders(orders.slice(0, 10).map(o => {
+            // fetchAllRows paginates by stable 'id', so sort by recency here for the
+            // activity feed (the old query's created_at-desc ordering moved client-side).
+            const recentSorted = [...orders].sort((a, b) =>
+                new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
+            );
+            setRecentOrders(recentSorted.slice(0, 10).map(o => {
                 const orderItem = (o.order_items as any)?.[0];
                 const product = orderItem?.products;
                 return {

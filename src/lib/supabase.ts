@@ -30,6 +30,8 @@ export async function fetchAllRows<T = Record<string, unknown>>(
         orderBy?: string;
         ascending?: boolean;
         filters?: { column: string; op: FetchAllFilterOp; value: unknown }[];
+        /** Raw PostgREST OR expression, e.g. `seller_id.eq.X,assign_id.eq.X`. */
+        orFilter?: string;
     }
 ): Promise<T[]> {
     const all: T[] = [];
@@ -60,6 +62,10 @@ export async function fetchAllRows<T = Record<string, unknown>>(
                 else if (f.op === 'lt') query = query.lt(f.column, f.value);
                 else if (f.op === 'ilike') query = query.ilike(f.column, f.value as string);
             }
+        }
+
+        if (options?.orFilter) {
+            query = query.or(options.orFilter);
         }
 
         const { data, error } = await query;

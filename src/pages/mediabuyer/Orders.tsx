@@ -16,7 +16,7 @@ import {
     Megaphone,
     X,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { getPlatformSource, getPlatformIcon, getPlatformColor, type CampaignDailyEntry } from '@/lib/campaignConstants';
@@ -128,9 +128,10 @@ const MediaBuyerOrders = () => {
         queryKey: ['mb-orders', activeBusinessId, minDate, maxDate, distinctSources.join(',')],
         queryFn: async () => {
             if (!activeBusinessId || !minDate || !maxDate || distinctSources.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`
+            // Paginated so a media buyer with >1000 in-window orders is never truncated.
+            const data = await fetchAllRows<OrderRow>(
+                'orders',
+                `
                     id, name, phone, address, price, date, created_at, source_name, delivery_note, note,
                     order_status_id, package_status_id,
                     status:order_statuses(id, label, color, category),
@@ -142,18 +143,25 @@ const MediaBuyerOrders = () => {
                         status:order_statuses!status_id(id, label, color, category),
                         user:users!changed_by(name, avatar_url)
                     )
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .gte('date', minDate)
-                .lte('date', `${maxDate}T23:59:59.999Z`)
-                .is('date_deleted', null).neq('source_review_status', 'pending')
-                .order('date', { ascending: false });
-            if (error) throw error;
-            return ((data || []) as OrderRow[]).filter((o) => {
-                if (!o.date || !o.source_name) return false;
-                const key = `${o.date.slice(0, 10)}|${o.source_name.toLowerCase()}`;
-                return attributionSet.has(key);
-            });
+                `,
+                {
+                    orderBy: 'id',
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date', op: 'gte', value: minDate },
+                        { column: 'date', op: 'lte', value: `${maxDate}T23:59:59.999Z` },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
+            return (data as OrderRow[])
+                .filter((o) => {
+                    if (!o.date || !o.source_name) return false;
+                    const key = `${o.date.slice(0, 10)}|${o.source_name.toLowerCase()}`;
+                    return attributionSet.has(key);
+                })
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         },
         enabled: !!activeBusinessId && !!minDate && !!maxDate && distinctSources.length > 0,
     });

@@ -247,12 +247,12 @@ const SellerStatistics = () => {
             }).sort((a, b) => b.delivered - a.delivered).slice(0, 5);
             setProductPerformance(formattedProducts);
 
-            const { data: earnings, error: earningsError } = await supabase
-                .from('seller_daily_earnings')
-                .select('*')
-                .eq('seller_id', user.id)
-                .order('date', { ascending: true });
-            if (earningsError) throw earningsError;
+            // Paginated so a seller with >1000 earning-days is never truncated.
+            const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
+                filters: [{ column: 'seller_id', op: 'eq', value: user.id }],
+                orderBy: 'date',
+                ascending: true,
+            });
 
             const monthlyMap: Record<string, ChartData> = {};
             earnings?.forEach(e => {

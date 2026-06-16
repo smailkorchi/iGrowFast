@@ -975,9 +975,12 @@ const Orders = () => {
         queryKey: ['orders-aggregate', activeBusinessId, userId],
         queryFn: async () => {
             if (!activeBusinessId || !userId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`
+            // Paginated (fetchAllRows) so a seller with >1000 orders is never
+            // truncated at the 1000-row cap. Paginate by stable 'id', then restore
+            // created_at-desc display order client-side (the list is newest-first).
+            const rows = await fetchAllRows<any>(
+                'orders',
+                `
                     *,
                     status:order_statuses(*),
                     package_status:package_statuses(*),
@@ -989,14 +992,20 @@ const Orders = () => {
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
-                .is('date_deleted', null)
-                .neq('source_review_status', 'pending')
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data || [];
+                `,
+                {
+                    orderBy: 'id',
+                    orFilter: `seller_id.eq.${userId},assign_id.eq.${userId}`,
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
+            return rows.sort((a, b) =>
+                new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
+            );
         },
         enabled: !!activeBusinessId && !!userId,
         staleTime: 60 * 1000,
