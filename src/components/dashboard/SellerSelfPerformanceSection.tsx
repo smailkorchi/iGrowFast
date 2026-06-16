@@ -395,11 +395,6 @@ export function SellerSelfPerformanceSection({
                             {Math.round(s.commission).toLocaleString('fr-MA')}
                             <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                         </p>
-                        {s.commissionDrift && (
-                            <p className="font-serif italic text-[11px] text-ant-orange mt-0.5 tabular-nums">
-                                client {Math.round(s.commissionClient).toLocaleString('fr-MA')} MAD
-                            </p>
-                        )}
                     </div>
                 </div>
 

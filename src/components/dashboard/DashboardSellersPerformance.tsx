@@ -694,22 +694,6 @@ function SellerHeaderRow({
                 </p>
                 <p className="text-[9px] text-ant-mid mt-0.5 flex items-center gap-0.5">
                     <span className="tabular-nums">{Math.round(seller.commission).toLocaleString('fr-MA')} comm</span>
-                    {seller.commissionDrift && (
-                        <TooltipProvider delayDuration={120}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center text-ant-orange">
-                                        <AlertTriangle className="w-2.5 h-2.5" />
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent className="text-[10px]">
-                                    <div className="font-semibold mb-0.5">Commission drift</div>
-                                    <div>view: {Math.round(seller.commission).toLocaleString('fr-MA')} MAD</div>
-                                    <div>client: {Math.round(seller.commissionClient).toLocaleString('fr-MA')} MAD</div>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
                 </p>
             </div>
 
