@@ -3404,11 +3404,15 @@ const Orders = () => {
                                                         <MapPin className="w-3 h-3 text-ant-mid" />{order.city.name}
                                                     </span>
                                                 )}
-                                                {order.source_name && (
+                                                {(order as any).channel?.name ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
+                                                        <FileSpreadsheet className="w-3 h-3 text-[#0F9D58]" />{(order as any).channel.name}
+                                                    </span>
+                                                ) : order.source_name ? (
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60 capitalize">
                                                         <Hash className="w-3 h-3 text-ant-mid" />{order.source_name}
                                                     </span>
-                                                )}
+                                                ) : null}
                                                 {(order.company?.name || order.courier?.name) && (
                                                     <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
                                                         {order.company?.logo_url ? (

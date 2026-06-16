@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import {
-  MapPin, Truck, Eye, Package, MoreVertical, Edit2,
+  MapPin, Truck, Eye, Package, MoreVertical, Edit2, FileSpreadsheet,
   Calendar, RefreshCcw, Pencil, Package as PackageIcon,
 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -159,11 +159,16 @@ export default function SellerOrdersListView({
                         <MapPin className="w-3 h-3 text-ant-ink/25 shrink-0" />
                         {order.city?.name || '—'}
                       </p>
-                      {order.source_name && (
+                      {(order as any).channel?.name ? (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-ant-ink/70">
+                          <FileSpreadsheet className="w-3 h-3 text-[#0F9D58] shrink-0" />
+                          <span className="truncate capitalize">{(order as any).channel.name}</span>
+                        </div>
+                      ) : order.source_name ? (
                         <div className="flex items-center gap-1">
                           <SourceIcon source={order.source_name} showLabel />
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </td>
 

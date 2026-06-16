@@ -41,7 +41,8 @@ import {
     SearchX,
     AlertTriangle,
     CalendarClock,
-    Info
+    Info,
+    FileSpreadsheet,
 } from 'lucide-react';
 import {
     Card,
@@ -984,6 +985,7 @@ const Orders = () => {
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
+                    channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
@@ -1370,6 +1372,7 @@ const Orders = () => {
                         courier:users!orders_courier_id_fkey(id, name, avatar_url),
                         assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                         company:providers(id, name, logo_url),
+                    channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                         history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                         parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
@@ -3371,11 +3374,15 @@ const Orders = () => {
                                                     <MapPin className="w-3 h-3 text-ant-ink/30" />{order.city.name}
                                                 </span>
                                             )}
-                                            {order.source_name && (
+                                            {(order as any).channel?.name ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
+                                                    <FileSpreadsheet className="w-3 h-3 text-[#0F9D58]" />{(order as any).channel.name}
+                                                </span>
+                                            ) : order.source_name ? (
                                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60 capitalize">
                                                     <Hash className="w-3 h-3 text-ant-ink/30" />{order.source_name}
                                                 </span>
-                                            )}
+                                            ) : null}
                                             {(order.company?.name || order.courier?.name) && (
                                                 <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
                                                     {order.company?.logo_url ? (
@@ -3907,6 +3914,12 @@ const Orders = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Sales Channel</FormLabel>
+                                                    {(selectedOrder as any)?.channel?.name ? (
+                                                        <div className="h-10 rounded-xl bg-ant-ink/[0.04] shadow-inner px-3 flex items-center gap-2 text-sm font-bold text-ant-ink">
+                                                            <FileSpreadsheet className="w-4 h-4 text-[#0F9D58] shrink-0" />
+                                                            <span className="truncate">{(selectedOrder as any).channel.name}</span>
+                                                        </div>
+                                                    ) : (
                                                     <Select onValueChange={field.onChange} value={field.value} disabled={isEditModalOpen}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-xl border-none bg-ant-ink/[0.04] text-sm font-bold text-ant-ink shadow-inner">
@@ -3931,6 +3944,7 @@ const Orders = () => {
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
+                                                    )}
                                                     <FormMessage />
                                                 </FormItem>
                                             )}

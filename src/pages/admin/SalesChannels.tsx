@@ -215,13 +215,17 @@ const SalesChannels = () => {
             }
         },
         onSuccess: (data: any) => {
+            const wasNew = !editingChannel;
             queryClient.invalidateQueries({ queryKey: ['sales_channels'] });
             setIsUpsertOpen(false);
             setEditingChannel(null);
-            toast({
-                title: editingChannel ? "Channel updated" : "Channel connected",
-                description: `${data.name} is now synchronized.`
-            });
+            if (wasNew && data?.id && data?.spreadsheet_id) {
+                // Connecting a sheet should pull its orders right away, not wait for a manual Check now.
+                toast({ title: "Channel connected", description: `Pulling orders from ${data.name}…` });
+                checkNowMutation.mutate(data.id);
+            } else {
+                toast({ title: wasNew ? "Channel connected" : "Channel updated", description: `${data.name} saved.` });
+            }
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
