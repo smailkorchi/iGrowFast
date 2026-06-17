@@ -217,39 +217,20 @@ const SellerPayoutsList: React.FC = () => {
     // Order is load-bearing — only the txn insert fires the balance trigger.
     const settleMutation = useMutation({
         mutationFn: async (sellerIds: string[]) => {
-            const { data: { user } } = await supabase.auth.getUser();
             let inserted = 0;
             for (const sid of sellerIds) {
                 const o = liveOwed.byId(sid);
                 if (!o || o.remaining <= 0.005) continue;
-                const { canonical, otherRowsTotal } = resolveCanonical(o);
-                const canonicalTotal = Math.max(0, o.accruedTotal - otherRowsTotal);
-                let targetId = canonical?.id || '';
-                if (!targetId) {
-                    const { data: ins, error: insErr } = await (supabase as any)
-                        .from('seller_payments')
-                        .insert({
-                            seller_id: sid, payout_month: monthKey, salary_earned: 0,
-                            commission_earned: canonicalTotal, total_amount: canonicalTotal,
-                            days_present: 0, delivered_orders: 0, status: 'pending',
-                            'DigiCom Business': activeBusinessId,
-                        })
-                        .select('id').single();
-                    if (insErr) throw insErr;
-                    targetId = ins.id;
-                } else if (canonicalTotal > (canonical?.total_amount || 0) + 0.0001) {
-                    const { error: upErr } = await (supabase as any)
-                        .from('seller_payments')
-                        .update({ total_amount: canonicalTotal, commission_earned: canonicalTotal })
-                        .eq('id', targetId);
-                    if (upErr) throw upErr;
-                }
-                const { error: txErr } = await (supabase as any).from('seller_payment_txns').insert({
-                    seller_payment_id: targetId, amount: o.remaining, paid_at: new Date().toISOString(),
-                    note: 'Settled in full from Salaries bulk action', created_by: user?.id || null,
-                    'DigiCom Business': activeBusinessId,
+                // pay_seller records the disbursement against the rolling open ticket
+                // (handles carry/FIFO + balance atomically). No direct row writes.
+                const { error } = await (supabase as any).rpc('pay_seller', {
+                    p_seller_id: sid,
+                    p_business_id: activeBusinessId,
+                    p_amount: o.remaining,
+                    p_paid_at: new Date().toISOString(),
+                    p_note: 'Settled in full from Salaries bulk action',
                 });
-                if (txErr) throw txErr;
+                if (error) throw error;
                 inserted++;
             }
             return { inserted };
@@ -1008,6 +989,11 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
 
     const sellerEarnings = useSellerEarnings(monthKey);
     const mbEarnings = useMediaBuyerEarnings(monthKey);
+    // Sellers are paid against the rolling ledger: the amount is the LIVE owe
+    // (lifetime earned − paid), NOT the month accrual (which would over-pay an
+    // already-settled seller). Media buyers keep the month-based model.
+    const sellerOwe = useSellerLiveOwed();
+    const oweFor = (sellerId: string) => Math.max(0, sellerOwe.byId(sellerId)?.remaining ?? 0);
 
     const activeRows = role === 'seller' ? sellerEarnings.rows : mbEarnings.rows;
     const activeLoading = role === 'seller' ? sellerEarnings.isLoading : mbEarnings.isLoading;
@@ -1015,7 +1001,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
     React.useEffect(() => {
         if (!open || activeLoading) return;
         if (role === 'seller') {
-            setSelectedIds(sellerEarnings.rows.filter((r) => r.total_amount > 0).map((r) => r.seller_id));
+            setSelectedIds((sellerEarnings.rows as SellerEarnings[]).filter((r) => oweFor(r.seller_id) > 0.005).map((r) => r.seller_id));
         } else {
             setSelectedIds(mbEarnings.rows.filter((r) => r.remaining_amount > 0).map((r) => r.mediabuyer_id));
         }
@@ -1027,7 +1013,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
             return {
                 users: rows.length,
                 delivered: rows.reduce((a, r) => a + r.delivered_orders, 0),
-                amount: rows.reduce((a, r) => a + r.total_amount, 0),
+                amount: rows.reduce((a, r) => a + oweFor(r.seller_id), 0),
             };
         }
         const rows = (mbEarnings.rows as MediaBuyerEarnings[]).filter((r) => selectedIds.includes(r.mediabuyer_id));
@@ -1044,30 +1030,22 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
             if (selectedIds.length === 0) throw new Error('Select at least one collaborator');
 
             if (role === 'seller') {
+                // Pay each selected seller their LIVE owe via the ledger RPC (records a
+                // disbursement against the open monthly ticket — carry/FIFO handled in DB).
                 const rows = (sellerEarnings.rows as SellerEarnings[]).filter((r) => selectedIds.includes(r.seller_id));
-                const payload = rows
-                    .filter((r) => r.total_amount > 0)
-                    .map((r) => ({
-                        seller_id: r.seller_id,
-                        payout_month: sellerEarnings.payoutMonthKey,
-                        salary_earned: 0,
-                        commission_earned: r.commission_earned,
-                        total_amount: r.total_amount,
-                        days_present: r.days_present,
-                        delivered_orders: r.delivered_orders,
-                        bank_snapshot: {
-                            name: r.bank_name,
-                            rib: r.bank_rib,
-                            holder: r.bank_account_holder,
-                            cin: r.cin_number,
-                        },
-                        status: 'pending',
-                        'DigiCom Business': activeBusinessId,
-                    }));
-                if (payload.length === 0) throw new Error('All selected rows have 0 remainder');
-                const { error } = await (supabase as any).from('seller_payments').insert(payload);
-                if (error) throw error;
-                return { role: 'seller' as const, count: payload.length };
+                const targets = rows.filter((r) => oweFor(r.seller_id) > 0.005);
+                if (targets.length === 0) throw new Error('Selected sellers owe nothing');
+                for (const r of targets) {
+                    const { error } = await (supabase as any).rpc('pay_seller', {
+                        p_seller_id: r.seller_id,
+                        p_business_id: activeBusinessId,
+                        p_amount: oweFor(r.seller_id),
+                        p_paid_at: new Date().toISOString(),
+                        p_note: 'Paid from Salaries generate flow',
+                    });
+                    if (error) throw error;
+                }
+                return { role: 'seller' as const, count: targets.length };
             } else {
                 const rows = (mbEarnings.rows as MediaBuyerEarnings[]).filter((r) => selectedIds.includes(r.mediabuyer_id));
                 const payload = rows
@@ -1100,10 +1078,15 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
             }
         },
         onSuccess: ({ role: r, count }) => {
-            queryClient.invalidateQueries({ queryKey: [r === 'seller' ? 'seller-payouts' : 'mb-payouts'] });
-            queryClient.invalidateQueries({ queryKey: ['mb-earnings-prior'] });
-            queryClient.invalidateQueries({ queryKey: ['seller-earnings-prior'] });
-            toast({ title: 'Payouts generated', description: `${count} payout${count !== 1 ? 's' : ''} created as pending.` });
+            if (r === 'seller') {
+                ['seller-payouts', 'seller-payment-txns', 'seller-ledger-tickets', 'seller-live-owed-users', 'seller-live-owed-daily', 'seller-live-owed-payments']
+                    .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+                toast({ title: 'Sellers paid', description: `${count} seller${count !== 1 ? 's' : ''} paid their outstanding balance.` });
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
+                queryClient.invalidateQueries({ queryKey: ['mb-earnings-prior'] });
+                toast({ title: 'Payouts generated', description: `${count} payout${count !== 1 ? 's' : ''} created as pending.` });
+            }
             onOpenChange(false);
         },
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
@@ -1129,7 +1112,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                     </div>
                     <DialogTitle className="font-display text-[22px] leading-tight tracking-tight text-ant-ink">Generate payouts</DialogTitle>
                     <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                        Pick a role and a month, review the breakdown, then generate every owed payout as pending.
+                        Sellers: select who owes and pay their outstanding balance. Media buyers: pick a month and generate.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -1156,18 +1139,23 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                             Media buyers
                         </button>
                     </div>
-                    <Select value={monthKey} onValueChange={setMonthKey}>
-                        <SelectTrigger className="w-[200px] h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-ant-line">
-                            {monthOptions.map((m) => (
-                                <SelectItem key={m.value} value={m.value} className="text-[12px]">
-                                    {m.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    {role === 'mediabuyer' && (
+                        <Select value={monthKey} onValueChange={setMonthKey}>
+                            <SelectTrigger className="w-[200px] h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-ant-line">
+                                {monthOptions.map((m) => (
+                                    <SelectItem key={m.value} value={m.value} className="text-[12px]">
+                                        {m.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    {role === 'seller' && (
+                        <span className="font-serif italic text-[12px] text-ant-mid">Sellers who currently owe — select and pay.</span>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto ant-scroll px-6 py-4 space-y-3">
@@ -1215,7 +1203,8 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                     <tbody>
                                         {role === 'seller'
                                             ? (sellerEarnings.rows as SellerEarnings[]).map((r) => {
-                                                  const hasRemainder = r.total_amount > 0;
+                                                  const sellerOweAmt = oweFor(r.seller_id);
+                                                  const hasRemainder = sellerOweAmt > 0.005;
                                                   const sel = selectedIds.includes(r.seller_id);
                                                   return (
                                                       <tr key={r.seller_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5', !hasRemainder && 'opacity-40')}>
@@ -1243,8 +1232,8 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                                           </td>
                                                           <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.delivered_orders)}</td>
                                                           <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums">{r.days_present}</td>
-                                                          <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(r.total_amount)}>
-                                                              {fmtCur(r.total_amount)}
+                                                          <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(sellerOweAmt)}>
+                                                              {fmtCur(sellerOweAmt)}
                                                               <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                                                           </td>
                                                       </tr>

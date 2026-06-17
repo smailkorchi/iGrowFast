@@ -135,59 +135,20 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 return;
             }
 
-            // ── Seller live-owed (Option 1): lazy top-up THEN txn. ──
-            // canonicalTotal = live accrued − Σ total_amount of OTHER rows, so the
-            // canonical row alone carries the full bill without double-billing
-            // siblings. Never lower an already-higher total (price-cut safety).
-            const canonicalTotal = Math.max(
-                0,
-                Number(sellerAccruedTotal || 0) - Number(sellerOtherRowsTotal || 0),
-            );
-
-            let targetId = payoutId;
-
-            if (!targetId) {
-                // No canonical row — create the catch-up row first, capture its id.
-                const monthKey = format(new Date(), 'yyyy-MM') + '-01';
-                const { data: ins, error: insErr } = await (supabase as any)
-                    .from('seller_payments')
-                    .insert({
-                        seller_id: sellerId,
-                        payout_month: monthKey,
-                        salary_earned: 0,
-                        commission_earned: canonicalTotal,
-                        total_amount: canonicalTotal,
-                        days_present: 0,
-                        delivered_orders: 0,
-                        status: 'pending',
-                        'DigiCom Business': businessId,
-                    })
-                    .select('id')
-                    .single();
-                if (insErr) throw insErr;
-                targetId = ins.id;
-            } else if (canonicalTotal > Number(sellerCanonicalRowTotal || 0) + 0.0001) {
-                // STEP 1 (load-bearing ORDER): bump total_amount BEFORE the txn so
-                // refresh_seller_payment_balance recomputes status against the new
-                // total. A bare total_amount UPDATE does NOT fire the trigger; the
-                // txn insert below is what re-derives paid_amount/status.
-                const { error: upErr } = await (supabase as any)
-                    .from('seller_payments')
-                    .update({ total_amount: canonicalTotal, commission_earned: canonicalTotal })
-                    .eq('id', targetId);
-                if (upErr) throw upErr;
-            }
-
-            // STEP 2: the disbursement txn — THIS fires the balance trigger.
-            const { error: txErr } = await (supabase as any).from('seller_payment_txns').insert({
-                seller_payment_id: targetId,
-                amount: numericAmount,
-                paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
-                note: note.trim() || null,
-                created_by: user?.id || null,
-                'DigiCom Business': businessId,
+            // ── Seller: pay against the rolling monthly ledger via the pay_seller
+            //    RPC. It ensures the current open ticket exists, syncs its live
+            //    earned, and records the disbursement against it (the open ticket
+            //    holds all carried-forward debt, so this is FIFO oldest-first by
+            //    construction). Replaces the old canonical-row top-up hack.
+            void user; // created_by is captured inside the RPC (auth.uid())
+            const { error: rpcErr } = await (supabase as any).rpc('pay_seller', {
+                p_seller_id: sellerId,
+                p_business_id: businessId,
+                p_amount: numericAmount,
+                p_paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
+                p_note: note.trim() || null,
             });
-            if (txErr) throw txErr;
+            if (rpcErr) throw rpcErr;
         },
         onSuccess: () => {
             queryInvalidationKeys(kind).forEach((key) => {
