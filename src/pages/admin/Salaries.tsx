@@ -262,7 +262,11 @@ const SellerPayoutsList: React.FC = () => {
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
 
-    const rows = liveOwed.all;
+    // Only sellers with actual payment activity (started payouts) — hide those who
+    // have earned, been paid, and owe nothing (e.g. 0-rate / no-delivery sellers).
+    const rows = liveOwed.all.filter(
+        (o) => o.accruedTotal > 0.005 || o.paidAcrossRows > 0.005 || Math.abs(o.remaining) > 0.005,
+    );
 
     const filtered = useMemo(() => {
         let out = rows;
@@ -1202,7 +1206,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                     </thead>
                                     <tbody>
                                         {role === 'seller'
-                                            ? (sellerEarnings.rows as SellerEarnings[]).map((r) => {
+                                            ? (sellerEarnings.rows as SellerEarnings[]).filter((r) => oweFor(r.seller_id) > 0.005).map((r) => {
                                                   const sellerOweAmt = oweFor(r.seller_id);
                                                   const hasRemainder = sellerOweAmt > 0.005;
                                                   const sel = selectedIds.includes(r.seller_id);

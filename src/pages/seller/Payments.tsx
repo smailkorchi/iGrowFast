@@ -87,8 +87,9 @@ const SellerPayments = () => {
                 delivered_orders: num(t.delivered_orders),
             })) as LedgerTicket[];
 
-            // Seller sees only CLOSED months as official records (the open month is on the Wallet).
-            setClosed(tickets.filter((t) => t.period_state === 'closed'));
+            // Seller sees ALL their monthly records, newest first (current month
+            // included, flagged "en cours"). Already ordered desc by the query.
+            setClosed(tickets);
 
             // Lifetime paid = Σ paid across every ticket (open + closed).
             const lifetime = tickets.reduce((s, t) => s + t.paid_amount, 0);
@@ -184,7 +185,7 @@ const SellerPayments = () => {
                             <div className="bg-ant-paper p-4">
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" /> Mois clôturés
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" /> Périodes
                                     </div>
                                     <div className="h-8 w-8 rounded-lg border bg-ant-orange/10 border-ant-orange/25 text-ant-orange flex items-center justify-center">
                                         <Receipt className="w-4 h-4" strokeWidth={1.75} />
@@ -193,7 +194,7 @@ const SellerPayments = () => {
                                 <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
                                     {closed.length}<span className="text-[12px] text-ant-mid font-normal ml-1.5">mois</span>
                                 </p>
-                                <p className="font-serif italic text-[11px] text-ant-mid mt-0.5">périodes de règlement validées</p>
+                                <p className="font-serif italic text-[11px] text-ant-mid mt-0.5">vos mois de commission</p>
                             </div>
                         </section>
 
@@ -269,7 +270,7 @@ const SellerPayments = () => {
                                                                 <Calendar className="w-3 h-3 text-ant-mid shrink-0" strokeWidth={1.75} />
                                                                 <div>
                                                                     <p className="font-display text-[13px] font-semibold text-ant-ink capitalize">{periodLabel}</p>
-                                                                    <p className="font-serif italic text-[10px] text-ant-mid">mois clôturé</p>
+                                                                    <p className="font-serif italic text-[10px] text-ant-mid">{t.period_state === 'open' ? 'mois en cours' : 'mois clôturé'}</p>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -311,8 +312,8 @@ const SellerPayments = () => {
                                                             <Receipt className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
                                                         </div>
                                                         <div className="space-y-0.5">
-                                                            <p className="font-display text-[14px] font-semibold text-ant-ink">Aucun mois clôturé</p>
-                                                            <p className="font-serif italic text-[11px] text-ant-mid">Vos mois apparaîtront ici dès qu&apos;ils seront clôturés en fin de mois.</p>
+                                                            <p className="font-display text-[14px] font-semibold text-ant-ink">Aucun paiement</p>
+                                                            <p className="font-serif italic text-[11px] text-ant-mid">Vos mois apparaîtront ici dès que vous aurez gagné une commission.</p>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -350,7 +351,9 @@ const SellerPayments = () => {
                                         {(() => { const d = parseISO(selected.payout_month); return isNaN(d.getTime()) ? '—' : format(d, 'MMMM yyyy', { locale: fr }); })()}
                                     </DialogTitle>
                                     <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
-                                        {(() => { const iso = settledDateIso(selected); return iso ? `Clôturé le ${format(new Date(iso), 'd MMMM yyyy', { locale: fr })}` : 'Mois clôturé'; })()}
+                                        {selected.period_state === 'open'
+                                            ? 'Mois en cours — encore ouvert'
+                                            : (() => { const iso = settledDateIso(selected); return iso ? `Clôturé le ${format(new Date(iso), 'd MMMM yyyy', { locale: fr })}` : 'Mois clôturé'; })()}
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -393,7 +396,7 @@ const SellerPayments = () => {
                                         </div>
                                         {rolled > 0 && (
                                             <p className="text-[11px] text-white/60 tabular-nums">
-                                                <span className="font-semibold text-white">{rolled.toLocaleString()} MAD</span> reporté au mois suivant
+                                                <span className="font-semibold text-white">{rolled.toLocaleString()} MAD</span> {selected.period_state === 'open' ? 'restant à régler' : 'reporté au mois suivant'}
                                             </p>
                                         )}
                                     </div>
