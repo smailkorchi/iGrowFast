@@ -19,9 +19,11 @@ import {
     Target,
     DollarSign,
     History,
+    Eye,
     type LucideIcon,
 } from 'lucide-react';
 import { RecordPaymentDialog, PaymentHistoryDialog } from '@/components/salaries/PayoutPaymentDialogs';
+import { SellerBreakdownDialog, GlobalLedgerDialog } from '@/components/salaries/SellerLedgerDialogs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -45,6 +47,7 @@ import {
 } from '@/components/ui/dialog';
 import { useSellerEarnings, type SellerEarnings } from '@/hooks/useSellerEarnings';
 import { useSellerLiveOwed, type SellerLiveOwed } from '@/hooks/useSellerLiveOwed';
+import { useSellerLedger } from '@/hooks/useSellerLedger';
 import { useMediaBuyerEarnings, type MediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
@@ -180,12 +183,19 @@ const SellerPayoutsList: React.FC = () => {
     const [recordOpen, setRecordOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [activeSeller, setActiveSeller] = useState<SellerLiveOwed | null>(null);
+    // Ledger breakdown ("eye") dialogs — per-seller and global overview.
+    const [breakdownOpen, setBreakdownOpen] = useState(false);
+    const [breakdownSellerId, setBreakdownSellerId] = useState<string | null>(null);
+    const [globalOpen, setGlobalOpen] = useState(false);
 
     // ONE live row per seller — accrued/paid/owed/status computed live from
     // orders + txns (same source as the seller profile), NOT the frozen monthly
     // seller_payments snapshots that made the table show stale numbers.
     const liveOwed = useSellerLiveOwed();
     const isLoading = liveOwed.isLoading;
+    // Rolling-ledger tickets (open + closed months) — drives the breakdown eyes.
+    const ledger = useSellerLedger();
+    const breakdownSeller = breakdownSellerId ? ledger.byId(breakdownSellerId) : null;
 
     // Re-fetch live data when a dialog opens so amounts reflect deliveries/payments
     // that landed after the page loaded.
@@ -330,6 +340,14 @@ const SellerPayoutsList: React.FC = () => {
                             className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                         />
                     </div>
+                    <Button
+                        variant="outline"
+                        onClick={() => setGlobalOpen(true)}
+                        className="h-10 px-4 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light text-[12px] font-semibold gap-2 cursor-pointer whitespace-nowrap"
+                        title="Overview of all commissions"
+                    >
+                        <Eye className="w-3.5 h-3.5" /> Overview
+                    </Button>
                     {selected.length > 0 && (
                         <Button
                             onClick={() => settleMutation.mutate(selected)}
@@ -453,6 +471,15 @@ const SellerPayoutsList: React.FC = () => {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
+                                                        onClick={() => { setBreakdownSellerId(o.seller_id); setBreakdownOpen(true); }}
+                                                        className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                                                        title="Breakdown by month & orders"
+                                                    >
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
                                                         onClick={() => { setActiveSeller(o); setHistoryOpen(true); }}
                                                         className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                                                         title="Payment history"
@@ -525,6 +552,20 @@ const SellerPayoutsList: React.FC = () => {
                     />
                 </>
             )}
+
+            {/* Ledger breakdown eyes */}
+            <SellerBreakdownDialog
+                open={breakdownOpen}
+                onOpenChange={setBreakdownOpen}
+                seller={breakdownSeller}
+                businessId={activeBusinessId}
+            />
+            <GlobalLedgerDialog
+                open={globalOpen}
+                onOpenChange={setGlobalOpen}
+                sellers={ledger.all}
+                onPick={(s) => { setBreakdownSellerId(s.seller_id); setGlobalOpen(false); setBreakdownOpen(true); }}
+            />
         </div>
     );
 };
