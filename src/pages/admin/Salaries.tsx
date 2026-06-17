@@ -243,24 +243,6 @@ const SellerPayoutsList: React.FC = () => {
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
 
-    // Reverse ALL disbursements for a seller (every txn across all their rows).
-    const reverseAllMutation = useMutation({
-        mutationFn: async (sellerId: string) => {
-            const o = liveOwed.byId(sellerId);
-            const ids = (o?.paymentRows || []).map((r) => r.id);
-            if (!ids.length) return;
-            const { error } = await (supabase as any)
-                .from('seller_payment_txns')
-                .delete()
-                .in('seller_payment_id', ids);
-            if (error) throw error;
-        },
-        onSuccess: () => {
-            invalidateAll();
-            toast({ title: 'Reversed', description: 'All payments for this seller have been reversed.' });
-        },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
-    });
 
     // Only sellers with actual payment activity (started payouts) — hide those who
     // have earned, been paid, and owe nothing (e.g. 0-rate / no-delivery sellers).
@@ -477,32 +459,17 @@ const SellerPayoutsList: React.FC = () => {
                                                     >
                                                         <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                    {!hasOwed && o.paidAcrossRows > 0 ? (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => {
-                                                                if (window.confirm(`Reverse ALL payments for ${o.name}?`)) {
-                                                                    reverseAllMutation.mutate(o.seller_id);
-                                                                }
-                                                            }}
-                                                            className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid hover:text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
-                                                        >
-                                                            Reverse
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            disabled={!hasOwed}
-                                                            onClick={() => { setActiveSeller(o); setRecordOpen(true); }}
-                                                            className={cn(
-                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white disabled:opacity-40 disabled:cursor-not-allowed',
-                                                                isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
-                                                            )}
-                                                        >
-                                                            {isPartial ? 'Continue' : 'Pay'}
-                                                        </Button>
-                                                    )}
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={!hasOwed}
+                                                        onClick={() => { setActiveSeller(o); setRecordOpen(true); }}
+                                                        className={cn(
+                                                            'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white disabled:opacity-40 disabled:cursor-not-allowed',
+                                                            isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
+                                                        )}
+                                                    >
+                                                        {isPartial ? 'Continue' : 'Pay'}
+                                                    </Button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -651,21 +618,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
 
-    const reverseAllMutation = useMutation({
-        mutationFn: async (payoutId: string) => {
-            const { error } = await (supabase as any)
-                .from('mediabuyer_payment_txns')
-                .delete()
-                .eq('mediabuyer_payment_id', payoutId);
-            if (error) throw error;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
-            queryClient.invalidateQueries({ queryKey: ['mediabuyer-payment-txns'] });
-            toast({ title: 'Reversed', description: 'All payments on this payout have been reversed.' });
-        },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
-    });
 
     const filtered = useMemo(() => {
         let out = payouts;
@@ -888,18 +840,9 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                                         <History className="w-3.5 h-3.5" />
                                                     </Button>
                                                     {isPaid ? (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => {
-                                                                if (window.confirm('Reverse all payments on this payout?')) {
-                                                                    reverseAllMutation.mutate(p.id);
-                                                                }
-                                                            }}
-                                                            className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid hover:text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
-                                                        >
-                                                            Reverse
-                                                        </Button>
+                                                        <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green bg-ant-green/10 border border-ant-green/25">
+                                                            Réglé
+                                                        </span>
                                                     ) : (
                                                         <Button
                                                             size="sm"
