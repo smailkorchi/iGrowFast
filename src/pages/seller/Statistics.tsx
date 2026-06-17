@@ -519,7 +519,7 @@ const SellerStatistics = () => {
                                 <div className="bg-ant-paper p-3">
                                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Revenu / commande</p>
                                     <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">
-                                        {stats.deliveredOrders > 0 ? (stats.earnedCommission / stats.deliveredOrders).toFixed(0) : 0}
+                                        {stats.deliveredOrders > 0 ? (stats.earnedCommission / stats.deliveredOrders).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
                                         <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                                     </p>
                                 </div>
