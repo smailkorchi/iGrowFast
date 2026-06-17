@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Wallet,
     Calendar,
@@ -57,6 +57,11 @@ const SellerPayments = () => {
     const [payments, setPayments] = useState<SellerPayment[]>([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ lifetime: 0, thisMonth: 0, lastMonth: 0 });
+    // LIVE cumulative figures from the seller_daily_earnings view — the authoritative
+    // source every other page uses. The frozen seller_payments fields (total_amount,
+    // delivered_orders, days_present) go stale as new orders deliver, so we never
+    // display them; paid_amount stays factual (trigger-synced from the txn table).
+    const [liveStats, setLiveStats] = useState({ earned: 0, units: 0, days: 0 });
     const [chartData, setChartData] = useState<any[]>([]);
     const [selectedPayment, setSelectedPayment] = useState<SellerPayment | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -83,6 +88,18 @@ const SellerPayments = () => {
 
             const rows = data || [];
             setPayments([...rows].reverse());
+
+            // Live earned/units/days for this seller from the view (uncapped).
+            const dailyRows = await fetchAllRows<{ commission_earned: number | string | null; delivered_count: number | string | null }>(
+                'seller_daily_earnings',
+                'commission_earned, delivered_count, date',
+                { filters: [{ column: 'seller_id', op: 'eq', value: user.id }], orderBy: 'date' },
+            );
+            setLiveStats({
+                earned: dailyRows.reduce((s, r) => s + Number(r.commission_earned || 0), 0),
+                units: dailyRows.reduce((s, r) => s + Number(r.delivered_count || 0), 0),
+                days: dailyRows.length,
+            });
 
             const lifetime = rows.reduce((sum, p: any) => sum + Number(p.paid_amount || 0), 0);
             const now = new Date();
@@ -296,11 +313,11 @@ const SellerPayments = () => {
                                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-ink/15 bg-ant-ink/6 px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
                                                                     <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
-                                                                    {p.days_present} j
+                                                                    {liveStats.days} j
                                                                 </span>
                                                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green tabular-nums">
                                                                     <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
-                                                                    {p.delivered_orders} unités
+                                                                    {liveStats.units} unités
                                                                 </span>
                                                             </div>
                                                         </td>
@@ -311,14 +328,14 @@ const SellerPayments = () => {
                                                         </td>
                                                         <td className="px-5 py-3 text-right">
                                                             <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums">
-                                                                {Number(p.total_amount).toLocaleString()}
+                                                                {liveStats.earned.toLocaleString()}
                                                                 <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                                                             </p>
                                                         </td>
-                                                        <td className="px-5 py-3 text-right" title={`${Number(p.paid_amount || 0).toLocaleString()} versé sur ${Number(p.total_amount).toLocaleString()}`}>
+                                                        <td className="px-5 py-3 text-right" title={`${Number(p.paid_amount || 0).toLocaleString()} versé sur ${liveStats.earned.toLocaleString()}`}>
                                                             {(() => {
                                                                 const paid = Number(p.paid_amount || 0);
-                                                                const total = Number(p.total_amount || 0);
+                                                                const total = liveStats.earned;
                                                                 const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
                                                                 const isPartial = p.status === 'partial';
                                                                 return (
@@ -419,13 +436,13 @@ const SellerPayments = () => {
                                 <div className="rounded-xl border border-ant-line bg-ant-light p-4">
                                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Commission due</p>
                                     <p className="font-display text-[28px] font-semibold tabular-nums text-ant-ink leading-none mt-2">
-                                        {Number(selectedPayment.total_amount).toLocaleString()}
+                                        {liveStats.earned.toLocaleString()}
                                         <span className="text-[12px] text-ant-mid font-normal ml-1.5">MAD</span>
                                     </p>
                                     <div className="flex items-center justify-between pt-2 mt-2 border-t border-ant-line">
                                         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Activité</span>
                                         <span className="font-display text-[12px] font-semibold text-ant-ink tabular-nums">
-                                            {selectedPayment.delivered_orders} unités · {selectedPayment.days_present} jours
+                                            {liveStats.units} unités · {liveStats.days} jours
                                         </span>
                                     </div>
                                 </div>
@@ -433,7 +450,7 @@ const SellerPayments = () => {
                                 {/* Versé (what was actually paid) */}
                                 {(() => {
                                     const paid = Number(selectedPayment.paid_amount || 0);
-                                    const total = Number(selectedPayment.total_amount || 0);
+                                    const total = liveStats.earned;
                                     const remaining = Math.max(0, total - paid);
                                     const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
                                     const isPartial = selectedPayment.status === 'partial';
