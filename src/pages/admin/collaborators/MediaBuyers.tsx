@@ -148,6 +148,18 @@ const MediaBuyers = () => {
         return map;
     }, [earnings]);
 
+    // Campaign tally on the roster = campaigns the buyer OWNS (created_by), matching
+    // the drawer's campaign list. NOT the month-scoped entry count from
+    // useMediaBuyerEarnings — that is 0 in a month with no spend rows and contradicts
+    // the campaigns actually listed under the buyer.
+    const ownedCampaignCount = useMemo(() => {
+        const m = new Map<string, number>();
+        for (const c of allCampaigns) {
+            if (c.created_by) m.set(c.created_by, (m.get(c.created_by) || 0) + 1);
+        }
+        return m;
+    }, [allCampaigns]);
+
     const totals = useMemo(() => {
         return earnings.reduce(
             (acc, r) => {
@@ -322,7 +334,7 @@ const MediaBuyers = () => {
                                             </span>
                                             <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
                                                 <Hash className="w-2.5 h-2.5 text-ant-mid" />
-                                                {r.campaigns_count} campaigns
+                                                {ownedCampaignCount.get(r.mediabuyer_id) || 0} campaigns
                                             </span>
                                         </div>
 
@@ -438,7 +450,7 @@ const MediaBuyers = () => {
                                             Performance · month
                                         </div>
                                         <div className="grid grid-cols-2 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-                                            <MbKpi label="Campaigns" value={selected.campaigns_count} suffix="created" accent="ink" icon={Megaphone} />
+                                            <MbKpi label="Campaigns" value={selectedCampaigns.length} suffix="created" accent="ink" icon={Megaphone} />
                                             <MbKpi label="Spend" value={fmtCur(selected.total_spend)} suffix="MAD" accent="rose" icon={Coins} />
                                             <MbKpi label="Delivered" value={fmtNum(selected.delivered_orders)} suffix="orders" accent="green" icon={PackageCheck} />
                                             <MbKpi label="Payroll" value={fmtCur(selected.total_amount)} suffix="MAD" accent="orange" icon={Wallet} />
@@ -483,7 +495,7 @@ const MediaBuyers = () => {
                                                     Campaigns
                                                 </p>
                                                 <p className="font-display text-[16px] font-semibold text-white mt-0.5 tabular-nums">
-                                                    {selected.campaigns_count} <span className="text-[10px] text-white/55 font-normal">running</span>
+                                                    {selectedCampaigns.length} <span className="text-[10px] text-white/55 font-normal">total</span>
                                                 </p>
                                             </div>
                                         </div>
