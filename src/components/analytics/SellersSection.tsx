@@ -239,14 +239,12 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             loading={isLoading}
         >
             {metrics && (() => {
-                const bestSuccess = Math.max(...metrics.sellerPerformance.map((s) => s.successRate), 0);
+                // Header is TEAM-ONLY — no single seller's numbers here (the top
+                // performer is shown by the trophy in the table + the ranking chart).
+                const windowDelivered = metrics.sellerPerformance.reduce((s, x) => s + x.delivered, 0);
                 const narrative = metrics.totalSellers === 0
                     ? 'No sellers on the roster.'
-                    : `${metrics.activeSellers.toLocaleString('fr-MA')} of ${metrics.totalSellers.toLocaleString('fr-MA')} sellers active. ${
-                          metrics.topPerformer
-                              ? `${metrics.topPerformer.name} leads with ${metrics.topPerformer.delivered} delivered orders.`
-                              : ''
-                      } ${Math.round(metrics.totalPendingToSellers).toLocaleString('fr-MA')} MAD pending in commission payouts.`;
+                    : `${metrics.activeSellers.toLocaleString('fr-MA')} of ${metrics.totalSellers.toLocaleString('fr-MA')} sellers active · ${Math.round(metrics.totalLiveCommission).toLocaleString('fr-MA')} MAD earned this window · ${Math.round(metrics.totalPendingToSellers).toLocaleString('fr-MA')} MAD still pending in payouts.`;
 
                 return (
                     <SectionStory
@@ -258,9 +256,8 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                         }}
                         narrative={narrative}
                         supporting={[
-                            { label: 'Top performer', value: metrics.topPerformer?.name || 'N/A', sub: metrics.topPerformer ? `${metrics.topPerformer.delivered.toLocaleString('fr-MA')} delivered · ${Math.round(metrics.topPerformer.commission).toLocaleString('fr-MA')} MAD` : undefined },
                             { label: 'Sellers', value: metrics.totalSellers.toLocaleString('fr-MA'), sub: `${metrics.activeSellers} active` },
-                            { label: 'Best success', value: `${bestSuccess.toFixed(1)}%`, tone: 'positive' },
+                            { label: 'Delivered · window', value: windowDelivered.toLocaleString('fr-MA') },
                             { label: 'Paid (lifetime)', value: `${Math.round(metrics.totalPaidToSellers).toLocaleString('fr-MA')} MAD` },
                             { label: 'Pending payouts', value: `${Math.round(metrics.totalPendingToSellers).toLocaleString('fr-MA')} MAD`, tone: metrics.totalPendingToSellers > 0 ? 'warning' : 'neutral' },
                             { label: 'Attendance', value: `${metrics.attendanceRate.toFixed(0)}%` },
