@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { RecordPaymentDialog, PaymentHistoryDialog } from '@/components/salaries/PayoutPaymentDialogs';
 import { SellerBreakdownDialog, GlobalLedgerDialog } from '@/components/salaries/SellerLedgerDialogs';
-import { MediaBuyerBreakdownDialog, MediaBuyerGlobalDialog, type MediaBuyerLedger } from '@/components/salaries/MediaBuyerLedgerDialogs';
+import { MediaBuyerBreakdownDialog, MediaBuyerGlobalDialog, MediaBuyerPayoutDetailDialog, type MediaBuyerLedger } from '@/components/salaries/MediaBuyerLedgerDialogs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -602,7 +602,10 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const [recordOpen, setRecordOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [activeRow, setActiveRow] = useState<MBPayout | null>(null);
-    // Breakdown ("eye") dialogs — per-buyer and global overview.
+    // Breakdown ("eye") dialogs. Per-row eye = that single month's detail.
+    // Buyer-wide (all months) view is reached from the Overview click-through.
+    const [detailPayoutRow, setDetailPayoutRow] = useState<MBPayout | null>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
     const [breakdownMbId, setBreakdownMbId] = useState<string | null>(null);
     const [breakdownOpen, setBreakdownOpen] = useState(false);
     const [globalOpen, setGlobalOpen] = useState(false);
@@ -914,9 +917,9 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => { setBreakdownMbId(p.mediabuyer_id); setBreakdownOpen(true); }}
+                                                        onClick={() => { setDetailPayoutRow(p); setDetailOpen(true); }}
                                                         className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
-                                                        title="Breakdown by month"
+                                                        title="Payment detail"
                                                     >
                                                         <Eye className="w-3.5 h-3.5" />
                                                     </Button>
@@ -997,6 +1000,27 @@ const MediaBuyerPayoutsList: React.FC = () => {
             )}
 
             {/* Breakdown eyes */}
+            <MediaBuyerPayoutDetailDialog
+                open={detailOpen}
+                onOpenChange={setDetailOpen}
+                payout={detailPayoutRow ? {
+                    id: detailPayoutRow.id,
+                    payout_month: detailPayoutRow.payout_month,
+                    payment_type: detailPayoutRow.payment_type,
+                    salary_earned: Number(detailPayoutRow.salary_earned || 0),
+                    commission_earned: Number(detailPayoutRow.commission_earned || 0),
+                    total_amount: Number(detailPayoutRow.total_amount || 0),
+                    paid_amount: Number(detailPayoutRow.paid_amount || 0),
+                    delivered_orders: Number(detailPayoutRow.delivered_orders || 0),
+                    total_spend: Number(detailPayoutRow.total_spend || 0),
+                    campaigns_count: Number(detailPayoutRow.campaigns_count || 0),
+                    status: detailPayoutRow.status,
+                    paid_at: detailPayoutRow.paid_at,
+                } : null}
+                buyerName={detailPayoutRow?.mediabuyer?.name || 'Media buyer'}
+                buyerEmail={detailPayoutRow?.mediabuyer?.email || ''}
+                buyerAvatar={detailPayoutRow?.mediabuyer?.avatar_url || null}
+            />
             <MediaBuyerBreakdownDialog
                 open={breakdownOpen}
                 onOpenChange={setBreakdownOpen}
