@@ -92,6 +92,7 @@ interface SellerKPIs {
         days_present: number;
         delivered_orders: number;
         status: string;
+        period_state: string;
     }[];
 }
 
@@ -338,14 +339,18 @@ const Sellers = () => {
                 const totalCommissionEarned = sellerEarnings.reduce((sum, e) => sum + (Number(e.commission_earned) || 0), 0);
                 const totalEarnings = sellerEarnings.reduce((sum, e) => sum + (Number(e.total_earned) || 0), 0);
 
-                // Totals now respect partials: paid = sum of all disbursements,
-                // unpaid = sum of every remaining balance across all rows.
+                // Totals respect partials AND the rolling-ledger carry: paid = sum of
+                // every disbursement; unpaid = the OPEN month's remaining ONLY. Closed
+                // months' unpaid already rolled forward into the open ticket, so summing
+                // every row would double-count it (e.g. May 1530 already inside Jun 710).
                 const totalPaid = sellerPayments.reduce(
                     (sum, p: any) => sum + (Number(p.paid_amount) || 0),
                     0,
                 );
                 const totalUnpaid = sellerPayments.reduce(
-                    (sum, p: any) => sum + Math.max(0, (Number(p.total_amount) || 0) - (Number(p.paid_amount) || 0)),
+                    (sum, p: any) => sum + (p.period_state === 'open'
+                        ? Math.max(0, (Number(p.total_amount) || 0) - (Number(p.paid_amount) || 0))
+                        : 0),
                     0,
                 );
 
@@ -376,6 +381,7 @@ const Sellers = () => {
                     days_present: p.days_present || 0,
                     delivered_orders: p.delivered_orders || 0,
                     status: p.status || 'pending',
+                    period_state: (p as any).period_state || 'closed',
                 }));
 
                 return {
@@ -903,6 +909,7 @@ const Sellers = () => {
                                                 const pct = totalAmount > 0 ? Math.min(100, (paidAmount / totalAmount) * 100) : 0;
                                                 const isPaid = p.status === 'paid';
                                                 const isPartial = p.status === 'partial';
+                                                const isOpen = p.period_state === 'open';
                                                 const statusMeta = isPaid
                                                     ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
                                                     : isPartial
@@ -921,7 +928,7 @@ const Sellers = () => {
                                                                 <span className={cn('text-[13px] font-semibold tabular-nums leading-none', paidAmount > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
                                                                     {paidAmount.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                                                 </span>
-                                                                {isPartial && (
+                                                                {isOpen && isPartial && (
                                                                     <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
                                                                         <div className="h-full rounded-full bg-ant-blue transition-all" style={{ width: `${pct}%` }} />
                                                                     </div>
