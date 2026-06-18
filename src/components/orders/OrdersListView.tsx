@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import {
   MapPin, Truck, Eye, Package, MoreVertical, Edit2, Trash2, FileSpreadsheet,
-  Calendar, RefreshCcw, Pencil, Package as PackageIcon,
+  Calendar, RefreshCcw, Pencil, Package as PackageIcon, AlertTriangle,
 } from 'lucide-react';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -22,6 +22,7 @@ interface OrdersListViewProps {
   orders: any[];
   selectedOrders: string[];
   duplicatePhones: Set<string>;
+  shortOrderIds?: Set<string>;
   toggleOrderSelection: (id: string) => void;
   toggleSelectAll: (ids: string[]) => void;
   onView: (order: any) => void;
@@ -30,6 +31,7 @@ interface OrdersListViewProps {
   onTrackParcel: (orderId: string) => void;
   onStatusHistory: (order: any) => void;
   onQuickStatusChange: (order: any) => void;
+  onStockAlert?: (order: any) => void;
   isOrderCategory: (statusId: string | null | undefined, cat: string) => boolean;
   getCourierPackageStatus: (order: any) => { label: string; color: string | null } | null;
 }
@@ -38,6 +40,7 @@ export default function OrdersListView({
   orders,
   selectedOrders,
   duplicatePhones,
+  shortOrderIds,
   toggleOrderSelection,
   toggleSelectAll,
   onView,
@@ -46,6 +49,7 @@ export default function OrdersListView({
   onTrackParcel,
   onStatusHistory,
   onQuickStatusChange,
+  onStockAlert,
   isOrderCategory,
   getCourierPackageStatus,
 }: OrdersListViewProps) {
@@ -76,6 +80,7 @@ export default function OrdersListView({
           <tbody>
             {orders.map((order, idx) => {
               const isDuplicate = duplicatePhones.has(order.phone);
+              const isShort = !!shortOrderIds?.has(order.id);
               const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
               const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
               const trackingCode = latestParcel?.tracking_code;
@@ -122,7 +127,10 @@ export default function OrdersListView({
                     // the whole row. Last in the list so tailwind-merge overrides the
                     // zebra/selection background.
                     isDuplicate && !isSelected && 'bg-ant-orange/[0.06] hover:bg-ant-orange/[0.10] border-l-ant-orange/50',
-                    isDuplicate && isSelected && 'bg-ant-orange/[0.12] border-l-ant-orange/60'
+                    isDuplicate && isSelected && 'bg-ant-orange/[0.12] border-l-ant-orange/60',
+                    // Insufficient-stock rows: red wash wins over duplicate orange.
+                    isShort && !isSelected && 'bg-red-500/[0.06] hover:bg-red-500/[0.10] border-l-red-500/50',
+                    isShort && isSelected && 'bg-red-500/[0.12] border-l-red-500/60',
                   )}
                 >
                   {/* Checkbox */}
@@ -159,11 +167,21 @@ export default function OrdersListView({
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
                           <span
-                            className={cn('truncate', isDuplicate ? 'text-ant-orange' : 'text-ant-ink')}
-                            title={isDuplicate ? 'Same phone number on multiple orders' : order.name}
+                            className={cn('truncate', isDuplicate ? 'text-ant-orange' : isShort ? 'text-red-600' : 'text-ant-ink')}
+                            title={isShort ? 'Insufficient stock — cannot be confirmed' : isDuplicate ? 'Same phone number on multiple orders' : order.name}
                           >
                             {order.name}
                           </span>
+                          {isShort && (
+                            <button
+                              type="button"
+                              title="Stock insuffisant — cliquer pour les détails"
+                              onClick={(e) => { e.stopPropagation(); onStockAlert?.(order); }}
+                              className="ml-1 shrink-0 inline-flex items-center justify-center text-red-500 hover:text-red-600"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {order.replace && (
                             <span className="inline-flex shrink-0" title="Exchange">
                               <RefreshCcw className="w-3 h-3 text-ant-rose" />

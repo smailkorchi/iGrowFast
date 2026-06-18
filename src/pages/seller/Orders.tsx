@@ -95,6 +95,7 @@ import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
 import { WebhookHealthIndicator } from '@/components/orders/WebhookHealthIndicator';
 import { OrderStatusHistoryDialog } from '@/components/orders/OrderStatusHistoryDialog';
 import SellerOrdersListView from '@/components/orders/SellerOrdersListView';
+import { StockShortageModal, type StockShortageGroup } from '@/components/orders/StockShortageModal';
 import QuickStatusChangeModal from '@/components/orders/QuickStatusChangeModal';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
@@ -137,6 +138,29 @@ import {
 } from '@/components/orders/OrderLineProductCombobox';
 import SourceIcon, { getSourceMeta } from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
+
+// --- Stock error helper ---
+const friendlyStockError = (error: any): string => {
+    const m = String(error?.message || error || '');
+    if (m.includes('insufficient_stock')) return "Not enough stock to confirm this order. Restock the product or reduce the quantity.";
+    if (m.includes('confirm_via_update')) return "Could not create a confirmed order directly. Please try again.";
+    return m || 'Something went wrong.';
+};
+
+const computeShortLines = (order: any, productMap: Map<string, number>, accessoryMap: Map<string, number>) => {
+    const lines: { name: string; needed: number; have: number }[] = [];
+    (order?.items || []).forEach((it: any) => {
+        if (it.product_id && Number(it.quantity) > 0) {
+            const have = productMap.get(it.product_id) ?? 0;
+            if (Number(it.quantity) > have) lines.push({ name: it.product?.name || 'Produit', needed: Number(it.quantity), have });
+        }
+        if (it.accessory_id && Number(it.accessory_quantity) > 0) {
+            const have = accessoryMap.get(it.accessory_id) ?? 0;
+            if (Number(it.accessory_quantity) > have) lines.push({ name: it.accessory?.name ? `${it.accessory.name} (accessoire)` : 'Accessoire', needed: Number(it.accessory_quantity), have });
+        }
+    });
+    return lines;
+};
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -556,6 +580,9 @@ const Orders = () => {
     const [activeTab, setActiveTab] = useState<'all' | 'confirmed' | 'new' | 'confirmation' | 'suivi' | 'reported' | 'delivered'>('new');
     const [quickStatusOrder, setQuickStatusOrder] = useState<any>(null);
     const [isQuickStatusOpen, setIsQuickStatusOpen] = useState(false);
+
+    // Stock Shortage Modal State
+    const [stockAlert, setStockAlert] = useState<StockShortageGroup[] | null>(null);
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -1687,6 +1714,12 @@ const Orders = () => {
             const includeDelivery = values.include_delivery_in_total !== false;
             const orderPrice = includeDelivery ? totalPrice + ship : totalPrice;
 
+            // Two-step create: if the desired status is 'confirmed', insert with
+            // a non-confirmed status first (to avoid the DB forbid-on-INSERT rule),
+            // then UPDATE to confirmed after items are inserted (fires stock gate).
+            const wantsConfirm = !!values.order_status_id && statusCats.isOrderCategory(values.order_status_id, 'confirmed');
+            const insertStatusId = wantsConfirm ? (defaultNewOrderStatusId || values.order_status_id) : values.order_status_id;
+
             const { data: order, error: orderError } = await (supabase as any)
                 .from('orders')
                 .insert({
@@ -1701,7 +1734,7 @@ const Orders = () => {
                     note: values.note,
                     delivery_note: values.delivery_note,
                     delivery_type: values.delivery_type,
-                    order_status_id: values.order_status_id,
+                    order_status_id: insertStatusId,
                     courier_id: values.courier_id,
                     company_id: values.company_id,
                     coliaty_old_tracking:
@@ -1776,11 +1809,27 @@ const Orders = () => {
 
             if (itemsError) throw itemsError;
 
-            if (values.order_status_id && userId) {
+            // 3. If the user wanted a confirmed status, UPDATE now to fire the stock gate.
+            if (wantsConfirm) {
+                const userRes = await (supabase as any).auth.getUser();
+                const creatorId = userRes.data.user?.id;
+                const { error: confErr } = await (supabase as any)
+                    .from('orders')
+                    .update({
+                        order_status_id: values.order_status_id,
+                        confirmed_by_id: creatorId,
+                        confirmation_date: new Date().toISOString()
+                    })
+                    .eq('id', order.id);
+                if (confErr) throw confErr;
+            }
+
+            const statusIdForHistory = values.order_status_id;
+            if (statusIdForHistory && userId) {
                 try {
                     await (supabase as any).from('order_status_history').insert({
                         order_id: order.id,
-                        status_id: values.order_status_id,
+                        status_id: statusIdForHistory,
                         comment: (values.history_comment || '').trim(),
                         changed_by: userId,
                         'DigiCom Business': activeBusinessId
@@ -1827,7 +1876,7 @@ const Orders = () => {
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
         onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+            toast({ title: "Error", description: friendlyStockError(error), variant: "destructive" });
         }
     });
 
@@ -1994,11 +2043,23 @@ const Orders = () => {
             toast({ title: "Order Updated", description: "Changes saved successfully." });
         },
         onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+            toast({ title: "Error", description: friendlyStockError(error), variant: "destructive" });
         }
     });
 
-    const quickStatusMutation = useMutation({
+    const productStockById = useMemo(() => {
+        const m = new Map<string, number>();
+        ((products as any[]) || []).forEach((p) => m.set(p.id, Number(p.stock ?? 0)));
+        return m;
+    }, [products]);
+
+    const accessoryStockById = useMemo(() => {
+        const m = new Map<string, number>();
+        ((accessories as any[]) || []).forEach((a) => m.set(a.id, Number(a.stock ?? 0)));
+        return m;
+    }, [accessories]);
+
+    const quickStatusMutation = useMutation<void, any, { orderId: string; statusId: string; reportedDate?: string; comment?: string }>({
         mutationFn: async ({ orderId, statusId, reportedDate, comment }: { orderId: string; statusId: string; reportedDate?: string; comment?: string }) => {
             const userRes = await (supabase as any).auth.getUser();
             const userId = userRes.data.user?.id;
@@ -2045,8 +2106,13 @@ const Orders = () => {
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Status Updated" });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error: any, variables) => {
+            if (String(error?.message || '').includes('insufficient_stock')) {
+                const o = (orders as any[]).find((x) => x.id === variables.orderId);
+                setStockAlert([{ orderName: o?.name || 'Commande', lines: o ? computeShortLines(o, productStockById, accessoryStockById) : [] }]);
+            } else {
+                toast({ title: "Error", description: friendlyStockError(error), variant: "destructive" });
+            }
         },
     });
 
@@ -2112,6 +2178,26 @@ const Orders = () => {
             return set;
         },
     });
+
+    const shortOrderIds = useMemo(() => {
+        const s = new Set<string>();
+        ((orders as any[]) || []).forEach((o) => {
+            if (o?.stock_changed === true) return; // already reserved, not short
+            const short = (o?.items || []).some((it: any) => {
+                if (it?.product_id && Number(it.quantity) > 0) {
+                    const have = productStockById.get(it.product_id);
+                    if (have !== undefined && Number(it.quantity) > have) return true;
+                }
+                if (it?.accessory_id && Number(it.accessory_quantity) > 0) {
+                    const have = accessoryStockById.get(it.accessory_id);
+                    if (have !== undefined && Number(it.accessory_quantity) > have) return true;
+                }
+                return false;
+            });
+            if (short) s.add(o.id);
+        });
+        return s;
+    }, [orders, productStockById, accessoryStockById]);
 
     const duplicatePhones = useMemo(() => {
         const duplicates = new Set<string>();
@@ -3250,6 +3336,7 @@ const Orders = () => {
                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                             const trackingCode = latestParcel?.tracking_code;
                             const isDuplicateClient = duplicatePhones.has(order.phone);
+                            const isShortCard = shortOrderIds.has(order.id);
                             const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
                             const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
                             const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
@@ -3267,7 +3354,7 @@ const Orders = () => {
                             return (
                                 <div
                                     key={order.id}
-                                    className="group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default"
+                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isShortCard && 'ring-1 ring-red-500/40 bg-red-500/[0.04]')}
                                 >
                                     {/* Top accent line */}
                                     <div className="h-[3px] w-full" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
@@ -3362,15 +3449,27 @@ const Orders = () => {
                                                 </div>
                                             </ImageHoverPreview>
                                             <div className="min-w-0">
-                                                <p
-                                                    className={cn(
-                                                        'text-sm font-bold truncate leading-tight',
-                                                        isDuplicateClient ? 'text-[#9a7f00]' : 'text-ant-ink'
+                                                <div className="flex items-center gap-1 min-w-0">
+                                                    <p
+                                                        className={cn(
+                                                            'text-sm font-bold truncate leading-tight',
+                                                            isDuplicateClient ? 'text-[#9a7f00]' : 'text-ant-ink'
+                                                        )}
+                                                        title={isDuplicateClient ? 'Same phone number on multiple orders' : undefined}
+                                                    >
+                                                        {order.name}
+                                                    </p>
+                                                    {isShortCard && (
+                                                        <button
+                                                            type="button"
+                                                            title="Stock insuffisant — cliquer pour les détails"
+                                                            onClick={(e) => { e.stopPropagation(); setStockAlert([{ orderName: order.name || 'Commande', lines: computeShortLines(order, productStockById, accessoryStockById) }]); }}
+                                                            className="shrink-0 inline-flex items-center justify-center text-red-500 hover:text-red-600"
+                                                        >
+                                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                                        </button>
                                                     )}
-                                                    title={isDuplicateClient ? 'Same phone number on multiple orders' : undefined}
-                                                >
-                                                    {order.name}
-                                                </p>
+                                                </div>
                                                 <p className="text-[11px] text-ant-ink/40 font-medium tracking-wide truncate">{order.phone}</p>
                                             </div>
                                         </div>
@@ -3482,11 +3581,13 @@ const Orders = () => {
                     <SellerOrdersListView
                         orders={filteredOrders}
                         duplicatePhones={duplicatePhones}
+                        shortOrderIds={shortOrderIds}
                         onView={(order) => { setSelectedOrder(order); setIsViewModalOpen(true); }}
                         onEdit={handleEdit}
                         onTrackParcel={(id) => { setParcelTrackingOrderId(id); setParcelTrackingOpen(true); }}
                         onStatusHistory={setHistoryDialogOrder}
                         onQuickStatusChange={(order) => { setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
+                        onStockAlert={(o) => setStockAlert([{ orderName: o.name || 'Commande', lines: computeShortLines(o, productStockById, accessoryStockById) }])}
                         isOrderCategory={statusCats.isOrderCategory}
                         getCourierPackageStatus={getCourierPackageStatus}
                         reportedStatusId={REPORTED_STATUS_ID}
@@ -5320,6 +5421,13 @@ const Orders = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Stock Shortage Modal */}
+            <StockShortageModal
+                open={!!stockAlert}
+                onClose={() => setStockAlert(null)}
+                groups={stockAlert || []}
+            />
 
             <QuickStatusChangeModal
                 open={isQuickStatusOpen}
