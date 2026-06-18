@@ -6044,49 +6044,37 @@ export type Database = {
       }
       seller_payments: {
         Row: {
-          bank_snapshot: Json | null
-          commission_earned: number | null
           created_at: string | null
-          days_present: number | null
           delivered_orders: number | null
           "DigiCom Business": string | null
           id: string
           paid_amount: number
           paid_at: string | null
           payout_month: string | null
-          salary_earned: number | null
           seller_id: string | null
           status: string | null
           total_amount: number | null
         }
         Insert: {
-          bank_snapshot?: Json | null
-          commission_earned?: number | null
           created_at?: string | null
-          days_present?: number | null
           delivered_orders?: number | null
           "DigiCom Business"?: string | null
           id?: string
           paid_amount?: number
           paid_at?: string | null
           payout_month?: string | null
-          salary_earned?: number | null
           seller_id?: string | null
           status?: string | null
           total_amount?: number | null
         }
         Update: {
-          bank_snapshot?: Json | null
-          commission_earned?: number | null
           created_at?: string | null
-          days_present?: number | null
           delivered_orders?: number | null
           "DigiCom Business"?: string | null
           id?: string
           paid_amount?: number
           paid_at?: string | null
           payout_month?: string | null
-          salary_earned?: number | null
           seller_id?: string | null
           status?: string | null
           total_amount?: number | null

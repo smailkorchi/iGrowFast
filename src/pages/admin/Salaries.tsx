@@ -145,23 +145,6 @@ const Salaries = () => {
 };
 
 // ═════════════════════════ Seller Payouts List ═════════════════════════
-type SellerPayout = {
-    id: string;
-    seller_id: string;
-    payout_month: string;
-    salary_earned: number | string;
-    commission_earned: number | string;
-    total_amount: number | string;
-    paid_amount: number | string;
-    days_present: number;
-    delivered_orders: number;
-    bank_snapshot: any;
-    status: 'pending' | 'partial' | 'paid';
-    created_at: string;
-    paid_at: string | null;
-    seller: { name: string; email: string; avatar_url: string | null } | null;
-};
-
 type PayoutStatus = 'pending' | 'partial' | 'paid';
 
 const SellerPayoutsList: React.FC = () => {
@@ -1220,7 +1203,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                 if (payload.length === 0) throw new Error('All selected rows have 0 remainder');
                 const { error } = await (supabase as any)
                     .from('mediabuyer_payments')
-                    .upsert(payload, { onConflict: 'mediabuyer_id,payout_month' });
+                    .upsert(payload, { onConflict: 'mediabuyer_id,payout_month,DigiCom Business' });
                 if (error) throw error;
                 return { role: 'mediabuyer' as const, count: payload.length };
             }
