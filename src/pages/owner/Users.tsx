@@ -48,6 +48,7 @@ import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { edgeFnErrorMessage } from '@/lib/edgeError';
 
 const ownerUserSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -104,7 +105,7 @@ const OwnerUsers = () => {
                     userData: { ...values, role: 'owner' },
                 },
             });
-            if (error) throw error;
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
             if (data?.error) throw new Error(data.error);
             return data;
         },
@@ -127,7 +128,7 @@ const OwnerUsers = () => {
                     userData: { ...values, role: 'owner' },
                 },
             });
-            if (error) throw error;
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
             if (data?.error) throw new Error(data.error);
             return data;
         },
@@ -143,10 +144,10 @@ const OwnerUsers = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.functions.invoke('manage-users', {
+            const { data, error } = await supabase.functions.invoke('manage-users', {
                 body: { action: 'delete', userId: id },
             });
-            if (error) throw error;
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['owner-users'] });

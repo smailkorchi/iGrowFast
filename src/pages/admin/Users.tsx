@@ -93,6 +93,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
+import { edgeFnErrorMessage } from '@/lib/edgeError';
 
 const userSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -327,8 +328,7 @@ const Users = () => {
             });
 
             if (error) {
-                const contextMsg = data?.error || error.message;
-                throw new Error(contextMsg);
+                throw new Error(await edgeFnErrorMessage(error, data));
             }
             return data;
         },
@@ -360,8 +360,7 @@ const Users = () => {
             });
 
             if (error) {
-                const contextMsg = data?.error || error.message;
-                throw new Error(contextMsg);
+                throw new Error(await edgeFnErrorMessage(error, data));
             }
             return data;
         },
@@ -378,10 +377,10 @@ const Users = () => {
 
     const deleteUserMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.functions.invoke('manage-users', {
+            const { data, error } = await supabase.functions.invoke('manage-users', {
                 body: { action: 'delete', userId: id }
             });
-            if (error) throw error;
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });

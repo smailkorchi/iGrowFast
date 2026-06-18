@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { edgeFnErrorMessage } from '@/lib/edgeError';
 import {
     Plus,
     Search,
@@ -601,7 +602,7 @@ const DeliveryServices = () => {
                 }
             });
 
-            if (error) throw error;
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
             return data;
         },
         onSuccess: () => {
@@ -676,10 +677,10 @@ const DeliveryServices = () => {
     const deleteMutation = useMutation({
         mutationFn: async ({ id, type }: { id: string, type: 'person' | 'company' }) => {
             if (type === 'person') {
-                const { error } = await supabase.functions.invoke('manage-users', {
+                const { data, error } = await supabase.functions.invoke('manage-users', {
                     body: { action: 'delete', userId: id }
                 });
-                if (error) throw error;
+                if (error) throw new Error(await edgeFnErrorMessage(error, data));
             } else {
                 const { error } = await supabase
                     .from(PROVIDERS_TABLE)

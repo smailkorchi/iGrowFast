@@ -7,6 +7,61 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Map raw Postgres / GoTrue errors to messages a human can act on.
+// supabase-js AuthApiError can surface an opaque body whose .message is "{}"
+// with no usable .code, so regex-parsing alone is unreliable — the caller passes
+// a `context` so we can give an actionable message even when the error is opaque.
+function friendlyError(err: any, context?: "email" | "password" | "create"): Error {
+  let serialized = "";
+  try { serialized = JSON.stringify(err); } catch { /* ignore */ }
+
+  // Safe shape log (no PII values) to aid ops debugging.
+  try {
+    console.error("manage-users error shape:", JSON.stringify({
+      context,
+      status: err?.status ?? err?.statusCode,
+      code: err?.code,
+      name: err?.name,
+      msgType: typeof err?.message,
+      msgLen: typeof err?.message === "string" ? err.message.length : null,
+      keys: err && typeof err === "object" ? Object.keys(err) : null,
+    }));
+  } catch { /* ignore */ }
+
+  const hay = [
+    err?.message, err?.code, err?.error_description, err?.msg,
+    err?.details, err?.hint, err?.name, serialized,
+  ].filter((p) => p !== undefined && p !== null && p !== "")
+   .map(String).join(" | ").toLowerCase();
+
+  if (/users_username/.test(hay)) {
+    return new Error("That username is already taken in this business. Choose a different one.");
+  }
+  if (/users_email_key|email_exists|already.*registered|registered.*another|email.*already.*(use|exist)|duplicate.*email/.test(hay)) {
+    return new Error("That email is already used by another account on the platform. Emails are unique platform-wide.");
+  }
+  if (/email_address_invalid|invalid.*email|email.*invalid|invalid format/.test(hay)) {
+    return new Error("That email address is not valid.");
+  }
+  if (/weak.*password|password.*at least|password should be|password.*short|password.*requirement/.test(hay)) {
+    return new Error("Password doesn't meet the requirements: at least 6 characters, including an uppercase letter, a lowercase letter, and a number.");
+  }
+  if (/duplicate key/.test(hay)) {
+    return new Error("A unique field (email or username) is already in use.");
+  }
+
+  // Context-aware fallback when the provider returns an opaque error.
+  if (context === "email" || context === "create") {
+    return new Error("That email can't be used — it's already registered to another account or is not a valid address.");
+  }
+  if (context === "password") {
+    return new Error("Password doesn't meet the requirements: at least 6 characters, including an uppercase letter, a lowercase letter, and a number.");
+  }
+  const raw = (typeof err?.message === "string" && err.message.trim() && err.message.trim() !== "{}")
+    ? err.message.trim() : "";
+  return new Error(raw || "Operation failed. Please review the fields and try again.");
+}
+
 // ── WhatsApp instance assignment helper ────────────────────────────────────
 // access shape: { mode: 'none'|'all'|'specific', instance_ids?: string[], business_id?: string }
 async function applyWhatsappAccess(supabase: any, userId: string, access: any) {
@@ -74,7 +129,7 @@ Deno.serve(async (req) => {
         user_metadata: { name, username, role },
       });
 
-      if (authError) throw authError;
+      if (authError) throw friendlyError(authError, "create");
 
       const { data: profileData, error: profileError } = await supabaseClient
         .from("users")
@@ -90,8 +145,13 @@ Deno.serve(async (req) => {
         .single();
 
       if (profileError) {
-        await supabaseClient.auth.admin.deleteUser(authData.user.id);
-        throw profileError;
+        // Compensate: roll back the auth user so we don't leave an orphan that
+        // blocks future creates with the same email.
+        const { error: delErr } = await supabaseClient.auth.admin.deleteUser(authData.user.id);
+        if (delErr) {
+          console.error("create rollback failed — orphan auth user:", authData.user.id, delErr);
+        }
+        throw friendlyError(profileError);
       }
 
       // Apply WhatsApp instance assignments (sellers only — caller decides)
@@ -110,8 +170,25 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const { email, password, whatsapp_access, ...rest } = userData;
 
-      const authUpdates: Record<string, string> = {};
-      if (email) authUpdates.email = email;
+      // Read the current auth login email so we only touch GoTrue when something
+      // actually changed. Forwarding an unchanged email made GoTrue treat every
+      // edit (even password-only) as an email change and reject it with 422.
+      let currentAuthEmail: string | null = null;
+      {
+        const { data: cur, error: curErr } = await supabaseClient.auth.admin.getUserById(userId);
+        if (curErr) throw friendlyError(curErr);
+        currentAuthEmail = cur?.user?.email ?? null;
+      }
+
+      const submittedEmail = typeof email === "string" ? email.trim() : "";
+      const emailChanged = submittedEmail.length > 0 &&
+        submittedEmail.toLowerCase() !== (currentAuthEmail ?? "").toLowerCase();
+
+      const authUpdates: Record<string, unknown> = {};
+      if (emailChanged) {
+        authUpdates.email = submittedEmail;
+        authUpdates.email_confirm = true; // admin-initiated change, no confirmation round-trip
+      }
       if (password) authUpdates.password = password;
 
       if (Object.keys(authUpdates).length > 0) {
@@ -119,17 +196,23 @@ Deno.serve(async (req) => {
           userId,
           authUpdates,
         );
-        if (authError) throw authError;
+        if (authError) throw friendlyError(authError, emailChanged ? "email" : "password");
       }
+
+      // auth.users is the source of truth for the login email; the profile email
+      // always mirrors it. This both prevents and self-heals drift on every edit.
+      const canonicalEmail = emailChanged ? submittedEmail : currentAuthEmail;
+      const profilePatch: Record<string, unknown> = { ...rest };
+      if (canonicalEmail) profilePatch.email = canonicalEmail;
 
       const { data: profileData, error: profileError } = await supabaseClient
         .from("users")
-        .update(rest)
+        .update(profilePatch)
         .eq("id", userId)
         .select()
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) throw friendlyError(profileError);
 
       try {
         await applyWhatsappAccess(supabaseClient, userId, whatsapp_access);

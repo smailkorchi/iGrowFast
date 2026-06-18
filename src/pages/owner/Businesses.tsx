@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { edgeFnErrorMessage } from '@/lib/edgeError';
 import {
     Plus,
     Search,
@@ -318,7 +319,7 @@ const Businesses = () => {
                     userData: { ...values, role: 'super admin', 'DigiCom Business': newBusinessId },
                 },
             });
-            if (error) throw error;
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
             if (data?.error) throw new Error(data.error);
             return data;
         },
