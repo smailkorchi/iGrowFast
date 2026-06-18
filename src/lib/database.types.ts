@@ -4660,64 +4660,6 @@ export type Database = {
           },
         ]
       }
-      old_seller_daily_earnings: {
-        Row: {
-          commission_earned: number | null
-          created_at: string | null
-          date: string | null
-          delivered_count: number | null
-          "DigiCom Business": string | null
-          id: string
-          salary_earned: number | null
-          seller_id: string | null
-          total_earned: number | null
-        }
-        Insert: {
-          commission_earned?: number | null
-          created_at?: string | null
-          date?: string | null
-          delivered_count?: number | null
-          "DigiCom Business"?: string | null
-          id?: string
-          salary_earned?: number | null
-          seller_id?: string | null
-          total_earned?: number | null
-        }
-        Update: {
-          commission_earned?: number | null
-          created_at?: string | null
-          date?: string | null
-          delivered_count?: number | null
-          "DigiCom Business"?: string | null
-          id?: string
-          salary_earned?: number | null
-          seller_id?: string | null
-          total_earned?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "seller_daily_earnings_DigiCom Business_fkey"
-            columns: ["DigiCom Business"]
-            isOneToOne: false
-            referencedRelation: "ai_business_health"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "seller_daily_earnings_DigiCom Business_fkey"
-            columns: ["DigiCom Business"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "seller_daily_earnings_seller_id_fkey"
-            columns: ["seller_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       order_items: {
         Row: {
           accessory_id: string | null
