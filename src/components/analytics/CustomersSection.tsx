@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -49,12 +49,17 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-customers', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, phone, name, price, date, order_status_id, package_status_id, master_city_id, master_cities(name, region)')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, phone, name, price, date, order_status_id, package_status_id, master_city_id, master_cities(name, region)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

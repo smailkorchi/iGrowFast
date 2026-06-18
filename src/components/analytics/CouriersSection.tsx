@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
@@ -67,13 +67,18 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
     const { data: orders, isLoading: loadingOrders } = useQuery({
         queryKey: ['analytics-courier-orders-v2', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, date, courier_id, order_status_id, package_status_id, package_status_label, tracking_number, package_statuses(label, category)')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending')
-                .not('courier_id', 'is', null);
-            return (data || []) as unknown as OrderRow[];
+            return (await fetchAllRows(
+                'orders',
+                'id, date, courier_id, order_status_id, package_status_id, package_status_label, tracking_number, package_statuses(label, category)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                    orFilter: 'courier_id.not.is.null',
+                },
+            )) as unknown as OrderRow[];
         },
         enabled: !!businessId,
     });

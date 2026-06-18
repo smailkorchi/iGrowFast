@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import {
     Plus,
@@ -466,13 +466,17 @@ const AdsHistory = () => {
         queryKey: ['orders-for-ads', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)')
-                .eq('DigiCom Business', activeBusinessId)
-                .is('date_deleted', null);
-            if (error) throw error;
-            return data;
+            // Paginated so we never truncate at the 1000-row default cap.
+            return await fetchAllRows(
+                'orders',
+                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                    ],
+                }
+            );
         }
     });
 

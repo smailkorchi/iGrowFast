@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Truck, Building2, Bike } from 'lucide-react';
@@ -27,12 +27,17 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
     const { data: orders } = useQuery({
         queryKey: ['shipping-pipeline-orders', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, date, order_status_id, package_status_id, package_status_label, company_id, courier_id')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, date, order_status_id, package_status_id, package_status_label, company_id, courier_id',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

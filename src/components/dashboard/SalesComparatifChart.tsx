@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -67,14 +67,17 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
     const { data: orders } = useQuery({
         queryKey: ['sales-comparatif-orders', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select(
-                    'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label)',
-                )
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

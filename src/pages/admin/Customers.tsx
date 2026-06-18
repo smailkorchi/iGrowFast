@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { useToast } from '@/hooks/use-toast';
@@ -215,9 +215,10 @@ const Customers = () => {
         queryKey: ['customers-derived', activeBusinessId, statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data: orders, error } = await supabase
-                .from('orders')
-                .select(`
+            // Paginated so we never truncate at the 1000-row default cap.
+            const orders = await fetchAllRows(
+                'orders',
+                `
                     id,
                     name,
                     phone,
@@ -232,12 +233,15 @@ const Customers = () => {
                     city:master_cities(name),
                     status:order_statuses(label, color),
                     package_statuses(label)
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending')
-                .order('date', { ascending: false });
-
-            if (error) throw error;
+                `,
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                }
+            );
 
             const customerMap = new Map<string, Customer>();
 

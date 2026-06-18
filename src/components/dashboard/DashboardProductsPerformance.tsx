@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Box, ChevronDown, ChevronRight, ShoppingBag } from 'lucide-react';
@@ -162,11 +162,15 @@ export const DashboardProductsPerformance = ({
     const { data: orderItems } = useQuery({
         queryKey: ['dashboard-order-items', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('order_items')
-                .select('id, order_id, product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot')
-                .eq('DigiCom Business', businessId);
-            return data || [];
+            return await fetchAllRows(
+                'order_items',
+                'id, order_id, product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });
@@ -174,14 +178,17 @@ export const DashboardProductsPerformance = ({
     const { data: orders } = useQuery({
         queryKey: ['dashboard-products-performance-orders', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select(
-                    'id, date, shipping_cost, order_status_id, package_status_id, package_status_label, tracking_number, source_name, seller_id, order_statuses(code, label, category), package_statuses(label, category)'
-                )
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, date, shipping_cost, order_status_id, package_status_id, package_status_label, tracking_number, source_name, seller_id, order_statuses(code, label, category), package_statuses(label, category)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

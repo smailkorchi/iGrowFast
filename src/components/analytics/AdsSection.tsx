@@ -1,6 +1,6 @@
 import { useMemo, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -155,12 +155,17 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
     const { data: allOrders } = useQuery<AdsOrderForMatching[]>({
         queryKey: ['analytics-orders-for-ads-v3', businessId],
         queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('orders')
-                .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, order_items(product_id, unit_price, quantity)')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return (data || []) as AdsOrderForMatching[];
+            return (await fetchAllRows(
+                'orders',
+                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, order_items(product_id, unit_price, quantity)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            )) as unknown as AdsOrderForMatching[];
         },
         enabled: !!businessId,
     });

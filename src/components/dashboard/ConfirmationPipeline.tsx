@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PhoneCall } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
@@ -21,12 +21,17 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
     const { data: orders } = useQuery({
         queryKey: ['confirmation-pipeline-orders', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, date, order_status_id, tracking_number, order_statuses(code, label)')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, date, order_status_id, tracking_number, order_statuses(code, label)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

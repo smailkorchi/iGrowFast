@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
@@ -48,14 +48,17 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-health-v2', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select(
-                    'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_status_label, package_statuses(label, category), tracking_number, confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
-                )
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_status_label, package_statuses(label, category), tracking_number, confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

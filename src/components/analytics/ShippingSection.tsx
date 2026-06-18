@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
@@ -48,12 +48,17 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-shipping-v2', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, date, updated_at, shipping_cost, delivery_type, company_id, courier_id, order_status_id, package_status_id, package_status_label, date_livraison, tracking_number, master_city_id, master_cities(name, lat, lng), package_statuses(label, category)')
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            return data || [];
+            return await fetchAllRows(
+                'orders',
+                'id, date, updated_at, shipping_cost, delivery_type, company_id, courier_id, order_status_id, package_status_id, package_status_label, date_livraison, tracking_number, master_city_id, master_cities(name, lat, lng), package_statuses(label, category)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
         },
         enabled: !!businessId,
     });

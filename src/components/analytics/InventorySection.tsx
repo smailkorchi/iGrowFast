@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -56,11 +56,15 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
     const { data: orderItems } = useQuery<InvOrderItemRow[]>({
         queryKey: ['analytics-order-items-inv-v2', businessId],
         queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('order_items')
-                .select('id, product_id, quantity, unit_price, product_unit_cost_snapshot, accessory_id, accessory_quantity, order_id, orders(date, order_status_id, package_status_id)')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as InvOrderItemRow[];
+            return (await fetchAllRows(
+                'order_items',
+                'id, product_id, quantity, unit_price, product_unit_cost_snapshot, accessory_id, accessory_quantity, order_id, orders(date, order_status_id, package_status_id)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                    ],
+                },
+            )) as unknown as InvOrderItemRow[];
         },
         enabled: !!businessId,
     });

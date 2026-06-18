@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
@@ -69,9 +69,10 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         setLoading(true);
         const timer = setTimeout(async () => {
             try {
-                const { data, error } = await supabase
-                    .from('orders')
-                    .select(`
+                // Paginated so we never truncate at the 1000-row default cap.
+                const data = await fetchAllRows(
+                    'orders',
+                    `
                         id,
                         date,
                         created_at,
@@ -81,13 +82,16 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         package_status_label,
                         status:order_statuses(code, label, color),
                         package_status:package_statuses(code, label)
-                    `)
-                    .eq('DigiCom Business', activeBusinessId)
-                    .ilike('phone', `%${cleaned}%`)
-                    .is('date_deleted', null).neq('source_review_status', 'pending')
-                    .order('date', { ascending: false });
-
-                if (error) throw error;
+                    `,
+                    {
+                        filters: [
+                            { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                            { column: 'phone', op: 'ilike', value: `%${cleaned}%` },
+                            { column: 'date_deleted', op: 'is', value: null },
+                            { column: 'source_review_status', op: 'neq', value: 'pending' },
+                        ],
+                    }
+                );
 
                 // Types verified via MCP: orders (id NOT NULL, date/created_at/raw_price/*_status_id nullable),
                 // order_statuses/package_statuses.code/label text NOT NULL, color text nullable.

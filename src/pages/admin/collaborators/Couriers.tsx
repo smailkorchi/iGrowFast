@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Search,
     Truck,
@@ -139,13 +139,19 @@ const Couriers = () => {
         queryKey: ['couriers-orders', activeBusinessId, courierIds.sort().join(',')],
         queryFn: async () => {
             if (!activeBusinessId || courierIds.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select('id, courier_id, order_status_id, package_status_id, shipping_cost, include_delivery_in_total, master_city_id')
-                .eq('DigiCom Business', activeBusinessId)
-                .in('courier_id', courierIds)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-            if (error) throw error;
+            // Paginated so we never truncate at the 1000-row default cap.
+            const data = await fetchAllRows(
+                'orders',
+                'id, courier_id, order_status_id, package_status_id, shipping_cost, include_delivery_in_total, master_city_id',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'courier_id', op: 'in', value: courierIds },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                }
+            );
             return (data || []) as OrderRow[];
         },
         enabled: !!activeBusinessId && courierIds.length > 0,

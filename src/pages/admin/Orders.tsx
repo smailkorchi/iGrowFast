@@ -872,9 +872,16 @@ const Orders = () => {
         queryKey: ['orders-aggregate', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`
+            // Paginated so we never truncate at PostgREST's 1000-row default. A
+            // business with >1000 orders was silently showing only the newest
+            // 1000 (KPIs, counts, Total sales all undercounted, and any package
+            // filter like "Livré" matched against a truncated set). fetchAllRows
+            // pages by `id` (stable .range() ordering, no skip/dup on created_at
+            // ties); we re-sort newest-first below since `filteredOrders` slices
+            // this array directly with no further sort.
+            const rows = await fetchAllRows<any>(
+                'orders',
+                `
                     *,
                     status:order_statuses(*),
                     package_status:package_statuses(*),
@@ -886,13 +893,18 @@ const Orders = () => {
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .is('date_deleted', null)
-                .neq('source_review_status', 'pending')
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data || [];
+                `,
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                },
+            );
+            return (rows as any[]).sort(
+                (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+            );
         },
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
