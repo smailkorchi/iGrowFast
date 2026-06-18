@@ -3928,7 +3928,7 @@ const Orders = () => {
                                                             <span className="truncate">{(selectedOrder as any).channel.name}</span>
                                                         </div>
                                                     ) : (
-                                                    <Select onValueChange={field.onChange} value={field.value} disabled={isEditModalOpen}>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-xl border-none bg-ant-ink/[0.04] text-sm font-bold text-ant-ink shadow-inner">
                                                                 <SelectValue placeholder="Select channel">
