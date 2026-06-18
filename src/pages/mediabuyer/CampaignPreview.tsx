@@ -268,6 +268,17 @@ const CampaignPreview: React.FC = () => {
 
     const { daily, totals, mediabuyer, revenueBasis, isLoading: loadingMetrics } = useCampaignMetrics(campaign);
     const isAdminView = revenueBasis === 'admin';
+    // ── Role + ownership-aware money semantics ──────────────────────────────────
+    // Admin view  = business economics (gross revenue, profit = revenue − spend).
+    // Media-buyer = the viewer's PERSONAL commission. The ad spend is the business's
+    // money, not the buyer's, so the MB never sees a "commission − spend" net/profit
+    // (that's an admin concept) and sees NO earnings at all on campaigns owned by
+    // someone else — he can look, but the money isn't his. Salary buyers are paid on
+    // a monthly cadence, not per campaign, so they get no per-campaign earnings here.
+    const isOwnCampaign = !!currentUserId && !!campaign && campaign.created_by === currentUserId;
+    const isCommissionMB = mediabuyer?.payment_type === 'commission';
+    const showEarnings = isAdminView || (isOwnCampaign && isCommissionMB);
+    const showProfit = isAdminView;
     const revenueLabel = isAdminView ? 'Gross revenue' : 'Commission';
     const profitColor = totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose';
     const profitColorClass = totals.profit >= 0 ? 'border-ant-green/25 bg-ant-green-soft/40' : 'border-ant-rose/25 bg-ant-rose/8';
@@ -329,7 +340,7 @@ const CampaignPreview: React.FC = () => {
     // always the one the viewer cares about.
     const dayRanks = useMemo(() => {
         if (!daily.length) return null;
-        const sortKey = (d: typeof daily[number]) => (isAdminView ? d.delivered : d.revenue);
+        const sortKey = (d: typeof daily[number]) => (!isAdminView && showEarnings ? d.revenue : d.delivered);
         const sorted = [...daily].sort((a, b) => sortKey(b) - sortKey(a));
         const best = sorted[0];
         const worst = sorted[sorted.length - 1];
@@ -380,7 +391,7 @@ const CampaignPreview: React.FC = () => {
 
     const campaignTypeLabel = CAMPAIGN_TYPES.find((t) => t.value === campaign.campaign_type)?.label || campaign.campaign_type;
     const conversionMeta = CONVERSION_TYPES.find((c) => c.value === campaign.conversion_type);
-    const canEdit = !!currentUserId && campaign.created_by === currentUserId;
+    const canEdit = isOwnCampaign;
     const statusPill = campaign.status === 'active'
         ? { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' }
         : { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' };
@@ -438,15 +449,27 @@ const CampaignPreview: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex items-stretch gap-3 shrink-0">
-                            <div className={cn('rounded-2xl border px-5 py-3 flex flex-col items-end min-w-[150px]', profitColorClass)}>
-                                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">{isAdminView ? 'Profit' : 'Net (commission − spend)'}</span>
-                                <span className={cn('font-display text-[24px] font-semibold tracking-[-0.02em] tabular-nums leading-none mt-1', profitColor)}>
-                                    {totals.profit >= 0 ? '+' : ''}{fmtCurFull(totals.profit, currency)}
-                                </span>
-                                <span className="text-[10px] text-ant-mid mt-1 tabular-nums">
-                                    {totals.roas == null ? '—' : `ROAS ${totals.roas.toFixed(2)}×`}
-                                </span>
-                            </div>
+                            {isAdminView ? (
+                                <div className={cn('rounded-2xl border px-5 py-3 flex flex-col items-end min-w-[150px]', profitColorClass)}>
+                                    <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Profit</span>
+                                    <span className={cn('font-display text-[24px] font-semibold tracking-[-0.02em] tabular-nums leading-none mt-1', profitColor)}>
+                                        {totals.profit >= 0 ? '+' : ''}{fmtCurFull(totals.profit, currency)}
+                                    </span>
+                                    <span className="text-[10px] text-ant-mid mt-1 tabular-nums">
+                                        {totals.roas == null ? '—' : `ROAS ${totals.roas.toFixed(2)}×`}
+                                    </span>
+                                </div>
+                            ) : showEarnings ? (
+                                <div className="rounded-2xl border px-5 py-3 flex flex-col items-end min-w-[150px] border-ant-green/25 bg-ant-green-soft/40">
+                                    <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Commission earned</span>
+                                    <span className="font-display text-[24px] font-semibold tracking-[-0.02em] tabular-nums leading-none mt-1 text-ant-green">
+                                        {fmtCurFull(totals.mbCommissionRevenue, currency)}
+                                    </span>
+                                    <span className="text-[10px] text-ant-mid mt-1 tabular-nums">
+                                        {fmtNum(totals.delivered)} delivered
+                                    </span>
+                                </div>
+                            ) : null}
                             <div className="flex flex-col gap-2 shrink-0">
                                 {canEdit ? (
                                     <>
@@ -531,7 +554,7 @@ const CampaignPreview: React.FC = () => {
                                     </dd>
                                 )}
                             </div>
-                            {mediabuyer && (
+                            {mediabuyer && showEarnings && mediabuyer.payment_type && (
                                 <div>
                                     <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Commission</dt>
                                     <dd className="font-display text-[15px] font-semibold text-ant-orange tabular-nums mt-0.5">
@@ -546,15 +569,17 @@ const CampaignPreview: React.FC = () => {
                                     )}
                                 </div>
                             )}
-                            <div>
-                                <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">{revenueLabel}</dt>
-                                <dd className="font-display text-[15px] font-semibold text-ant-green tabular-nums mt-0.5">
-                                    {fmtCurFull(totals.revenue, currency)}
-                                </dd>
-                                <dd className="text-[10px] text-ant-mid mt-0.5">
-                                    {isAdminView ? 'product-only, shipping stripped' : 'commission earnings'}
-                                </dd>
-                            </div>
+                            {showEarnings && (
+                                <div>
+                                    <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">{revenueLabel}</dt>
+                                    <dd className="font-display text-[15px] font-semibold text-ant-green tabular-nums mt-0.5">
+                                        {fmtCurFull(totals.revenue, currency)}
+                                    </dd>
+                                    <dd className="text-[10px] text-ant-mid mt-0.5">
+                                        {isAdminView ? 'product-only, shipping stripped' : 'commission earnings'}
+                                    </dd>
+                                </div>
+                            )}
                         </dl>
 
                         {/* Live snapshot — uses the otherwise-empty bottom half of the Setup card */}
@@ -573,7 +598,7 @@ const CampaignPreview: React.FC = () => {
                                             avg {fmtNum(Math.round(avgDelivPerDay))} deliv / day
                                         </span>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className={cn('grid gap-2', showEarnings ? 'grid-cols-4' : 'grid-cols-3')}>
                                         <div className="rounded-xl border border-ant-line bg-ant-light/50 p-3">
                                             <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">Leads</p>
                                             <p className="font-display text-[18px] font-semibold text-ant-ink tabular-nums leading-tight mt-1">{fmtNum(totals.leads)}</p>
@@ -591,13 +616,23 @@ const CampaignPreview: React.FC = () => {
                                             <p className="font-display text-[18px] font-semibold text-ant-ink tabular-nums leading-tight mt-1">{fmtNum(totals.delivered)}</p>
                                             <p className="text-[10px] text-ant-green/80 tabular-nums mt-0.5">{fmtPct(totals.deliveryRate)} of conf.</p>
                                         </div>
-                                        <div className={cn('rounded-xl border p-3', totals.profit >= 0 ? 'border-ant-green/25 bg-ant-green-soft/40' : 'border-ant-rose/25 bg-ant-rose/8')}>
-                                            <p className={cn('text-[9.5px] font-medium uppercase tracking-[0.2em]', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>{isAdminView ? 'Profit' : 'Net'}</p>
-                                            <p className={cn('font-display text-[18px] font-semibold tabular-nums leading-tight mt-1', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>
-                                                {totals.profit >= 0 ? '+' : ''}{fmtCur(totals.profit, currency)}
-                                            </p>
-                                            <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">{totals.roas == null ? '—' : `ROAS ${totals.roas.toFixed(2)}×`}</p>
-                                        </div>
+                                        {showEarnings && (isAdminView ? (
+                                            <div className={cn('rounded-xl border p-3', totals.profit >= 0 ? 'border-ant-green/25 bg-ant-green-soft/40' : 'border-ant-rose/25 bg-ant-rose/8')}>
+                                                <p className={cn('text-[9.5px] font-medium uppercase tracking-[0.2em]', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>Profit</p>
+                                                <p className={cn('font-display text-[18px] font-semibold tabular-nums leading-tight mt-1', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>
+                                                    {totals.profit >= 0 ? '+' : ''}{fmtCur(totals.profit, currency)}
+                                                </p>
+                                                <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">{totals.roas == null ? '—' : `ROAS ${totals.roas.toFixed(2)}×`}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-xl border p-3 border-ant-green/25 bg-ant-green-soft/40">
+                                                <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-green">Commission</p>
+                                                <p className="font-display text-[18px] font-semibold tabular-nums leading-tight mt-1 text-ant-green">
+                                                    {fmtCur(totals.mbCommissionRevenue, currency)}
+                                                </p>
+                                                <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">{fmtNum(totals.delivered)} delivered</p>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -667,7 +702,7 @@ const CampaignPreview: React.FC = () => {
                                                 {format(new Date(dayRanks.best.date), 'EEE dd MMM')}
                                             </p>
                                             <p className="text-[10px] text-ant-mid mt-0.5 tabular-nums">
-                                                {dayRanks.best.delivered} deliv · {fmtCur(dayRanks.best.revenue, currency)}{isAdminView ? ' gross' : ' comm.'}
+                                                {dayRanks.best.delivered} deliv{showEarnings ? ` · ${fmtCur(dayRanks.best.revenue, currency)}${isAdminView ? ' gross' : ' comm.'}` : ''}
                                             </p>
                                         </div>
                                         <div className="rounded-xl border border-ant-rose/25 bg-ant-rose/8 p-3">
@@ -710,7 +745,7 @@ const CampaignPreview: React.FC = () => {
                         ))}
                     </div>
                 ) : (
-                    <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                    <section className={cn('grid grid-cols-2 md:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden', showEarnings ? 'lg:grid-cols-6' : 'lg:grid-cols-5')}>
                         {/* Spend */}
                         <div className="bg-ant-paper p-4">
                             <div className="flex items-start justify-between gap-3 mb-1">
@@ -763,18 +798,20 @@ const CampaignPreview: React.FC = () => {
                             <p className="text-[10px] text-ant-mid mt-1 tabular-nums">CPL {totals.costPerLead == null ? '—' : fmtCur(totals.costPerLead, currency)}</p>
                             <Sparkline values={daily.map((d) => d.costPerDelivered ?? 0)} color="#d97757" />
                         </div>
-                        {/* Revenue (role-aware) */}
-                        <div className="bg-ant-paper p-4">
-                            <div className="flex items-start justify-between gap-3 mb-1">
-                                <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-green" />{revenueLabel}</div>
-                                <TrendingUp className="w-3.5 h-3.5 text-ant-green/70" strokeWidth={1.75} />
+                        {/* Revenue (role-aware) — admin gross OR the buyer's own commission */}
+                        {showEarnings && (
+                            <div className="bg-ant-paper p-4">
+                                <div className="flex items-start justify-between gap-3 mb-1">
+                                    <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid"><span className="h-1.5 w-1.5 rounded-full bg-ant-green" />{revenueLabel}</div>
+                                    <TrendingUp className="w-3.5 h-3.5 text-ant-green/70" strokeWidth={1.75} />
+                                </div>
+                                <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtCurFull(totals.revenue, currency)}>{fmtCur(totals.revenue, currency)}</p>
+                                <p className="text-[10px] text-ant-mid mt-1">
+                                    {isAdminView ? 'gross · product-only' : (mediabuyer?.payment_type === 'commission' ? `× ${fmtCur(Number(mediabuyer.commission_price || 0), currency)} / deliv` : 'commission')}
+                                </p>
+                                <Sparkline values={daily.map((d) => d.revenue)} color="#788c5d" />
                             </div>
-                            <p className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none" title={fmtCurFull(totals.revenue, currency)}>{fmtCur(totals.revenue, currency)}</p>
-                            <p className="text-[10px] text-ant-mid mt-1">
-                                {isAdminView ? 'gross · product-only' : (mediabuyer?.payment_type === 'commission' ? `× ${fmtCur(Number(mediabuyer.commission_price || 0), currency)} / deliv` : 'commission')}
-                            </p>
-                            <Sparkline values={daily.map((d) => d.revenue)} color="#788c5d" />
-                        </div>
+                        )}
                     </section>
                 )}
 
@@ -799,7 +836,9 @@ const CampaignPreview: React.FC = () => {
                                     <TabsTrigger value="volume" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Volume</TabsTrigger>
                                     <TabsTrigger value="cost" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Cost / KPI</TabsTrigger>
                                     <TabsTrigger value="rates" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Rates</TabsTrigger>
-                                    <TabsTrigger value="finance" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Finance</TabsTrigger>
+                                    {isAdminView && (
+                                        <TabsTrigger value="finance" className="text-[11px] h-7 px-3.5 rounded-full font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">Finance</TabsTrigger>
+                                    )}
                                 </TabsList>
 
                                 <TabsContent value="volume" className="mt-4 outline-none">
@@ -853,28 +892,30 @@ const CampaignPreview: React.FC = () => {
                                     </ResponsiveContainer>
                                 </TabsContent>
 
-                                <TabsContent value="finance" className="mt-4 outline-none">
-                                    <ResponsiveContainer width="100%" height={280}>
-                                        <AreaChart data={chartData}>
-                                            <defs>
-                                                <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#B54040" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#B54040" stopOpacity={0} />
-                                                </linearGradient>
-                                                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
-                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                            <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
-                                            <Tooltip content={<ChartTooltip />} />
-                                            <Area type="monotone" dataKey="Spend" stroke="#B54040" strokeWidth={2} fill="url(#spendGrad)" name="Spend" />
-                                            <Area type="monotone" dataKey="Revenue" stroke="#2D7A3E" strokeWidth={2} fill="url(#revGrad)" name={revenueLabel} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </TabsContent>
+                                {isAdminView && (
+                                    <TabsContent value="finance" className="mt-4 outline-none">
+                                        <ResponsiveContainer width="100%" height={280}>
+                                            <AreaChart data={chartData}>
+                                                <defs>
+                                                    <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#B54040" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#B54040" stopOpacity={0} />
+                                                    </linearGradient>
+                                                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#E6E1D6" vertical={false} />
+                                                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                                <YAxis tick={{ fontSize: 10, fill: '#8B8680' }} axisLine={false} tickLine={false} />
+                                                <Tooltip content={<ChartTooltip />} />
+                                                <Area type="monotone" dataKey="Spend" stroke="#B54040" strokeWidth={2} fill="url(#spendGrad)" name="Spend" />
+                                                <Area type="monotone" dataKey="Revenue" stroke="#2D7A3E" strokeWidth={2} fill="url(#revGrad)" name={revenueLabel} />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </TabsContent>
+                                )}
                             </Tabs>
                         )}
                     </div>
@@ -888,7 +929,7 @@ const CampaignPreview: React.FC = () => {
                                 <ListChecks className="w-3 h-3" />
                                 Daily breakdown
                             </div>
-                            <span className="text-[11px] text-ant-mid tabular-nums">{daily.length} entries · {isAdminView ? 'gross revenue' : 'commission'}</span>
+                            <span className="text-[11px] text-ant-mid tabular-nums">{daily.length} entries{showEarnings ? (isAdminView ? ' · gross revenue' : ' · commission') : ''}</span>
                         </div>
                     </div>
                     {daily.length === 0 ? (
@@ -910,8 +951,8 @@ const CampaignPreview: React.FC = () => {
                                         <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">CPD</th>
                                         <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-orange">% Conf</th>
                                         <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-green">% Deliv</th>
-                                        <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-green">{revenueLabel}</th>
-                                        <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">Profit</th>
+                                        {showEarnings && <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-green">{revenueLabel}</th>}
+                                        {showProfit && <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid">Profit</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -929,10 +970,12 @@ const CampaignPreview: React.FC = () => {
                                                 <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{d.costPerDelivered == null ? '—' : fmtCurFull(d.costPerDelivered, currency)}</td>
                                                 <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{fmtPct(d.confirmRate)}</td>
                                                 <td className="text-right px-3 py-3 text-[12px] text-ant-mid">{fmtPct(d.deliveryRate)}</td>
-                                                <td className="text-right px-4 py-3 text-[12px] font-semibold text-ant-green">{fmtCurFull(d.revenue, currency)}</td>
-                                                <td className={cn('text-right px-4 py-3 text-[12px] font-semibold tabular-nums', dProfitClass)}>
-                                                    {d.profit >= 0 ? '+' : ''}{fmtCurFull(d.profit, currency)}
-                                                </td>
+                                                {showEarnings && <td className="text-right px-4 py-3 text-[12px] font-semibold text-ant-green">{fmtCurFull(d.revenue, currency)}</td>}
+                                                {showProfit && (
+                                                    <td className={cn('text-right px-4 py-3 text-[12px] font-semibold tabular-nums', dProfitClass)}>
+                                                        {d.profit >= 0 ? '+' : ''}{fmtCurFull(d.profit, currency)}
+                                                    </td>
+                                                )}
                                             </tr>
                                         );
                                     })}
@@ -949,10 +992,12 @@ const CampaignPreview: React.FC = () => {
                                         <td className="text-right px-3 py-3.5 text-[12px] text-white/60">{totals.costPerDelivered == null ? '—' : fmtCurFull(totals.costPerDelivered, currency)}</td>
                                         <td className="text-right px-3 py-3.5 text-[12px] text-ant-orange">{fmtPct(totals.confirmRate)}</td>
                                         <td className="text-right px-3 py-3.5 text-[12px] text-ant-green">{fmtPct(totals.deliveryRate)}</td>
-                                        <td className="text-right px-4 py-3.5 text-[12px]">{fmtCurFull(totals.revenue, currency)}</td>
-                                        <td className={cn('text-right px-4 py-3.5 text-[12px] font-semibold', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>
-                                            {totals.profit >= 0 ? '+' : ''}{fmtCurFull(totals.profit, currency)}
-                                        </td>
+                                        {showEarnings && <td className="text-right px-4 py-3.5 text-[12px]">{fmtCurFull(totals.revenue, currency)}</td>}
+                                        {showProfit && (
+                                            <td className={cn('text-right px-4 py-3.5 text-[12px] font-semibold', totals.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>
+                                                {totals.profit >= 0 ? '+' : ''}{fmtCurFull(totals.profit, currency)}
+                                            </td>
+                                        )}
                                     </tr>
                                 </tfoot>
                             </table>
