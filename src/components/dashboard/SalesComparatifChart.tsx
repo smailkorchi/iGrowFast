@@ -32,6 +32,7 @@ import {
 } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import { pureRevenueForOrder, type AnalyticsOrder } from '@/lib/analyticsDefinitions';
 
 interface SalesComparatifChartProps {
     businessId: string;
@@ -125,13 +126,13 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         const prevRangeStart = subDays(rangeStart, prevOffsetDays);
         const prevRangeEnd = subDays(rangeEnd, prevOffsetDays);
 
-        // Revenue: delivered-only, product-side (respects include_delivery_in_total).
-        const productRevenue = (o: SCCOrder) => {
-            const price = Number(o.price || 0);
-            const ship = Number(o.shipping_cost || 0);
-            if (o.include_delivery_in_total === false) return Math.max(0, price);
-            return Math.max(0, price - ship);
-        };
+        // Revenue: delivered-only. Use the SHARED revenue definition so this
+        // chart matches the P&L / analytics everywhere — product revenue PLUS the
+        // delivery the customer paid when it's folded into the order total
+        // (include_delivery_in_total = true). The old inline version stripped
+        // shipping unconditionally, understating revenue by the collected delivery
+        // and diverging from the Orders page "Total sales".
+        const productRevenue = (o: SCCOrder) => pureRevenueForOrder(o as unknown as AnalyticsOrder);
         const isRevenue = (o: SCCOrder) => isDeliveredForCommission(o, deliveredPkgIds);
 
         const parse = (s: string | null | undefined) => (s ? new Date(s) : null);

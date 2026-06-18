@@ -90,7 +90,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { orderMatchesTopSearch } from '@/lib/orderSearch';
-import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, isWithinInterval } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
@@ -2067,6 +2067,8 @@ const Orders = () => {
             case 'yesterday': return { from: startOfDay(subDays(now, 1)), to: endOfDay(subDays(now, 1)) };
             case 'last7': return { from: startOfDay(subDays(now, 6)), to: endOfDay(now) };
             case 'last30': return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
+            case 'last90': return { from: startOfDay(subDays(now, 89)), to: endOfDay(now) };
+            case 'ytd': return { from: startOfYear(now), to: endOfDay(now) };
             case 'thisMonth': return { from: startOfMonth(now), to: endOfDay(now) };
             case 'lastMonth': { const lm = subMonths(now, 1); return { from: startOfMonth(lm), to: endOfMonth(lm) }; }
             case 'custom': return filterCustomRange?.from && filterCustomRange?.to ? { from: startOfDay(filterCustomRange.from), to: endOfDay(filterCustomRange.to) } : null;
@@ -2839,13 +2841,15 @@ const Orders = () => {
                                     <span className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.22em]">Range</span>
                                     <div className="flex flex-wrap gap-1.5">
                                         {([
-                                            { v: 'all', l: 'All' },
+                                            { v: 'all', l: 'All Time' },
                                             { v: 'today', l: 'Today' },
                                             { v: 'yesterday', l: 'Yesterday' },
                                             { v: 'last7', l: '7 Days' },
                                             { v: 'last30', l: '30 Days' },
+                                            { v: 'last90', l: '90 Days' },
                                             { v: 'thisMonth', l: 'This Month' },
                                             { v: 'lastMonth', l: 'Last Month' },
+                                            { v: 'ytd', l: 'YTD' },
                                             { v: 'custom', l: 'Custom' },
                                         ] as const).map((opt) => (
                                             <button

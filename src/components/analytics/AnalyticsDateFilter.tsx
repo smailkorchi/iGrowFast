@@ -14,18 +14,21 @@ export interface DateFilter {
 }
 
 const PRESETS = [
+    // Set, order, AND windows kept identical to the Orders page date filter.
     // Rolling windows are INCLUSIVE of today: "7 Days" = today + 6 prior = 7
-    // calendar days (subDays(now, N-1)), matching the Orders page exactly. The
-    // old subDays(now, N) spanned N+1 day-buckets once start/endOfDay was applied
-    // downstream, so the same pill returned a wider window than Orders.
+    // calendar days (subDays(now, N-1)). The old subDays(now, N) spanned N+1
+    // day-buckets once start/endOfDay was applied downstream, returning a wider
+    // window than Orders for the same pill. Today/Yesterday use the bare date;
+    // every consumer normalizes via startOfDay(from)/endOfDay(to).
+    { label: 'All Time', getRange: () => ({ from: undefined, to: undefined }) },
     { label: 'Today', getRange: () => ({ from: new Date(), to: new Date() }) },
+    { label: 'Yesterday', getRange: () => ({ from: subDays(new Date(), 1), to: subDays(new Date(), 1) }) },
     { label: '7 Days', getRange: () => ({ from: subDays(new Date(), 6), to: new Date() }) },
     { label: '30 Days', getRange: () => ({ from: subDays(new Date(), 29), to: new Date() }) },
     { label: '90 Days', getRange: () => ({ from: subDays(new Date(), 89), to: new Date() }) },
     { label: 'This Month', getRange: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
     { label: 'Last Month', getRange: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
     { label: 'YTD', getRange: () => ({ from: startOfYear(new Date()), to: new Date() }) },
-    { label: 'All Time', getRange: () => ({ from: undefined, to: undefined }) },
 ];
 
 interface AnalyticsDateFilterProps {
