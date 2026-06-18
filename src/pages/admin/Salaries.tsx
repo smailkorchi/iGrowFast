@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { format, startOfMonth, subMonths, eachMonthOfInterval } from 'date-fns';
+import { format } from 'date-fns';
 import {
     Plus,
     Search,
@@ -31,13 +31,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import {
     Dialog,
     DialogContent,
@@ -1046,7 +1039,9 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
     // The modal is LOCKED to the tab it was opened from — no in-modal role switch.
     const role = initialRole;
     const isSeller = role === 'seller';
-    const [monthKey, setMonthKey] = useState<string>(format(new Date(), 'yyyy-MM'));
+    // Media-buyer payouts are always generated for the CURRENT month (no picker —
+    // sellers have none either; both pay/generate "now").
+    const monthKey = useMemo(() => format(new Date(), 'yyyy-MM'), []);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [step, setStep] = useState<GenStep>('select');
     // Editable per-seller amounts (seller step 3 only). Media-buyer payouts are
@@ -1069,31 +1064,28 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
 
     React.useEffect(() => {
         if (open) {
-            setMonthKey(format(new Date(), 'yyyy-MM'));
             setSelectedIds([]);
             setStep('select');
             setAmounts({});
         }
     }, [open, initialRole]);
 
-    const monthOptions = useMemo(
-        () =>
-            eachMonthOfInterval({ start: subMonths(new Date(), 12), end: new Date() })
-                .reverse()
-                .map((d) => ({ value: format(d, 'yyyy-MM'), label: format(d, 'MMMM yyyy') })),
-        []
-    );
-
     const activeLoading = isSeller ? ledger.isLoading : mbEarnings.isLoading;
     const activeRows = isSeller ? owers : mbOwers;
 
     // Default selection: everyone who owes / has a remainder to generate.
+    // Keyed off the *id set* (a stable string), NOT the array refs — owers churns
+    // a new reference every render (ledger.owing is unmemoized), which would
+    // otherwise re-fire this effect on every render and reset the wizard step.
+    // Does NOT touch `step`; the open-reset effect owns step initialisation.
+    const sellerOwerKey = owers.map((r) => r.seller_id).join(',');
+    const mbOwerKey = mbOwers.map((r) => r.mediabuyer_id).join(',');
     React.useEffect(() => {
         if (!open || activeLoading) return;
         if (isSeller) setSelectedIds(owers.map((r) => r.seller_id));
         else setSelectedIds(mbOwers.map((r) => r.mediabuyer_id));
-        setStep('select');
-    }, [open, activeLoading, isSeller, monthKey, owers, mbOwers]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, activeLoading, isSeller, sellerOwerKey, mbOwerKey]);
 
     const seedAmounts = () => {
         const next: Record<string, string> = {};
@@ -1247,19 +1239,6 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                             );
                         })}
                     </div>
-                    {/* Media-buyer month picker (step 1 only) */}
-                    {!isSeller && step === 'select' && (
-                        <Select value={monthKey} onValueChange={setMonthKey}>
-                            <SelectTrigger className="w-[180px] h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink ml-auto">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-ant-line">
-                                {monthOptions.map((m) => (
-                                    <SelectItem key={m.value} value={m.value} className="text-[12px]">{m.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto ant-scroll px-6 py-4 space-y-3">
