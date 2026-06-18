@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
     CheckCircle2, Clock, Building2, AlertTriangle, Truck,
@@ -166,15 +166,15 @@ const ReturnNote = () => {
         queryFn: async () => {
             if (!activeBusinessId) return { company: {}, courier: {} } as { company: Record<string, number>; courier: Record<string, number> };
             const [cf, kf] = await Promise.all([
-                (supabase as any).from('company_fees').select('company_id, master_city_id, return_fee').eq('DigiCom Business', activeBusinessId),
-                (supabase as any).from('courier_fees').select('courier_id, master_city_id, return_fee').eq('DigiCom Business', activeBusinessId),
+                fetchAllRows('company_fees', 'company_id, master_city_id, return_fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] }),
+                fetchAllRows('courier_fees', 'courier_id, master_city_id, return_fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] }),
             ]);
             const company: Record<string, number> = {};
-            for (const row of (cf.data || [])) {
+            for (const row of (cf as any[])) {
                 if (row.company_id && row.master_city_id) company[`${row.company_id}:${row.master_city_id}`] = Number(row.return_fee || 0);
             }
             const courier: Record<string, number> = {};
-            for (const row of (kf.data || [])) {
+            for (const row of (kf as any[])) {
                 if (row.courier_id && row.master_city_id) courier[`${row.courier_id}:${row.master_city_id}`] = Number(row.return_fee || 0);
             }
             return { company, courier };

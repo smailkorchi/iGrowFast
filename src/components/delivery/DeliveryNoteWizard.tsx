@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import { syncParcelTracking, type TrackableParcel } from '@/lib/orders/syncOrderTracking';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -354,24 +354,25 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         queryFn: async () => {
             if (!activeBusinessId || !confirmedStatusId) return [];
 
-            let ordersQuery = supabase
-                .from('orders')
-                .select(`
+            const orders = await fetchAllRows(
+                'orders',
+                `
                     id, company_id, master_city_id, seller_id, assign_id,
                     items:order_items(product_id),
                     company:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})
-                `)
-                .eq('order_status_id', confirmedStatusId)
-                .eq('DigiCom Business', activeBusinessId)
-                .not('company_id', 'is', null)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-
-            if (sellerScope) {
-                ordersQuery = ordersQuery.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
-            }
-
-            const { data: orders, error: ordersError } = await ordersQuery;
-            if (ordersError) throw ordersError;
+                `,
+                {
+                    filters: [
+                        { column: 'order_status_id', op: 'eq', value: confirmedStatusId },
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                    orFilter: sellerScope
+                        ? `and(company_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        : 'company_id.not.is.null',
+                },
+            );
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
             type OrderRow = WizardOrderLight & { company: WizardProvider | null };
@@ -419,9 +420,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         queryFn: async () => {
             if (!selectedProviderId || !confirmedStatusId) return null;
 
-            let q = supabase
-                .from('orders')
-                .select(`
+            const data = await fetchAllRows(
+                'orders',
+                `
                     *,
                     city:master_cities!inner(id, name, zone_id),
                     company:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL}),
@@ -429,18 +430,19 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         *,
                         product:products(name, code)
                     )
-                `)
-                .eq('order_status_id', confirmedStatusId)
-                .eq('DigiCom Business', activeBusinessId)
-                .not('company_id', 'is', null)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-
-            if (sellerScope) {
-                q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
-            }
-
-            const { data, error } = await q;
-            if (error) throw error;
+                `,
+                {
+                    filters: [
+                        { column: 'order_status_id', op: 'eq', value: confirmedStatusId },
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                    orFilter: sellerScope
+                        ? `and(company_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        : 'company_id.not.is.null',
+                },
+            );
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
             const fullOrders = (data || []) as unknown as WizardOrder[];

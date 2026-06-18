@@ -232,10 +232,9 @@ const SellerProfile = () => {
                         .eq('active', true)
                         .in('id', productIds);
 
-                    const { data: orderItemsData } = await supabase
-                        .from('order_items')
-                        .select('order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label))')
-                        .eq('orders.seller_id', session.user.id);
+                    const orderItemsData = await fetchAllRows('order_items', 'order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label))', {
+                        filters: [{ column: 'orders.seller_id', op: 'eq', value: session.user.id }],
+                    });
 
                     const orderItems = (orderItemsData || []).map(oi => ({
                         ...oi,

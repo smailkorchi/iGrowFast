@@ -72,14 +72,8 @@ const SheetReview = () => {
         queryKey: ['sheet-review-drafts', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('orders').select(DRAFT_SELECT)
-                .eq('DigiCom Business', activeBusinessId)
-                .eq('source_review_status', 'pending')
-                .is('date_deleted', null)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return (data || []) as unknown as DraftRow[];
+            const rows = await fetchAllRows('orders', DRAFT_SELECT, { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }, { column: 'source_review_status', op: 'eq', value: 'pending' }, { column: 'date_deleted', op: 'is', value: null }] });
+            return (rows as any[]).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) as unknown as DraftRow[];
         },
         enabled: !!activeBusinessId,
     });

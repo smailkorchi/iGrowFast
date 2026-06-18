@@ -1149,12 +1149,9 @@ const Orders = () => {
         queryKey: ['courier-fees-all', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_fees')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+            return await fetchAllRows('courier_fees', '*', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
         }
     });
 
@@ -1162,23 +1159,16 @@ const Orders = () => {
         queryKey: ['company-fees-all', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('company_fees')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+            return await fetchAllRows('company_fees', '*', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
         }
     });
 
     const { data: providerCities } = useQuery({
         queryKey: ['provider-cities-all'],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from('provider_cities')
-                .select('master_city_id, provider_type, fees');
-            if (error) throw error;
-            return data as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
+            return (await fetchAllRows('provider_cities', 'master_city_id, provider_type, fees')) as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
         },
     });
 

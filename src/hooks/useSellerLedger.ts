@@ -31,7 +31,6 @@ export type LedgerTicket = {
   status: 'pending' | 'partial' | 'paid';
   closed_at: string | null;
   paid_at: string | null;
-  bank_snapshot: unknown;
 };
 
 export type SellerLedger = {
@@ -78,7 +77,7 @@ export function useSellerLedger() {
       activeBusinessId
         ? await fetchAllRows<LedgerTicket>(
             'seller_ledger',
-            'id, seller_id, payout_month, period_state, carried_in, month_earned, total_amount, paid_amount, remaining, carried_out, delivered_orders, status, closed_at, paid_at, bank_snapshot',
+            'id, seller_id, payout_month, period_state, carried_in, month_earned, total_amount, paid_amount, remaining, carried_out, delivered_orders, status, closed_at, paid_at',
             { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }], orderBy: 'payout_month' },
           )
         : [],

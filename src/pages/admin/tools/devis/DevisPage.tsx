@@ -16,7 +16,7 @@ import {
   CircleDollarSign,
   Receipt,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdf } from '@/lib/devis/embedImagesForPdf';
 import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
@@ -151,14 +151,14 @@ export default function DevisPage() {
     queryKey: ['devis-order-clients', activeBusinessId],
     enabled: !!activeBusinessId,
     queryFn: async () => {
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('name, phone, address, city:master_cities(name)')
-        .eq('DigiCom Business', activeBusinessId!)
-        .is('date_deleted', null);
-      if (error) throw error;
+      const orders = await fetchAllRows('orders', 'name, phone, address, city:master_cities(name)', {
+        filters: [
+          { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
+          { column: 'date_deleted', op: 'is', value: null },
+        ],
+      });
       const map = new Map<string, OrderDerivedClient>();
-      (orders || []).forEach((o: Record<string, unknown>) => {
+      orders.forEach((o: Record<string, unknown>) => {
         const raw = String(o.phone || '');
         const phone = raw.replace(/[^0-9]/g, '');
         if (!phone) return;

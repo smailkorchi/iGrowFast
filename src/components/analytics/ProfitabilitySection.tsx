@@ -178,11 +178,14 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const { data: companyFees } = useQuery({
         queryKey: ['analytics-company-fees', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('company_fees')
-                .select('company_id, city_id, master_city_id, return_fee')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{
+            // Paginated: company_fees can exceed 1000 rows per business (one
+            // business already has ~1,556) — a bare select truncated the
+            // return-fee lookup map and undercounted return fees in the P&L.
+            return (await fetchAllRows(
+                'company_fees',
+                'company_id, city_id, master_city_id, return_fee',
+                { filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }] },
+            )) as Array<{
                 company_id: string;
                 city_id: string | null;
                 master_city_id: string | null;

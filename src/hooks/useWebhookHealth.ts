@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 
 export type ProviderHealth = {
     providerId: string;
@@ -48,14 +48,12 @@ export function useWebhookHealth(activeBusinessId: string | null): WebhookHealth
         queryKey: ['webhook-health-stats', activeBusinessId],
         queryFn: async () => {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-            const { data, error } = await supabase
-                .from('webhook_logs')
-                .select('id, processed, created_at')
-                .eq('DigiCom Business', activeBusinessId!)
-                .gte('created_at', oneHourAgo)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data;
+            return await fetchAllRows('webhook_logs', 'id, processed, created_at', {
+                filters: [
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
+                    { column: 'created_at', op: 'gte', value: oneHourAgo },
+                ],
+            });
         },
         enabled: !!activeBusinessId,
         refetchInterval: 30_000, // refresh every 30s

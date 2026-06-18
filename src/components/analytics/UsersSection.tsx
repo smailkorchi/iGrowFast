@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,12 +57,13 @@ export const UsersSection = ({ businessId }: UsersSectionProps) => {
             since.setDate(since.getDate() - 30);
             const sinceIso = since.toISOString();
             const [orderRes, entryRes] = await Promise.all([
-                supabase
-                    .from('orders')
-                    .select('seller_id, courier_id, updated_at')
-                    .eq('DigiCom Business', businessId)
-                    .gte('updated_at', sinceIso)
-                    .neq('source_review_status', 'pending'),
+                fetchAllRows('orders', 'seller_id, courier_id, updated_at', {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'updated_at', op: 'gte', value: sinceIso },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                }),
                 (supabase as any)
                     .from('campaign_daily_entries')
                     .select('created_by, entry_date')
@@ -70,7 +71,7 @@ export const UsersSection = ({ businessId }: UsersSectionProps) => {
                     .gte('entry_date', sinceIso.slice(0, 10)),
             ]);
             const active = new Set<string>();
-            (orderRes.data || []).forEach((r: { seller_id?: string | null; courier_id?: string | null }) => {
+            (orderRes || []).forEach((r: { seller_id?: string | null; courier_id?: string | null }) => {
                 if (r.seller_id) active.add(r.seller_id);
                 if (r.courier_id) active.add(r.courier_id);
             });

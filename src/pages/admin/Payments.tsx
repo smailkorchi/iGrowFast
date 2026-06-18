@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
     CheckCircle2, Clock, Building2, CreditCard, AlertTriangle,
@@ -89,23 +89,27 @@ const Payments = () => {
         queryKey: ['unpaid-livre-orders', activeBusinessId, unpaidStatusId, deliveredPkgId],
         queryFn: async () => {
             if (!activeBusinessId || !unpaidStatusId || !deliveredPkgId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`*,
+            const rows = await fetchAllRows(
+                'orders',
+                `*,
                     company:providers(id, name, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     items:order_items(quantity, unit_price, product:products(name)),
                     parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
-                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
-                .eq('DigiCom Business', activeBusinessId)
-                .eq('order_status_id', unpaidStatusId)
-                .eq('package_status_id', deliveredPkgId)
-                .is('payment_delivery_id', null)
-                .is('current_courier_payment_note_id', null)
-                .is('date_deleted', null).neq('source_review_status', 'pending')
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return (data || []) as UnpaidOrder[];
+                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`,
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'order_status_id', op: 'eq', value: unpaidStatusId },
+                        { column: 'package_status_id', op: 'eq', value: deliveredPkgId },
+                        { column: 'payment_delivery_id', op: 'is', value: null },
+                        { column: 'current_courier_payment_note_id', op: 'is', value: null },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                }
+            );
+            return (rows as any[]).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) as UnpaidOrder[];
         },
         enabled: !!unpaidStatusId && !!deliveredPkgId,
     });

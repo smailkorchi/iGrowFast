@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Trash2,
     RotateCcw,
@@ -56,14 +56,17 @@ const Trash = () => {
         queryKey: ['trashed-orders', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select('id, name, phone, price, date_deleted, status:order_statuses(label, color, icon), deleted_by:users!orders_deleted_by_id_fkey(id, name, email, avatar_url)')
-                .eq('DigiCom Business', activeBusinessId)
-                .not('date_deleted', 'is', null)
-                .order('date_deleted', { ascending: false });
-            if (error) throw error;
-            return data as TrashedOrder[];
+            const rows = await fetchAllRows(
+                'orders',
+                'id, name, phone, price, date_deleted, status:order_statuses(label, color, icon), deleted_by:users!orders_deleted_by_id_fkey(id, name, email, avatar_url)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    ],
+                    orFilter: 'date_deleted.not.is.null',
+                }
+            );
+            return (rows as any[]).sort((a, b) => new Date(b.date_deleted || 0).getTime() - new Date(a.date_deleted || 0).getTime()) as TrashedOrder[];
         },
         enabled: !!activeBusinessId,
     });

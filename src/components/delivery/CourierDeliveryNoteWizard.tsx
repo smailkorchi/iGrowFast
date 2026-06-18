@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     Dialog,
@@ -163,27 +163,26 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
             if (!activeBusinessId || !confirmedStatusId) return [];
 
             // Confirmed orders with an explicit courier.
-            let ordersQuery = (supabase as any)
-                .from('orders')
-                .select(`
+            const orders = await fetchAllRows(
+                'orders',
+                `
                     id, courier_id, company_id, master_city_id, seller_id, assign_id,
                     items:order_items(product_id),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, phone)
-                `)
-                .eq('order_status_id', confirmedStatusId)
-                .eq('DigiCom Business', activeBusinessId)
-                .not('courier_id', 'is', null)
-                .is('company_id', null)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-
-            if (sellerScope) {
-                ordersQuery = ordersQuery.or(
-                    `seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`,
-                );
-            }
-
-            const { data: orders, error: oErr } = await ordersQuery;
-            if (oErr) throw oErr;
+                `,
+                {
+                    filters: [
+                        { column: 'order_status_id', op: 'eq', value: confirmedStatusId },
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'company_id', op: 'is', value: null },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                    orFilter: sellerScope
+                        ? `and(courier_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        : 'courier_id.not.is.null',
+                },
+            );
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
             type OrderRow = WizardOrderLight & { courier: WizardCourier | null };
@@ -240,9 +239,9 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
         queryFn: async () => {
             if (!selectedCourierId || !confirmedStatusId) return null;
 
-            let q = (supabase as any)
-                .from('orders')
-                .select(`
+            const data = await fetchAllRows(
+                'orders',
+                `
                     *,
                     city:master_cities!inner(id, name, zone_id),
                     items:order_items(
@@ -250,19 +249,20 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                         product:products(name, code)
                     ),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, phone)
-                `)
-                .eq('order_status_id', confirmedStatusId)
-                .eq('DigiCom Business', activeBusinessId)
-                .not('courier_id', 'is', null)
-                .is('company_id', null)
-                .is('date_deleted', null).neq('source_review_status', 'pending');
-
-            if (sellerScope) {
-                q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
-            }
-
-            const { data, error } = await q;
-            if (error) throw error;
+                `,
+                {
+                    filters: [
+                        { column: 'order_status_id', op: 'eq', value: confirmedStatusId },
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'company_id', op: 'is', value: null },
+                        { column: 'date_deleted', op: 'is', value: null },
+                        { column: 'source_review_status', op: 'neq', value: 'pending' },
+                    ],
+                    orFilter: sellerScope
+                        ? `and(courier_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        : 'courier_id.not.is.null',
+                },
+            );
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
             const fullOrders = (data || []) as unknown as WizardOrder[];

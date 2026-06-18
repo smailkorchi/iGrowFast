@@ -86,10 +86,8 @@ interface SellerKPIs {
     topCity: string | null;
     monthlyPayments: {
         month: string;
-        commission_earned: number;
         total_amount: number;
         paid_amount: number;
-        days_present: number;
         delivered_orders: number;
         status: string;
         period_state: string;
@@ -375,10 +373,8 @@ const Sellers = () => {
 
                 const monthlyPayments = sellerPayments.map((p) => ({
                     month: p.payout_month,
-                    commission_earned: Number(p.commission_earned) || 0,
                     total_amount: Number(p.total_amount) || 0,
                     paid_amount: Number((p as any).paid_amount) || 0,
-                    days_present: p.days_present || 0,
                     delivered_orders: p.delivered_orders || 0,
                     status: p.status || 'pending',
                     period_state: (p as any).period_state || 'closed',
@@ -895,7 +891,6 @@ const Sellers = () => {
                                         <thead>
                                             <tr className="border-b border-ant-line">
                                                 <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
-                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Days</th>
                                                 <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
                                                 <th className="px-4 py-3.5 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Total</th>
                                                 <th className="px-4 py-3.5 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Paid</th>
@@ -918,7 +913,6 @@ const Sellers = () => {
                                                 return (
                                                     <tr key={i} className="border-t border-ant-line/60 hover:bg-ant-light/40 transition-colors tabular-nums">
                                                         <td className="px-4 py-3.5 text-[12px] font-semibold text-ant-ink whitespace-nowrap">{format(parseISO(p.month), 'MMM yyyy')}</td>
-                                                        <td className="px-4 py-3.5 text-[12px] text-ant-mid">{p.days_present}</td>
                                                         <td className="px-4 py-3.5 text-[13px] text-ant-green font-semibold">{p.delivered_orders}</td>
                                                         <td className="px-4 py-3.5 text-right text-[13px] font-semibold text-ant-ink">
                                                             {totalAmount.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
