@@ -3435,7 +3435,7 @@ const Orders = () => {
                                         <div className="flex items-center justify-between pt-2 border-t border-ant-line gap-2">
                                             <div className="flex items-baseline gap-1 min-w-0">
                                                 <span className="text-[15px] font-semibold text-ant-ink tabular-nums">
-                                                    {new Intl.NumberFormat('fr-FR').format(order.raw_price || 0)}
+                                                    {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                                                 </span>
                                                 <span className="text-[10px] font-semibold text-ant-mid uppercase">DH</span>
                                             </div>
@@ -4837,7 +4837,7 @@ const Orders = () => {
                                 <div className="rounded-xl border border-ant-line bg-ant-ink px-4 py-3 min-w-[180px]">
                                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">Valeur commande</p>
                                     <p className="font-display text-[22px] font-semibold text-white tabular-nums mt-1 leading-none">
-                                        {selectedOrder.raw_price || 0}
+                                        {selectedOrder.price || 0}
                                         <span className="text-[11px] text-white/50 font-normal ml-1">MAD</span>
                                     </p>
                                 </div>

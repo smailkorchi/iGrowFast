@@ -275,10 +275,10 @@ export default function SellerOrdersListView({
                     )}
                   </td>
 
-                  {/* Amount (raw_price for sellers) */}
+                  {/* Amount — full order total (products + delivery when included) */}
                   <td className="px-3 py-3 text-right">
                     <span className="text-sm font-black text-ant-ink tabular-nums">
-                      {new Intl.NumberFormat('fr-FR').format(order.raw_price || 0)}
+                      {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                     </span>
                     <span className="text-[10px] font-bold text-ant-mid ml-1">DH</span>
                   </td>
