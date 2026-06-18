@@ -20,10 +20,11 @@ import {
     DollarSign,
     History,
     Eye,
+    ArrowDownRight,
     type LucideIcon,
 } from 'lucide-react';
 import { RecordPaymentDialog, PaymentHistoryDialog } from '@/components/salaries/PayoutPaymentDialogs';
-import { SellerBreakdownDialog, GlobalLedgerDialog } from '@/components/salaries/SellerLedgerDialogs';
+import { SellerBreakdownDialog, GlobalLedgerDialog, SellerTicketDetailDialog } from '@/components/salaries/SellerLedgerDialogs';
 import { MediaBuyerBreakdownDialog, MediaBuyerGlobalDialog, MediaBuyerPayoutDetailDialog, type MediaBuyerLedger } from '@/components/salaries/MediaBuyerLedgerDialogs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -40,7 +41,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useSellerLiveOwed, type SellerLiveOwed } from '@/hooks/useSellerLiveOwed';
-import { useSellerLedger } from '@/hooks/useSellerLedger';
+import { useSellerLedger, type SellerLedger, type LedgerTicket } from '@/hooks/useSellerLedger';
 import { useMediaBuyerEarnings, type MediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
@@ -176,7 +177,10 @@ const SellerPayoutsList: React.FC = () => {
     const [recordOpen, setRecordOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [activeSeller, setActiveSeller] = useState<SellerLiveOwed | null>(null);
-    // Ledger breakdown ("eye") dialogs — per-seller and global overview.
+    // Ledger breakdown ("eye") dialogs. Per-row eye = that single month's detail;
+    // the all-months view is reached from the Overview click-through.
+    const [detailRow, setDetailRow] = useState<{ seller: SellerLedger; ticket: LedgerTicket } | null>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
     const [breakdownOpen, setBreakdownOpen] = useState(false);
     const [breakdownSellerId, setBreakdownSellerId] = useState<string | null>(null);
     const [globalOpen, setGlobalOpen] = useState(false);
@@ -247,51 +251,79 @@ const SellerPayoutsList: React.FC = () => {
     });
 
 
-    // Only sellers with actual payment activity (started payouts) — hide those who
-    // have earned, been paid, and owe nothing (e.g. 0-rate / no-delivery sellers).
-    const rows = liveOwed.all.filter(
-        (o) => o.accruedTotal > 0.005 || o.paidAcrossRows > 0.005 || Math.abs(o.remaining) > 0.005,
+    // Sellers with real activity. One DISPLAY row per (seller, month) ticket — like
+    // the media-buyer list — but money stays honest: only the OPEN month is
+    // actionable; a closed month's unpaid portion is shown as "reporté" (carried),
+    // never re-collectable, so owe is never double-counted across rows.
+    const activeSellers = useMemo(
+        () => ledger.all.filter((s) => s.lifetimeEarned > 0.005 || s.lifetimePaid > 0.005 || Math.abs(s.owe) > 0.005),
+        [ledger.all],
     );
+    const ticketStatusOf = (t: LedgerTicket): PayoutStatus => {
+        const rem = t.total_amount - t.paid_amount;
+        if (t.total_amount > 0 && rem <= 0.005) return 'paid';
+        if (t.paid_amount > 0.005) return 'partial';
+        return 'pending';
+    };
+    const allRows = useMemo<{ seller: SellerLedger; ticket: LedgerTicket }[]>(() => {
+        const out: { seller: SellerLedger; ticket: LedgerTicket }[] = [];
+        for (const s of activeSellers) {
+            const months = [...(s.open ? [s.open] : []), ...s.closed]; // open first, then closed desc
+            for (const t of months) out.push({ seller: s, ticket: t });
+        }
+        return out.sort((a, b) =>
+            a.seller.name.localeCompare(b.seller.name) || b.ticket.payout_month.localeCompare(a.ticket.payout_month),
+        );
+    }, [activeSellers]);
 
     const filtered = useMemo(() => {
-        let out = rows;
-        if (statusFilter !== 'all') out = out.filter((o) => o.status === statusFilter);
+        let out = allRows;
+        if (statusFilter !== 'all') out = out.filter((r) => ticketStatusOf(r.ticket) === statusFilter);
         const q = search.toLowerCase().trim();
-        if (q) out = out.filter((o) => o.name.toLowerCase().includes(q) || o.email.toLowerCase().includes(q));
-        return [...out].sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
-    }, [rows, statusFilter, search]);
+        if (q) out = out.filter((r) => r.seller.name.toLowerCase().includes(q) || r.seller.email.toLowerCase().includes(q));
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allRows, statusFilter, search]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
     const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
     const stats = useMemo(() => {
-        let totalPaid = 0, totalPending = 0, settled = 0;
-        for (const o of rows) {
-            totalPaid += o.paidAcrossRows;
-            totalPending += o.remaining;
-            if (o.status === 'paid' && o.accruedTotal > 0) settled++;
+        let totalPaid = 0, totalOwed = 0, settled = 0;
+        for (const s of activeSellers) {
+            totalPaid += s.lifetimePaid;        // Σ paid across all of the seller's tickets
+            totalOwed += Math.max(0, s.owe);    // the single true outstanding balance (open ticket)
+            if (s.owe <= 0.005) settled++;
         }
-        return { totalPaid, totalPending, settled };
-    }, [rows]);
+        return { totalPaid, totalOwed, settled, sellers: activeSellers.length };
+    }, [activeSellers]);
 
     const counts = {
-        all: rows.length,
-        pending: rows.filter((o) => o.status === 'pending').length,
-        partial: rows.filter((o) => o.status === 'partial').length,
-        paid: rows.filter((o) => o.status === 'paid').length,
+        all: allRows.length,
+        pending: allRows.filter((r) => ticketStatusOf(r.ticket) === 'pending').length,
+        partial: allRows.filter((r) => ticketStatusOf(r.ticket) === 'partial').length,
+        paid: allRows.filter((r) => ticketStatusOf(r.ticket) === 'paid').length,
     };
+
+    // Selectable (bulk-settle) = open tickets that still owe. Keyed by seller_id.
+    const isSettleable = (t: LedgerTicket) => t.period_state === 'open' && (t.total_amount - t.paid_amount) > 0.005;
+    const pageSelectable = paginated.filter((r) => isSettleable(r.ticket)).map((r) => r.seller.seller_id);
+
+    // Open the seller-scoped pay/history dialogs (live-owe source) for a row.
+    const openPay = (sellerId: string) => { const o = liveOwed.byId(sellerId); if (o) { setActiveSeller(o); setRecordOpen(true); } };
+    const openHistory = (sellerId: string) => { const o = liveOwed.byId(sellerId); if (o) { setActiveSeller(o); setHistoryOpen(true); } };
 
     const activeCanonical = activeSeller ? resolveCanonical(activeSeller) : null;
     // alias so the shared empty-state copy that references `payouts.length` compiles
-    const payouts = rows;
+    const payouts = allRows;
 
     return (
         <div className="space-y-5">
             {/* KPI strip — live per-seller aggregates */}
             <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                 <PayoutKpi label="Total paid" value={fmtCur(stats.totalPaid)} suffix="MAD" accent="green" icon={Wallet} />
-                <PayoutKpi label="Total owed" value={fmtCur(stats.totalPending)} suffix="MAD" accent="orange" icon={Coins} />
-                <PayoutKpi label="Sellers" value={String(rows.length)} suffix="commercials" accent="ink" icon={Layers} />
+                <PayoutKpi label="Total owed" value={fmtCur(stats.totalOwed)} suffix="MAD" accent="orange" icon={Coins} />
+                <PayoutKpi label="Sellers" value={String(stats.sellers)} suffix="commercials" accent="ink" icon={Layers} />
                 <PayoutKpi label="Fully settled" value={String(stats.settled)} suffix="sellers" accent="ink" icon={CalendarDays} />
             </section>
 
@@ -381,15 +413,16 @@ const SellerPayoutsList: React.FC = () => {
                                 <tr className="border-b border-ant-line">
                                     <th className="pl-5 pr-2 py-4 w-10">
                                         <Checkbox
-                                            checked={paginated.length > 0 && paginated.every((o) => selected.includes(o.seller_id))}
+                                            checked={pageSelectable.length > 0 && pageSelectable.every((id) => selected.includes(id))}
                                             onCheckedChange={(v) => {
-                                                if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((o) => o.seller_id)])));
-                                                else setSelected(selected.filter((id) => !paginated.some((o) => o.seller_id === id)));
+                                                if (v) setSelected(Array.from(new Set([...selected, ...pageSelectable])));
+                                                else setSelected(selected.filter((id) => !pageSelectable.includes(id)));
                                             }}
                                             className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                         />
                                     </th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Seller</th>
+                                    <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
                                     <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
                                     <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Earned</th>
                                     <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Paid</th>
@@ -399,64 +432,83 @@ const SellerPayoutsList: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginated.map((o) => {
-                                    const pct = o.accruedTotal > 0 ? Math.min(100, (o.paidAcrossRows / o.accruedTotal) * 100) : 0;
-                                    const isPartial = o.status === 'partial';
-                                    const hasOwed = o.remaining > 0.005;
-                                    const statusMeta = o.status === 'paid'
+                                {paginated.map(({ seller, ticket }) => {
+                                    const isOpen = ticket.period_state === 'open';
+                                    const remaining = Math.max(0, ticket.total_amount - ticket.paid_amount);
+                                    const rolled = ticket.carried_out ?? remaining;
+                                    const st = ticketStatusOf(ticket);
+                                    const isPartial = st === 'partial';
+                                    const settleable = isSettleable(ticket);
+                                    const pct = ticket.total_amount > 0 ? Math.min(100, (ticket.paid_amount / ticket.total_amount) * 100) : 0;
+                                    const statusMeta = st === 'paid'
                                         ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
                                         : isPartial
                                           ? { bg: 'bg-ant-blue/10', text: 'text-ant-blue', dot: 'bg-ant-blue' }
                                           : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                     return (
-                                        <tr key={o.seller_id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
+                                        <tr key={ticket.id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
                                             <td className="pl-5 pr-2 py-4">
-                                                <Checkbox
-                                                    checked={selected.includes(o.seller_id)}
-                                                    disabled={!hasOwed}
-                                                    onCheckedChange={(v) => setSelected(v ? [...selected, o.seller_id] : selected.filter((id) => id !== o.seller_id))}
-                                                    className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                                />
+                                                {settleable ? (
+                                                    <Checkbox
+                                                        checked={selected.includes(seller.seller_id)}
+                                                        onCheckedChange={(v) => setSelected(v ? [...selected, seller.seller_id] : selected.filter((id) => id !== seller.seller_id))}
+                                                        className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
+                                                    />
+                                                ) : <span className="block w-4" />}
                                             </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <Avatar className="h-9 w-9 shrink-0 rounded-lg border border-ant-line">
-                                                        <AvatarImage src={o.avatar_url || ''} className="object-cover" />
+                                                        <AvatarImage src={seller.avatar_url || ''} className="object-cover" />
                                                         <AvatarFallback className="rounded-lg text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                            {(o.name || '??').substring(0, 2).toUpperCase()}
+                                                            {(seller.name || '??').substring(0, 2).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="min-w-0">
-                                                        <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{o.name}</p>
+                                                        <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{seller.name}</p>
                                                         <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">
-                                                            {o.email} · {o.commissionPrice} MAD/{o.commissionBasis === 'per_unit' ? 'unit' : 'order'}
+                                                            {seller.email} · {seller.commissionPrice} MAD/{seller.commissionBasis === 'per_unit' ? 'unit' : 'order'}
                                                         </p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(o.deliveredCount)}</td>
-                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(o.accruedTotal)}>
-                                                {fmtCur(o.accruedTotal)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                            <td className="px-3 py-4">
+                                                <p className="font-display text-[12px] font-semibold text-ant-ink capitalize whitespace-nowrap">{format(new Date(ticket.payout_month), 'MMM yyyy')}</p>
+                                                <p className="text-[10px] text-ant-mid/80 italic">{isOpen ? 'mois en cours' : 'clôturé'}</p>
                                             </td>
-                                            <td className="px-3 py-4 text-right" title={`${fmtCurFull(o.paidAcrossRows)} paid of ${fmtCurFull(o.accruedTotal)}`}>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(ticket.delivered_orders)}</td>
+                                            <td className="px-3 py-4 text-right text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(ticket.month_earned)}>
+                                                {fmtCur(ticket.month_earned)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                            </td>
+                                            <td className="px-3 py-4 text-right" title={`${fmtCurFull(ticket.paid_amount)} paid of ${fmtCurFull(ticket.total_amount)}`}>
                                                 <div className="flex flex-col items-end gap-1.5">
-                                                    <span className={cn('text-[13px] font-semibold tabular-nums leading-none', o.paidAcrossRows > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
-                                                        {fmtCur(o.paidAcrossRows)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                    <span className={cn('text-[13px] font-semibold tabular-nums leading-none', ticket.paid_amount > 0 ? 'text-ant-green' : 'text-ant-mid/60')}>
+                                                        {fmtCur(ticket.paid_amount)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
                                                     </span>
-                                                    {isPartial && (
+                                                    {isOpen && isPartial && (
                                                         <div className="h-1 w-24 rounded-full bg-ant-line/60 overflow-hidden">
                                                             <div className="h-full rounded-full bg-ant-blue transition-all" style={{ width: `${pct}%` }} />
                                                         </div>
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className={cn('px-3 py-4 text-right text-[13px] font-semibold tabular-nums', hasOwed ? 'text-ant-orange' : 'text-ant-mid/50')} title={fmtCurFull(o.remaining)}>
-                                                {fmtCur(o.remaining)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                            <td className="px-3 py-4 text-right" title={isOpen ? fmtCurFull(remaining) : `${fmtCurFull(rolled)} reporté au mois suivant`}>
+                                                {isOpen ? (
+                                                    <span className={cn('text-[13px] font-semibold tabular-nums', remaining > 0.005 ? 'text-ant-orange' : 'text-ant-mid/50')}>
+                                                        {fmtCur(remaining)} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                    </span>
+                                                ) : rolled > 0.005 ? (
+                                                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-ant-mid/70 tabular-nums">
+                                                        <ArrowDownRight className="w-3 h-3" strokeWidth={1.75} />{fmtCur(rolled)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[12px] text-ant-mid/50">—</span>
+                                                )}
                                             </td>
                                             <td className="px-3 py-4">
                                                 <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', statusMeta.bg, statusMeta.text)}>
                                                     <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
-                                                    {o.status}
+                                                    {st}
                                                 </span>
                                             </td>
                                             <td className="pl-3 pr-5 py-4 text-right">
@@ -464,32 +516,36 @@ const SellerPayoutsList: React.FC = () => {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => { setBreakdownSellerId(o.seller_id); setBreakdownOpen(true); }}
+                                                        onClick={() => { setDetailRow({ seller, ticket }); setDetailOpen(true); }}
                                                         className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
-                                                        title="Breakdown by month & orders"
+                                                        title="Month detail & orders"
                                                     >
                                                         <Eye className="w-3.5 h-3.5" />
                                                     </Button>
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => { setActiveSeller(o); setHistoryOpen(true); }}
+                                                        onClick={() => openHistory(seller.seller_id)}
                                                         className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                                                         title="Payment history"
                                                     >
                                                         <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        disabled={!hasOwed}
-                                                        onClick={() => { setActiveSeller(o); setRecordOpen(true); }}
-                                                        className={cn(
-                                                            'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white disabled:opacity-40 disabled:cursor-not-allowed',
-                                                            isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
-                                                        )}
-                                                    >
-                                                        {isPartial ? 'Continue' : 'Pay'}
-                                                    </Button>
+                                                    {isOpen ? (
+                                                        <Button
+                                                            size="sm"
+                                                            disabled={remaining <= 0.005}
+                                                            onClick={() => openPay(seller.seller_id)}
+                                                            className={cn(
+                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white disabled:opacity-40 disabled:cursor-not-allowed',
+                                                                isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
+                                                            )}
+                                                        >
+                                                            {remaining <= 0.005 ? 'Réglé' : isPartial ? 'Continue' : 'Pay'}
+                                                        </Button>
+                                                    ) : (
+                                                        <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid bg-ant-light border border-ant-line">Clôturé</span>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -547,6 +603,13 @@ const SellerPayoutsList: React.FC = () => {
             )}
 
             {/* Ledger breakdown eyes */}
+            <SellerTicketDetailDialog
+                open={detailOpen}
+                onOpenChange={setDetailOpen}
+                seller={detailRow?.seller ?? null}
+                ticket={detailRow?.ticket ?? null}
+                businessId={activeBusinessId}
+            />
             <SellerBreakdownDialog
                 open={breakdownOpen}
                 onOpenChange={setBreakdownOpen}

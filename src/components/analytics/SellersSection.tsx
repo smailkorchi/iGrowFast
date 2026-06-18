@@ -90,11 +90,12 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         queryKey: ['analytics-seller-payments', businessId],
         queryFn: async () => {
             if (!businessId) return [];
-            const { data } = await supabase
+            // cast: generated types predate the rolling-ledger `period_state` column.
+            const { data } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
                 .from('seller_payments')
-                .select('id, seller_id, total_amount, paid_amount, status')
+                .select('id, seller_id, total_amount, paid_amount, status, period_state')
                 .eq('DigiCom Business', businessId);
-            return data || [];
+            return (data || []) as { id: string; seller_id: string; total_amount: number | string; paid_amount: number | string; status: string; period_state: string }[];
         },
         enabled: !!businessId,
     });
@@ -136,9 +137,13 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         // 5240 was shown as 0). Matches the Salaries page "Total paid".
         const totalPaidToSellers = (sellerPayments || [])
             .reduce((s, sp) => s + Number(sp.paid_amount || 0), 0);
-        // PENDING PAYOUTS = unpaid balance still owed on generated payout rows
-        // (total_amount − paid_amount), summed across every row regardless of status.
+        // PENDING PAYOUTS = the true outstanding balance. In the rolling ledger,
+        // unpaid months CARRY FORWARD into the OPEN month, so each seller's whole
+        // owe is captured by their open ticket's (total − paid). Summing every row
+        // would double-count the carried amounts (e.g. May 1530 already lives inside
+        // June's 710). Only count period_state='open' rows.
         const totalPendingToSellers = (sellerPayments || [])
+            .filter((sp) => (sp as { period_state?: string }).period_state === 'open')
             .reduce((s, sp) => s + Math.max(0, Number(sp.total_amount || 0) - Number(sp.paid_amount || 0)), 0);
 
         const totalPresences = (presences || []).filter(p => {
