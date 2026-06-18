@@ -3354,7 +3354,7 @@ const Orders = () => {
                             return (
                                 <div
                                     key={order.id}
-                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isDuplicateClient && 'border-ant-orange/40 bg-ant-orange/[0.06]', isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]')}
+                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]', isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]')}
                                 >
                                     {/* Top accent line */}
                                     <div className="h-[3px] w-full" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />

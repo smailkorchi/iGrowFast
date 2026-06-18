@@ -126,8 +126,8 @@ export default function OrdersListView({
                     // Duplicate-phone rows: a clean, soft wash of the brand orange across
                     // the whole row. Last in the list so tailwind-merge overrides the
                     // zebra/selection background.
-                    isDuplicate && !isSelected && 'bg-ant-orange/[0.06] hover:bg-ant-orange/[0.10] border-l-ant-orange/50',
-                    isDuplicate && isSelected && 'bg-ant-orange/[0.12] border-l-ant-orange/60',
+                    isDuplicate && !isShort && !isSelected && 'bg-yellow-400/[0.12] hover:bg-yellow-400/[0.18] border-l-yellow-400/60',
+                    isDuplicate && !isShort && isSelected && 'bg-yellow-400/[0.22] border-l-yellow-400/70',
                     // Insufficient-stock rows: red wash wins over duplicate orange.
                     isShort && !isSelected && 'bg-red-500/[0.06] hover:bg-red-500/[0.10] border-l-red-500/50',
                     isShort && isSelected && 'bg-red-500/[0.12] border-l-red-500/60',

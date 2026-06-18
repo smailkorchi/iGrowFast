@@ -107,7 +107,7 @@ export default function SellerOrdersListView({
                     idx % 2 === 0 && 'bg-ant-ink/[0.005]',
                     // Duplicate-phone rows: clean, soft brand-orange wash across the row.
                     // Last so tailwind-merge overrides the zebra background.
-                    isDuplicate && 'bg-ant-orange/[0.06] hover:bg-ant-orange/[0.10] border-l-[3px] border-l-ant-orange/50',
+                    isDuplicate && !isShort && 'bg-yellow-400/[0.12] hover:bg-yellow-400/[0.18] border-l-[3px] border-l-yellow-400/60',
                     // Insufficient-stock rows: red wash wins over duplicate orange.
                     isShort && 'bg-red-500/[0.06] hover:bg-red-500/[0.10] border-l-[3px] border-l-red-500/50',
                   )}

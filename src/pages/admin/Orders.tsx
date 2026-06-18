@@ -3383,7 +3383,7 @@ const Orders = () => {
                                             selectedOrders.includes(order.id)
                                                 ? "border-ant-ink/20 shadow-md ring-1 ring-ant-ink/10"
                                                 : "border-ant-line shadow-sm hover:border-ant-ink/10",
-                                            isDuplicateClient && 'border-ant-orange/40 bg-ant-orange/[0.06]',
+                                            isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]',
                                             isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]'
                                         )}
                                     >
