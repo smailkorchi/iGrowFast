@@ -14,10 +14,14 @@ export interface DateFilter {
 }
 
 const PRESETS = [
+    // Rolling windows are INCLUSIVE of today: "7 Days" = today + 6 prior = 7
+    // calendar days (subDays(now, N-1)), matching the Orders page exactly. The
+    // old subDays(now, N) spanned N+1 day-buckets once start/endOfDay was applied
+    // downstream, so the same pill returned a wider window than Orders.
     { label: 'Today', getRange: () => ({ from: new Date(), to: new Date() }) },
-    { label: '7 Days', getRange: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
-    { label: '30 Days', getRange: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
-    { label: '90 Days', getRange: () => ({ from: subDays(new Date(), 90), to: new Date() }) },
+    { label: '7 Days', getRange: () => ({ from: subDays(new Date(), 6), to: new Date() }) },
+    { label: '30 Days', getRange: () => ({ from: subDays(new Date(), 29), to: new Date() }) },
+    { label: '90 Days', getRange: () => ({ from: subDays(new Date(), 89), to: new Date() }) },
     { label: 'This Month', getRange: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
     { label: 'Last Month', getRange: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
     { label: 'YTD', getRange: () => ({ from: startOfYear(new Date()), to: new Date() }) },

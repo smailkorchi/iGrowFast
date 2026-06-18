@@ -309,18 +309,24 @@ export function isProvisional(
 // ─── Revenue computation ──────────────────────────────────────────────────
 
 /**
- * PURE REVENUE — product-line subtotal only. Shipping fee NEVER counted as
- * revenue, regardless of `include_delivery_in_total`. Accessories never
- * contribute to revenue (they're cost-only attachments).
+ * ORDER REVENUE — what the customer actually paid for the order.
  *
- * Preference order per line:
+ * Product-line subtotal (accessories are cost-only, excluded) PLUS the
+ * delivery fee WHEN it was folded into the order total
+ * (`include_delivery_in_total = true`). Rationale: if the customer paid the
+ * delivery as part of their price, that money is real revenue and must offset
+ * the shipping cost line — dropping it from revenue while still subtracting the
+ * full shipping cost double-penalizes and understates profit by the collected
+ * delivery amount. When delivery is billed separately (`false`/null) the price
+ * is product-only and nothing is added.
+ *
+ * Net result: revenue tracks the order's `price` (the customer-paid total),
+ * matching the Orders page "Total sales", while shipping stays a real cost line.
+ *
+ * Product-line preference per line:
  *   1. `total_price` (snapshot at order time)
  *   2. `unit_price × quantity`
- *
- * Fallback when line items are missing:
- *   - `raw_price` (product-only pre-shipping)
- *   - `price − shipping_cost` (strip shipping from total)
- *   - 0
+ * Fallback when line items are missing: `raw_price` → `price − shipping` → 0.
  */
 export function pureRevenueForOrder(order: AnalyticsOrder): number {
     const items = order.order_items || [];
@@ -332,13 +338,22 @@ export function pureRevenueForOrder(order: AnalyticsOrder): number {
         const lineTotal = num(item.total_price);
         sum += lineTotal > 0 ? lineTotal : num(item.unit_price) * q;
     }
-    if (sum > 0) return sum;
-    const raw = num(order.raw_price);
-    if (raw > 0) return raw;
-    const p = num(order.price);
-    const ship = num(order.shipping_cost);
-    if (order.include_delivery_in_total === false) return p;
-    return Math.max(0, p - ship);
+    let productRevenue: number;
+    if (sum > 0) {
+        productRevenue = sum;
+    } else {
+        const raw = num(order.raw_price);
+        if (raw > 0) {
+            productRevenue = raw;
+        } else {
+            const p = num(order.price);
+            const ship = num(order.shipping_cost);
+            productRevenue = order.include_delivery_in_total === false ? p : Math.max(0, p - ship);
+        }
+    }
+    // Delivery the customer reimbursed (only when folded into the order total).
+    const collectedDelivery = order.include_delivery_in_total === true ? num(order.shipping_cost) : 0;
+    return productRevenue + collectedDelivery;
 }
 
 /**

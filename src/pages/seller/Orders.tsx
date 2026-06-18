@@ -16,6 +16,7 @@ import {
     Calendar,
     ShoppingCart,
     CheckCircle2,
+    BadgeCheck,
     XCircle,
     Clock,
     DollarSign,
@@ -552,7 +553,7 @@ const Orders = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-    const [activeTab, setActiveTab] = useState<'all' | 'new' | 'confirmation' | 'suivi' | 'reported' | 'delivered'>('new');
+    const [activeTab, setActiveTab] = useState<'all' | 'confirmed' | 'new' | 'confirmation' | 'suivi' | 'reported' | 'delivered'>('new');
     const [quickStatusOrder, setQuickStatusOrder] = useState<any>(null);
     const [isQuickStatusOpen, setIsQuickStatusOpen] = useState(false);
 
@@ -560,6 +561,7 @@ const Orders = () => {
         const tab = searchParams.get('tab');
         if (
             tab === 'all'
+            || tab === 'confirmed'
             || tab === 'new'
             || tab === 'confirmation'
             || tab === 'suivi'
@@ -2155,6 +2157,11 @@ const Orders = () => {
         switch (tab) {
             case 'all':
                 return true;
+            case 'confirmed':
+                // Order status category is exactly 'confirmed' (same rule used to
+                // stamp confirmed_by_id / confirmation_date on save).
+                return !!o.order_status_id
+                    && statusCats.isOrderCategory(o.order_status_id, 'confirmed');
             case 'new':
                 return isNew;
             case 'confirmation':
@@ -2260,7 +2267,7 @@ const Orders = () => {
     }, [searchQuery, activeTab, filterStatus, pillStatusIds, pillPackageStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
 
     const tabCounts = useMemo(() => {
-        const counts = { all: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, reportedToday: false, reportedNow: false };
+        const counts = { all: 0, confirmed: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, reportedToday: false, reportedNow: false };
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
         const currentHour = now.getHours();
@@ -2269,6 +2276,7 @@ const Orders = () => {
         // seller can see that passes active filters), not just the current page.
         baseFilteredAggregate.forEach((o: any) => {
             counts.all++;
+            if (isOrderInTab(o, 'confirmed')) counts.confirmed++;
             if (isOrderInTab(o, 'new')) counts.new++;
             if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
             if (isOrderInTab(o, 'suivi')) counts.suivi++;
@@ -2672,6 +2680,7 @@ const Orders = () => {
                 <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper w-full overflow-x-auto ant-scroll">
                     {[
                         { id: 'all', label: 'Toutes', count: tabCounts.all, icon: LayoutGrid },
+                        { id: 'confirmed', label: 'Confirmée', count: tabCounts.confirmed, icon: BadgeCheck },
                         { id: 'delivered', label: 'Livré', count: tabCounts.delivered, icon: CheckCircle2 },
                         { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
                         { id: 'confirmation', label: 'Confirmation', count: tabCounts.confirmation, icon: Phone },
