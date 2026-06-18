@@ -1043,27 +1043,32 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const [role, setRole] = useState<Role>(initialRole);
+    // The modal is LOCKED to the tab it was opened from — no in-modal role switch.
+    const role = initialRole;
+    const isSeller = role === 'seller';
     const [monthKey, setMonthKey] = useState<string>(format(new Date(), 'yyyy-MM'));
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    // Seller 3-step wizard: select owers → review the breakdown → set amounts.
     const [step, setStep] = useState<GenStep>('select');
-    // Editable per-seller amounts (step 3). Keyed by seller_id, string for input.
+    // Editable per-seller amounts (seller step 3 only). Media-buyer payouts are
+    // generated at their full computed earning, never an arbitrary amount.
     const [amounts, setAmounts] = useState<Record<string, string>>({});
 
     const mbEarnings = useMediaBuyerEarnings(monthKey);
-    // Sellers are paid against the rolling ledger — owe + the carried/earned/paid
-    // breakdown all come from the open ticket. No month scoping.
+    // Sellers are paid against the rolling ledger — owe + the breakdown all come
+    // from the open ticket. Media buyers stay month-based.
     const ledger = useSellerLedger();
     const owers = useMemo(
         () => [...ledger.owing].sort((a, b) => b.owe - a.owe || a.name.localeCompare(b.name)),
         [ledger.owing],
     );
     const oweFor = (sellerId: string) => Math.max(0, ledger.byId(sellerId)?.owe ?? 0);
+    const mbOwers = useMemo(
+        () => (mbEarnings.rows as MediaBuyerEarnings[]).filter((r) => r.remaining_amount > 0.005),
+        [mbEarnings.rows],
+    );
 
     React.useEffect(() => {
         if (open) {
-            setRole(initialRole);
             setMonthKey(format(new Date(), 'yyyy-MM'));
             setSelectedIds([]);
             setStep('select');
@@ -1079,67 +1084,52 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
         []
     );
 
-    const activeLoading = role === 'seller' ? ledger.isLoading : mbEarnings.isLoading;
-    const activeRows = role === 'seller' ? owers : mbEarnings.rows;
+    const activeLoading = isSeller ? ledger.isLoading : mbEarnings.isLoading;
+    const activeRows = isSeller ? owers : mbOwers;
 
-    // Default selection: everyone who owes (sellers) / has a remainder (media buyers).
+    // Default selection: everyone who owes / has a remainder to generate.
     React.useEffect(() => {
         if (!open || activeLoading) return;
-        if (role === 'seller') {
-            setSelectedIds(owers.map((r) => r.seller_id));
-        } else {
-            setSelectedIds(mbEarnings.rows.filter((r) => r.remaining_amount > 0).map((r) => r.mediabuyer_id));
-        }
-    }, [open, activeLoading, role, monthKey, owers, mbEarnings.rows]);
+        if (isSeller) setSelectedIds(owers.map((r) => r.seller_id));
+        else setSelectedIds(mbOwers.map((r) => r.mediabuyer_id));
+        setStep('select');
+    }, [open, activeLoading, isSeller, monthKey, owers, mbOwers]);
 
-    // When moving into the amount step, seed each amount with the full owe.
     const seedAmounts = () => {
         const next: Record<string, string> = {};
         selectedIds.forEach((id) => { next[id] = oweFor(id).toFixed(2); });
         setAmounts(next);
     };
-
     const amountFor = (id: string) => {
         const raw = amounts[id];
         const v = raw === undefined ? oweFor(id) : parseFloat(raw);
         if (!isFinite(v) || v < 0) return 0;
-        return Math.min(v, oweFor(id)); // never pay more than owed
+        return Math.min(v, oweFor(id));
     };
 
-    const selectedSellers = useMemo(
-        () => owers.filter((r) => selectedIds.includes(r.seller_id)),
-        [owers, selectedIds],
-    );
+    const selectedSellers = useMemo(() => owers.filter((r) => selectedIds.includes(r.seller_id)), [owers, selectedIds]);
+    const selectedMb = useMemo(() => mbOwers.filter((r) => selectedIds.includes(r.mediabuyer_id)), [mbOwers, selectedIds]);
 
     const totals = useMemo(() => {
-        if (role === 'seller') {
-            const rows = selectedSellers;
+        if (isSeller) {
             const amount = step === 'amount'
-                ? rows.reduce((a, r) => a + amountFor(r.seller_id), 0)
-                : rows.reduce((a, r) => a + r.owe, 0);
-            return {
-                users: rows.length,
-                delivered: rows.reduce((a, r) => a + (r.open?.delivered_orders ?? 0), 0),
-                amount,
-            };
+                ? selectedSellers.reduce((a, r) => a + amountFor(r.seller_id), 0)
+                : selectedSellers.reduce((a, r) => a + r.owe, 0);
+            return { users: selectedSellers.length, delivered: selectedSellers.reduce((a, r) => a + (r.open?.delivered_orders ?? 0), 0), amount };
         }
-        const rows = (mbEarnings.rows as MediaBuyerEarnings[]).filter((r) => selectedIds.includes(r.mediabuyer_id));
         return {
-            users: rows.length,
-            delivered: rows.reduce((a, r) => a + r.delivered_orders, 0),
-            amount: rows.reduce((a, r) => a + r.remaining_amount, 0),
+            users: selectedMb.length,
+            delivered: selectedMb.reduce((a, r) => a + r.delivered_orders, 0),
+            amount: selectedMb.reduce((a, r) => a + r.remaining_amount, 0),
         };
-    }, [role, step, selectedSellers, amounts, selectedIds, mbEarnings.rows]);
+    }, [isSeller, step, selectedSellers, selectedMb, amounts]);
 
     const generateMutation = useMutation({
         mutationFn: async () => {
             if (!activeBusinessId) throw new Error('No active business');
             if (selectedIds.length === 0) throw new Error('Select at least one collaborator');
 
-            if (role === 'seller') {
-                // Pay each selected seller the chosen amount via the ledger RPC
-                // (records a disbursement against the open monthly ticket — carry/FIFO
-                // handled in DB). Amount defaults to full owe, can be reduced.
+            if (isSeller) {
                 const targets = selectedSellers
                     .map((r) => ({ id: r.seller_id, amt: amountFor(r.seller_id) }))
                     .filter((t) => t.amt > 0.005);
@@ -1156,8 +1146,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                 }
                 return { role: 'seller' as const, count: targets.length };
             } else {
-                const rows = (mbEarnings.rows as MediaBuyerEarnings[]).filter((r) => selectedIds.includes(r.mediabuyer_id));
-                const payload = rows
+                const payload = selectedMb
                     .filter((r) => r.remaining_amount > 0)
                     .map((r) => ({
                         mediabuyer_id: r.mediabuyer_id,
@@ -1170,12 +1159,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                         delivered_orders: r.delivered_orders,
                         total_spend: r.total_spend,
                         campaigns_count: r.campaigns_count,
-                        bank_snapshot: {
-                            name: r.bank_name,
-                            rib: r.bank_rib,
-                            holder: r.bank_account_holder,
-                            cin: r.cin_number,
-                        },
+                        bank_snapshot: { name: r.bank_name, rib: r.bank_rib, holder: r.bank_account_holder, cin: r.cin_number },
                         status: 'pending',
                     }));
                 if (payload.length === 0) throw new Error('All selected rows have 0 remainder');
@@ -1201,25 +1185,22 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
 
-    const toggleRow = (id: string) => {
-        setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-    };
+    const toggleRow = (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     const toggleAll = () => {
-        const ids = role === 'seller' ? owers.map((r) => r.seller_id) : (mbEarnings.rows as MediaBuyerEarnings[]).map((r) => r.mediabuyer_id);
+        const ids = isSeller ? owers.map((r) => r.seller_id) : mbOwers.map((r) => r.mediabuyer_id);
         if (ids.length === 0) return;
         if (selectedIds.length === ids.length) setSelectedIds([]);
         else setSelectedIds(ids);
     };
 
-    // Seller stepper navigation
-    const sellerSteps: { key: GenStep; label: string }[] = [
+    const steps: { key: GenStep; label: string }[] = [
         { key: 'select', label: 'Select' },
         { key: 'review', label: 'Breakdown' },
-        { key: 'amount', label: 'Amounts' },
+        { key: 'amount', label: isSeller ? 'Amounts' : 'Confirm' },
     ];
     const goNext = () => {
         if (step === 'select') { setStep('review'); return; }
-        if (step === 'review') { seedAmounts(); setStep('amount'); return; }
+        if (step === 'review') { if (isSeller) seedAmounts(); setStep('amount'); return; }
     };
     const goBack = () => {
         if (step === 'amount') { setStep('review'); return; }
@@ -1232,190 +1213,176 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                 <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
                     <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
                         <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                        Payroll · Bulk generate
+                        Payroll · {isSeller ? 'Sellers' : 'Media buyers'}
                     </div>
                     <DialogTitle className="font-display text-[22px] leading-tight tracking-tight text-ant-ink">Generate payouts</DialogTitle>
                     <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                        Sellers: select who owes, review the breakdown, then pay. Media buyers: pick a month and generate.
+                        {isSeller
+                            ? 'Select who owes, review the breakdown, then pay their outstanding balance.'
+                            : 'Pick a month, review each earning, then generate the pending payouts.'}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="px-6 py-4 flex items-center gap-3 border-b border-ant-line flex-wrap">
-                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper">
-                        <button
-                            onClick={() => { setRole('seller'); setStep('select'); }}
-                            className={cn(
-                                'inline-flex items-center gap-1.5 rounded-full px-3.5 h-8 text-[11px] font-semibold transition cursor-pointer',
-                                role === 'seller' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
-                            )}
-                        >
-                            <Headphones className="w-3 h-3" />
-                            Sellers
-                        </button>
-                        <button
-                            onClick={() => setRole('mediabuyer')}
-                            className={cn(
-                                'inline-flex items-center gap-1.5 rounded-full px-3.5 h-8 text-[11px] font-semibold transition cursor-pointer',
-                                role === 'mediabuyer' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
-                            )}
-                        >
-                            <Target className="w-3 h-3" />
-                            Media buyers
-                        </button>
+                    {/* Stepper (both roles) */}
+                    <div className="inline-flex items-center gap-1.5">
+                        {steps.map((s, i) => {
+                            const idx = steps.findIndex((x) => x.key === step);
+                            const done = i < idx;
+                            const active = i === idx;
+                            return (
+                                <React.Fragment key={s.key}>
+                                    {i > 0 && <span className={cn('h-px w-5', i <= idx ? 'bg-ant-ink' : 'bg-ant-line')} />}
+                                    <span className={cn(
+                                        'inline-flex items-center gap-1.5 rounded-full px-2.5 h-7 text-[10px] font-semibold transition',
+                                        active ? 'bg-ant-ink text-white' : done ? 'bg-ant-ink/10 text-ant-ink' : 'bg-ant-light text-ant-mid',
+                                    )}>
+                                        <span className={cn('h-4 w-4 rounded-full inline-flex items-center justify-center text-[9px] tabular-nums',
+                                            active ? 'bg-white/20 text-white' : done ? 'bg-ant-ink text-white' : 'bg-ant-paper text-ant-mid border border-ant-line')}>
+                                            {done ? <Check className="w-2.5 h-2.5" /> : i + 1}
+                                        </span>
+                                        {s.label}
+                                    </span>
+                                </React.Fragment>
+                            );
+                        })}
                     </div>
-                    {role === 'mediabuyer' ? (
+                    {/* Media-buyer month picker (step 1 only) */}
+                    {!isSeller && step === 'select' && (
                         <Select value={monthKey} onValueChange={setMonthKey}>
-                            <SelectTrigger className="w-[200px] h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink">
+                            <SelectTrigger className="w-[180px] h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink ml-auto">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-ant-line">
                                 {monthOptions.map((m) => (
-                                    <SelectItem key={m.value} value={m.value} className="text-[12px]">
-                                        {m.label}
-                                    </SelectItem>
+                                    <SelectItem key={m.value} value={m.value} className="text-[12px]">{m.label}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
-                    ) : (
-                        // Seller stepper
-                        <div className="inline-flex items-center gap-1.5">
-                            {sellerSteps.map((s, i) => {
-                                const idx = sellerSteps.findIndex((x) => x.key === step);
-                                const done = i < idx;
-                                const active = i === idx;
-                                return (
-                                    <React.Fragment key={s.key}>
-                                        {i > 0 && <span className={cn('h-px w-5', i <= idx ? 'bg-ant-ink' : 'bg-ant-line')} />}
-                                        <span className={cn(
-                                            'inline-flex items-center gap-1.5 rounded-full px-2.5 h-7 text-[10px] font-semibold transition',
-                                            active ? 'bg-ant-ink text-white' : done ? 'bg-ant-ink/10 text-ant-ink' : 'bg-ant-light text-ant-mid',
-                                        )}>
-                                            <span className={cn('h-4 w-4 rounded-full inline-flex items-center justify-center text-[9px] tabular-nums',
-                                                active ? 'bg-white/20 text-white' : done ? 'bg-ant-ink text-white' : 'bg-ant-paper text-ant-mid border border-ant-line')}>
-                                                {done ? <Check className="w-2.5 h-2.5" /> : i + 1}
-                                            </span>
-                                            {s.label}
-                                        </span>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
                     )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto ant-scroll px-6 py-4 space-y-3">
                     {activeLoading ? (
-                        <div className="flex justify-center py-10">
-                            <Loader2 className="w-6 h-6 animate-spin text-ant-mid" />
-                        </div>
+                        <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-ant-mid" /></div>
                     ) : activeRows.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-12 text-center">
                             <p className="font-serif italic text-[13px] text-ant-mid">
-                                {role === 'seller' ? 'No seller currently owes anything.' : 'No media buyers in this business.'}
+                                {isSeller ? 'No seller currently owes anything.' : 'No media buyer has anything to generate for this month.'}
                             </p>
                         </div>
-                    ) : role === 'seller' ? (
+                    ) : (
                         <>
-                            {/* STEP 1 — select owers */}
+                            {/* STEP 1 — select */}
                             {step === 'select' && (
                                 <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="border-b border-ant-line bg-ant-light/50">
-                                                <th className="px-4 py-3 w-10">
-                                                    <Checkbox
-                                                        checked={selectedIds.length > 0 && selectedIds.length === owers.length}
-                                                        onCheckedChange={toggleAll}
-                                                        className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                                    />
-                                                </th>
-                                                <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Seller</th>
-                                                <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Units</th>
-                                                <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Owes</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {owers.map((r) => {
-                                                const sel = selectedIds.includes(r.seller_id);
-                                                return (
-                                                    <tr key={r.seller_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5')}>
-                                                        <td className="px-4 py-3">
-                                                            <Checkbox checked={sel} onCheckedChange={() => toggleRow(r.seller_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" />
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                                <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
-                                                                    <AvatarImage src={r.avatar_url || ''} className="object-cover" />
-                                                                    <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                                </Avatar>
-                                                                <div className="min-w-0">
-                                                                    <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
-                                                                    <p className="text-[11px] text-ant-mid truncate">{r.email} · {fmtCur(r.commissionPrice)} MAD/{r.commissionBasis === 'per_unit' ? 'unit' : 'order'}</p>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.open?.delivered_orders ?? 0)}</td>
-                                                        <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-orange tabular-nums" title={fmtCurFull(r.owe)}>
-                                                            {fmtCur(r.owe)}<span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="border-b border-ant-line bg-ant-light/50">
+                                                    <th className="px-4 py-3 w-10">
+                                                        <Checkbox checked={selectedIds.length > 0 && selectedIds.length === activeRows.length} onCheckedChange={toggleAll} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" />
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{isSeller ? 'Seller' : 'Media buyer'}</th>
+                                                    {!isSeller && <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Type</th>}
+                                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{isSeller ? 'Units' : 'Delivered'}</th>
+                                                    {!isSeller && <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Already paid</th>}
+                                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{isSeller ? 'Owes' : 'To pay'}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {isSeller
+                                                    ? owers.map((r) => {
+                                                          const sel = selectedIds.includes(r.seller_id);
+                                                          return (
+                                                              <tr key={r.seller_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5')}>
+                                                                  <td className="px-4 py-3"><Checkbox checked={sel} onCheckedChange={() => toggleRow(r.seller_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" /></td>
+                                                                  <td className="px-4 py-3">
+                                                                      <div className="flex items-center gap-2.5 min-w-0">
+                                                                          <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                                          <div className="min-w-0">
+                                                                              <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
+                                                                              <p className="text-[11px] text-ant-mid truncate">{r.email} · {fmtCur(r.commissionPrice)} MAD/{r.commissionBasis === 'per_unit' ? 'unit' : 'order'}</p>
+                                                                          </div>
+                                                                      </div>
+                                                                  </td>
+                                                                  <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.open?.delivered_orders ?? 0)}</td>
+                                                                  <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-orange tabular-nums" title={fmtCurFull(r.owe)}>{fmtCur(r.owe)}<span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span></td>
+                                                              </tr>
+                                                          );
+                                                      })
+                                                    : mbOwers.map((r) => {
+                                                          const sel = selectedIds.includes(r.mediabuyer_id);
+                                                          const isCommission = r.payment_type === 'commission';
+                                                          return (
+                                                              <tr key={r.mediabuyer_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5')}>
+                                                                  <td className="px-4 py-3"><Checkbox checked={sel} onCheckedChange={() => toggleRow(r.mediabuyer_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" /></td>
+                                                                  <td className="px-4 py-3">
+                                                                      <div className="flex items-center gap-2.5 min-w-0">
+                                                                          <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                                          <div className="min-w-0"><p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid truncate">{r.email}</p></div>
+                                                                      </div>
+                                                                  </td>
+                                                                  <td className="px-4 py-3">
+                                                                      <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' : 'bg-ant-green/10 border-ant-green/25 text-ant-green')}>
+                                                                          <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />{r.payment_type || 'n/a'}
+                                                                      </span>
+                                                                  </td>
+                                                                  <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.delivered_orders)}</td>
+                                                                  <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums" title={fmtCurFull(r.prior_paid_amount)}>{r.prior_paid_amount > 0 ? fmtCur(r.prior_paid_amount) : '—'}</td>
+                                                                  <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-orange tabular-nums" title={fmtCurFull(r.remaining_amount)}>{fmtCur(r.remaining_amount)}<span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span></td>
+                                                              </tr>
+                                                          );
+                                                      })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
 
-                            {/* STEP 2 — breakdown / why */}
+                            {/* STEP 2 — breakdown */}
                             {step === 'review' && (
                                 <div className="space-y-2.5">
-                                    {selectedSellers.length === 0 ? (
+                                    {(isSeller ? selectedSellers.length === 0 : selectedMb.length === 0) ? (
                                         <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-10 text-center">
-                                            <p className="font-serif italic text-[13px] text-ant-mid">Select at least one seller to review.</p>
+                                            <p className="font-serif italic text-[13px] text-ant-mid">Select at least one {isSeller ? 'seller' : 'media buyer'} to review.</p>
                                         </div>
-                                    ) : selectedSellers.map((r) => {
+                                    ) : isSeller ? selectedSellers.map((r) => {
                                         const o = r.open;
-                                        const carried = o?.carried_in ?? 0;
-                                        const earned = o?.month_earned ?? 0;
-                                        const paid = o?.paid_amount ?? 0;
-                                        const units = o?.delivered_orders ?? 0;
+                                        const carried = o?.carried_in ?? 0, earned = o?.month_earned ?? 0, paid = o?.paid_amount ?? 0, units = o?.delivered_orders ?? 0;
                                         return (
                                             <div key={r.seller_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4">
                                                 <div className="flex items-center gap-2.5 mb-3">
-                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
-                                                        <AvatarImage src={r.avatar_url || ''} className="object-cover" />
-                                                        <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                    </Avatar>
+                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
                                                     <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
                                                 </div>
                                                 <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 text-[12px] tabular-nums">
-                                                    {carried !== 0 && (
-                                                        <>
-                                                            <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5">
-                                                                <span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Reporté</span>
-                                                                <span className="font-display font-semibold text-ant-ink">{fmtCur(carried)}</span>
-                                                            </span>
-                                                            <span className="text-ant-mid font-semibold">+</span>
-                                                        </>
-                                                    )}
-                                                    <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5">
-                                                        <span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Ce mois · {fmtNum(units)} u.</span>
-                                                        <span className="font-display font-semibold text-ant-ink">{fmtCur(earned)}</span>
-                                                    </span>
-                                                    {paid > 0.005 && (
-                                                        <>
-                                                            <span className="text-ant-mid font-semibold">−</span>
-                                                            <span className="inline-flex flex-col rounded-lg border border-ant-green/25 bg-ant-green/10 px-3 py-1.5">
-                                                                <span className="text-[9px] uppercase tracking-[0.14em] text-ant-green font-semibold">Déjà versé</span>
-                                                                <span className="font-display font-semibold text-ant-green">{fmtCur(paid)}</span>
-                                                            </span>
-                                                        </>
-                                                    )}
+                                                    {carried !== 0 && (<><span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Reporté</span><span className="font-display font-semibold text-ant-ink">{fmtCur(carried)}</span></span><span className="text-ant-mid font-semibold">+</span></>)}
+                                                    <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Ce mois · {fmtNum(units)} u.</span><span className="font-display font-semibold text-ant-ink">{fmtCur(earned)}</span></span>
+                                                    {paid > 0.005 && (<><span className="text-ant-mid font-semibold">−</span><span className="inline-flex flex-col rounded-lg border border-ant-green/25 bg-ant-green/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-green font-semibold">Déjà versé</span><span className="font-display font-semibold text-ant-green">{fmtCur(paid)}</span></span></>)}
                                                     <span className="text-ant-mid font-semibold">=</span>
-                                                    <span className="inline-flex flex-col rounded-lg border border-ant-orange/25 bg-ant-orange/10 px-3 py-1.5">
-                                                        <span className="text-[9px] uppercase tracking-[0.14em] text-ant-orange font-semibold">Doit</span>
-                                                        <span className="font-display font-semibold text-ant-orange">{fmtCur(r.owe)} MAD</span>
-                                                    </span>
+                                                    <span className="inline-flex flex-col rounded-lg border border-ant-orange/25 bg-ant-orange/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-orange font-semibold">Doit</span><span className="font-display font-semibold text-ant-orange">{fmtCur(r.owe)} MAD</span></span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }) : selectedMb.map((r) => {
+                                        const isCommission = r.payment_type === 'commission';
+                                        return (
+                                            <div key={r.mediabuyer_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4">
+                                                <div className="flex items-center gap-2.5 mb-3">
+                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                    <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
+                                                    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isCommission ? 'bg-ant-orange/10 text-ant-orange' : 'bg-ant-green/10 text-ant-green')}>{r.payment_type}</span>
+                                                </div>
+                                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 text-[12px] tabular-nums">
+                                                    {isCommission ? (
+                                                        <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">{fmtNum(r.delivered_orders)} livrées × {fmtCur(r.commission_price)}</span><span className="font-display font-semibold text-ant-ink">{fmtCur(r.commission_earned)}</span></span>
+                                                    ) : (
+                                                        <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Salaire fixe</span><span className="font-display font-semibold text-ant-ink">{fmtCur(r.salary_earned)}</span></span>
+                                                    )}
+                                                    {r.prior_paid_amount > 0.005 && (<><span className="text-ant-mid font-semibold">−</span><span className="inline-flex flex-col rounded-lg border border-ant-green/25 bg-ant-green/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-green font-semibold">Déjà payé</span><span className="font-display font-semibold text-ant-green">{fmtCur(r.prior_paid_amount)}</span></span></>)}
+                                                    <span className="text-ant-mid font-semibold">=</span>
+                                                    <span className="inline-flex flex-col rounded-lg border border-ant-orange/25 bg-ant-orange/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-orange font-semibold">À générer</span><span className="font-display font-semibold text-ant-orange">{fmtCur(r.remaining_amount)} MAD</span></span>
                                                 </div>
                                             </div>
                                         );
@@ -1423,135 +1390,59 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                 </div>
                             )}
 
-                            {/* STEP 3 — amounts */}
+                            {/* STEP 3 — amounts (seller editable) / confirm (media buyer) */}
                             {step === 'amount' && (
                                 <div className="space-y-2.5">
-                                    {selectedSellers.map((r) => {
+                                    {isSeller ? selectedSellers.map((r) => {
                                         const owe = r.owe;
                                         const val = amounts[r.seller_id] ?? owe.toFixed(2);
-                                        const parsed = amountFor(r.seller_id);
                                         const over = parseFloat(val) > owe + 0.005;
                                         return (
                                             <div key={r.seller_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4 flex items-center gap-3">
-                                                <Avatar className="h-9 w-9 shrink-0 rounded-xl border border-ant-line">
-                                                    <AvatarImage src={r.avatar_url || ''} className="object-cover" />
-                                                    <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
-                                                    <p className="text-[11px] text-ant-mid tabular-nums">Doit <span className="font-semibold text-ant-orange">{fmtCur(owe)} MAD</span></p>
-                                                </div>
+                                                <Avatar className="h-9 w-9 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                <div className="flex-1 min-w-0"><p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid tabular-nums">Doit <span className="font-semibold text-ant-orange">{fmtCur(owe)} MAD</span></p></div>
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setAmounts((p) => ({ ...p, [r.seller_id]: owe.toFixed(2) }))}
-                                                        className="h-9 px-2.5 rounded-lg border border-ant-line bg-ant-paper text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
-                                                        title="Full balance"
-                                                    >
-                                                        Max
-                                                    </button>
+                                                    <button type="button" onClick={() => setAmounts((p) => ({ ...p, [r.seller_id]: owe.toFixed(2) }))} className="h-9 px-2.5 rounded-lg border border-ant-line bg-ant-paper text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer" title="Full balance">Max</button>
                                                     <div className="relative">
-                                                        <Input
-                                                            type="number"
-                                                            min={0}
-                                                            max={owe}
-                                                            step="0.01"
-                                                            value={val}
-                                                            onChange={(e) => setAmounts((p) => ({ ...p, [r.seller_id]: e.target.value }))}
-                                                            className={cn('h-9 w-32 pr-11 text-right rounded-lg border-ant-line bg-ant-paper text-[13px] font-semibold text-ant-ink tabular-nums focus-visible:ring-1 focus-visible:ring-ant-orange/40', over && 'border-ant-rose text-ant-rose')}
-                                                        />
+                                                        <Input type="number" min={0} max={owe} step="0.01" value={val} onChange={(e) => setAmounts((p) => ({ ...p, [r.seller_id]: e.target.value }))} className={cn('h-9 w-32 pr-11 text-right rounded-lg border-ant-line bg-ant-paper text-[13px] font-semibold text-ant-ink tabular-nums focus-visible:ring-1 focus-visible:ring-ant-orange/40', over && 'border-ant-rose text-ant-rose')} />
                                                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-ant-mid pointer-events-none">MAD</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         );
-                                    })}
-                                    <p className="font-serif italic text-[11px] text-ant-mid px-1">Amounts default to the full balance. Lower an amount to record a partial payment — the rest rolls into next month.</p>
+                                    }) : selectedMb.map((r) => (
+                                        <div key={r.mediabuyer_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4 flex items-center gap-3">
+                                            <Avatar className="h-9 w-9 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                            <div className="flex-1 min-w-0"><p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid capitalize">{r.payment_type} · {format(new Date(monthKey + '-01'), 'MMM yyyy')}</p></div>
+                                            <div className="text-right shrink-0"><p className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">À générer</p><p className="font-display text-[15px] font-semibold text-ant-orange tabular-nums">{fmtCur(r.remaining_amount)} MAD</p></div>
+                                        </div>
+                                    ))}
+                                    <p className="font-serif italic text-[11px] text-ant-mid px-1">
+                                        {isSeller
+                                            ? 'Amounts default to the full balance. Lower an amount to record a partial payment — the rest rolls into next month.'
+                                            : 'Payouts are generated as pending at the full computed earning, then marked paid from the list.'}
+                                    </p>
                                 </div>
                             )}
-                        </>
-                    ) : (
-                        // ── Media buyers (single screen, month-based) ──
-                        <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-ant-line bg-ant-light/50">
-                                            <th className="px-4 py-3 w-10">
-                                                <Checkbox
-                                                    checked={selectedIds.length > 0 && selectedIds.length === mbEarnings.rows.length}
-                                                    onCheckedChange={toggleAll}
-                                                    className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                                />
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Media buyer</th>
-                                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Type</th>
-                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivered</th>
-                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Spend</th>
-                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Already paid</th>
-                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">To pay</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(mbEarnings.rows as MediaBuyerEarnings[]).map((r) => {
-                                            const hasRemainder = r.remaining_amount > 0;
-                                            const sel = selectedIds.includes(r.mediabuyer_id);
-                                            const isCommission = r.payment_type === 'commission';
-                                            return (
-                                                <tr key={r.mediabuyer_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5', !hasRemainder && 'opacity-40')}>
-                                                    <td className="px-4 py-3">
-                                                        <Checkbox checked={sel} disabled={!hasRemainder} onCheckedChange={() => toggleRow(r.mediabuyer_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" />
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center gap-2.5 min-w-0">
-                                                            <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
-                                                                <AvatarImage src={r.avatar_url || ''} className="object-cover" />
-                                                                <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                            </Avatar>
-                                                            <div className="min-w-0">
-                                                                <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
-                                                                <p className="text-[11px] text-ant-mid truncate">{r.email}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' : 'bg-ant-green/10 border-ant-green/25 text-ant-green')}>
-                                                            <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />
-                                                            {r.payment_type || 'n/a'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.delivered_orders)}</td>
-                                                    <td className="px-4 py-3 text-right text-[11px] text-ant-rose tabular-nums" title={fmtCurFull(r.total_spend)}>{fmtCur(r.total_spend)}</td>
-                                                    <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums" title={fmtCurFull(r.prior_paid_amount)}>{r.prior_paid_amount > 0 ? fmtCur(r.prior_paid_amount) : '—'}</td>
-                                                    <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(r.remaining_amount)}>{fmtCur(r.remaining_amount)}<span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span></td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
 
-                    {!activeLoading && activeRows.length > 0 && (
-                        <div className="rounded-2xl border border-ant-line bg-ant-light/40 p-4 flex items-start gap-3">
-                            <div className="h-8 w-8 rounded-lg bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center shrink-0">
-                                <Info className="w-3.5 h-3.5 text-ant-orange" />
+                            {/* Info box */}
+                            <div className="rounded-2xl border border-ant-line bg-ant-light/40 p-4 flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-lg bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center shrink-0"><Info className="w-3.5 h-3.5 text-ant-orange" /></div>
+                                <div className="space-y-1 text-[12px] text-ant-ink leading-relaxed">
+                                    <p>
+                                        <span className="font-semibold">{isSeller ? 'Sellers' : 'Media buyers'}:</span>{' '}
+                                        {isSeller
+                                            ? 'Owe = carried-over balance + this month’s commission (units × price) − what was already paid this month.'
+                                            : 'Salary type → full monthly salary. Commission type → delivered orders × commission price, minus prior payouts for the same month.'}
+                                    </p>
+                                    <p className="font-serif italic text-[11px] text-ant-mid">
+                                        {isSeller
+                                            ? 'No month to pick — sellers are always paid their current outstanding balance.'
+                                            : 'Generated payouts are created as pending and must be marked paid from the list.'}
+                                    </p>
+                                </div>
                             </div>
-                            <div className="space-y-1 text-[12px] text-ant-ink leading-relaxed">
-                                <p>
-                                    <span className="font-semibold">{role === 'seller' ? 'Sellers' : 'Media buyers'}:</span>{' '}
-                                    {role === 'seller'
-                                        ? 'Owe = carried-over balance + this month’s commission (units × price) − what was already paid this month. Paying records a disbursement against the live monthly ledger.'
-                                        : 'Salary type → full monthly salary. Commission type → delivered orders × commission price, minus prior payouts for the same month.'}
-                                </p>
-                                <p className="font-serif italic text-[11px] text-ant-mid">
-                                    {role === 'seller'
-                                        ? 'No month to pick — sellers are always paid their current outstanding balance.'
-                                        : 'Rows with 0 remainder are disabled. Generated payouts are created as pending and must be marked paid manually.'}
-                                </p>
-                            </div>
-                        </div>
+                        </>
                     )}
                 </div>
 
@@ -1560,63 +1451,31 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                     <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-4 bg-ant-ink text-white">
                         <div className="grid grid-cols-3 gap-6">
                             <div>
-                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                                    Selected
-                                </p>
+                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-white" />Selected</p>
                                 <p className="font-display text-[20px] font-semibold text-white mt-0.5 tabular-nums">{totals.users}</p>
                             </div>
                             <div>
-                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
-                                    {role === 'seller' ? 'Units' : 'Delivered'}
-                                </p>
+                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-ant-green" />{isSeller ? 'Units' : 'Delivered'}</p>
                                 <p className="font-display text-[20px] font-semibold text-ant-green mt-0.5 tabular-nums">{fmtNum(totals.delivered)}</p>
                             </div>
                             <div>
-                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                                    {role === 'seller' && step === 'amount' ? 'To pay' : 'Total'}
-                                </p>
-                                <p className="font-display text-[20px] font-semibold text-ant-orange mt-0.5 tabular-nums" title={fmtCurFull(totals.amount)}>
-                                    {fmtCur(totals.amount)}
-                                    <span className="text-[11px] text-white/55 font-normal ml-1">MAD</span>
-                                </p>
+                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />{isSeller && step === 'amount' ? 'To pay' : 'Total'}</p>
+                                <p className="font-display text-[20px] font-semibold text-ant-orange mt-0.5 tabular-nums" title={fmtCurFull(totals.amount)}>{fmtCur(totals.amount)}<span className="text-[11px] text-white/55 font-normal ml-1">MAD</span></p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button
-                                variant="ghost"
-                                onClick={() => onOpenChange(false)}
-                                className="h-10 px-5 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
-                            >
-                                Cancel
-                            </Button>
-                            {role === 'seller' && step !== 'select' && (
-                                <Button
-                                    variant="ghost"
-                                    onClick={goBack}
-                                    className="h-10 px-4 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer gap-1.5"
-                                >
-                                    <ChevronLeft className="w-3.5 h-3.5" /> Back
-                                </Button>
+                            <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-5 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer">Cancel</Button>
+                            {step !== 'select' && (
+                                <Button variant="ghost" onClick={goBack} className="h-10 px-4 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer gap-1.5"><ChevronLeft className="w-3.5 h-3.5" /> Back</Button>
                             )}
-                            {role === 'seller' && step !== 'amount' ? (
-                                <Button
-                                    onClick={goNext}
-                                    disabled={totals.users === 0}
-                                    className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer disabled:opacity-40"
-                                >
-                                    {step === 'select' ? 'Review breakdown' : 'Set amounts'} <ChevronRight className="w-3.5 h-3.5" />
+                            {step !== 'amount' ? (
+                                <Button onClick={goNext} disabled={totals.users === 0} className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer disabled:opacity-40">
+                                    {step === 'select' ? 'Review breakdown' : (isSeller ? 'Set amounts' : 'Confirm')} <ChevronRight className="w-3.5 h-3.5" />
                                 </Button>
                             ) : (
-                                <Button
-                                    onClick={() => generateMutation.mutate()}
-                                    disabled={generateMutation.isPending || totals.users === 0 || totals.amount < 0.005}
-                                    className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer disabled:opacity-40"
-                                >
+                                <Button onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending || totals.users === 0 || totals.amount < 0.005} className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer disabled:opacity-40">
                                     {generateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                                    {role === 'seller' ? `Pay ${totals.users} seller${totals.users !== 1 ? 's' : ''}` : `Generate ${totals.users} payout${totals.users !== 1 ? 's' : ''}`}
+                                    {isSeller ? `Pay ${totals.users} seller${totals.users !== 1 ? 's' : ''}` : `Generate ${totals.users} payout${totals.users !== 1 ? 's' : ''}`}
                                 </Button>
                             )}
                         </div>
