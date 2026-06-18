@@ -16,7 +16,7 @@ import {
     normalizeCommissionBasis,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { isAdminPullback, pureRevenueForOrder, type AnalyticsOrder } from '@/lib/analyticsDefinitions';
 import {
     Tooltip,
     TooltipContent,
@@ -79,22 +79,15 @@ type DSAd = { product_id: string | null; amount: number; start_date: string };
 type DSProduct = { id: string; cost_price: number | null };
 type DSAccessory = { id: string; cost_price: number | null };
 
-/** Product-line revenue only (no shipping). Uses line totals; falls back to raw_price or price − shipping. */
-function productRevenueExcludingShipping(o: DSOrder): number {
-    const items = o.order_items || [];
-    let sum = 0;
-    for (const oi of items) {
-        if (!oi?.product_id) continue;
-        const q = Number(oi.quantity || 1);
-        sum += Number(oi.total_price || 0) || Number(oi.unit_price || 0) * q;
-    }
-    if (sum > 0) return sum;
-    const raw = Number(o.raw_price);
-    if (raw > 0) return raw;
-    const p = Number(o.price || 0);
-    const ship = Number(o.shipping_cost || 0);
-    if (o.include_delivery_in_total === false) return p;
-    return Math.max(0, p - ship);
+/**
+ * Order revenue via the SHARED definition: product line revenue PLUS the
+ * delivery the customer paid when folded into the order total. Matches the P&L
+ * and analytics SellersSection. (Previously this stripped shipping, diverging
+ * from the shared contract and understating seller revenue by the collected
+ * delivery.)
+ */
+function orderRevenue(o: DSOrder): number {
+    return pureRevenueForOrder(o as unknown as AnalyticsOrder);
 }
 
 export const DashboardSellersPerformance = ({ businessId, dateFilter }: DashboardSellersPerformanceProps) => {
@@ -399,7 +392,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             let shipping = 0;
             const sellerDeliveredQty = new Map<string, number>();
             delivered.forEach((o) => {
-                revenue += productRevenueExcludingShipping(o);
+                revenue += orderRevenue(o);
                 shipping += Number(o.shipping_cost || 0);
                 for (const oi of o.order_items || []) {
                     const q = Number(oi.quantity) || 0;

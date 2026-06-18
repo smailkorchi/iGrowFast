@@ -8,7 +8,7 @@ import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { isAdminPullback, pureRevenueForOrder, type AnalyticsOrder } from '@/lib/analyticsDefinitions';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
 interface DashboardCityStatsProps {
@@ -94,12 +94,11 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             { name: string; total: number; deliveryDenom: number; delivered: number; revenue: number }
         > = {};
 
-        const productRevenue = (o: CityOrderRow) => {
-            const price = Number(o.price || 0);
-            const ship = Number(o.shipping_cost || 0);
-            if (o.include_delivery_in_total === false) return Math.max(0, price);
-            return Math.max(0, price - ship);
-        };
+        // Shared revenue definition (product + collected delivery when folded
+        // into the order total) so per-city revenue matches the P&L / analytics.
+        // The old inline version stripped shipping, understating revenue by the
+        // delivery the customer reimbursed.
+        const productRevenue = (o: CityOrderRow) => pureRevenueForOrder(o as unknown as AnalyticsOrder);
 
         let totalOrders = 0;
         let totalDeliveryDenom = 0;  // tracked − admin-pullback, per Coliaty

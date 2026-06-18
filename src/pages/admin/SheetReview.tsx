@@ -126,9 +126,9 @@ const SheetReview = () => {
         if (edit.productId) {
             const qty = Math.max(1, parseInt(edit.qty || '1', 10) || 1);
             if (item?.id) {
-                await (supabase.from('order_items') as any).update({ product_id: edit.productId, quantity: qty, unit_price: priceNum ?? 0 }).eq('id', item.id);
+                await (supabase.from('order_items') as any).update({ product_id: edit.productId, quantity: qty, unit_price: (priceNum ?? 0) / qty }).eq('id', item.id);
             } else {
-                await (supabase.from('order_items') as any).insert({ order_id: d.id, product_id: edit.productId, quantity: qty, unit_price: priceNum ?? 0, 'DigiCom Business': activeBusinessId });
+                await (supabase.from('order_items') as any).insert({ order_id: d.id, product_id: edit.productId, quantity: qty, unit_price: (priceNum ?? 0) / qty, 'DigiCom Business': activeBusinessId });
             }
         }
     };
