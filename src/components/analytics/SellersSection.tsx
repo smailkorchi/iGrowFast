@@ -251,15 +251,16 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                 return (
                     <SectionStory
                         hero={{
-                            label: 'top performer',
-                            value: metrics.topPerformer?.name || 'N/A',
+                            label: 'Commission · this window',
+                            value: Math.round(metrics.totalLiveCommission).toLocaleString('fr-MA'),
+                            suffix: 'MAD',
+                            tone: 'warning',
                         }}
                         narrative={narrative}
                         supporting={[
+                            { label: 'Top performer', value: metrics.topPerformer?.name || 'N/A', sub: metrics.topPerformer ? `${metrics.topPerformer.delivered.toLocaleString('fr-MA')} delivered · ${Math.round(metrics.topPerformer.commission).toLocaleString('fr-MA')} MAD` : undefined },
                             { label: 'Sellers', value: metrics.totalSellers.toLocaleString('fr-MA'), sub: `${metrics.activeSellers} active` },
-                            { label: 'Top delivered', value: (metrics.topPerformer?.delivered || 0).toLocaleString('fr-MA') },
                             { label: 'Best success', value: `${bestSuccess.toFixed(1)}%`, tone: 'positive' },
-                            { label: 'Commission (window)', value: `${Math.round(metrics.totalLiveCommission).toLocaleString('fr-MA')} MAD`, tone: 'warning' },
                             { label: 'Paid (lifetime)', value: `${Math.round(metrics.totalPaidToSellers).toLocaleString('fr-MA')} MAD` },
                             { label: 'Pending payouts', value: `${Math.round(metrics.totalPendingToSellers).toLocaleString('fr-MA')} MAD`, tone: metrics.totalPendingToSellers > 0 ? 'warning' : 'neutral' },
                             { label: 'Attendance', value: `${metrics.attendanceRate.toFixed(0)}%` },
