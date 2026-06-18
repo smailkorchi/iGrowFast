@@ -21,6 +21,7 @@ interface SellerOrdersListViewProps {
   orders: any[];
   duplicatePhones: Set<string>;
   shortOrderIds?: Set<string>;
+  lockedOrderIds?: Set<string>;
   onView: (order: any) => void;
   onEdit: (order: any) => void;
   onTrackParcel: (orderId: string) => void;
@@ -36,6 +37,7 @@ export default function SellerOrdersListView({
   orders,
   duplicatePhones,
   shortOrderIds,
+  lockedOrderIds,
   onView,
   onEdit,
   onTrackParcel,
@@ -66,6 +68,7 @@ export default function SellerOrdersListView({
             {orders.map((order, idx) => {
               const isDuplicate = duplicatePhones.has(order.phone);
               const isShort = !!shortOrderIds?.has(order.id);
+              const locked = !!lockedOrderIds?.has(order.id);
               const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
               const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
               const trackingCode = latestParcel?.tracking_code;
@@ -194,13 +197,14 @@ export default function SellerOrdersListView({
                     <div className="space-y-1">
                       <button
                         type="button"
-                        onClick={() => onQuickStatusChange?.(order)}
-                        className="group/status inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all duration-200 hover:shadow-md hover:scale-[1.03] cursor-pointer relative"
+                        onClick={() => { if (locked) return; onQuickStatusChange?.(order); }}
+                        disabled={locked}
+                        className={cn("group/status inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all duration-200 relative", locked ? "cursor-default opacity-70" : "hover:shadow-md hover:scale-[1.03] cursor-pointer")}
                         style={{
                           backgroundColor: `${order.status?.color}15`,
                           color: order.status?.color,
                         }}
-                        title="Click to change status"
+                        title={locked ? "Commande verrouillée" : "Click to change status"}
                       >
                         {order.status?.icon ? (
                           <DynamicIcon name={order.status.icon} className="w-3.5 h-3.5 shrink-0" />
@@ -339,7 +343,7 @@ export default function SellerOrdersListView({
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl border-none shadow-2xl p-1.5 min-w-[150px]">
-                          <DropdownMenuItem onClick={() => onEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
+                          <DropdownMenuItem onClick={() => onEdit(order)} disabled={locked} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                             <Edit2 className="w-3.5 h-3.5" /> Edit
                           </DropdownMenuItem>
                           <OrderContactSubmenu phone={order.phone} />

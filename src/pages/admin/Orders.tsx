@@ -173,6 +173,9 @@ const computeShortLines = (order: any, productMap: Map<string, number>, accessor
     return lines;
 };
 
+const LOCKED_ORDER_CATEGORIES = ['paid', 'unpaid'];
+const isOrderLocked = (order: any): boolean => LOCKED_ORDER_CATEGORIES.includes(order?.status?.category);
+
 // --- Schemas ---
 const orderItemSchema = z.object({
     product_id: z.string().optional().nullable(),
@@ -637,6 +640,18 @@ const Orders = () => {
             }, 500);
         };
 
+        // Stock changes from other users (confirm-deduct, restock, manual edit) must refresh
+        // product/accessory stock FAST so the red shortage highlight + stock badges flip in
+        // near-realtime. Short debounce = snappy, still coalesces bursts.
+        let stockTimer: ReturnType<typeof setTimeout> | null = null;
+        const debouncedStockInvalidate = () => {
+            if (stockTimer) clearTimeout(stockTimer);
+            stockTimer = setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['products-dropdown', activeBusinessId] });
+                queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', activeBusinessId] });
+            }, 150);
+        };
+
         const channel = supabase
             .channel(`orders-cache-invalidate-${activeBusinessId}`)
             .on(
@@ -667,10 +682,23 @@ const Orders = () => {
                 { event: '*', schema: 'public', table: 'courier_parcels' },
                 () => { debouncedInvalidate(); }
             )
+            // Stock streams: products/accessories edits → refresh stock so the shortage
+            // highlight + badges update in realtime for every concurrent user.
+            .on(
+                'postgres_changes' as any,
+                { event: '*', schema: 'public', table: 'products' },
+                () => { debouncedStockInvalidate(); }
+            )
+            .on(
+                'postgres_changes' as any,
+                { event: '*', schema: 'public', table: 'accessories' },
+                () => { debouncedStockInvalidate(); }
+            )
             .subscribe();
 
         return () => {
             if (debounceTimer) clearTimeout(debounceTimer);
+            if (stockTimer) clearTimeout(stockTimer);
             supabase.removeChannel(channel);
         };
     }, [activeBusinessId, queryClient]);
@@ -2015,7 +2043,8 @@ const Orders = () => {
     }, [accessories]);
 
     const bulkStatusMutation = useMutation({
-        mutationFn: async ({ orderIds, statusId, reportedDate, commentOverride }: { orderIds: string[], statusId: string, reportedDate?: string, commentOverride?: string }) => {
+        mutationFn: async ({ orderIds: rawOrderIds, statusId, reportedDate, commentOverride }: { orderIds: string[], statusId: string, reportedDate?: string, commentOverride?: string }) => {
+            const orderIds = rawOrderIds.filter((id: string) => !lockedOrderIds.has(id));
             const userRes = await (supabase as any).auth.getUser();
             const userId = userRes.data.user?.id;
 
@@ -2119,7 +2148,8 @@ const Orders = () => {
     });
 
     const bulkAttributeMutation = useMutation({
-        mutationFn: async ({ orderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
+        mutationFn: async ({ orderIds: rawOrderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
+            const orderIds = rawOrderIds.filter((id: string) => !lockedOrderIds.has(id));
             const updatePayload: any = {
                 assign_id: sellerId,
                 seller_id: sellerId,
@@ -2145,16 +2175,18 @@ const Orders = () => {
     });
 
     const toggleOrderSelection = (id: string) => {
+        if (lockedOrderIds.has(id)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — sélection impossible.", variant: "destructive" }); return; }
         setSelectedOrders(prev =>
             prev.includes(id) ? prev.filter(oid => oid !== id) : [...prev, id]
         );
     };
 
     const toggleSelectAll = (orderIds: string[]) => {
-        if (selectedOrders.length === orderIds.length) {
+        const selectable = orderIds.filter((id) => !lockedOrderIds.has(id));
+        if (selectedOrders.length === selectable.length && selectable.length > 0) {
             setSelectedOrders([]);
         } else {
-            setSelectedOrders(orderIds);
+            setSelectedOrders(selectable);
         }
     };
 
@@ -2209,6 +2241,12 @@ const Orders = () => {
         });
         return s;
     }, [orders, productStockById, accessoryStockById]);
+
+    const lockedOrderIds = useMemo(() => {
+        const s = new Set<string>();
+        ((orders as any[]) || []).forEach((o) => { if (isOrderLocked(o)) s.add(o.id); });
+        return s;
+    }, [orders]);
 
     const duplicatePhones = useMemo(() => {
         if (!aggregateOrders?.length) return new Set<string>();
@@ -2340,6 +2378,7 @@ const Orders = () => {
     }, [page, totalPages]);
 
     const handleEdit = (order: any) => {
+        if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
         setSelectedOrder(order);
         form.reset({
             name: order.name,
@@ -3358,6 +3397,7 @@ const Orders = () => {
                                 {filteredOrders.map((order) => {
                                             const isDuplicateClient = duplicatePhones.has(order.phone);
                                             const isShortCard = shortOrderIds.has(order.id);
+                                            const cardLocked = isOrderLocked(order);
                                             const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
                                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                                             const trackingCode = latestParcel?.tracking_code;
@@ -3398,7 +3438,8 @@ const Orders = () => {
                                                     <Checkbox
                                                         checked={selectedOrders.includes(order.id)}
                                                         onCheckedChange={() => toggleOrderSelection(order.id)}
-                                                        className="h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light shrink-0"
+                                                        disabled={cardLocked}
+                                                        className={cn("h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light shrink-0", cardLocked && 'opacity-40 cursor-not-allowed')}
                                                     />
                                                     <span
                                                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
@@ -3457,7 +3498,7 @@ const Orders = () => {
                                                         >
                                                             <Truck className="w-3.5 h-3.5" /> Track
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
+                                                        <DropdownMenuItem onClick={() => handleEdit(order)} disabled={cardLocked} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                             <Edit2 className="w-3.5 h-3.5" /> Edit Order
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
@@ -3642,6 +3683,7 @@ const Orders = () => {
                             selectedOrders={selectedOrders}
                             duplicatePhones={duplicatePhones}
                             shortOrderIds={shortOrderIds}
+                            lockedOrderIds={lockedOrderIds}
                             toggleOrderSelection={toggleOrderSelection}
                             toggleSelectAll={toggleSelectAll}
                             onView={(order) => { setSelectedOrder(order); setIsViewModalOpen(true); }}
@@ -3649,7 +3691,7 @@ const Orders = () => {
                             onDelete={(order) => setOrderPendingDelete(order)}
                             onTrackParcel={(id) => { setParcelTrackingOrderId(id); setParcelTrackingOpen(true); }}
                             onStatusHistory={setHistoryDialogOrder}
-                            onQuickStatusChange={(order) => { setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
+                            onQuickStatusChange={(order) => { if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — changement de statut impossible.", variant: "destructive" }); return; } setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
                             onStockAlert={(o) => setStockAlert([{ orderName: o.name || 'Commande', lines: computeShortLines(o, productStockById, accessoryStockById) }])}
                             isOrderCategory={isOrderCategory}
                             getCourierPackageStatus={getCourierPackageStatus}
@@ -4837,22 +4879,9 @@ const Orders = () => {
                                                                                     <FormMessage />
                                                                                     {(() => {
                                                                                         const selectedAccessory = accessories?.find((a: any) => a.id === field.value);
-                                                                                        if (selectedAccessory && selectedAccessory.stock !== null && selectedAccessory.stock !== undefined) {
-                                                                                            if (selectedAccessory.stock === 0) {
-                                                                                                return (
-                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-ant-rose/10 border border-red-200">
-                                                                                                        <span className="text-[8px] font-bold text-ant-rose uppercase">Out of stock</span>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            } else if (selectedAccessory.stock < 10) {
-                                                                                                return (
-                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-ant-orange/10 border border-ant-orange/30">
-                                                                                                        <span className="text-[8px] font-bold text-ant-orange uppercase">Low: {selectedAccessory.stock}</span>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            }
-                                                                                        }
-                                                                                        return null;
+                                                                                        if (!selectedAccessory) return null;
+                                                                                        const sn = toProductStockNumber(selectedAccessory?.stock);
+                                                                                        return <OrderLineProductStockHint stock={sn} blockZeroStock={false} />;
                                                                                     })()}
                                                                                 </FormItem>
                                                                             )}

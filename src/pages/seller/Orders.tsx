@@ -162,6 +162,9 @@ const computeShortLines = (order: any, productMap: Map<string, number>, accessor
     return lines;
 };
 
+const LOCKED_ORDER_CATEGORIES = ['paid', 'unpaid'];
+const isOrderLocked = (order: any): boolean => LOCKED_ORDER_CATEGORIES.includes(order?.status?.category);
+
 // --- Schemas ---
 const orderItemSchema = z.object({
     product_id: z.string().uuid("Please select a product"),
@@ -742,6 +745,17 @@ const Orders = () => {
             }, 500);
         };
 
+        // Stock changes from other users → refresh product/accessory stock FAST so the
+        // shortage highlight + stock badges flip in near-realtime.
+        let stockTimer: ReturnType<typeof setTimeout> | null = null;
+        const debouncedStockInvalidate = () => {
+            if (stockTimer) clearTimeout(stockTimer);
+            stockTimer = setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['products-dropdown-seller'] });
+                queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            }, 150);
+        };
+
         const channel = supabase
             .channel(`orders-cache-invalidate-seller-${activeBusinessId}`)
             .on(
@@ -772,10 +786,23 @@ const Orders = () => {
                 { event: '*', schema: 'public', table: 'courier_parcels' },
                 () => { debouncedInvalidate(); }
             )
+            // Stock streams: products/accessories edits → refresh stock so the shortage
+            // highlight + badges update in realtime for every concurrent user.
+            .on(
+                'postgres_changes' as any,
+                { event: '*', schema: 'public', table: 'products' },
+                () => { debouncedStockInvalidate(); }
+            )
+            .on(
+                'postgres_changes' as any,
+                { event: '*', schema: 'public', table: 'accessories' },
+                () => { debouncedStockInvalidate(); }
+            )
             .subscribe();
 
         return () => {
             if (debounceTimer) clearTimeout(debounceTimer);
+            if (stockTimer) clearTimeout(stockTimer);
             supabase.removeChannel(channel);
         };
     }, [activeBusinessId, userId, queryClient]);
@@ -2199,6 +2226,12 @@ const Orders = () => {
         return s;
     }, [orders, productStockById, accessoryStockById]);
 
+    const lockedOrderIds = useMemo(() => {
+        const s = new Set<string>();
+        ((orders as any[]) || []).forEach((o) => { if (isOrderLocked(o)) s.add(o.id); });
+        return s;
+    }, [orders]);
+
     const duplicatePhones = useMemo(() => {
         const duplicates = new Set<string>();
         if (!orders || !businessDuplicatePhones || businessDuplicatePhones.size === 0) {
@@ -2608,6 +2641,7 @@ const Orders = () => {
     }, [aggregateOrders, userId, sellerProfile, sellerProductIds, sellerPaidAmount, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
 
     const handleEdit = (order: any) => {
+        if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
         setSelectedOrder(order);
         form.reset({
             name: order.name,
@@ -3337,6 +3371,7 @@ const Orders = () => {
                             const trackingCode = latestParcel?.tracking_code;
                             const isDuplicateClient = duplicatePhones.has(order.phone);
                             const isShortCard = shortOrderIds.has(order.id);
+                            const cardLocked = isOrderLocked(order);
                             const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
                             const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
                             const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
@@ -3420,7 +3455,7 @@ const Orders = () => {
                                                     >
                                                         <Truck className="w-3.5 h-3.5" /> Track
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
+                                                    <DropdownMenuItem onClick={() => handleEdit(order)} disabled={cardLocked} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                         <Edit2 className="w-3.5 h-3.5" /> Edit Order
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
@@ -3582,11 +3617,12 @@ const Orders = () => {
                         orders={filteredOrders}
                         duplicatePhones={duplicatePhones}
                         shortOrderIds={shortOrderIds}
+                        lockedOrderIds={lockedOrderIds}
                         onView={(order) => { setSelectedOrder(order); setIsViewModalOpen(true); }}
                         onEdit={handleEdit}
                         onTrackParcel={(id) => { setParcelTrackingOrderId(id); setParcelTrackingOpen(true); }}
                         onStatusHistory={setHistoryDialogOrder}
-                        onQuickStatusChange={(order) => { setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
+                        onQuickStatusChange={(order) => { if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — changement de statut impossible.", variant: "destructive" }); return; } setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
                         onStockAlert={(o) => setStockAlert([{ orderName: o.name || 'Commande', lines: computeShortLines(o, productStockById, accessoryStockById) }])}
                         isOrderCategory={statusCats.isOrderCategory}
                         getCourierPackageStatus={getCourierPackageStatus}
@@ -4726,22 +4762,9 @@ const Orders = () => {
                                                                                     <FormMessage />
                                                                                     {(() => {
                                                                                         const selectedAccessory = accessories?.find((a: any) => a.id === field.value);
-                                                                                        if (selectedAccessory && selectedAccessory.stock !== null && selectedAccessory.stock !== undefined) {
-                                                                                            if (selectedAccessory.stock === 0) {
-                                                                                                return (
-                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-ant-rose/10 border border-red-200">
-                                                                                                        <span className="text-[8px] font-bold text-ant-rose uppercase">Out of stock</span>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            } else if (selectedAccessory.stock < 10) {
-                                                                                                return (
-                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-ant-orange/10 border border-amber-200">
-                                                                                                        <span className="text-[8px] font-bold text-ant-orange uppercase">Low: {selectedAccessory.stock}</span>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            }
-                                                                                        }
-                                                                                        return null;
+                                                                                        if (!selectedAccessory) return null;
+                                                                                        const sn = toProductStockNumber(selectedAccessory?.stock);
+                                                                                        return <OrderLineProductStockHint stock={sn} blockZeroStock={false} />;
                                                                                     })()}
                                                                                 </FormItem>
                                                                             )}
