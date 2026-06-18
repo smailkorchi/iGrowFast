@@ -12,7 +12,20 @@ import {
     Lock,
     Save,
     CheckCircle2,
+    Eye,
+    Coins,
+    Banknote,
+    ArrowDownRight,
+    Megaphone,
+    Wallet,
 } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +49,13 @@ type Payout = {
     status: 'pending' | 'partial' | 'paid';
     created_at: string;
     paid_at: string | null;
+};
+
+type Txn = {
+    mediabuyer_payment_id: string;
+    amount: number;
+    paid_at: string;
+    note: string | null;
 };
 
 type UserProfile = {
@@ -82,6 +102,36 @@ const Payments: React.FC = () => {
         },
         enabled: !!currentUserId,
     });
+
+    // Real payment dates + amounts come from the txns (now readable by the owning
+    // media buyer via RLS). Group by payout so "Versé le" reflects when money
+    // actually landed and the eye modal can list every versement.
+    const payoutIds = useMemo(() => payouts.map((p) => p.id), [payouts]);
+    const { data: txns = [] } = useQuery<Txn[]>({
+        queryKey: ['mb-payments-txns', currentUserId, payoutIds.join(',')],
+        queryFn: async () => {
+            if (payoutIds.length === 0) return [];
+            const { data, error } = await (supabase as any)
+                .from('mediabuyer_payment_txns')
+                .select('mediabuyer_payment_id, amount, paid_at, note')
+                .in('mediabuyer_payment_id', payoutIds)
+                .order('paid_at', { ascending: false });
+            if (error) throw error;
+            return (data || []) as Txn[];
+        },
+        enabled: payoutIds.length > 0,
+    });
+
+    const txnsByPayout = useMemo(() => {
+        const m: Record<string, Txn[]> = {};
+        for (const t of txns) (m[t.mediabuyer_payment_id] = m[t.mediabuyer_payment_id] || []).push({ ...t, amount: Number(t.amount) || 0 });
+        return m;
+    }, [txns]);
+    // Latest real payment date for a payout (txn date, else the ticket paid_at).
+    const settledDate = (p: Payout): string | null => txnsByPayout[p.id]?.[0]?.paid_at || p.paid_at || null;
+
+    const [selected, setSelected] = useState<Payout | null>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
 
     const { rows: allRows, isLoading: loadingEarnings } = useMediaBuyerEarnings(currentMonth);
     const myEarnings = useMemo(() => allRows.find((r) => r.mediabuyer_id === currentUserId) || null, [allRows, currentUserId]);
@@ -308,11 +358,15 @@ const Payments: React.FC = () => {
                                             )}
                                         </div>
                                     </div>
-                                    {p.paid_at && (
-                                        <p className="font-serif italic text-[11px] text-ant-mid">
-                                            Versé le {format(new Date(p.paid_at), 'dd MMMM yyyy', { locale: fr })}
-                                        </p>
-                                    )}
+                                    <div className="flex items-center justify-between gap-2 pt-1">
+                                        {(() => { const d = settledDate(p); return d ? (
+                                            <p className="font-serif italic text-[11px] text-ant-mid">Versé le {format(new Date(d), 'dd MMMM yyyy', { locale: fr })}</p>
+                                        ) : <span />; })()}
+                                        <button type="button" onClick={() => { setSelected(p); setDetailOpen(true); }}
+                                            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[11px] font-semibold text-ant-ink hover:bg-ant-light cursor-pointer">
+                                            <Eye className="w-3.5 h-3.5" strokeWidth={1.75} /> Détails
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -329,6 +383,7 @@ const Payments: React.FC = () => {
                                         <th className="text-right px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Montant</th>
                                         <th className="text-left px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Statut</th>
                                         <th className="text-left px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Versé le</th>
+                                        <th className="px-4 py-3 w-12"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -389,7 +444,13 @@ const Payments: React.FC = () => {
                                                 })()}
                                             </td>
                                             <td className="px-4 py-3 text-[12px] text-ant-ink tabular-nums">
-                                                {p.paid_at ? format(new Date(p.paid_at), 'dd MMM yyyy', { locale: fr }) : '—'}
+                                                {(() => { const d = settledDate(p); return d ? format(new Date(d), 'dd MMM yyyy', { locale: fr }) : '—'; })()}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button type="button" onClick={() => { setSelected(p); setDetailOpen(true); }} aria-label="Détails"
+                                                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-ant-ink cursor-pointer transition-colors">
+                                                    <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -402,6 +463,125 @@ const Payments: React.FC = () => {
 
             {/* Bank details */}
             <BankDetailsCard profile={profile} currentUserId={currentUserId} />
+
+            {/* Detail modal — payout breakdown */}
+            <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+                <DialogContent className="max-w-xl p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden">
+                    {selected && (() => {
+                        const total = Number(selected.total_amount || 0);
+                        const paid = Number(selected.paid_amount || 0);
+                        const remaining = Math.max(0, total - paid);
+                        const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
+                        const isCommission = selected.payment_type === 'commission';
+                        const earned = isCommission ? Number(selected.commission_earned || 0) : Number(selected.salary_earned || 0);
+                        const list = txnsByPayout[selected.id] || [];
+                        const statusMeta = selected.status === 'paid'
+                            ? { cls: 'border-ant-green/25 bg-ant-green/10 text-ant-green', dot: 'bg-ant-green', label: 'Payé' }
+                            : selected.status === 'partial'
+                              ? { cls: 'border-ant-blue/25 bg-ant-blue/10 text-ant-blue', dot: 'bg-ant-blue', label: 'Partiel' }
+                              : { cls: 'border-ant-orange/25 bg-ant-orange/10 text-ant-orange', dot: 'bg-ant-orange', label: 'En attente' };
+                        return (
+                            <>
+                                <div className="h-[3px] w-full bg-ant-orange" />
+                                <DialogHeader className="px-5 py-4 border-b border-ant-line text-left space-y-1.5">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" /> Paiement · Détail
+                                        <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-normal normal-case', statusMeta.cls)}>
+                                            <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} /> {statusMeta.label}
+                                        </span>
+                                        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-normal normal-case', isCommission ? 'bg-ant-green/10 text-ant-green' : 'bg-ant-ink/10 text-ant-ink')}>
+                                            {isCommission ? 'Commission' : 'Salaire'}
+                                        </span>
+                                    </div>
+                                    <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight capitalize">
+                                        {format(parseISO(selected.payout_month + '-01'), 'MMMM yyyy', { locale: fr })}
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                        {(() => { const d = settledDate(selected); return d ? `Versé le ${format(new Date(d), 'd MMMM yyyy', { locale: fr })}` : 'Pas encore versé'; })()}
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                <div className="p-5 space-y-4 max-h-[72vh] overflow-y-auto ant-scroll">
+                                    {/* Summary tiles */}
+                                    <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                        <div className="bg-ant-paper p-3.5">
+                                            <div className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-ant-mid">
+                                                <Coins className="w-3 h-3 text-ant-ink" strokeWidth={1.75} /> Gagné
+                                            </div>
+                                            <p className="font-display text-[18px] font-semibold tabular-nums text-ant-ink leading-none mt-1.5">{fmtCur(earned)}</p>
+                                            <p className="font-serif italic text-[10px] text-ant-mid mt-0.5">{isCommission ? `${fmtNum(selected.delivered_orders)} livrées` : 'salaire fixe'}</p>
+                                        </div>
+                                        <div className="bg-ant-paper p-3.5">
+                                            <div className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-ant-mid">
+                                                <Banknote className="w-3 h-3 text-ant-green" strokeWidth={1.75} /> Versé
+                                            </div>
+                                            <p className="font-display text-[18px] font-semibold tabular-nums text-ant-green leading-none mt-1.5">{fmtCur(paid)}</p>
+                                            <p className="font-serif italic text-[10px] text-ant-mid mt-0.5">{pct.toFixed(0)}% du total</p>
+                                        </div>
+                                        <div className="bg-ant-paper p-3.5">
+                                            <div className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-ant-mid">
+                                                <ArrowDownRight className="w-3 h-3 text-ant-orange" strokeWidth={1.75} /> Restant
+                                            </div>
+                                            <p className="font-display text-[18px] font-semibold tabular-nums text-ant-ink leading-none mt-1.5">{fmtCur(remaining)}</p>
+                                            <p className="font-serif italic text-[10px] text-ant-mid mt-0.5">à percevoir</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Activity (commission only) */}
+                                    {isCommission && (
+                                        <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                            <div className="bg-ant-paper p-3">
+                                                <div className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-ant-mid"><Wallet className="w-3 h-3 text-ant-rose" strokeWidth={1.75} /> Dépenses</div>
+                                                <p className="font-display text-[15px] font-semibold tabular-nums text-ant-ink leading-none mt-1.5" title={fmtCurFull(Number(selected.total_spend))}>{fmtCur(Number(selected.total_spend))}</p>
+                                            </div>
+                                            <div className="bg-ant-paper p-3">
+                                                <div className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-ant-mid"><CheckCircle2 className="w-3 h-3 text-ant-green" strokeWidth={1.75} /> Livrées</div>
+                                                <p className="font-display text-[15px] font-semibold tabular-nums text-ant-green leading-none mt-1.5">{fmtNum(selected.delivered_orders)}</p>
+                                            </div>
+                                            <div className="bg-ant-paper p-3">
+                                                <div className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-ant-mid"><Megaphone className="w-3 h-3 text-ant-orange" strokeWidth={1.75} /> Campagnes</div>
+                                                <p className="font-display text-[15px] font-semibold tabular-nums text-ant-ink leading-none mt-1.5">{fmtNum(selected.campaigns_count)}</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Versements */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                <Banknote className="w-3.5 h-3.5 text-ant-green" strokeWidth={1.75} /> Versements
+                                            </div>
+                                            <span className="font-serif italic text-[11px] text-ant-mid">{list.length} {list.length > 1 ? 'paiements' : 'paiement'}</span>
+                                        </div>
+                                        {list.length > 0 ? (
+                                            <div className="rounded-xl border border-ant-line overflow-hidden divide-y divide-ant-line">
+                                                {list.map((tx, i) => (
+                                                    <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-ant-paper">
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <div className="h-7 w-7 rounded-lg border border-ant-green/25 bg-ant-green/10 text-ant-green flex items-center justify-center shrink-0">
+                                                                <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="font-display text-[12px] font-semibold text-ant-ink tabular-nums">{format(new Date(tx.paid_at), 'd MMMM yyyy', { locale: fr })}</p>
+                                                                {tx.note && <p className="font-serif italic text-[10px] text-ant-mid truncate">{tx.note}</p>}
+                                                            </div>
+                                                        </div>
+                                                        <span className="font-display text-[13px] font-semibold text-ant-green tabular-nums shrink-0">+{fmtCur(tx.amount)} MAD</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-xl border border-dashed border-ant-line bg-ant-light/50 px-4 py-5 text-center">
+                                                <p className="font-serif italic text-[11px] text-ant-mid">Aucun versement enregistré pour ce mois</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

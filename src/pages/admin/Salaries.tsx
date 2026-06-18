@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { RecordPaymentDialog, PaymentHistoryDialog } from '@/components/salaries/PayoutPaymentDialogs';
 import { SellerBreakdownDialog, GlobalLedgerDialog } from '@/components/salaries/SellerLedgerDialogs';
+import { MediaBuyerBreakdownDialog, MediaBuyerGlobalDialog, type MediaBuyerLedger } from '@/components/salaries/MediaBuyerLedgerDialogs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -601,6 +602,10 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const [recordOpen, setRecordOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [activeRow, setActiveRow] = useState<MBPayout | null>(null);
+    // Breakdown ("eye") dialogs — per-buyer and global overview.
+    const [breakdownMbId, setBreakdownMbId] = useState<string | null>(null);
+    const [breakdownOpen, setBreakdownOpen] = useState(false);
+    const [globalOpen, setGlobalOpen] = useState(false);
 
     const { data: payouts = [], isLoading } = useQuery<MBPayout[]>({
         queryKey: ['mb-payouts', activeBusinessId],
@@ -693,6 +698,34 @@ const MediaBuyerPayoutsList: React.FC = () => {
         paid: payouts.filter((p) => p.status === 'paid').length,
     };
 
+    // Per-media-buyer ledger aggregated from the payout rows (no carry — each
+    // month is independent). Drives the breakdown eyes.
+    const mbLedger = useMemo<MediaBuyerLedger[]>(() => {
+        const m = new Map<string, MediaBuyerLedger>();
+        for (const p of payouts) {
+            const id = p.mediabuyer_id;
+            let e = m.get(id);
+            if (!e) {
+                e = { mediabuyer_id: id, name: p.mediabuyer?.name || '—', email: p.mediabuyer?.email || '', avatar_url: p.mediabuyer?.avatar_url || null, payouts: [], lifetimeEarned: 0, lifetimePaid: 0, owe: 0 };
+                m.set(id, e);
+            }
+            const total = Number(p.total_amount || 0);
+            const paid = Number(p.paid_amount || 0);
+            e.payouts.push({
+                id: p.id, payout_month: p.payout_month, payment_type: p.payment_type,
+                salary_earned: Number(p.salary_earned || 0), commission_earned: Number(p.commission_earned || 0),
+                total_amount: total, paid_amount: paid, delivered_orders: Number(p.delivered_orders || 0),
+                total_spend: Number(p.total_spend || 0), campaigns_count: Number(p.campaigns_count || 0),
+                status: p.status, paid_at: p.paid_at,
+            });
+            e.lifetimeEarned += total; e.lifetimePaid += paid; e.owe += Math.max(0, total - paid);
+        }
+        const arr = Array.from(m.values());
+        arr.forEach((e) => e.payouts.sort((a, b) => b.payout_month.localeCompare(a.payout_month)));
+        return arr;
+    }, [payouts]);
+    const breakdownBuyer = breakdownMbId ? mbLedger.find((b) => b.mediabuyer_id === breakdownMbId) || null : null;
+
     return (
         <div className="space-y-5">
             {/* KPI strip */}
@@ -741,6 +774,14 @@ const MediaBuyerPayoutsList: React.FC = () => {
                             className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                         />
                     </div>
+                    <Button
+                        variant="outline"
+                        onClick={() => setGlobalOpen(true)}
+                        className="h-10 px-4 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light text-[12px] font-semibold gap-2 cursor-pointer whitespace-nowrap"
+                        title="Overview of all media buyers"
+                    >
+                        <Eye className="w-3.5 h-3.5" /> Overview
+                    </Button>
                     {selected.length > 0 && (
                         <Button
                             onClick={() => settleMutation.mutate(selected)}
@@ -873,6 +914,15 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
+                                                        onClick={() => { setBreakdownMbId(p.mediabuyer_id); setBreakdownOpen(true); }}
+                                                        className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                                                        title="Breakdown by month"
+                                                    >
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
                                                         onClick={() => { setActiveRow(p); setHistoryOpen(true); }}
                                                         className="h-8 w-8 rounded-full p-0 text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                                                         title="Payment history"
@@ -945,6 +995,19 @@ const MediaBuyerPayoutsList: React.FC = () => {
                     />
                 </>
             )}
+
+            {/* Breakdown eyes */}
+            <MediaBuyerBreakdownDialog
+                open={breakdownOpen}
+                onOpenChange={setBreakdownOpen}
+                buyer={breakdownBuyer}
+            />
+            <MediaBuyerGlobalDialog
+                open={globalOpen}
+                onOpenChange={setGlobalOpen}
+                buyers={mbLedger}
+                onPick={(b) => { setBreakdownMbId(b.mediabuyer_id); setGlobalOpen(false); setBreakdownOpen(true); }}
+            />
         </div>
     );
 };
