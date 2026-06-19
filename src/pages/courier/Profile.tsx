@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import NiceAvatar from 'react-nice-avatar';
 import {
     Phone,
     Mail,
@@ -44,7 +45,7 @@ const CourierProfile = () => {
             if (!user) return null;
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, email, phone, address, avatar_url, commission_basis, commission_price, salary_amount, payment_type, cin_number')
+                .select('id, name, email, phone, address, avatar_url, avatar_config, commission_basis, commission_price, salary_amount, payment_type, cin_number')
                 .eq('id', user.id)
                 .maybeSingle();
             if (error) throw error;
@@ -105,6 +106,8 @@ const CourierProfile = () => {
                     <div className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-2xl border border-ant-line bg-ant-light flex items-center justify-center overflow-hidden shrink-0">
                         {me.avatar_url ? (
                             <img src={me.avatar_url} className="w-full h-full object-cover" alt="" />
+                        ) : (me as any).avatar_config ? (
+                            <NiceAvatar className="w-full h-full" style={{ width: '100%', height: '100%' }} shape="square" {...((me as any).avatar_config)} />
                         ) : (
                             <span className="font-display text-[22px] md:text-[26px] text-ant-ink">{initials}</span>
                         )}

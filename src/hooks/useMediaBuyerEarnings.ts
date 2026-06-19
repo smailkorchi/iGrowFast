@@ -44,6 +44,7 @@ export type MediaBuyerEarnings = {
     name: string;
     email: string;
     avatar_url: string | null;
+    avatar_config: unknown | null;
     phone: string | null;
     payment_type: 'commission' | 'salary' | null;
     commission_price: number;
@@ -77,6 +78,7 @@ type MBUser = {
     name: string;
     email: string;
     avatar_url: string | null;
+    avatar_config: unknown | null;
     phone: string | null;
     role: string;
     payment_type: 'commission' | 'salary' | null;
@@ -134,7 +136,7 @@ export function useMediaBuyerEarnings(month: string) {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, email, avatar_url, phone, role, payment_type, commission_price, salary_amount, bank_name, bank_account_holder, bank_rib, cin_number, active')
+                .select('id, name, email, avatar_url, avatar_config, phone, role, payment_type, commission_price, salary_amount, bank_name, bank_account_holder, bank_rib, cin_number, active')
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('role', 'mediabuyer');
             if (error) throw error;
@@ -284,6 +286,7 @@ export function useMediaBuyerEarnings(month: string) {
                 name: u.name,
                 email: u.email,
                 avatar_url: u.avatar_url,
+                avatar_config: u.avatar_config ?? null,
                 phone: u.phone,
                 payment_type: u.payment_type,
                 commission_price: commissionPrice,

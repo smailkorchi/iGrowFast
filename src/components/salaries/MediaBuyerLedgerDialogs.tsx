@@ -7,7 +7,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Coins,
     Banknote,
@@ -193,7 +193,8 @@ export const MediaBuyerPayoutDetailDialog: React.FC<{
     buyerName: string;
     buyerEmail: string;
     buyerAvatar: string | null;
-}> = ({ open, onOpenChange, payout, buyerName, buyerEmail, buyerAvatar }) => {
+    buyerAvatarConfig?: unknown;
+}> = ({ open, onOpenChange, payout, buyerName, buyerEmail, buyerAvatar, buyerAvatarConfig }) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-xl p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden">
@@ -208,10 +209,7 @@ export const MediaBuyerPayoutDetailDialog: React.FC<{
                             <div className="h-[3px] w-full bg-ant-orange" />
                             <DialogHeader className="px-6 py-5 border-b border-ant-line text-left space-y-3">
                                 <div className="flex items-center gap-3">
-                                    <Avatar className="h-11 w-11 rounded-xl border border-ant-line">
-                                        <AvatarImage src={buyerAvatar || ''} className="object-cover" />
-                                        <AvatarFallback className="rounded-xl text-[13px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(buyerName || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
+                                    <UserAvatar url={buyerAvatar} config={buyerAvatarConfig} name={buyerName} className="h-11 w-11 rounded-xl border border-ant-line text-[13px] font-display font-semibold" />
                                     <div className="min-w-0 flex-1">
                                         <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight truncate">{buyerName}</DialogTitle>
                                         <DialogDescription className="font-serif italic text-[12px] text-ant-mid truncate">{buyerEmail}</DialogDescription>
@@ -265,10 +263,7 @@ export const MediaBuyerBreakdownDialog: React.FC<{
                         <div className="h-[3px] w-full bg-ant-orange" />
                         <DialogHeader className="px-6 py-5 border-b border-ant-line text-left space-y-3">
                             <div className="flex items-center gap-3">
-                                <Avatar className="h-11 w-11 rounded-xl border border-ant-line">
-                                    <AvatarImage src={buyer.avatar_url || ''} className="object-cover" />
-                                    <AvatarFallback className="rounded-xl text-[13px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(buyer.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                </Avatar>
+                                <UserAvatar url={buyer.avatar_url} config={(buyer as any).avatar_config} name={buyer.name} className="h-11 w-11 rounded-xl border border-ant-line text-[13px] font-display font-semibold" />
                                 <div className="min-w-0">
                                     <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight truncate">{buyer.name}</DialogTitle>
                                     <DialogDescription className="font-serif italic text-[12px] text-ant-mid truncate">{buyer.email}</DialogDescription>
@@ -366,10 +361,7 @@ export const MediaBuyerGlobalDialog: React.FC<{
                                     <tr key={b.mediabuyer_id} onClick={() => onPick(b)} className="border-b border-ant-line/50 last:border-0 hover:bg-ant-light/50 transition-colors cursor-pointer tabular-nums">
                                         <td className="px-4 py-2.5">
                                             <div className="flex items-center gap-2.5">
-                                                <Avatar className="h-7 w-7 rounded-lg border border-ant-line">
-                                                    <AvatarImage src={b.avatar_url || ''} className="object-cover" />
-                                                    <AvatarFallback className="rounded-lg text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(b.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
+                                                <UserAvatar url={b.avatar_url} config={(b as any).avatar_config} name={b.name} className="h-7 w-7 rounded-lg border border-ant-line text-[10px] font-display font-semibold" />
                                                 <span className="font-display text-[12px] font-semibold text-ant-ink truncate max-w-[180px]">{b.name}</span>
                                             </div>
                                         </td>

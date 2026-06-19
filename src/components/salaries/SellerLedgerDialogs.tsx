@@ -7,7 +7,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Coins,
     Banknote,
@@ -172,10 +172,7 @@ export const SellerBreakdownDialog: React.FC<{
                             <div className="h-[3px] w-full bg-ant-orange" />
                             <DialogHeader className="px-6 py-5 border-b border-ant-line text-left space-y-3">
                                 <div className="flex items-center gap-3">
-                                    <Avatar className="h-11 w-11 rounded-xl border border-ant-line">
-                                        <AvatarImage src={seller.avatar_url || ''} className="object-cover" />
-                                        <AvatarFallback className="rounded-xl text-[13px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(seller.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
+                                    <UserAvatar url={seller.avatar_url} config={(seller as any).avatar_config} name={seller.name} className="h-11 w-11 rounded-xl border border-ant-line text-[13px] font-display font-semibold" />
                                     <div className="min-w-0">
                                         <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight truncate">{seller.name}</DialogTitle>
                                         <DialogDescription className="font-serif italic text-[12px] text-ant-mid truncate">
@@ -276,10 +273,7 @@ export const GlobalLedgerDialog: React.FC<{
                                     <tr key={s.seller_id} onClick={() => onPick(s)} className="border-b border-ant-line/50 last:border-0 hover:bg-ant-light/50 transition-colors cursor-pointer tabular-nums">
                                         <td className="px-4 py-2.5">
                                             <div className="flex items-center gap-2.5">
-                                                <Avatar className="h-7 w-7 rounded-lg border border-ant-line">
-                                                    <AvatarImage src={s.avatar_url || ''} className="object-cover" />
-                                                    <AvatarFallback className="rounded-lg text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(s.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
+                                                <UserAvatar url={s.avatar_url} config={(s as any).avatar_config} name={s.name} className="h-7 w-7 rounded-lg border border-ant-line text-[10px] font-display font-semibold" />
                                                 <span className="font-display text-[12px] font-semibold text-ant-ink truncate max-w-[180px]">{s.name}</span>
                                             </div>
                                         </td>
@@ -354,10 +348,7 @@ export const SellerTicketDetailDialog: React.FC<{
                             <div className="h-[3px] w-full bg-ant-orange" />
                             <DialogHeader className="px-6 py-5 border-b border-ant-line text-left space-y-3">
                                 <div className="flex items-center gap-3">
-                                    <Avatar className="h-11 w-11 rounded-xl border border-ant-line">
-                                        <AvatarImage src={seller.avatar_url || ''} className="object-cover" />
-                                        <AvatarFallback className="rounded-xl text-[13px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(seller.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
+                                    <UserAvatar url={seller.avatar_url} config={(seller as any).avatar_config} name={seller.name} className="h-11 w-11 rounded-xl border border-ant-line text-[13px] font-display font-semibold" />
                                     <div className="min-w-0 flex-1">
                                         <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight truncate">{seller.name}</DialogTitle>
                                         <DialogDescription className="font-serif italic text-[12px] text-ant-mid truncate">{seller.email}</DialogDescription>

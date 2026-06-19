@@ -18,6 +18,7 @@ import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { SourcePills, type SourceStat } from './performance/SourcePills';
+import { UserAvatar } from '@/components/users/UserAvatar';
 
 export interface SellerSelfPerformanceSectionProps {
     sellerId: string;
@@ -68,7 +69,7 @@ export function SellerSelfPerformanceSection({
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, active, commission_price, commission_basis, products')
+                .select('id, name, avatar_url, avatar_config, active, commission_price, commission_basis, products')
                 .eq('id', sellerId)
                 .single();
             if (error) throw error;
@@ -273,6 +274,7 @@ export function SellerSelfPerformanceSection({
         return {
             name: sellerRow.name,
             avatar_url: sellerRow.avatar_url,
+            avatar_config: (sellerRow as any).avatar_config ?? null,
             active: sellerRow.active,
             assignedCount,
             assignedPercent,
@@ -366,13 +368,7 @@ export function SellerSelfPerformanceSection({
             <div className="p-5 space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(160px,180px)_1fr_minmax(130px,160px)] items-center gap-4">
                     <div className="flex items-center gap-3 min-w-0">
-                        {s.avatar_url ? (
-                            <img src={s.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover border border-ant-line shrink-0" />
-                        ) : (
-                            <div className="w-10 h-10 rounded-xl border border-ant-line bg-ant-light text-ant-ink flex items-center justify-center font-display text-[14px] font-semibold shrink-0">
-                                {s.name?.[0] ?? '?'}
-                            </div>
-                        )}
+                        <UserAvatar url={s.avatar_url} config={(s as any).avatar_config} name={s.name} className="w-10 h-10 rounded-xl border border-ant-line font-display text-[14px] font-semibold" />
                         <div className="min-w-0">
                             <p className="font-display text-[13px] font-semibold text-ant-ink truncate leading-tight">{s.name || 'Vous'}</p>
                             <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] mt-1 text-ant-mid">

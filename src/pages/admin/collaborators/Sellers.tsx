@@ -33,6 +33,7 @@ import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Select,
     SelectContent,
@@ -189,7 +190,7 @@ const Sellers = () => {
         try {
             const { data: sellersData, error: sellersErr } = await supabase
                 .from('users')
-                .select('id, name, email, avatar_url, products, assignment, commission_price, commission_basis, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
+                .select('id, name, email, avatar_url, avatar_config, products, assignment, commission_price, commission_basis, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
                 .eq('role', 'commercial')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: true });
@@ -502,13 +503,7 @@ const Sellers = () => {
 
                     <div className="flex items-center gap-4">
                         <div className="relative shrink-0">
-                            {seller.avatar_url ? (
-                                <img src={seller.avatar_url} alt={seller.name} className={cn('rounded-2xl object-cover border border-ant-line', rankMeta.avatarSize)} />
-                            ) : (
-                                <div className={cn('rounded-2xl bg-ant-ink/5 border border-ant-line flex items-center justify-center font-display font-semibold text-ant-ink', rankMeta.avatarSize, rank === 1 ? 'text-[26px]' : 'text-[20px]')}>
-                                    {seller.name?.charAt(0)?.toUpperCase()}
-                                </div>
-                            )}
+                            <UserAvatar url={seller.avatar_url} config={(seller as any).avatar_config} name={seller.name} className={cn('rounded-2xl border border-ant-line', rankMeta.avatarSize)} />
                             <span className={cn('absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-ant-paper', isOnline ? 'bg-ant-green' : 'bg-ant-mid/50')} />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -567,13 +562,7 @@ const Sellers = () => {
                 <div className="p-4 space-y-3">
                     <div className="flex items-start gap-3">
                         <div className="relative shrink-0">
-                            {seller.avatar_url ? (
-                                <img src={seller.avatar_url} alt={seller.name} className="h-12 w-12 rounded-2xl object-cover border border-ant-line" />
-                            ) : (
-                                <div className="h-12 w-12 rounded-2xl bg-ant-ink/5 border border-ant-line flex items-center justify-center">
-                                    <span className="font-display text-[16px] font-semibold text-ant-ink">{seller.name?.charAt(0)?.toUpperCase()}</span>
-                                </div>
-                            )}
+                            <UserAvatar url={seller.avatar_url} config={(seller as any).avatar_config} name={seller.name} className="h-12 w-12 rounded-2xl border border-ant-line" />
                             <span className={cn('absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-ant-paper', isOnline ? 'bg-ant-green' : 'bg-ant-mid/50')} />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -671,13 +660,7 @@ const Sellers = () => {
                     <div className="sticky top-0 bg-ant-paper z-10 border-b border-ant-line px-6 py-5">
                         <div className="flex items-start gap-4">
                             <div className="relative shrink-0">
-                                {seller.avatar_url ? (
-                                    <img src={seller.avatar_url} alt={seller.name} className="h-14 w-14 rounded-2xl object-cover border border-ant-line" />
-                                ) : (
-                                    <div className="h-14 w-14 rounded-2xl bg-ant-ink/5 border border-ant-line flex items-center justify-center">
-                                        <span className="font-display text-[20px] font-semibold text-ant-ink">{seller.name?.charAt(0)?.toUpperCase()}</span>
-                                    </div>
-                                )}
+                                <UserAvatar url={seller.avatar_url} config={(seller as any).avatar_config} name={seller.name} className="h-14 w-14 rounded-2xl border border-ant-line" />
                                 <span
                                     className={cn(
                                         'absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-ant-paper',

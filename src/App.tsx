@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import Register from "./pages/Register";
 import Dashboard from "./pages/admin/Dashboard";
 import Orders from "./pages/admin/Orders";
 import ImportOrders from "./pages/admin/ImportOrders";
@@ -176,6 +177,8 @@ const App = () => (
         <WhatsAppNotificationsProvider>
         <Routes>
           <Route path="/auth" element={<Auth />} />
+          {/* Public self-registration via a single-use admin invite link */}
+          <Route path="/register/:token" element={<Register />} />
           {/* Owner Routes */}
           <Route path="/owner/*" element={
             <ProtectedRoute allowedRoles={['owner']}>

@@ -27,6 +27,7 @@ import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFu
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { SourcePills, type SourceStat } from './performance/SourcePills';
 import { FinancialsWaterfall } from './performance/FinancialsWaterfall';
+import { UserAvatar } from '@/components/users/UserAvatar';
 
 interface DashboardSellersPerformanceProps {
     businessId: string;
@@ -70,6 +71,7 @@ type DSSeller = {
     id: string;
     name: string;
     avatar_url: string | null;
+    avatar_config: unknown | null;
     active: boolean | null;
     commission_price: number | null;
     commission_basis: string;
@@ -118,7 +120,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, active, commission_price, commission_basis, products')
+                .select('id, name, avatar_url, avatar_config, active, commission_price, commission_basis, products')
                 .eq('role', 'commercial')
                 .eq('DigiCom Business', businessId);
             return data || [];
@@ -450,6 +452,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 id: seller.id,
                 name: seller.name,
                 avatar_url: seller.avatar_url,
+                avatar_config: seller.avatar_config,
                 active: seller.active,
                 assignedCount,
                 assignedPercent,
@@ -628,6 +631,7 @@ interface SellerRow {
     id: string;
     name: string;
     avatar_url: string | null;
+    avatar_config: unknown | null;
     active: boolean | null;
     netResult: number;
     commission: number;
@@ -655,13 +659,7 @@ function SellerHeaderRow({
             className="w-full grid grid-cols-[minmax(120px,140px)_1fr_minmax(100px,120px)_14px] items-center gap-3 px-3 py-2 hover:bg-ant-line-soft transition-colors text-left"
         >
             <div className="flex items-center gap-2 min-w-0">
-                {seller.avatar_url ? (
-                    <img src={seller.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-                ) : (
-                    <div className="w-7 h-7 rounded-full bg-ant-ink/5 flex items-center justify-center text-[11px] font-semibold text-ant-ink shrink-0">
-                        {seller.name?.[0]}
-                    </div>
-                )}
+                <UserAvatar url={seller.avatar_url} config={(seller as any).avatar_config} name={seller.name} className="w-7 h-7 rounded-full text-[11px] font-semibold" />
                 <div className="min-w-0">
                     <p className="font-semibold text-ant-ink text-[11.5px] truncate leading-tight">{seller.name}</p>
                     <p className="text-[9px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">

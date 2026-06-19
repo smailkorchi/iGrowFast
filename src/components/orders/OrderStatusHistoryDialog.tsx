@@ -9,6 +9,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { DynamicIcon } from '@/lib/renderReactIcon';
@@ -19,7 +20,7 @@ type HistoryRecord = {
     comment: string | null;
     status_id: string | null;
     status?: { id: string; label: string | null; color: string | null; category?: string | null } | null;
-    user?: { name: string | null; avatar_url: string | null } | null;
+    user?: { name: string | null; avatar_url: string | null; avatar_config?: unknown } | null;
 };
 
 type OrderShape = {
@@ -53,7 +54,7 @@ export function OrderStatusHistoryDialog({
             if (!order?.id) return [];
             const { data, error } = await (supabase as any)
                 .from('order_status_history')
-                .select('*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)')
+                .select('*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)')
                 .eq('order_id', order.id)
                 .order('created_at', { ascending: true });
             if (error) throw error;
@@ -184,12 +185,12 @@ export function OrderStatusHistoryDialog({
                                                 {/* Author */}
                                                 <div className="flex items-center gap-2">
                                                     {record.user ? (
-                                                        <Avatar className="w-5 h-5 border bg-white">
-                                                            <AvatarImage src={record.user.avatar_url || undefined} />
-                                                            <AvatarFallback className="text-[9px] font-bold bg-ant-ink/5 text-ant-ink">
-                                                                {record.user.name?.[0] || '?'}
-                                                            </AvatarFallback>
-                                                        </Avatar>
+                                                        <UserAvatar
+                                                            url={record.user.avatar_url}
+                                                            config={(record.user as any).avatar_config}
+                                                            name={record.user.name}
+                                                            className="w-5 h-5 rounded-full border bg-white"
+                                                        />
                                                     ) : (
                                                         <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
                                                             <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />

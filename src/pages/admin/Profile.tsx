@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
+import NiceAvatar from 'react-nice-avatar';
 
 const Profile = () => {
     const { toast } = useToast();
@@ -213,6 +214,8 @@ const Profile = () => {
                             <input {...getInputProps()} />
                             {avatarPreview ? (
                                 <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
+                            ) : (profile as any)?.avatar_config ? (
+                                <NiceAvatar className="w-full h-full" style={{ width: '100%', height: '100%' }} shape="square" {...((profile as any).avatar_config)} />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-white/5">
                                     <span className="font-display text-[24px] font-semibold text-white/70">{initials}</span>

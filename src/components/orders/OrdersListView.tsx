@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -309,13 +310,13 @@ export default function OrdersListView({
                                     alt=""
                                     className="w-7 h-7 rounded-lg object-contain bg-white border border-ant-line p-0.5"
                                   />
-                                ) : order.courier?.avatar_url ? (
-                                  <Avatar className="w-7 h-7 border border-ant-line">
-                                    <AvatarImage src={order.courier.avatar_url} />
-                                    <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
-                                      {(order.courier.name || '?')[0]}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                ) : order.courier?.avatar_url || (order.courier as any)?.avatar_config ? (
+                                  <UserAvatar
+                                    url={order.courier.avatar_url}
+                                    config={(order.courier as any).avatar_config}
+                                    name={order.courier.name}
+                                    className="w-7 h-7 rounded-full border border-ant-line"
+                                  />
                                 ) : (
                                   <div className="w-7 h-7 rounded-lg bg-ant-ink/[0.06] flex items-center justify-center">
                                     <Truck className="w-3.5 h-3.5 text-ant-mid" />
@@ -348,12 +349,12 @@ export default function OrdersListView({
                   <td className="px-3 py-3">
                     {order.assignee ? (
                       <div className="flex items-center gap-1.5">
-                        <Avatar className="w-6 h-6 border border-white shadow-sm">
-                          <AvatarImage src={order.assignee.avatar_url} />
-                          <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
-                            {order.assignee.name?.[0]}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                          url={order.assignee.avatar_url}
+                          config={(order.assignee as any).avatar_config}
+                          name={order.assignee.name}
+                          className="w-6 h-6 rounded-full border border-white shadow-sm"
+                        />
                         <span className="text-[11px] font-bold text-ant-ink/60 truncate max-w-[70px]">
                           {order.assignee.name}
                         </span>

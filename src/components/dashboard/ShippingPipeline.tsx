@@ -61,7 +61,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url')
+                .select('id, name, avatar_url, avatar_config')
                 .eq('role', 'courier')
                 .eq('DigiCom Business', businessId);
             return data || [];

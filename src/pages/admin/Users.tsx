@@ -82,6 +82,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -94,6 +95,7 @@ import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
+import { InviteUserWizard } from '@/components/users/InviteUserWizard';
 
 const userSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -628,12 +630,11 @@ const Users = () => {
                     </DialogContent>
                 </Dialog>
 
-                <UserModal
+                {/* New users are created via an invite link — admins set role + access, the
+                    invitee sets their own identity (name, email, password, avatar). */}
+                <InviteUserWizard
                     isOpen={isAddModalOpen}
                     onClose={() => setIsAddModalOpen(false)}
-                    onSubmit={(values) => addUserMutation.mutate(values)}
-                    loading={addUserMutation.isPending}
-                    title="Create a new user"
                     activeBusinessId={activeBusinessId}
                 />
 
@@ -672,12 +673,12 @@ const UserCard = ({
         <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all">
             <div className={cn('h-[3px] w-full', meta.stripe)} />
             <div className="p-4 flex items-center gap-4">
-                <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line">
-                    <AvatarImage src={user.avatar_url || ''} className="object-cover" />
-                    <AvatarFallback className="rounded-2xl bg-ant-ink/5 text-ant-ink font-display font-semibold text-[15px]">
-                        {user.name?.substring(0, 2).toUpperCase() || '??'}
-                    </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                    url={user.avatar_url}
+                    config={(user as any).avatar_config}
+                    name={user.name}
+                    className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line font-display font-semibold text-[15px]"
+                />
 
                 <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">

@@ -18,18 +18,17 @@ import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Search,
-    Truck,
     Loader2,
     AlertCircle,
     FileText,
     Layers,
     Package,
     ListChecks,
-    User as UserIcon,
     X,
 } from 'lucide-react';
 import type { DeliveryNoteSellerScope } from './DeliveryNoteWizard';
 import { orderMatchesSellerProducts } from './DeliveryNoteWizard';
+import { UserAvatar } from '@/components/users/UserAvatar';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CourierDeliveryNoteWizard
@@ -44,6 +43,7 @@ type WizardCourier = {
     id: string;
     name: string;
     avatar_url: string | null;
+    avatar_config?: unknown;
     phone: string | null;
 };
 
@@ -168,7 +168,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                 `
                     id, courier_id, company_id, master_city_id, seller_id, assign_id,
                     items:order_items(product_id),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url, phone)
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config, phone)
                 `,
                 {
                     filters: [
@@ -210,6 +210,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                 name: string;
                 orderCount: number;
                 avatar_url: string | null;
+                avatar_config?: unknown;
                 phone: string | null;
             }[] = [];
             for (const [cid, count] of courierOrderCounts.entries()) {
@@ -219,6 +220,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                     name: courier?.name || 'Unknown',
                     orderCount: count,
                     avatar_url: courier?.avatar_url ?? null,
+                    avatar_config: (courier as { avatar_config?: unknown } | null)?.avatar_config ?? null,
                     phone: courier?.phone ?? null,
                 });
             }
@@ -248,7 +250,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                         *,
                         product:products(name, code)
                     ),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url, phone)
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config, phone)
                 `,
                 {
                     filters: [
@@ -647,17 +649,12 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-ant-ink/10 flex items-center justify-center overflow-hidden">
-                                                        {courier.avatar_url ? (
-                                                            <img
-                                                                src={courier.avatar_url}
-                                                                alt={courier.name}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <UserIcon className="w-5 h-5 text-ant-ink" />
-                                                        )}
-                                                    </div>
+                                                    <UserAvatar
+                                                        url={courier.avatar_url}
+                                                        config={(courier as any).avatar_config}
+                                                        name={courier.name}
+                                                        className="w-10 h-10 rounded-xl bg-ant-ink/10"
+                                                    />
                                                     <div className="flex-1">
                                                         <div className="font-bold text-ant-ink">{courier.name}</div>
                                                         <div className="text-xs text-ant-muted mt-1">
@@ -698,17 +695,12 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                 key={courier?.id || 'unknown'}
                                                 className="flex items-center gap-3 p-3 bg-ant-light rounded-xl flex-1 min-w-[200px]"
                                             >
-                                                <div className="w-10 h-10 rounded-xl bg-ant-ink/10 flex items-center justify-center overflow-hidden">
-                                                    {courier?.avatar_url ? (
-                                                        <img
-                                                            src={courier.avatar_url}
-                                                            alt={courier.name}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <Truck className="w-5 h-5 text-ant-ink" />
-                                                    )}
-                                                </div>
+                                                <UserAvatar
+                                                    url={courier?.avatar_url}
+                                                    config={(courier as any)?.avatar_config}
+                                                    name={courier?.name}
+                                                    className="w-10 h-10 rounded-xl bg-ant-ink/10"
+                                                />
                                                 <div className="flex-1">
                                                     <div className="font-bold text-sm">{courier?.name || 'Courier'}</div>
                                                     <div className="text-xs text-ant-muted">
@@ -818,13 +810,12 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                         <div key={courierId}>
                                             {selectedCourierId === 'all' && (
                                                 <div className="flex items-center gap-2 py-2 px-1">
-                                                    <div className="w-6 h-6 rounded-lg bg-ant-ink/10 flex items-center justify-center overflow-hidden">
-                                                        {courier?.avatar_url ? (
-                                                            <img src={courier.avatar_url} alt={courier?.name || ''} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <UserIcon className="w-3.5 h-3.5 text-ant-ink" />
-                                                        )}
-                                                    </div>
+                                                    <UserAvatar
+                                                        url={courier?.avatar_url}
+                                                        config={(courier as any)?.avatar_config}
+                                                        name={courier?.name}
+                                                        className="w-6 h-6 rounded-lg bg-ant-ink/10"
+                                                    />
                                                     <span className="text-xs font-bold text-ant-ink/60 uppercase tracking-wide">{courier?.name}</span>
                                                 </div>
                                             )}

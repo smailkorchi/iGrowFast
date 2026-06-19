@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
@@ -441,12 +441,12 @@ const SellerPayoutsList: React.FC = () => {
                                             </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <Avatar className="h-9 w-9 shrink-0 rounded-lg border border-ant-line">
-                                                        <AvatarImage src={seller.avatar_url || ''} className="object-cover" />
-                                                        <AvatarFallback className="rounded-lg text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                            {(seller.name || '??').substring(0, 2).toUpperCase()}
-                                                        </AvatarFallback>
-                                                    </Avatar>
+                                                    <UserAvatar
+                                                        url={seller.avatar_url}
+                                                        config={(seller as any).avatar_config}
+                                                        name={seller.name}
+                                                        className="h-9 w-9 shrink-0 rounded-lg border border-ant-line text-[11px] font-display font-semibold"
+                                                    />
                                                     <div className="min-w-0">
                                                         <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{seller.name}</p>
                                                         <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">
@@ -626,7 +626,7 @@ type MBPayout = {
     status: PayoutStatus;
     created_at: string;
     paid_at: string | null;
-    mediabuyer: { name: string; email: string; avatar_url: string | null } | null;
+    mediabuyer: { name: string; email: string; avatar_url: string | null; avatar_config?: unknown } | null;
 };
 
 const MediaBuyerPayoutsList: React.FC = () => {
@@ -655,13 +655,13 @@ const MediaBuyerPayoutsList: React.FC = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('mediabuyer_payments')
-                .select('*, mediabuyer:users!mediabuyer_payments_mediabuyer_id_fkey(name, email, avatar_url)')
+                .select('*, mediabuyer:users!mediabuyer_payments_mediabuyer_id_fkey(name, email, avatar_url, avatar_config)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) {
                 const { data: d2 } = await (supabase as any)
                     .from('mediabuyer_payments')
-                    .select('*, mediabuyer:users(name, email, avatar_url)')
+                    .select('*, mediabuyer:users(name, email, avatar_url, avatar_config)')
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false });
                 return (d2 || []) as MBPayout[];
@@ -748,7 +748,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
             const id = p.mediabuyer_id;
             let e = m.get(id);
             if (!e) {
-                e = { mediabuyer_id: id, name: p.mediabuyer?.name || '—', email: p.mediabuyer?.email || '', avatar_url: p.mediabuyer?.avatar_url || null, payouts: [], lifetimeEarned: 0, lifetimePaid: 0, owe: 0 };
+                e = { mediabuyer_id: id, name: p.mediabuyer?.name || '—', email: p.mediabuyer?.email || '', avatar_url: p.mediabuyer?.avatar_url || null, avatar_config: p.mediabuyer?.avatar_config ?? null, payouts: [], lifetimeEarned: 0, lifetimePaid: 0, owe: 0 } as MediaBuyerLedger;
                 m.set(id, e);
             }
             const total = Number(p.total_amount || 0);
@@ -907,12 +907,12 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                             </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <Avatar className="h-9 w-9 shrink-0 rounded-lg border border-ant-line">
-                                                        <AvatarImage src={p.mediabuyer?.avatar_url || ''} className="object-cover" />
-                                                        <AvatarFallback className="rounded-lg text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                            {(p.mediabuyer?.name || '??').substring(0, 2).toUpperCase()}
-                                                        </AvatarFallback>
-                                                    </Avatar>
+                                                    <UserAvatar
+                                                        url={p.mediabuyer?.avatar_url}
+                                                        config={(p.mediabuyer as any)?.avatar_config}
+                                                        name={p.mediabuyer?.name}
+                                                        className="h-9 w-9 shrink-0 rounded-lg border border-ant-line text-[11px] font-display font-semibold"
+                                                    />
                                                     <div className="min-w-0">
                                                         <p className="font-display text-[13px] font-semibold text-ant-ink leading-tight truncate">{p.mediabuyer?.name || '—'}</p>
                                                         <p className="text-[11px] text-ant-mid/80 leading-tight truncate mt-0.5">{p.mediabuyer?.email}</p>
@@ -1059,6 +1059,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
                 buyerName={detailPayoutRow?.mediabuyer?.name || 'Media buyer'}
                 buyerEmail={detailPayoutRow?.mediabuyer?.email || ''}
                 buyerAvatar={detailPayoutRow?.mediabuyer?.avatar_url || null}
+                buyerAvatarConfig={(detailPayoutRow?.mediabuyer as any)?.avatar_config ?? null}
             />
             <MediaBuyerBreakdownDialog
                 open={breakdownOpen}
@@ -1324,7 +1325,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                                                   <td className="px-4 py-3"><Checkbox checked={sel} onCheckedChange={() => toggleRow(r.seller_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" /></td>
                                                                   <td className="px-4 py-3">
                                                                       <div className="flex items-center gap-2.5 min-w-0">
-                                                                          <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                                          <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
                                                                           <div className="min-w-0">
                                                                               <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
                                                                               <p className="text-[11px] text-ant-mid truncate">{r.email} · {fmtCur(r.commissionPrice)} MAD/{r.commissionBasis === 'per_unit' ? 'unit' : 'order'}</p>
@@ -1344,7 +1345,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                                                   <td className="px-4 py-3"><Checkbox checked={sel} onCheckedChange={() => toggleRow(r.mediabuyer_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" /></td>
                                                                   <td className="px-4 py-3">
                                                                       <div className="flex items-center gap-2.5 min-w-0">
-                                                                          <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                                          <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
                                                                           <div className="min-w-0"><p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid truncate">{r.email}</p></div>
                                                                       </div>
                                                                   </td>
@@ -1378,7 +1379,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                         return (
                                             <div key={r.seller_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4">
                                                 <div className="flex items-center gap-2.5 mb-3">
-                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                    <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
                                                     <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
                                                 </div>
                                                 <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 text-[12px] tabular-nums">
@@ -1395,7 +1396,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                         return (
                                             <div key={r.mediabuyer_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4">
                                                 <div className="flex items-center gap-2.5 mb-3">
-                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                    <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
                                                     <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
                                                     <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isCommission ? 'bg-ant-orange/10 text-ant-orange' : 'bg-ant-green/10 text-ant-green')}>{r.payment_type}</span>
                                                 </div>
@@ -1424,7 +1425,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                         const over = parseFloat(val) > owe + 0.005;
                                         return (
                                             <div key={r.seller_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4 flex items-center gap-3">
-                                                <Avatar className="h-9 w-9 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                                <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-9 w-9 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
                                                 <div className="flex-1 min-w-0"><p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid tabular-nums">Doit <span className="font-semibold text-ant-orange">{fmtCur(owe)} MAD</span></p></div>
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <button type="button" onClick={() => setAmounts((p) => ({ ...p, [r.seller_id]: owe.toFixed(2) }))} className="h-9 px-2.5 rounded-lg border border-ant-line bg-ant-paper text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer" title="Full balance">Max</button>
@@ -1437,7 +1438,7 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                         );
                                     }) : selectedMb.map((r) => (
                                         <div key={r.mediabuyer_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4 flex items-center gap-3">
-                                            <Avatar className="h-9 w-9 shrink-0 rounded-xl border border-ant-line"><AvatarImage src={r.avatar_url || ''} className="object-cover" /><AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">{(r.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                            <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-9 w-9 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
                                             <div className="flex-1 min-w-0"><p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid capitalize">{r.payment_type} · {format(new Date(monthKey + '-01'), 'MMM yyyy')}</p></div>
                                             <div className="text-right shrink-0"><p className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">À générer</p><p className="font-display text-[15px] font-semibold text-ant-orange tabular-nums">{fmtCur(r.remaining_amount)} MAD</p></div>
                                         </div>

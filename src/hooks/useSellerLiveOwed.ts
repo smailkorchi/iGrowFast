@@ -32,6 +32,7 @@ export type SellerLiveOwed = {
     name: string;
     email: string;
     avatar_url: string | null;
+    avatar_config: unknown | null;
     commissionPrice: number;
     commissionBasis: string;
     /** billable delivered count (units for per_unit, orders for per_order) */
@@ -53,6 +54,7 @@ type SellerUser = {
     name: string | null;
     email: string | null;
     avatar_url: string | null;
+    avatar_config: unknown | null;
     commission_price: number | null;
     commission_basis: string | null;
 };
@@ -79,7 +81,7 @@ export function useSellerLiveOwed() {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, email, avatar_url, commission_price, commission_basis')
+                .select('id, name, email, avatar_url, avatar_config, commission_price, commission_basis')
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('role', 'commercial');
             if (error) throw error;
@@ -160,6 +162,7 @@ export function useSellerLiveOwed() {
                 name: s.name || '—',
                 email: s.email || '',
                 avatar_url: s.avatar_url,
+                avatar_config: s.avatar_config ?? null,
                 commissionPrice: price,
                 commissionBasis: normalizeCommissionBasis(s.commission_basis),
                 deliveredCount: Math.round(accrual.count),

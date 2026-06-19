@@ -13,6 +13,7 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Radar, User } from 'lucide-react';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { normalizeSource, pureRevenueForOrder } from '@/lib/analyticsDefinitions';
 import { differenceInCalendarDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
@@ -25,6 +26,7 @@ type MBRow = {
     id: string;
     name: string;
     avatar_url: string | null;
+    avatar_config?: unknown;
     active: boolean | null;
     commission_price: number | null;
     payment_type: string | null;
@@ -91,7 +93,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, active, commission_price, payment_type, salary_amount')
+                .select('id, name, avatar_url, avatar_config, active, commission_price, payment_type, salary_amount')
                 .eq('role', 'mediabuyer')
                 .eq('DigiCom Business', businessId);
             return (data || []) as unknown as MBRow[];
@@ -474,13 +476,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                                                         <tr key={m.id} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                             <td className="py-1.5">
                                                                 <div className="flex items-center gap-2">
-                                                                    {m.avatar_url ? (
-                                                                        <img src={m.avatar_url} alt={m.name} className="w-6 h-6 rounded-full object-cover border border-ant-ink/5 shrink-0" />
-                                                                    ) : (
-                                                                        <div className="w-6 h-6 rounded-full bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
-                                                                            <User className="w-3 h-3 text-ant-line" />
-                                                                        </div>
-                                                                    )}
+                                                                    <UserAvatar url={m.avatar_url} config={(m as any).avatar_config} name={m.name} className="w-6 h-6 rounded-full border border-ant-ink/5" />
                                                                     <span className="text-[11px] font-medium text-ant-ink truncate">{m.name || 'Unnamed'}</span>
                                                                     {m.active === false && (
                                                                         <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-ant-rose">· inactive</span>

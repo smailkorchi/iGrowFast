@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Dialog,
     DialogContent,
@@ -982,7 +983,7 @@ const DeliveryNote = () => {
                         business_name,
                         color
                     ),
-                    creator:users!company_delivery_notes_created_by_fkey(name, avatar_url, role)
+                    creator:users!company_delivery_notes_created_by_fkey(name, avatar_url, avatar_config, role)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
@@ -1002,7 +1003,7 @@ const DeliveryNote = () => {
                 .select(`
                     *,
                     courier:users!courier_delivery_notes_courier_id_fkey(id, name, avatar_url, phone),
-                    creator:users!courier_delivery_notes_created_by_fkey(id, name, avatar_url, role)
+                    creator:users!courier_delivery_notes_created_by_fkey(id, name, avatar_url, avatar_config, role)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
@@ -1093,11 +1094,7 @@ const DeliveryNote = () => {
                                 </span>
                                 {note.creator && (
                                     <span className="flex items-center gap-1 min-w-0">
-                                        {note.creator?.avatar_url ? (
-                                            <img src={note.creator.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
-                                        ) : (
-                                            <User className="w-3 h-3 text-ant-mid shrink-0" />
-                                        )}
+                                        <UserAvatar url={note.creator?.avatar_url} config={(note.creator as any)?.avatar_config} name={note.creator?.name} className="w-4 h-4 rounded-full shrink-0" />
                                         <span className="truncate">{note.creator?.name ?? 'Unknown'}</span>
                                     </span>
                                 )}
@@ -1267,11 +1264,7 @@ const DeliveryNote = () => {
                                                 </span>
                                                 {note.creator && (
                                                     <span className="text-[10.5px] text-ant-muted flex items-center gap-1 mt-0.5">
-                                                        {note.creator?.avatar_url ? (
-                                                            <img src={note.creator.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                        ) : (
-                                                            <User className="w-3 h-3" />
-                                                        )}
+                                                        <UserAvatar url={note.creator?.avatar_url} config={(note.creator as any)?.avatar_config} name={note.creator?.name} className="w-4 h-4 rounded-full" />
                                                         {note.creator?.name ?? 'Unknown'}
                                                     </span>
                                                 )}
@@ -1631,11 +1624,7 @@ const DeliveryNote = () => {
                                     <div className="font-bold text-ant-ink text-lg">{selectedNote?.parcel_count || 0} Parcels</div>
                                     <div className="text-sm text-ant-muted font-medium">Created: {selectedNote?.created_at ? format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}</div>
                                     <div className="text-sm text-ant-muted font-medium flex items-center justify-end gap-2">
-                                        {selectedNote?.creator?.avatar_url ? (
-                                            <img src={selectedNote.creator.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
-                                        ) : (
-                                            <User className="w-4 h-4" />
-                                        )}
+                                        <UserAvatar url={selectedNote?.creator?.avatar_url} config={(selectedNote?.creator as any)?.avatar_config} name={selectedNote?.creator?.name} className="w-6 h-6 rounded-full" />
                                         <span>By: {selectedNote?.creator?.name ?? 'Unknown'}</span>
                                     </div>
                                 </div>

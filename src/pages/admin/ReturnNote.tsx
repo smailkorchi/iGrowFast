@@ -10,6 +10,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
     AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -64,7 +65,7 @@ interface ReturnNote {
     created_by?: string | null;
     provider: { id: string; name: string; logo_url: string | null } | null;
     courier?: { id: string; name: string; avatar_url: string | null } | null;
-    creator?: { name: string; avatar_url: string | null; role: string } | null;
+    creator?: { name: string; avatar_url: string | null; avatar_config?: unknown; role: string } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
 
@@ -138,12 +139,12 @@ const ReturnNote = () => {
             const [companyRes, courierRes] = await Promise.all([
                 (supabase as any)
                     .from('company_return_notes')
-                    .select(`*, provider:providers(id, name, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, provider:providers(id, name, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false }),
                 (supabase as any)
                     .from('courier_return_notes')
-                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false }),
             ]);
@@ -994,11 +995,7 @@ const ReturnNote = () => {
                                                         <Clock className="w-3 h-3 text-ant-mid" />{format(new Date(note.created_at), 'dd MMM yyyy')}
                                                     </span>
                                                     <span className="flex items-center gap-1 min-w-0">
-                                                        {note.creator?.avatar_url ? (
-                                                            <img src={note.creator.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
-                                                        ) : (
-                                                            <User className="w-3 h-3 text-ant-mid shrink-0" />
-                                                        )}
+                                                        <UserAvatar url={note.creator?.avatar_url} config={(note.creator as any)?.avatar_config} name={note.creator?.name} className="w-4 h-4 rounded-full shrink-0" />
                                                         <span className="truncate">{note.creator?.name ?? 'Unknown'}</span>
                                                     </span>
                                                     {isReceived && note.received_at && (
@@ -1598,11 +1595,7 @@ const ReturnNote = () => {
                                     <div className="bg-ant-paper px-4 py-3">
                                         <span className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">Created by</span>
                                         <div className="flex items-center gap-2 mt-1">
-                                            {selectedNote.creator?.avatar_url ? (
-                                                <img src={selectedNote.creator.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
-                                            ) : (
-                                                <User className="w-4 h-4 text-ant-mid" />
-                                            )}
+                                            <UserAvatar url={selectedNote.creator?.avatar_url} config={(selectedNote.creator as any)?.avatar_config} name={selectedNote.creator?.name} className="w-6 h-6 rounded-full" />
                                             <p className="font-medium text-[13px] text-ant-ink truncate">{selectedNote.creator?.name ?? 'Unknown'}</p>
                                         </div>
                                     </div>

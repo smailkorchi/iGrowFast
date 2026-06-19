@@ -25,8 +25,8 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { cn } from '@/lib/utils';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 import { useMediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
@@ -298,12 +298,7 @@ const MediaBuyers = () => {
                                     <div className="h-[3px] w-full bg-ant-orange" />
                                     <div className="p-4 space-y-3">
                                         <div className="flex items-start gap-3">
-                                            <Avatar className="h-12 w-12 shrink-0 rounded-2xl border border-ant-line">
-                                                <AvatarImage src={r.avatar_url || ''} className="object-cover" />
-                                                <AvatarFallback className="rounded-2xl bg-ant-ink/5 text-ant-ink font-display font-semibold text-[14px]">
-                                                    {r.name.substring(0, 2).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
+                                            <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-12 w-12 shrink-0 rounded-2xl border border-ant-line" />
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="font-display text-[14px] font-semibold text-ant-ink truncate">{r.name}</h3>
@@ -400,12 +395,7 @@ const MediaBuyers = () => {
                                 {/* Editorial header */}
                                 <div className="px-6 pt-6 pb-4 border-b border-ant-line">
                                     <div className="flex items-start gap-3">
-                                        <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line">
-                                            <AvatarImage src={selected.avatar_url || ''} className="object-cover" />
-                                            <AvatarFallback className="rounded-2xl bg-ant-ink/5 text-ant-ink font-display font-semibold text-[18px]">
-                                                {selected.name.substring(0, 2).toUpperCase()}
-                                            </AvatarFallback>
-                                        </Avatar>
+                                        <UserAvatar url={selected.avatar_url} config={(selected as any).avatar_config} name={selected.name} className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line" />
                                         <div className="flex-1 min-w-0 space-y-1.5">
                                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
                                                 <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />

@@ -38,6 +38,7 @@ export type SellerLedger = {
   name: string;
   email: string;
   avatar_url: string | null;
+  avatar_config: unknown | null;
   commissionPrice: number;
   commissionBasis: string | null;
   open: LedgerTicket | null;          // current-month ticket
@@ -48,7 +49,7 @@ export type SellerLedger = {
 };
 
 type SellerUser = {
-  id: string; name: string | null; email: string | null; avatar_url: string | null;
+  id: string; name: string | null; email: string | null; avatar_url: string | null; avatar_config: unknown | null;
   commission_price: number | null; commission_basis: string | null;
 };
 
@@ -61,7 +62,7 @@ export function useSellerLedger() {
     queryKey: ['seller-ledger-users', activeBusinessId],
     queryFn: async () =>
       activeBusinessId
-        ? await fetchAllRows<SellerUser>('users', 'id, name, email, avatar_url, commission_price, commission_basis', {
+        ? await fetchAllRows<SellerUser>('users', 'id, name, email, avatar_url, avatar_config, commission_price, commission_basis', {
             filters: [
               { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
               { column: 'role', op: 'eq', value: 'commercial' },
@@ -111,6 +112,7 @@ export function useSellerLedger() {
         name: s.name || '—',
         email: s.email || '',
         avatar_url: s.avatar_url,
+        avatar_config: s.avatar_config ?? null,
         commissionPrice: num(s.commission_price),
         commissionBasis: s.commission_basis,
         open,

@@ -45,6 +45,7 @@ import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { useDropzone } from 'react-dropzone';
 import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
@@ -66,7 +67,7 @@ type BusinessRow = {
     status: string;
     paid: boolean;
     plan_id: string | null;
-    creator: { id: string; name: string | null; avatar_url: string | null; role: string | null } | null;
+    creator: { id: string; name: string | null; avatar_url: string | null; avatar_config?: unknown; role: string | null } | null;
     plan: { id: string; name: string; license_type: string; price: number; currency: string | null } | null;
 };
 
@@ -150,7 +151,7 @@ const Businesses = () => {
                 .from('businesses')
                 .select(`
                     *,
-                    creator:users!businesses_creator_id_fkey(id, name, avatar_url, role),
+                    creator:users!businesses_creator_id_fkey(id, name, avatar_url, avatar_config, role),
                     plan:plans(id, name, license_type, price, currency)
                 `)
                 .order('created_at', { ascending: false });
@@ -648,12 +649,7 @@ const BusinessCard = ({ business, onEdit, onDelete }: CardProps) => {
                 <LicenseMeta business={business} />
 
                 <div className="pt-3 border-t border-ant-line flex items-center gap-2">
-                    <Avatar className="h-6 w-6 border border-ant-line">
-                        <AvatarImage src={business.creator?.avatar_url || undefined} />
-                        <AvatarFallback className="bg-ant-light text-ant-ink text-[9px] font-medium">
-                            {business.creator?.name?.substring(0, 2)?.toUpperCase() || '??'}
-                        </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar url={business.creator?.avatar_url} config={(business.creator as any)?.avatar_config} name={business.creator?.name} className="h-6 w-6 border border-ant-line rounded-full" />
                     <span className="text-[11px] text-ant-mid truncate font-medium">{business.creator?.name || '—'}</span>
                     {business.created_at && (
                         <span className="ml-auto text-[10px] text-ant-mid tabular-nums">
@@ -697,12 +693,7 @@ const BusinessListItem = ({ business, onEdit, onDelete }: CardProps) => (
         </td>
         <td className="px-4 py-3 hidden lg:table-cell">
             <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6 border border-ant-line">
-                    <AvatarImage src={business.creator?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-ant-light text-ant-ink text-[9px] font-medium">
-                        {business.creator?.name?.substring(0, 2)?.toUpperCase() || '??'}
-                    </AvatarFallback>
-                </Avatar>
+                <UserAvatar url={business.creator?.avatar_url} config={(business.creator as any)?.avatar_config} name={business.creator?.name} className="h-6 w-6 border border-ant-line rounded-full" />
                 <span className="text-[11px] text-ant-ink truncate">{business.creator?.name || '—'}</span>
             </div>
         </td>

@@ -113,7 +113,7 @@ const ReturnNote = () => {
                 .from('orders')
                 .select(`*,
                     company:providers(id, name, logo_url),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                     items:order_items(quantity, unit_price, product_id, product:products(name)),
                     parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
                     courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
@@ -148,7 +148,7 @@ const ReturnNote = () => {
                     .order('created_at', { ascending: false }),
                 (supabase as any)
                     .from('courier_return_notes')
-                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url, avatar_config), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .eq('created_by', sellerShippingCtx.userId)
                     .order('created_at', { ascending: false }),

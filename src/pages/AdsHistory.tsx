@@ -427,16 +427,16 @@ const AdsHistory = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url, role')
+                .select('id, name, avatar_url, avatar_config, role')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
-            return (data || []) as Array<{ id: string; name: string | null; avatar_url: string | null; role: string | null }>;
+            return (data || []) as Array<{ id: string; name: string | null; avatar_url: string | null; avatar_config?: unknown; role: string | null }>;
         },
         enabled: !!activeBusinessId && !isMediaBuyerView,
     });
 
     const creatorById = useMemo(() => {
-        const map = new Map<string, { id: string; name: string | null; avatar_url: string | null; role: string | null }>();
+        const map = new Map<string, { id: string; name: string | null; avatar_url: string | null; avatar_config?: unknown; role: string | null }>();
         for (const u of creators) map.set(u.id, u);
         return map;
     }, [creators]);

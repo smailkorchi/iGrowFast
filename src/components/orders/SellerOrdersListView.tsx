@@ -4,6 +4,7 @@ import {
   Calendar, RefreshCcw, Pencil, Package as PackageIcon, AlertTriangle,
 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger,
@@ -278,13 +279,13 @@ export default function SellerOrdersListView({
                                     alt=""
                                     className="w-7 h-7 rounded-lg object-contain bg-white border border-ant-line p-0.5"
                                   />
-                                ) : order.courier?.avatar_url ? (
-                                  <Avatar className="w-7 h-7 border border-ant-line">
-                                    <AvatarImage src={order.courier.avatar_url} />
-                                    <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
-                                      {(order.courier.name || '?')[0]}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                ) : order.courier?.avatar_url || (order.courier as any)?.avatar_config ? (
+                                  <UserAvatar
+                                    url={order.courier.avatar_url}
+                                    config={(order.courier as any).avatar_config}
+                                    name={order.courier.name}
+                                    className="w-7 h-7 rounded-full border border-ant-line"
+                                  />
                                 ) : (
                                   <div className="w-7 h-7 rounded-lg bg-ant-ink/[0.06] flex items-center justify-center">
                                     <Truck className="w-3.5 h-3.5 text-ant-mid" />

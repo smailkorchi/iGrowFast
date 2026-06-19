@@ -71,7 +71,7 @@ import {
     TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1015,12 +1015,7 @@ function CourierCard({ person, onEdit, onZones, onFees, onReturnFees, onPermissi
             <CardHeader className="flex flex-row items-start justify-between p-5 pb-3">
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="relative shrink-0">
-                        <Avatar className="h-12 w-12 border border-ant-line">
-                            <AvatarImage src={person.avatar_url} />
-                            <AvatarFallback className="bg-ant-line-soft text-ant-ink text-[13px] font-semibold">
-                                {person.name.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar url={person.avatar_url} config={(person as any).avatar_config} name={person.name} className="h-12 w-12 border border-ant-line rounded-full" />
                         <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-ant-green rounded-full ring-2 ring-ant-paper" />
                     </div>
                     <div className="min-w-0">

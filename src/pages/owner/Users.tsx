@@ -38,7 +38,7 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
@@ -327,12 +327,12 @@ const OwnerUserCard = ({ user, onEdit, onDelete }: { user: OwnerUserRow; onEdit:
         <div className="p-4 md:p-5 space-y-3">
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <Avatar className="h-11 w-11 rounded-xl border border-ant-line">
-                        <AvatarImage src={user.avatar_url || ''} />
-                        <AvatarFallback className="rounded-xl bg-ant-ink text-ant-light text-[12px] font-medium">
-                            {user.name.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                        url={user.avatar_url}
+                        config={(user as any).avatar_config}
+                        name={user.name}
+                        className="h-11 w-11 rounded-xl border border-ant-line text-[12px] font-medium"
+                    />
                     <div className="min-w-0 space-y-1">
                         <p className="font-display text-[14px] text-ant-ink truncate leading-tight">{user.name}</p>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ant-orange/12 text-ant-orange text-[9px] font-semibold uppercase tracking-[0.14em]">

@@ -18,6 +18,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
@@ -185,10 +186,8 @@ const OwnerSidebar = () => {
                                 <div className="w-8 h-8 rounded-full overflow-hidden bg-ant-ink-soft flex items-center justify-center ring-1 ring-white/10">
                                     {isProfileLoading ? (
                                         <Loader2 className="w-3.5 h-3.5 animate-spin text-ant-light" />
-                                    ) : profile?.avatar_url ? (
-                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
                                     ) : (
-                                        <UserIcon className="w-3.5 h-3.5 text-ant-light/70" />
+                                        <UserAvatar url={profile?.avatar_url} config={(profile as any)?.avatar_config} name={profile?.name} className="w-full h-full" />
                                     )}
                                 </div>
                             </div>

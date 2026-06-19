@@ -16,6 +16,7 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bike, User } from 'lucide-react';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { startOfDay, endOfDay } from 'date-fns';
 
 interface CouriersSectionProps {
@@ -27,6 +28,7 @@ type CourierRow = {
     id: string;
     name: string;
     avatar_url: string | null;
+    avatar_config?: unknown;
     active: boolean | null;
 };
 
@@ -56,7 +58,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, active')
+                .select('id, name, avatar_url, avatar_config, active')
                 .eq('role', 'courier')
                 .eq('DigiCom Business', businessId);
             return (data || []) as CourierRow[];
@@ -251,13 +253,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
                                                         <tr key={c.id} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                             <td className="py-1.5">
                                                                 <div className="flex items-center gap-2">
-                                                                    {c.avatar_url ? (
-                                                                        <img src={c.avatar_url} alt={c.name} className="w-6 h-6 rounded-full object-cover border border-ant-ink/5 shrink-0" />
-                                                                    ) : (
-                                                                        <div className="w-6 h-6 rounded-full bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
-                                                                            <User className="w-3 h-3 text-ant-line" />
-                                                                        </div>
-                                                                    )}
+                                                                    <UserAvatar url={c.avatar_url} config={(c as any).avatar_config} name={c.name} className="w-6 h-6 rounded-full border border-ant-ink/5" />
                                                                     <span className="text-[11px] font-medium text-ant-ink truncate">{c.name || 'Unnamed'}</span>
                                                                     {c.active === false && (
                                                                         <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-ant-rose">· inactive</span>

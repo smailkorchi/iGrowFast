@@ -21,6 +21,7 @@ import {
 import { FaWhatsapp } from 'react-icons/fa';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
@@ -240,15 +241,8 @@ const SellerSidebar = () => {
                                         >
                                             {isProfileLoading ? (
                                                 <Loader2 className="w-3.5 h-3.5 animate-spin text-ant-light" />
-                                            ) : profile?.avatar_url ? (
-                                                <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <UserIcon
-                                                    className={cn(
-                                                        'w-3.5 h-3.5',
-                                                        isActive ? 'text-ant-orange' : 'text-ant-light/70',
-                                                    )}
-                                                />
+                                                <UserAvatar url={profile?.avatar_url} config={(profile as any)?.avatar_config} name={profile?.name} className="w-full h-full" />
                                             )}
                                         </div>
                                     </div>

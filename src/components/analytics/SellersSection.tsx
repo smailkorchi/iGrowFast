@@ -7,6 +7,7 @@ import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { UserCheck, Trophy } from 'lucide-react';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -37,7 +38,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, active, commission_price, commission_basis, products, role, avatar_url')
+                .select('id, name, active, commission_price, commission_basis, products, role, avatar_url, avatar_config')
                 .eq('DigiCom Business', businessId)
                 .eq('role', 'commercial');
             return data || [];
@@ -202,6 +203,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                     name: seller.name,
                     active: seller.active,
                     avatar_url: seller.avatar_url,
+                    avatar_config: (seller as any).avatar_config,
                     commission_price: Number(seller.commission_price) || 0,
                     commission_basis: basis,
                     totalOrders: sellerOrdersInRange.length,
@@ -304,13 +306,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                                             <tr key={i} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                 <td className="py-2.5">
                                                     <div className="flex items-center gap-3">
-                                                        {s.avatar_url ? (
-                                                            <img src={s.avatar_url} alt={s.name} className="w-8 h-8 rounded-xl object-cover border border-ant-ink/5 shrink-0" />
-                                                        ) : (
-                                                            <div className="w-8 h-8 rounded-xl bg-ant-ink/[0.06] flex items-center justify-center shrink-0">
-                                                                <span className="text-xs font-bold text-ant-ink/50">{s.name?.charAt(0)?.toUpperCase()}</span>
-                                                            </div>
-                                                        )}
+                                                        <UserAvatar url={s.avatar_url} config={(s as any).avatar_config} name={s.name} className="w-8 h-8 rounded-xl border border-ant-ink/5" />
                                                         <div>
                                                             <div className="font-semibold text-ant-ink flex items-center gap-1.5">
                                                                 {i === 0 && <Trophy className="w-3.5 h-3.5 text-ant-orange" />}

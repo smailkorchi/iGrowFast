@@ -141,6 +141,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/users/UserAvatar";
 import {
     OrderLineProductCombobox,
     OrderLineProductStockHint,
@@ -792,7 +793,7 @@ const Orders = () => {
                 // Fallback: courier parcel (internal — no edge function call).
                 const { data: courierParcel } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('*, courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url)')
+                    .select('*, courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url, avatar_config)')
                     .eq('order_id', selectedOrder.id)
                     .order('created_at', { ascending: false })
                     .limit(1)
@@ -998,8 +999,8 @@ const Orders = () => {
                     status:order_statuses(*),
                     package_status:package_statuses(*),
                     city:master_cities(id, name),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
-                    assignee:users!orders_assign_id_fkey(id, name, avatar_url),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
+                    assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
                     company:providers(id, name, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
@@ -1043,7 +1044,7 @@ const Orders = () => {
             if (!selectedOrder?.id) return [];
             const { data, error } = await (supabase as any)
                 .from('order_status_history')
-                .select('*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)')
+                .select('*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)')
                 .eq('order_id', selectedOrder.id)
                 .order('created_at', { ascending: true });
             if (error) throw error;
@@ -1124,7 +1125,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url')
+                .select('id, name, avatar_url, avatar_config')
                 .eq('role', 'courier')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
@@ -1310,7 +1311,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url')
+                .select('id, name, avatar_url, avatar_config')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
@@ -1326,7 +1327,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url, role, assignment')
+                .select('id, name, avatar_url, avatar_config, role, assignment')
                 .eq('role', 'commercial')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
@@ -1471,12 +1472,12 @@ const Orders = () => {
                         status:order_statuses(*),
                         package_status:package_statuses(*),
                         city:master_cities(id, name),
-                        courier:users!orders_courier_id_fkey(id, name, avatar_url),
-                        assignee:users!orders_assign_id_fkey(id, name, avatar_url),
+                        courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
+                        assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
                         company:providers(id, name, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                        history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
+                        history:order_status_history(*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)),
                         parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                         courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
                     `)
@@ -3074,11 +3075,7 @@ const Orders = () => {
                                                 : 'bg-ant-line-soft text-ant-ink border border-ant-line',
                                         )}
                                     >
-                                        {sellerData?.avatar_url ? (
-                                            <img src={sellerData.avatar_url} alt={seller.seller_name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-                                        )}
+                                        <UserAvatar url={sellerData?.avatar_url} config={(sellerData as any)?.avatar_config} name={seller.seller_name} className="w-full h-full bg-transparent" />
                                     </div>
                                 );
                             })}
@@ -3164,11 +3161,7 @@ const Orders = () => {
                                                 isFull ? 'bg-ant-green/15 text-ant-green ring-1 ring-ant-green/25' : 'bg-ant-line-soft text-ant-ink ring-1 ring-ant-line',
                                             )}
                                         >
-                                            {sellerData?.avatar_url ? (
-                                                <img src={sellerData.avatar_url} alt={seller.seller_name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-                                            )}
+                                            <UserAvatar url={sellerData?.avatar_url} config={(sellerData as any)?.avatar_config} name={seller.seller_name} className="w-full h-full bg-transparent" />
                                         </div>
                                         <div className="w-[140px] shrink-0">
                                             <p className="text-[11.5px] font-semibold text-ant-ink truncate leading-tight">{seller.seller_name}</p>
@@ -3689,12 +3682,12 @@ const Orders = () => {
                                         getTriggerLabel={() => confirmers?.find((u: any) => u.id === filterConfirmedBy)?.name ?? 'All'}
                                         renderItem={(u: any) => (
                                             <span className="flex items-center gap-2 min-w-0">
-                                                <Avatar className="w-6 h-6 shrink-0 border border-ant-ink/5">
-                                                    {u.avatar_url && <AvatarImage src={u.avatar_url} />}
-                                                    <AvatarFallback className="text-[9px] font-semibold bg-ant-ink/5 text-ant-ink">
-                                                        {(u.name || '?').slice(0, 2).toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <UserAvatar
+                                                    url={u.avatar_url}
+                                                    config={(u as any).avatar_config}
+                                                    name={u.name}
+                                                    className="w-6 h-6 shrink-0 rounded-full border border-ant-ink/5 text-[9px] font-semibold"
+                                                />
                                                 <span className="truncate">{u.name}</span>
                                             </span>
                                         )}
@@ -3718,12 +3711,12 @@ const Orders = () => {
                                         getTriggerLabel={() => sellers?.find((s: any) => s.id === filterAssignedTo)?.name ?? 'All'}
                                         renderItem={(s: any) => (
                                             <span className="flex items-center gap-2 min-w-0">
-                                                <Avatar className="w-6 h-6 shrink-0 border border-ant-ink/5">
-                                                    {s.avatar_url && <AvatarImage src={s.avatar_url} />}
-                                                    <AvatarFallback className="text-[9px] font-semibold bg-ant-ink/5 text-ant-ink">
-                                                        {(s.name || '?').slice(0, 2).toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <UserAvatar
+                                                    url={s.avatar_url}
+                                                    config={(s as any).avatar_config}
+                                                    name={s.name}
+                                                    className="w-6 h-6 shrink-0 rounded-full border border-ant-ink/5 text-[9px] font-semibold"
+                                                />
                                                 <span className="truncate">{s.name}</span>
                                             </span>
                                         )}
@@ -3992,12 +3985,12 @@ const Orders = () => {
                                                 </div>
                                                 {order.assignee ? (
                                                     <div className="flex items-center gap-1.5 shrink-0">
-                                                        <Avatar className="w-6 h-6 border border-white shadow-sm">
-                                                            <AvatarImage src={order.assignee.avatar_url} />
-                                                            <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
-                                                                {order.assignee.name?.[0]}
-                                                            </AvatarFallback>
-                                                        </Avatar>
+                                                        <UserAvatar
+                                                            url={order.assignee.avatar_url}
+                                                            config={(order.assignee as any).avatar_config}
+                                                            name={order.assignee.name}
+                                                            className="w-6 h-6 rounded-full border border-white shadow-sm text-[9px] font-bold"
+                                                        />
                                                         <span className="text-[10px] font-bold text-ant-mid truncate max-w-[60px]">{order.assignee.name}</span>
                                                     </div>
                                                 ) : (
@@ -4025,12 +4018,8 @@ const Orders = () => {
                                                     <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
                                                         {order.company?.logo_url ? (
                                                             <img src={order.company.logo_url} alt="" className="w-4 h-4 rounded-full object-contain bg-white" />
-                                                        ) : order.courier?.avatar_url ? (
-                                                            <img src={order.courier.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
                                                         ) : (
-                                                            <span className="w-4 h-4 rounded-full bg-ant-ink/10 flex items-center justify-center text-[8px] font-semibold text-ant-ink/60">
-                                                                {(order.company?.name || order.courier?.name || '?').slice(0, 1).toUpperCase()}
-                                                            </span>
+                                                            <UserAvatar url={order.courier?.avatar_url} config={(order.courier as any)?.avatar_config} name={order.courier?.name || order.company?.name} className="w-4 h-4 rounded-full" />
                                                         )}
                                                         {order.company?.name || order.courier?.name}
                                                     </span>
@@ -4673,13 +4662,7 @@ const Orders = () => {
                                                                         <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold">
                                                                             <div className="flex items-center gap-2">
                                                                                 {p.type === 'courier' ? (
-                                                                                    p.avatar_url ? (
-                                                                                        <img src={p.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-                                                                                    ) : (
-                                                                                        <span className="w-5 h-5 rounded-full bg-ant-ink/10 flex items-center justify-center text-[9px] font-semibold text-ant-ink/60">
-                                                                                            {(p.name || '?').slice(0, 1).toUpperCase()}
-                                                                                        </span>
-                                                                                    )
+                                                                                    <UserAvatar url={p.avatar_url} config={(p as any).avatar_config} name={p.name} className="w-5 h-5 rounded-full" />
                                                                                 ) : (
                                                                                     p.logo_url ? (
                                                                                         <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-ant-line" />
@@ -5600,10 +5583,10 @@ const Orders = () => {
                                                     <div className="w-10 h-10 rounded-2xl bg-ant-ink/5 flex items-center justify-center text-ant-mid shrink-0 shadow-sm overflow-hidden">
                                                         {selectedOrder.company?.logo_url ? (
                                                             <img src={selectedOrder.company.logo_url} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
-                                                        ) : selectedOrder.courier?.avatar_url ? (
-                                                            <img src={selectedOrder.courier.avatar_url} alt={selectedOrder.courier.name} className="w-full h-full object-cover" />
+                                                        ) : selectedOrder.courier ? (
+                                                            <UserAvatar url={selectedOrder.courier.avatar_url} config={(selectedOrder.courier as any).avatar_config} name={selectedOrder.courier.name} className="w-full h-full bg-transparent" />
                                                         ) : (
-                                                            selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-ant-blue" />
+                                                            <Building2 className="w-5 h-5 text-ant-blue" />
                                                         )}
                                                     </div>
                                                     <div className="space-y-1">
@@ -5949,13 +5932,14 @@ const Orders = () => {
                                                                         const isAiBusinessAction = !record.user && selectedOrder?.source_name === 'whatsapp';
                                                                         const displayName = record.user?.name
                                                                             || (isAiBusinessAction ? (businessIdentity?.name || 'Business') : 'Système');
-                                                                        const displayAvatar = record.user?.avatar_url
-                                                                            || (isAiBusinessAction ? businessIdentity?.logo : null);
+                                                                        const businessLogo = isAiBusinessAction ? businessIdentity?.logo : null;
                                                                         return (
                                                                             <>
-                                                                                {displayAvatar ? (
+                                                                                {record.user ? (
+                                                                                    <UserAvatar url={record.user.avatar_url} config={(record.user as any).avatar_config} name={displayName} className="w-5 h-5 rounded-full border bg-white" />
+                                                                                ) : businessLogo ? (
                                                                                     <Avatar className="w-5 h-5 border bg-white">
-                                                                                        <AvatarImage src={displayAvatar} />
+                                                                                        <AvatarImage src={businessLogo} />
                                                                                         <AvatarFallback className="text-[9px] font-bold bg-ant-ink/5 text-ant-ink">{displayName?.[0] || '?'}</AvatarFallback>
                                                                                     </Avatar>
                                                                                 ) : (
@@ -6180,12 +6164,12 @@ const Orders = () => {
                                         disabled={bulkAttributeMutation.isPending}
                                         className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-ant-ink/[0.03] text-ant-ink hover:text-ant-ink transition-all font-bold px-4 border border-transparent hover:border-ant-line"
                                     >
-                                        <Avatar className="w-10 h-10 border-2 border-white shadow-md">
-                                            <AvatarImage src={seller.avatar_url} />
-                                            <AvatarFallback className="bg-ant-ink text-ant-light text-xs">
-                                                {seller.name?.[0]}
-                                            </AvatarFallback>
-                                        </Avatar>
+                                        <UserAvatar
+                                            url={seller.avatar_url}
+                                            config={(seller as any).avatar_config}
+                                            name={seller.name}
+                                            className="w-10 h-10 rounded-full border-2 border-white shadow-md text-xs"
+                                        />
                                         <div className="text-left">
                                             <p className="text-sm font-semibold uppercase tracking-tight">{seller.name}</p>
                                             <p className="text-[10px] text-ant-muted uppercase font-bold tracking-widest">{seller.role}</p>

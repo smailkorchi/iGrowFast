@@ -13,7 +13,7 @@ import {
     CircleDollarSign,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -41,6 +41,7 @@ type TrashedOrder = {
         name: string | null;
         email: string | null;
         avatar_url: string | null;
+        avatar_config?: unknown;
     } | null;
 };
 
@@ -58,7 +59,7 @@ const Trash = () => {
             if (!activeBusinessId) return [];
             const rows = await fetchAllRows(
                 'orders',
-                'id, name, phone, price, date_deleted, status:order_statuses(label, color, icon), deleted_by:users!orders_deleted_by_id_fkey(id, name, email, avatar_url)',
+                'id, name, phone, price, date_deleted, status:order_statuses(label, color, icon), deleted_by:users!orders_deleted_by_id_fkey(id, name, email, avatar_url, avatar_config)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
@@ -324,12 +325,7 @@ const Trash = () => {
                                                 <td className="px-5 py-3">
                                                     {order.deleted_by ? (
                                                         <div className="inline-flex items-center gap-2 min-w-0">
-                                                            <Avatar className="h-7 w-7 rounded-full border border-ant-line shrink-0">
-                                                                <AvatarImage src={order.deleted_by.avatar_url || ''} className="object-cover" />
-                                                                <AvatarFallback className="rounded-full text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                                    {(order.deleted_by.name || order.deleted_by.email || '?').substring(0, 2).toUpperCase()}
-                                                                </AvatarFallback>
-                                                            </Avatar>
+                                                            <UserAvatar url={order.deleted_by.avatar_url} config={(order.deleted_by as any).avatar_config} name={order.deleted_by.name || order.deleted_by.email} className="h-7 w-7 rounded-full border border-ant-line shrink-0" />
                                                             <span className="font-display text-[12px] font-semibold text-ant-ink truncate max-w-[140px]" title={order.deleted_by.email || undefined}>
                                                                 {order.deleted_by.name || order.deleted_by.email || '—'}
                                                             </span>

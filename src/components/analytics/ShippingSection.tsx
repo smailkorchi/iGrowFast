@@ -78,10 +78,10 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url')
+                .select('id, name, avatar_url, avatar_config')
                 .eq('role', 'courier')
                 .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{ id: string; name: string | null; avatar_url: string | null }>;
+            return (data || []) as Array<{ id: string; name: string | null; avatar_url: string | null; avatar_config?: unknown }>;
         },
         enabled: !!businessId,
     });

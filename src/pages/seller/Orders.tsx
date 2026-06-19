@@ -129,6 +129,7 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { Textarea } from "@/components/ui/textarea";
 import {
     OrderLineProductCombobox,
@@ -893,7 +894,7 @@ const Orders = () => {
                 // Fallback: courier parcel (internal — no edge function call).
                 const { data: courierParcel } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('*, courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url)')
+                    .select('*, courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url, avatar_config)')
                     .eq('order_id', selectedOrder.id)
                     .order('created_at', { ascending: false })
                     .limit(1)
@@ -1094,8 +1095,8 @@ const Orders = () => {
                     status:order_statuses(*),
                     package_status:package_statuses(*),
                     city:master_cities(id, name),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
-                    assignee:users!orders_assign_id_fkey(id, name, avatar_url),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
+                    assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
                     company:providers(id, name, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
@@ -1143,7 +1144,7 @@ const Orders = () => {
             if (!selectedOrder?.id) return [];
             const { data, error } = await (supabase as any)
                 .from('order_status_history')
-                .select('*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)')
+                .select('*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)')
                 .eq('order_id', selectedOrder.id)
                 .order('created_at', { ascending: true });
             if (error) throw error;
@@ -1205,7 +1206,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url')
+                .select('id, name, avatar_url, avatar_config')
                 .eq('role', 'courier')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
@@ -1477,12 +1478,12 @@ const Orders = () => {
                         status:order_statuses(*),
                         package_status:package_statuses(*),
                         city:master_cities(id, name),
-                        courier:users!orders_courier_id_fkey(id, name, avatar_url),
-                        assignee:users!orders_assign_id_fkey(id, name, avatar_url),
+                        courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
+                        assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
                         company:providers(id, name, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                        history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
+                        history:order_status_history(*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)),
                         parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
                         courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
                     `)
@@ -3592,11 +3593,11 @@ const Orders = () => {
                                                 <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
                                                     {order.company?.logo_url ? (
                                                         <img src={order.company.logo_url} alt="" className="w-4 h-4 rounded-full object-contain bg-white" />
-                                                    ) : order.courier?.avatar_url ? (
-                                                        <img src={order.courier.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                    ) : order.courier ? (
+                                                        <UserAvatar url={order.courier.avatar_url} config={(order.courier as any).avatar_config} name={order.courier.name} className="w-4 h-4 rounded-full text-[8px]" />
                                                     ) : (
                                                         <span className="w-4 h-4 rounded-full bg-ant-ink/10 flex items-center justify-center text-[8px] font-semibold text-ant-ink/60">
-                                                            {(order.company?.name || order.courier?.name || '?').slice(0, 1).toUpperCase()}
+                                                            {(order.company?.name || '?').slice(0, 1).toUpperCase()}
                                                         </span>
                                                     )}
                                                     {order.company?.name || order.courier?.name}
@@ -4192,13 +4193,7 @@ const Orders = () => {
                                                                         <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold">
                                                                             <div className="flex items-center gap-2">
                                                                                 {p.type === 'courier' ? (
-                                                                                    p.avatar_url ? (
-                                                                                        <img src={p.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-                                                                                    ) : (
-                                                                                        <span className="w-5 h-5 rounded-full bg-ant-line flex items-center justify-center text-[9px] font-semibold text-ant-ink/60">
-                                                                                            {(p.name || '?').slice(0, 1).toUpperCase()}
-                                                                                        </span>
-                                                                                    )
+                                                                                    <UserAvatar url={p.avatar_url} config={(p as any).avatar_config} name={p.name} className="w-5 h-5 rounded-full text-[9px]" />
                                                                                 ) : (
                                                                                     p.logo_url ? (
                                                                                         <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-ant-ink/[0.06]" />
@@ -5059,15 +5054,17 @@ const Orders = () => {
                                             </div>
                                             {(selectedOrder.courier || selectedOrder.company) && (
                                                 <div className="flex items-start gap-3">
-                                                    <div className="w-7 h-7 rounded-lg bg-ant-light border border-ant-line flex items-center justify-center shrink-0 overflow-hidden">
-                                                        {selectedOrder.company?.logo_url ? (
+                                                    {selectedOrder.company?.logo_url ? (
+                                                        <div className="w-7 h-7 rounded-lg bg-ant-light border border-ant-line flex items-center justify-center shrink-0 overflow-hidden">
                                                             <img src={selectedOrder.company.logo_url} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
-                                                        ) : selectedOrder.courier?.avatar_url ? (
-                                                            <img src={selectedOrder.courier.avatar_url} alt={selectedOrder.courier.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            selectedOrder.courier ? <Truck className="w-3.5 h-3.5 text-ant-mid" /> : <Building2 className="w-3.5 h-3.5 text-ant-mid" />
-                                                        )}
-                                                    </div>
+                                                        </div>
+                                                    ) : selectedOrder.courier ? (
+                                                        <UserAvatar url={selectedOrder.courier.avatar_url} config={(selectedOrder.courier as any).avatar_config} name={selectedOrder.courier.name} className="w-7 h-7 rounded-lg border border-ant-line text-[10px]" />
+                                                    ) : (
+                                                        <div className="w-7 h-7 rounded-lg bg-ant-light border border-ant-line flex items-center justify-center shrink-0 overflow-hidden">
+                                                            <Building2 className="w-3.5 h-3.5 text-ant-mid" />
+                                                        </div>
+                                                    )}
                                                     <div className="space-y-0.5">
                                                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid leading-none">Assigned Provider</p>
                                                         <p className="text-[12px] font-semibold text-ant-ink leading-tight">
@@ -5380,10 +5377,7 @@ const Orders = () => {
                                                                 {record.created_at && <p className="text-[10px] text-ant-mid">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
                                                                 <div className="flex items-center gap-1.5">
                                                                     {record.user ? (
-                                                                        <Avatar className="w-4 h-4 border bg-white">
-                                                                            <AvatarImage src={record.user.avatar_url} />
-                                                                            <AvatarFallback className="text-[8px] font-semibold bg-ant-line text-ant-ink">{record.user.name?.[0] || '?'}</AvatarFallback>
-                                                                        </Avatar>
+                                                                        <UserAvatar url={record.user.avatar_url} config={(record.user as any).avatar_config} name={record.user.name} className="w-4 h-4 rounded-full border bg-white text-[8px]" />
                                                                     ) : (
                                                                         <div className="w-4 h-4 rounded-full bg-ant-line flex items-center justify-center">
                                                                             <DynamicIcon name="TbRobot" className="w-2.5 h-2.5 text-ant-ink/60" />

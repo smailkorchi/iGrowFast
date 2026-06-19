@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Dialog,
     DialogContent,
@@ -473,13 +474,8 @@ const SellerProfile = () => {
                 <section className="rounded-2xl border border-ant-ink bg-ant-ink overflow-hidden">
                     <div className="h-[3px] w-full bg-ant-orange" />
                     <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
-                        <div className="h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden border-2 border-white/10 shrink-0 bg-white/5 flex items-center justify-center">
-                            {profile?.avatar_url ? (
-                                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                                <span className="font-display text-[24px] font-semibold text-white/70">{initials}</span>
-                            )}
-                        </div>
+                        <UserAvatar url={profile?.avatar_url} config={(profile as any)?.avatar_config} name={profile?.name} className="h-20 w-20 md:h-24 md:w-24 rounded-2xl border-2 border-white/10 bg-white/5 text-[24px]" />
+
                         <div className="flex-1 min-w-0 space-y-2">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
                                 <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />

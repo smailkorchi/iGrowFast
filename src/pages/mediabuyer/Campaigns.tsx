@@ -33,6 +33,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -76,6 +77,7 @@ type CreatorInfo = {
     id: string;
     name: string | null;
     avatar_url: string | null;
+    avatar_config?: unknown;
     role: string | null;
 } | null;
 
@@ -212,13 +214,7 @@ const AdMockCard: React.FC<{
                 <div className="px-3.5 pb-2 flex items-center gap-1.5">
                     <span className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">By</span>
                     <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-ant-line bg-ant-light">
-                        <div className="w-3.5 h-3.5 rounded-full bg-ant-paper border border-ant-line flex items-center justify-center overflow-hidden">
-                            {creator?.avatar_url ? (
-                                <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                                <UserIcon className="w-2 h-2 text-ant-mid" />
-                            )}
-                        </div>
+                        <UserAvatar url={creator?.avatar_url} config={(creator as any)?.avatar_config} name={creator?.name} className="w-3.5 h-3.5 rounded-full border border-ant-line" />
                         <span className="text-[10px] font-semibold text-ant-ink truncate max-w-[120px]">
                             {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin')}
                         </span>
@@ -525,7 +521,7 @@ const Campaigns = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url, role')
+                .select('id, name, avatar_url, avatar_config, role')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return (data || []) as Array<CreatorInfo & { id: string }>;

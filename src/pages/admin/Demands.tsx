@@ -37,7 +37,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -71,6 +71,7 @@ interface DemandWithCollaborator {
         name: string;
         email: string;
         avatar_url: string | null;
+        avatar_config?: unknown;
     };
 }
 
@@ -185,7 +186,7 @@ const Demands = () => {
         try {
             let query = (supabase as any)
                 .from(TABLE_FOR[role])
-                .select('*, collaborator:users(name, email, avatar_url)')
+                .select('*, collaborator:users(name, email, avatar_url, avatar_config)')
                 .order('created_at', { ascending: false });
 
             if (activeBusinessId) {
@@ -507,12 +508,7 @@ const Demands = () => {
                                     {/* Header: collaborator + status */}
                                     <div className="px-4 py-3 border-b border-ant-line flex items-start justify-between gap-2.5">
                                         <div className="flex items-center gap-2.5 min-w-0">
-                                            <Avatar className="h-9 w-9 shrink-0 rounded-xl border border-ant-line">
-                                                <AvatarImage src={d.collaborator?.avatar_url || ''} className="object-cover" />
-                                                <AvatarFallback className="rounded-xl text-[11px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                    {d.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
-                                                </AvatarFallback>
-                                            </Avatar>
+                                            <UserAvatar url={d.collaborator?.avatar_url} config={(d.collaborator as any)?.avatar_config} name={d.collaborator?.name} className="h-9 w-9 shrink-0 rounded-xl border border-ant-line" />
                                             <div className="min-w-0">
                                                 <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{d.collaborator?.name || 'Unknown'}</p>
                                                 <p className="text-[10px] text-ant-mid uppercase tracking-[0.18em] font-semibold tabular-nums">#{d.id.slice(0, 8).toUpperCase()}</p>
@@ -598,12 +594,7 @@ const Demands = () => {
                                     {/* Editorial header */}
                                     <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-3">
                                         <div className="flex items-start gap-3">
-                                            <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line">
-                                                <AvatarImage src={selectedDemand.collaborator?.avatar_url || ''} className="object-cover" />
-                                                <AvatarFallback className="rounded-2xl text-[18px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
-                                                    {selectedDemand.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
-                                                </AvatarFallback>
-                                            </Avatar>
+                                            <UserAvatar url={selectedDemand.collaborator?.avatar_url} config={(selectedDemand.collaborator as any)?.avatar_config} name={selectedDemand.collaborator?.name} className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line" />
                                             <div className="flex-1 min-w-0 space-y-1.5">
                                                 <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
                                                     <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
