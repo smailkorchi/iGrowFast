@@ -31,7 +31,6 @@ import Profile from "./pages/admin/Profile";
 import Webhooks from "./pages/admin/Webhooks";
 import Trash from "./pages/admin/Trash";
 import OwnerBusinesses from "./pages/owner/Businesses";
-import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
 import OwnerUsers from "./pages/owner/Users";
 import OwnerPlans from "./pages/owner/Plans";
 import OwnerPayments from "./pages/owner/Payments";
@@ -178,11 +177,6 @@ const App = () => (
         <Routes>
           <Route path="/auth" element={<Auth />} />
           {/* Owner Routes */}
-          <Route path="/owner/select-business" element={
-            <ProtectedRoute allowedRoles={['owner']}>
-              <OwnerSelectBusiness />
-            </ProtectedRoute>
-          } />
           <Route path="/owner/*" element={
             <ProtectedRoute allowedRoles={['owner']}>
               <OwnerLayout>
@@ -266,9 +260,9 @@ const App = () => (
             </ProtectedRoute>
           } />
 
-          {/* Admin Routes (owner can access via new tab) */}
+          {/* Admin Routes — per-business; owners are confined to /owner/* and cannot enter here */}
           <Route path="*" element={
-            <ProtectedRoute allowedRoles={['super admin', 'admin', 'owner']}>
+            <ProtectedRoute allowedRoles={['super admin', 'admin']}>
               <BusinessGuard>
                 <AppLayout>
                   <Routes>
