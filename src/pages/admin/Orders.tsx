@@ -173,38 +173,55 @@ const computeShortLines = (order: any, productMap: Map<string, number>, accessor
     return lines;
 };
 
-// Place each exchange order immediately followed by its linked original (the returned
-// leg), tagging both so the UI can render them as one connected block. Operates on the
-// already-filtered render array; degrades to a normal row if the partner isn't present.
+// Group an exchange's related orders into ONE connected block: the returned exchange
+// leg(s) (replace=true), then any additional-sale leg(s) (replace=false that point at the
+// same original), then the original. Tags _exchangeRole + _exchangeFirst/_exchangeLast so
+// the UI draws a single capped purple block of 2 OR 3 rows. Degrades to a normal row when
+// partners aren't present in the filtered list.
 function arrangeExchangePairs(list: any[]): any[] {
   const arr = Array.isArray(list) ? list : [];
   const byId = new Map(arr.map((o) => [o.id, o]));
+  // legs (return + additional-sale) keyed by the original order they point at
+  const legsByOriginal = new Map<string, any[]>();
+  for (const o of arr) {
+    if (o?.exchange_of_order_id && byId.has(o.exchange_of_order_id)) {
+      const a = legsByOriginal.get(o.exchange_of_order_id) || [];
+      a.push(o);
+      legsByOriginal.set(o.exchange_of_order_id, a);
+    }
+  }
   const emitted = new Set<string>();
   const out: any[] = [];
-  // originals that will be absorbed under an exchange (so we skip their standalone slot)
-  const absorbed = new Set<string>();
-  arr.forEach((o) => {
-    if (o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id)) {
-      absorbed.add(o.exchange_of_order_id);
-    }
-  });
+  const emitGroup = (originalId: string) => {
+    const legs = legsByOriginal.get(originalId) || [];
+    const orig = byId.get(originalId);
+    const ordered: { row: any; role: 'exchange' | 'sale' | 'original' }[] = [
+      ...legs.filter((l) => l.replace).map((l) => ({ row: l, role: 'exchange' as const })),
+      ...legs.filter((l) => !l.replace).map((l) => ({ row: l, role: 'sale' as const })),
+      ...(orig ? [{ row: orig, role: 'original' as const }] : []),
+    ];
+    ordered.forEach(({ row, role }, i) => {
+      out.push({
+        ...row,
+        _exchangeRole: role,
+        _exchangePartnerId: originalId,
+        _exchangeFirst: i === 0,
+        _exchangeLast: i === ordered.length - 1,
+      });
+      emitted.add(row.id);
+    });
+  };
   for (const o of arr) {
     if (emitted.has(o.id)) continue;
-    const isExchange = o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id) && !emitted.has(o.exchange_of_order_id);
-    if (!isExchange && absorbed.has(o.id)) {
-      // original that belongs under an exchange we haven't reached yet — skip; emitted there
+    // an original that anchors a group -> emit the whole group at its slot
+    if (legsByOriginal.has(o.id)) { emitGroup(o.id); continue; }
+    // a leg reached before its original -> emit its group now
+    if (o?.exchange_of_order_id && legsByOriginal.has(o.exchange_of_order_id) && !emitted.has(o.exchange_of_order_id)) {
+      emitGroup(o.exchange_of_order_id);
       continue;
     }
-    if (isExchange) {
-      const orig = byId.get(o.exchange_of_order_id);
-      out.push({ ...o, _exchangeRole: 'exchange', _exchangePartnerId: orig.id });
-      emitted.add(o.id);
-      out.push({ ...orig, _exchangeRole: 'original', _exchangePartnerId: o.id });
-      emitted.add(orig.id);
-    } else {
-      out.push(o);
-      emitted.add(o.id);
-    }
+    out.push(o);
+    emitted.add(o.id);
   }
   return out;
 }
@@ -2004,6 +2021,21 @@ const Orders = () => {
             const includeDelivery = values.include_delivery_in_total !== false;
             const orderPrice = includeDelivery ? totalPrice + ship : totalPrice;
 
+            // When this exchange also sells an extra product it SPLITS into a return leg
+            // (this order, replace=true) + a sale leg (replace=false). The carrier bills
+            // ONE delivery fee for the single parcel — it must ride on the SALE leg (which
+            // flows through the normal payment-note pipeline); the return leg carries no
+            // fee and collects no CRBT (its money, if any, is the sale leg's).
+            const addItemsForSplit = (values.additional_items || []).filter(
+                (it) =>
+                    (it.product_id && it.product_id !== 'none') ||
+                    (it.accessories || []).some((a) => a.accessory_id && a.accessory_id !== 'none')
+            );
+            const willSplit = values.replace && addItemsForSplit.length > 0;
+            const mainShip = willSplit ? 0 : values.shipping_cost;
+            const mainInclude = willSplit ? false : includeDelivery;
+            const mainPrice = willSplit ? totalPrice : orderPrice;
+
             // Two-step create: if the desired status is 'confirmed', insert with
             // a non-confirmed status first (to avoid the DB forbid-on-INSERT rule),
             // then UPDATE to confirmed after items are inserted (fires stock gate).
@@ -2018,8 +2050,8 @@ const Orders = () => {
                     master_city_id: values.city_id,
                     address: values.address,
                     source_name: values.source_name,
-                    shipping_cost: values.shipping_cost,
-                    include_delivery_in_total: includeDelivery,
+                    shipping_cost: mainShip,
+                    include_delivery_in_total: mainInclude,
                     replace: values.replace,
                     note: values.note,
                     delivery_note: values.delivery_note,
@@ -2051,7 +2083,7 @@ const Orders = () => {
                         orderCompanyIsDelvoExpress(companies, values.company_id) && values.replace
                             ? (values.delvoexpress_old_tracking || '').trim() || null
                             : null,
-                    price: orderPrice,
+                    price: mainPrice,
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
                     'DigiCom Business': activeBusinessId
@@ -2125,13 +2157,8 @@ const Orders = () => {
             // becomes a SEPARATE normal order (replace=false) that runs the standard
             // paid/unpaid pipeline. seller_id is copied from the swap leg so
             // auto_attribute_order does not advance the round-robin a second time.
-            const addItems = (values.additional_items || []).filter(
-                (it) =>
-                    (it.product_id && it.product_id !== 'none') ||
-                    (it.accessories || []).some((a) => a.accessory_id && a.accessory_id !== 'none')
-            );
-            if (values.replace && addItems.length > 0) {
-                const addTotal = addItems.reduce((acc, it) => acc + (it.quantity * it.unit_price), 0);
+            if (willSplit) {
+                const addTotal = addItemsForSplit.reduce((acc, it) => acc + (it.quantity * it.unit_price), 0);
                 const { data: saleOrder, error: saleErr } = await (supabase as any)
                     .from('orders')
                     .insert({
@@ -2140,8 +2167,10 @@ const Orders = () => {
                         master_city_id: values.city_id,
                         address: values.address,
                         source_name: values.source_name,
-                        shipping_cost: 0,
-                        include_delivery_in_total: false,
+                        // The single parcel's ONE delivery fee rides on the sale leg, so the
+                        // payment note deducts it via the normal pipeline (the return leg has 0).
+                        shipping_cost: values.shipping_cost,
+                        include_delivery_in_total: includeDelivery,
                         replace: false,
                         note: values.note,
                         delivery_note: values.delivery_note,
@@ -2149,7 +2178,7 @@ const Orders = () => {
                         order_status_id: insertStatusId,
                         courier_id: values.courier_id,
                         company_id: values.company_id,
-                        price: addTotal,
+                        price: includeDelivery ? addTotal + ship : addTotal,
                         raw_price: addTotal,
                         seller_id: order.seller_id ?? null,
                         date: new Date().toISOString(),
@@ -2160,7 +2189,7 @@ const Orders = () => {
                 if (saleErr) throw saleErr;
 
                 const saleItemRecords: any[] = [];
-                addItems.forEach((item) => {
+                addItemsForSplit.forEach((item) => {
                     saleItemRecords.push(
                         ...buildOrderItemRecords(
                             saleOrder.id,
@@ -3807,7 +3836,7 @@ const Orders = () => {
                                                 || '';
                                             const cardProductCode: string =
                                                 cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
-                                            const exchangeRole = order._exchangeRole as ('exchange' | 'original' | undefined);
+                                            const exchangeRole = order._exchangeRole as ('exchange' | 'sale' | 'original' | undefined);
                                             return (
                                                 <div
                                         key={order.id}
@@ -3819,6 +3848,7 @@ const Orders = () => {
                                             isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]',
                                             isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]',
                                             exchangeRole === 'exchange' && 'ring-1 ring-purple-500/40 bg-purple-500/[0.05]',
+                                            exchangeRole === 'sale' && 'ring-1 ring-emerald-500/35 bg-emerald-500/[0.04]',
                                             exchangeRole === 'original' && 'ring-1 ring-purple-500/30 bg-purple-500/[0.04]',
                                         )}
                                     >

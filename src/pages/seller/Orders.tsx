@@ -162,38 +162,55 @@ const computeShortLines = (order: any, productMap: Map<string, number>, accessor
     return lines;
 };
 
-// Place each exchange order immediately followed by its linked original (the returned
-// leg), tagging both so the UI can render them as one connected block. Operates on the
-// already-filtered render array; degrades to a normal row if the partner isn't present.
+// Group an exchange's related orders into ONE connected block: the returned exchange
+// leg(s) (replace=true), then any additional-sale leg(s) (replace=false that point at the
+// same original), then the original. Tags _exchangeRole + _exchangeFirst/_exchangeLast so
+// the UI draws a single capped purple block of 2 OR 3 rows. Degrades to a normal row when
+// partners aren't present in the filtered list.
 function arrangeExchangePairs(list: any[]): any[] {
   const arr = Array.isArray(list) ? list : [];
   const byId = new Map(arr.map((o) => [o.id, o]));
+  // legs (return + additional-sale) keyed by the original order they point at
+  const legsByOriginal = new Map<string, any[]>();
+  for (const o of arr) {
+    if (o?.exchange_of_order_id && byId.has(o.exchange_of_order_id)) {
+      const a = legsByOriginal.get(o.exchange_of_order_id) || [];
+      a.push(o);
+      legsByOriginal.set(o.exchange_of_order_id, a);
+    }
+  }
   const emitted = new Set<string>();
   const out: any[] = [];
-  // originals that will be absorbed under an exchange (so we skip their standalone slot)
-  const absorbed = new Set<string>();
-  arr.forEach((o) => {
-    if (o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id)) {
-      absorbed.add(o.exchange_of_order_id);
-    }
-  });
+  const emitGroup = (originalId: string) => {
+    const legs = legsByOriginal.get(originalId) || [];
+    const orig = byId.get(originalId);
+    const ordered: { row: any; role: 'exchange' | 'sale' | 'original' }[] = [
+      ...legs.filter((l) => l.replace).map((l) => ({ row: l, role: 'exchange' as const })),
+      ...legs.filter((l) => !l.replace).map((l) => ({ row: l, role: 'sale' as const })),
+      ...(orig ? [{ row: orig, role: 'original' as const }] : []),
+    ];
+    ordered.forEach(({ row, role }, i) => {
+      out.push({
+        ...row,
+        _exchangeRole: role,
+        _exchangePartnerId: originalId,
+        _exchangeFirst: i === 0,
+        _exchangeLast: i === ordered.length - 1,
+      });
+      emitted.add(row.id);
+    });
+  };
   for (const o of arr) {
     if (emitted.has(o.id)) continue;
-    const isExchange = o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id) && !emitted.has(o.exchange_of_order_id);
-    if (!isExchange && absorbed.has(o.id)) {
-      // original that belongs under an exchange we haven't reached yet — skip; emitted there
+    // an original that anchors a group -> emit the whole group at its slot
+    if (legsByOriginal.has(o.id)) { emitGroup(o.id); continue; }
+    // a leg reached before its original -> emit its group now
+    if (o?.exchange_of_order_id && legsByOriginal.has(o.exchange_of_order_id) && !emitted.has(o.exchange_of_order_id)) {
+      emitGroup(o.exchange_of_order_id);
       continue;
     }
-    if (isExchange) {
-      const orig = byId.get(o.exchange_of_order_id);
-      out.push({ ...o, _exchangeRole: 'exchange', _exchangePartnerId: orig.id });
-      emitted.add(o.id);
-      out.push({ ...orig, _exchangeRole: 'original', _exchangePartnerId: o.id });
-      emitted.add(orig.id);
-    } else {
-      out.push(o);
-      emitted.add(o.id);
-    }
+    out.push(o);
+    emitted.add(o.id);
   }
   return out;
 }
@@ -3422,11 +3439,11 @@ const Orders = () => {
                                 || '';
                             const cardProductCode: string =
                                 cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
-                            const exchangeRole = order._exchangeRole as ('exchange' | 'original' | undefined);
+                            const exchangeRole = order._exchangeRole as ('exchange' | 'sale' | 'original' | undefined);
                             return (
                                 <div
                                     key={order.id}
-                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]', isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]', exchangeRole === 'exchange' && 'ring-1 ring-purple-500/40 bg-purple-500/[0.05]', exchangeRole === 'original' && 'ring-1 ring-purple-500/30 bg-purple-500/[0.04]')}
+                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]', isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]', exchangeRole === 'exchange' && 'ring-1 ring-purple-500/40 bg-purple-500/[0.05]', exchangeRole === 'sale' && 'ring-1 ring-emerald-500/35 bg-emerald-500/[0.04]', exchangeRole === 'original' && 'ring-1 ring-purple-500/30 bg-purple-500/[0.04]')}
                                 >
                                     {/* Top accent line */}
                                     <div className="h-[3px] w-full" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
@@ -3543,6 +3560,9 @@ const Orders = () => {
                                                     )}
                                                     {exchangeRole === 'exchange' && (
                                                         <span className="ml-1 shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-700 text-[9px] font-bold uppercase tracking-wide">ÉCHANGE</span>
+                                                    )}
+                                                    {exchangeRole === 'sale' && (
+                                                        <span className="ml-1 shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 text-[9px] font-bold uppercase tracking-wide" title="Produit ajouté — vente liée à l'échange">+ VENTE</span>
                                                     )}
                                                     {exchangeRole === 'original' && (
                                                         <span className="ml-1 shrink-0 inline-flex items-center gap-1 text-[9px] font-semibold text-purple-700/70" title="Colis d'origine (retour de l'échange)">↳ origine</span>

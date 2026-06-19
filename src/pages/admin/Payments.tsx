@@ -59,7 +59,7 @@ interface PaymentNote {
 }
 
 const Payments = () => {
-    const { getOrderByCategory, getPkgByCategory } = useStatusCategories();
+    const { getOrderByCategory, getPkgByCategory, getPkgCategory } = useStatusCategories();
     const unpaidStatusId = getOrderByCategory('unpaid')?.id;
     const deliveredPkgId = getPkgByCategory('delivered')?.id;
 
@@ -89,27 +89,53 @@ const Payments = () => {
         queryKey: ['unpaid-livre-orders', activeBusinessId, unpaidStatusId, deliveredPkgId],
         queryFn: async () => {
             if (!activeBusinessId || !unpaidStatusId || !deliveredPkgId) return [];
-            const rows = await fetchAllRows(
-                'orders',
-                `*,
+            const SELECT = `*,
                     company:providers(id, name, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     items:order_items(quantity, unit_price, product:products(name)),
                     parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
-                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`,
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
-                        { column: 'order_status_id', op: 'eq', value: unpaidStatusId },
-                        { column: 'package_status_id', op: 'eq', value: deliveredPkgId },
-                        { column: 'payment_delivery_id', op: 'is', value: null },
-                        { column: 'current_courier_payment_note_id', op: 'is', value: null },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                }
-            );
-            return (rows as any[]).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) as UnpaidOrder[];
+                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`;
+            // Normal payouts: unpaid + delivered, not yet noted.
+            const normal = await fetchAllRows('orders', SELECT, {
+                filters: [
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    { column: 'order_status_id', op: 'eq', value: unpaidStatusId },
+                    { column: 'package_status_id', op: 'eq', value: deliveredPkgId },
+                    { column: 'payment_delivery_id', op: 'is', value: null },
+                    { column: 'current_courier_payment_note_id', op: 'is', value: null },
+                    { column: 'date_deleted', op: 'is', value: null },
+                    { column: 'source_review_status', op: 'neq', value: 'pending' },
+                ],
+            });
+            // Exchange/return legs: the carrier delivered the parcel and billed a fee, but
+            // the leg settles at package=returned so it never hits "unpaid+livré". Surface
+            // any fee-bearing, shipped, carrier-handled replace=true leg not yet noted so its
+            // delivery fee is reconciled. It bundles at amount=price (0 for a pure swap),
+            // fee=shipping_cost, and is NEVER flipped to PAID (cascade/pin triggers exempt
+            // replace=true). Split sale legs (replace=false) flow through `normal` above; the
+            // matching return leg carries shipping_cost 0 here and is filtered out.
+            const swapRaw = await fetchAllRows('orders', SELECT, {
+                filters: [
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    { column: 'replace', op: 'eq', value: true },
+                    { column: 'payment_delivery_id', op: 'is', value: null },
+                    { column: 'current_courier_payment_note_id', op: 'is', value: null },
+                    { column: 'date_deleted', op: 'is', value: null },
+                ],
+            });
+            const swap = (swapRaw as any[]).filter((o) => {
+                if (Number(o.shipping_cost || 0) <= 0) return false;            // only fee-bearing legs
+                if (o.source_review_status === 'pending') return false;
+                const hasTracking = !!(o.parcels?.[0]?.tracking_code)
+                    || (o.courier_parcels || []).some((p: any) => p?.tracking_code);
+                if (!hasTracking) return false;                                  // must have shipped
+                const cat = getPkgCategory(o.package_status_id);                 // carrier completed the trip
+                return cat === 'delivered' || cat === 'returned';
+            });
+            const byId = new Map<string, any>();
+            for (const o of [...(normal as any[]), ...swap]) byId.set(o.id, o);
+            return Array.from(byId.values())
+                .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) as UnpaidOrder[];
         },
         enabled: !!unpaidStatusId && !!deliveredPkgId,
     });
