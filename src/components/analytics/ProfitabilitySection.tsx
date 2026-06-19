@@ -95,11 +95,24 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const { data: expenses } = useQuery({
         queryKey: ['analytics-expenses', businessId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('expenses')
-                .select('id, amount, date, type_id, expense_types(name, recurrent)')
-                .eq('DigiCom Business', businessId);
-            return data || [];
+            // Paginate: recurring charges materialise one expenses row per
+            // occurrence (a daily charge = one row/day), so a business can
+            // exceed the 1000-row PostgREST cap. A bare select would silently
+            // truncate and undercount fixed costs in the P&L.
+            return await fetchAllRows<{
+                id: string;
+                amount: number | string | null;
+                date: string | null;
+                type_id: string | null;
+                expense_types: { name: string | null; recurrent: boolean | null } | null;
+            }>(
+                'expenses',
+                'id, amount, date, type_id, expense_types(name, recurrent)',
+                {
+                    orderBy: 'id',
+                    filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }],
+                },
+            );
         },
         enabled: !!businessId,
     });

@@ -159,6 +159,7 @@ const navigation: NavSection[] = [
         icon: Wallet,
         items: [
             { icon: List, label: 'Expenses Details', path: '/expenses-details' },
+            { icon: Repeat, label: 'Recurring Charges', path: '/recurring-charges' },
             { icon: Tag, label: 'Expenses Types', path: '/expenses-types' },
         ],
     },

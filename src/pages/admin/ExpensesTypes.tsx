@@ -404,7 +404,7 @@ const ExpensesTypes = () => {
                                                             <span className={cn('h-1.5 w-1.5 rounded-full', field.value ? 'bg-ant-orange' : 'bg-ant-mid')} />
                                                             <FormLabel className="text-[12px] font-semibold text-ant-ink">Recurrent</FormLabel>
                                                         </div>
-                                                        <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Fixed monthly cost.</p>
+                                                        <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Used by Recurring Charges. Variable ones stay in manual Expenses.</p>
                                                     </div>
                                                     <FormControl>
                                                         <Switch
@@ -557,7 +557,7 @@ const ExpenseTypeCard = ({ type, onEdit, onDelete }: any) => {
                     {type.recurrent && (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-orange/25 bg-ant-orange/10 px-2 py-0.5 text-[10px] font-semibold text-ant-orange">
                             <Repeat className="w-2.5 h-2.5" />
-                            Monthly
+                            Recurring
                         </span>
                     )}
                 </div>

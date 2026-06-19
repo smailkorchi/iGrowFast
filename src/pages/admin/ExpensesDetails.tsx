@@ -17,6 +17,8 @@ import {
     Sparkles,
     Calendar as CalendarIcon,
     Tag,
+    Repeat,
+    Lock,
     type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -142,14 +144,19 @@ const ExpensesDetails = () => {
         },
     });
 
+    // Manual expenses use VARIABLE categories only. Recurrent categories are
+    // reserved for the Recurring Charges page. Sub-key keeps the cache distinct
+    // from the recurrent list while staying under the ['expense_types', biz]
+    // prefix that Expense Types invalidates when the flag is toggled.
     const { data: expenseTypes } = useQuery({
-        queryKey: ['expense_types', activeBusinessId],
+        queryKey: ['expense_types', activeBusinessId, 'variable'],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase
                 .from('expense_types' as any)
                 .select('*')
                 .eq('active', true)
+                .eq('recurrent', false)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name', { ascending: true }) as any);
 
@@ -410,7 +417,14 @@ const ExpensesDetails = () => {
                                                 {format(new Date(expense.date), 'dd MMM yyyy')}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <p className="font-display text-[13px] font-semibold text-ant-ink truncate max-w-[240px]">{expense.name}</p>
+                                                <div className="flex items-center gap-2 max-w-[260px]">
+                                                    <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{expense.name}</p>
+                                                    {expense.recurring_id && (
+                                                        <span title="Auto-posted by a recurring charge" className="inline-flex items-center gap-1 rounded-full border border-ant-orange/25 bg-ant-orange/10 px-1.5 py-0.5 text-[9px] font-semibold text-ant-orange shrink-0">
+                                                            <Repeat className="w-2.5 h-2.5" /> Auto
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
@@ -426,22 +440,31 @@ const ExpensesDetails = () => {
                                                 <span className="text-[10px] text-ant-mid font-normal ml-1">DH</span>
                                             </td>
                                             <td className="px-2 py-3 text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-ant-ink/5 text-ant-mid cursor-pointer">
-                                                            <MoreVertical className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[140px]">
-                                                        <DropdownMenuItem onClick={() => openUpsert(expense)} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
-                                                            <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator className="my-1 bg-ant-line" />
-                                                        <DropdownMenuItem onClick={() => setExpenseToDelete(expense)} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 gap-2">
-                                                            <Trash2 className="w-3.5 h-3.5" /> Delete
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                                {expense.recurring_id ? (
+                                                    <span
+                                                        title="Auto-posted by a recurring charge — edit it in Recurring Charges. Deleting here would be re-created on the next run."
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ant-mid/50 cursor-default"
+                                                    >
+                                                        <Lock className="h-3.5 w-3.5" />
+                                                    </span>
+                                                ) : (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-ant-ink/5 text-ant-mid cursor-pointer">
+                                                                <MoreVertical className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[140px]">
+                                                            <DropdownMenuItem onClick={() => openUpsert(expense)} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                                                <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator className="my-1 bg-ant-line" />
+                                                            <DropdownMenuItem onClick={() => setExpenseToDelete(expense)} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 gap-2">
+                                                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

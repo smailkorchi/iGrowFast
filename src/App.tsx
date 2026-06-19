@@ -26,6 +26,7 @@ import Users from "./pages/admin/Users";
 import AdsHistory from "./pages/AdsHistory";
 import ExpensesDetails from "./pages/admin/ExpensesDetails";
 import ExpensesTypes from "./pages/admin/ExpensesTypes";
+import RecurringCharges from "./pages/admin/RecurringCharges";
 import Profile from "./pages/admin/Profile";
 import Webhooks from "./pages/admin/Webhooks";
 import Trash from "./pages/admin/Trash";
@@ -302,6 +303,7 @@ const App = () => (
                     <Route path="/campaigns/:id/manage" element={<MediaBuyerCampaignManage />} />
                     <Route path="/expenses-details" element={<ExpensesDetails />} />
                     <Route path="/expenses-types" element={<ExpensesTypes />} />
+                    <Route path="/recurring-charges" element={<RecurringCharges />} />
                     <Route path="/calculator" element={<Calculator />} />
                     <Route path="/devis" element={<Devis />} />
                     <Route path="/facture" element={<Facture />} />
