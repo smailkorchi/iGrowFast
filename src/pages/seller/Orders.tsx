@@ -162,6 +162,42 @@ const computeShortLines = (order: any, productMap: Map<string, number>, accessor
     return lines;
 };
 
+// Place each exchange order immediately followed by its linked original (the returned
+// leg), tagging both so the UI can render them as one connected block. Operates on the
+// already-filtered render array; degrades to a normal row if the partner isn't present.
+function arrangeExchangePairs(list: any[]): any[] {
+  const arr = Array.isArray(list) ? list : [];
+  const byId = new Map(arr.map((o) => [o.id, o]));
+  const emitted = new Set<string>();
+  const out: any[] = [];
+  // originals that will be absorbed under an exchange (so we skip their standalone slot)
+  const absorbed = new Set<string>();
+  arr.forEach((o) => {
+    if (o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id)) {
+      absorbed.add(o.exchange_of_order_id);
+    }
+  });
+  for (const o of arr) {
+    if (emitted.has(o.id)) continue;
+    const isExchange = o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id) && !emitted.has(o.exchange_of_order_id);
+    if (!isExchange && absorbed.has(o.id)) {
+      // original that belongs under an exchange we haven't reached yet — skip; emitted there
+      continue;
+    }
+    if (isExchange) {
+      const orig = byId.get(o.exchange_of_order_id);
+      out.push({ ...o, _exchangeRole: 'exchange', _exchangePartnerId: orig.id });
+      emitted.add(o.id);
+      out.push({ ...orig, _exchangeRole: 'original', _exchangePartnerId: o.id });
+      emitted.add(orig.id);
+    } else {
+      out.push(o);
+      emitted.add(o.id);
+    }
+  }
+  return out;
+}
+
 const LOCKED_ORDER_CATEGORIES = ['paid', 'unpaid'];
 const isOrderLocked = (order: any): boolean => LOCKED_ORDER_CATEGORIES.includes(order?.status?.category);
 
@@ -3365,7 +3401,7 @@ const Orders = () => {
             ) : (
                 viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                        {filteredOrders.map((order) => {
+                        {arrangeExchangePairs(filteredOrders).map((order) => {
                             const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                             const trackingCode = latestParcel?.tracking_code;
@@ -3386,10 +3422,11 @@ const Orders = () => {
                                 || '';
                             const cardProductCode: string =
                                 cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
+                            const exchangeRole = order._exchangeRole as ('exchange' | 'original' | undefined);
                             return (
                                 <div
                                     key={order.id}
-                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]', isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]')}
+                                    className={cn("group relative bg-white rounded-xl border border-ant-line overflow-hidden transition-colors hover:bg-ant-light/50 cursor-default", isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]', isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]', exchangeRole === 'exchange' && 'ring-1 ring-purple-500/40 bg-purple-500/[0.05]', exchangeRole === 'original' && 'ring-1 ring-purple-500/30 bg-purple-500/[0.04]')}
                                 >
                                     {/* Top accent line */}
                                     <div className="h-[3px] w-full" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
@@ -3504,6 +3541,12 @@ const Orders = () => {
                                                             <AlertTriangle className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
+                                                    {exchangeRole === 'exchange' && (
+                                                        <span className="ml-1 shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-700 text-[9px] font-bold uppercase tracking-wide">ÉCHANGE</span>
+                                                    )}
+                                                    {exchangeRole === 'original' && (
+                                                        <span className="ml-1 shrink-0 inline-flex items-center gap-1 text-[9px] font-semibold text-purple-700/70" title="Colis d'origine (retour de l'échange)">↳ origine</span>
+                                                    )}
                                                 </div>
                                                 <p className="text-[11px] text-ant-ink/40 font-medium tracking-wide truncate">{order.phone}</p>
                                             </div>
@@ -3614,7 +3657,7 @@ const Orders = () => {
                     </div>
                 ) : (
                     <SellerOrdersListView
-                        orders={filteredOrders}
+                        orders={arrangeExchangePairs(filteredOrders)}
                         duplicatePhones={duplicatePhones}
                         shortOrderIds={shortOrderIds}
                         lockedOrderIds={lockedOrderIds}

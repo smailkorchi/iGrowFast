@@ -84,6 +84,7 @@ export default function OrdersListView({
               const isDuplicate = duplicatePhones.has(order.phone);
               const isShort = !!shortOrderIds?.has(order.id);
               const locked = !!lockedOrderIds?.has(order.id);
+              const exchangeRole = order._exchangeRole as ('exchange' | 'original' | undefined);
               const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
               const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
               const trackingCode = latestParcel?.tracking_code;
@@ -134,6 +135,11 @@ export default function OrdersListView({
                     // Insufficient-stock rows: red wash wins over duplicate orange.
                     isShort && !isSelected && 'bg-red-500/[0.06] hover:bg-red-500/[0.10] border-l-red-500/50',
                     isShort && isSelected && 'bg-red-500/[0.12] border-l-red-500/60',
+                    // Exchange pair: render the two rows as ONE connected purple block —
+                    // unified fill, continuous left bar, purple cap top (exchange) + bottom
+                    // (original), and NO divider between them.
+                    exchangeRole === 'exchange' && 'bg-purple-500/[0.07] hover:bg-purple-500/[0.11] border-l-[3px] border-l-purple-500/70 border-t border-t-purple-400/50 border-b-0',
+                    exchangeRole === 'original' && 'bg-purple-500/[0.07] hover:bg-purple-500/[0.11] border-l-[3px] border-l-purple-500/70 border-b border-b-purple-400/50',
                   )}
                 >
                   {/* Checkbox */}
@@ -190,6 +196,12 @@ export default function OrdersListView({
                             <span className="inline-flex shrink-0" title="Exchange">
                               <RefreshCcw className="w-3 h-3 text-ant-rose" />
                             </span>
+                          )}
+                          {exchangeRole === 'exchange' && (
+                            <span className="ml-1 shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-700 text-[9px] font-bold uppercase tracking-wide">ÉCHANGE</span>
+                          )}
+                          {exchangeRole === 'original' && (
+                            <span className="ml-1 shrink-0 inline-flex items-center gap-1 text-[9px] font-semibold text-purple-700/70" title="Colis d'origine (retour de l'échange)">↳ origine</span>
                           )}
                         </p>
                         <p className="text-[11px] text-ant-ink/35 font-medium truncate">{order.phone}</p>

@@ -173,6 +173,42 @@ const computeShortLines = (order: any, productMap: Map<string, number>, accessor
     return lines;
 };
 
+// Place each exchange order immediately followed by its linked original (the returned
+// leg), tagging both so the UI can render them as one connected block. Operates on the
+// already-filtered render array; degrades to a normal row if the partner isn't present.
+function arrangeExchangePairs(list: any[]): any[] {
+  const arr = Array.isArray(list) ? list : [];
+  const byId = new Map(arr.map((o) => [o.id, o]));
+  const emitted = new Set<string>();
+  const out: any[] = [];
+  // originals that will be absorbed under an exchange (so we skip their standalone slot)
+  const absorbed = new Set<string>();
+  arr.forEach((o) => {
+    if (o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id)) {
+      absorbed.add(o.exchange_of_order_id);
+    }
+  });
+  for (const o of arr) {
+    if (emitted.has(o.id)) continue;
+    const isExchange = o?.replace && o?.exchange_of_order_id && byId.has(o.exchange_of_order_id) && !emitted.has(o.exchange_of_order_id);
+    if (!isExchange && absorbed.has(o.id)) {
+      // original that belongs under an exchange we haven't reached yet — skip; emitted there
+      continue;
+    }
+    if (isExchange) {
+      const orig = byId.get(o.exchange_of_order_id);
+      out.push({ ...o, _exchangeRole: 'exchange', _exchangePartnerId: orig.id });
+      emitted.add(o.id);
+      out.push({ ...orig, _exchangeRole: 'original', _exchangePartnerId: o.id });
+      emitted.add(orig.id);
+    } else {
+      out.push(o);
+      emitted.add(o.id);
+    }
+  }
+  return out;
+}
+
 const LOCKED_ORDER_CATEGORIES = ['paid', 'unpaid'];
 const isOrderLocked = (order: any): boolean => LOCKED_ORDER_CATEGORIES.includes(order?.status?.category);
 
@@ -205,6 +241,9 @@ const orderSchema = z.object({
     delivery_type: z.string().optional(),
     order_status_id: z.string().uuid("Please select a status"),
     items: z.array(orderItemSchema).min(1, "At least one product is required"),
+    // Exchange "additional sale": when an exchange (replace) also sells an extra product,
+    // these lines become a SEPARATE normal order (replace=false) on the paid/unpaid pipeline.
+    additional_items: z.array(orderItemSchema).optional().default([]),
     courier_id: z.string().uuid().optional().nullable(),
     company_id: z.string().uuid().optional().nullable(),
     history_comment: z.string().optional(),
@@ -1686,6 +1725,276 @@ const Orders = () => {
         name: "items"
     });
 
+    // Exchange "additional sale" lines → become a separate replace=false order.
+    const { fields: addFields, append: addAppend, remove: addRemove } = useFieldArray({
+        control: form.control,
+        name: "additional_items"
+    });
+
+    // Shared product-line renderer — used identically by the main order lines and by the
+    // exchange "additional sale" lines, so both have the exact same product picker, stock
+    // hints, and accessory auto-attach/edit mechanics. `namePrefix` swaps the field path.
+    const renderOrderLine = (
+        namePrefix: 'items' | 'additional_items',
+        index: number,
+        fieldId: string,
+        canRemove: boolean,
+        onRemove: () => void,
+        lineLabel: string,
+    ) => {
+        const hasProduct = !!form.watch(`${namePrefix}.${index}.product_id` as any) && form.watch(`${namePrefix}.${index}.product_id` as any) !== 'none';
+        const productSubtotal = (form.watch(`${namePrefix}.${index}.quantity` as any) || 0) * (form.watch(`${namePrefix}.${index}.unit_price` as any) || 0);
+        return (
+            <div key={fieldId} className="rounded-2xl border border-ant-ink/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid tabular-nums">{lineLabel}</span>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={onRemove}
+                        disabled={!canRemove}
+                        className="h-7 w-7 rounded-lg text-red-400 hover:text-ant-rose hover:bg-ant-rose/10 shrink-0"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                </div>
+                <FormField
+                    control={form.control}
+                    name={`${namePrefix}.${index}.product_id` as any}
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormControl>
+                                <OrderLineProductCombobox
+                                    products={(products || []) as OrderLineProductOption[]}
+                                    value={field.value === 'none' ? 'none' : field.value || ''}
+                                    blockZeroStock={!isEditModalOpen}
+                                    formatLabel={(p) => String(p.name)}
+                                    onProductIdChange={(val) => {
+                                        field.onChange(val === 'none' ? 'none' : val);
+                                        if (val !== 'none') {
+                                            const prod = products?.find((p: any) => p.id === val);
+                                            if (prod) {
+                                                form.setValue(`${namePrefix}.${index}.unit_price` as any, Number(prod.selling_price || 0));
+                                                if (form.watch(`${namePrefix}.${index}.quantity` as any) === 0) {
+                                                    form.setValue(`${namePrefix}.${index}.quantity` as any, 1);
+                                                }
+                                                const attachments = productAccessoriesForOrders?.filter((pa: any) => pa.product_id === val);
+                                                if (attachments && attachments.length > 0) {
+                                                    const prodQty = Number(form.getValues(`${namePrefix}.${index}.quantity` as any)) || 1;
+                                                    const allItems = form.getValues(namePrefix as any) || [];
+                                                    const currentAccessories = form.getValues(`${namePrefix}.${index}.accessories` as any) || [];
+                                                    const newAccessories = [...currentAccessories];
+                                                    attachments.forEach((attachment: any) => {
+                                                        const mode = attachment.attach_mode || 'fixed';
+                                                        const existingAttached = newAccessories.find((a: any) => a.accessory_id === attachment.accessory_id);
+                                                        if (existingAttached) return;
+                                                        if (mode === 'per_order') {
+                                                            const elsewhere = allItems.some((it: any, i: number) =>
+                                                                i !== index && (it.accessories || []).some((a: any) => a.accessory_id === attachment.accessory_id)
+                                                            );
+                                                            if (elsewhere) return;
+                                                        }
+                                                        const base = attachment.default_quantity || 1;
+                                                        const qty = mode === 'per_item' ? base * prodQty : base;
+                                                        const acc = accessories?.find((a: any) => a.id === attachment.accessory_id);
+                                                        newAccessories.push({
+                                                            accessory_id: attachment.accessory_id,
+                                                            accessory_quantity: qty,
+                                                            accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0
+                                                        });
+                                                    });
+                                                    form.setValue(`${namePrefix}.${index}.accessories` as any, newAccessories);
+                                                }
+                                            }
+                                        } else {
+                                            form.setValue(`${namePrefix}.${index}.unit_price` as any, 0);
+                                            form.setValue(`${namePrefix}.${index}.quantity` as any, 0);
+                                        }
+                                    }}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                            {(() => {
+                                const selectedProduct = products?.find((p: any) => p.id === field.value);
+                                const sn = toProductStockNumber(selectedProduct?.stock);
+                                return (
+                                    <OrderLineProductStockHint
+                                        stock={sn}
+                                        blockZeroStock={!isEditModalOpen}
+                                    />
+                                );
+                            })()}
+                        </FormItem>
+                    )}
+                />
+
+                <div className="grid grid-cols-3 gap-2">
+                    <FormField
+                        control={form.control}
+                        name={`${namePrefix}.${index}.unit_price` as any}
+                        render={({ field }) => (
+                            <FormItem className="space-y-1">
+                                <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Unit</FormLabel>
+                                <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-ant-ink/10 bg-ant-ink/[0.03] text-sm font-bold text-ant-ink text-center px-1" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name={`${namePrefix}.${index}.quantity` as any}
+                        render={({ field }) => (
+                            <FormItem className="space-y-1">
+                                <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Qty</FormLabel>
+                                <Input
+                                    type="number"
+                                    {...field}
+                                    disabled={!hasProduct}
+                                    onChange={(e) => {
+                                        field.onChange(e);
+                                        const newQty = Number(e.target.value);
+                                        if (!Number.isFinite(newQty) || newQty <= 0) return;
+                                        const productId = form.getValues(`${namePrefix}.${index}.product_id` as any);
+                                        const accs = form.getValues(`${namePrefix}.${index}.accessories` as any) || [];
+                                        accs.forEach((acc: any, accIdx: number) => {
+                                            if (!acc.accessory_id || acc.accessory_id === 'none') return;
+                                            const pa = productAccessoriesForOrders?.find(
+                                                (p: any) => p.product_id === productId && p.accessory_id === acc.accessory_id
+                                            );
+                                            if (pa && (pa as any).attach_mode === 'per_item') {
+                                                form.setValue(`${namePrefix}.${index}.accessories.${accIdx}.accessory_quantity` as any, ((pa as any).default_quantity || 1) * newQty);
+                                            }
+                                        });
+                                    }}
+                                    className="h-9 rounded-lg border border-ant-ink/10 bg-ant-ink/[0.03] text-sm font-bold text-ant-ink text-center px-1"
+                                />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="rounded-lg bg-ant-ink/10 px-1.5 py-1 flex flex-col justify-center items-center text-center">
+                        <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid leading-none">Total</span>
+                        <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums leading-tight tracking-[-0.01em]">{productSubtotal.toFixed(2)} <span className="text-[10px] font-medium text-ant-mid">DH</span></span>
+                    </div>
+                </div>
+
+                <div className="rounded-xl bg-ant-ink/[0.04] border border-ant-ink/[0.07] p-2.5 space-y-2">
+                    <p className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Add-ons</p>
+                    {(form.watch(`${namePrefix}.${index}.accessories` as any) || []).map((acc: any, accIdx: number) => {
+                        const accSubtotal = (form.watch(`${namePrefix}.${index}.accessories.${accIdx}.accessory_quantity` as any) || 0) * (form.watch(`${namePrefix}.${index}.accessories.${accIdx}.accessory_unit_price` as any) || 0);
+                        const hasAccessory = !!form.watch(`${namePrefix}.${index}.accessories.${accIdx}.accessory_id` as any) && form.watch(`${namePrefix}.${index}.accessories.${accIdx}.accessory_id` as any) !== 'none';
+
+                        return (
+                            <div key={accIdx} className="space-y-2 pb-2 border-b border-ant-line last:border-0 last:pb-0">
+                                <div className="flex gap-2 items-end">
+                                    <FormField
+                                        control={form.control}
+                                        name={`${namePrefix}.${index}.accessories.${accIdx}.accessory_id` as any}
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1 flex-1 min-w-0">
+                                                <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid flex items-center gap-1"><Puzzle className="w-3 h-3 opacity-60" /> Item</FormLabel>
+                                                <Select
+                                                    onValueChange={(val) => {
+                                                        field.onChange(val);
+                                                        if (val !== 'none') {
+                                                            const accessoryObj = accessories?.find((a: any) => a.id === val);
+                                                            if (accessoryObj) {
+                                                                form.setValue(`${namePrefix}.${index}.accessories.${accIdx}.accessory_unit_price` as any, Number(accessoryObj.cost_price || 0));
+                                                                if (form.watch(`${namePrefix}.${index}.accessories.${accIdx}.accessory_quantity` as any) === 0) {
+                                                                    form.setValue(`${namePrefix}.${index}.accessories.${accIdx}.accessory_quantity` as any, 1);
+                                                                }
+                                                            }
+                                                        } else {
+                                                            form.setValue(`${namePrefix}.${index}.accessories.${accIdx}.accessory_unit_price` as any, 0);
+                                                            form.setValue(`${namePrefix}.${index}.accessories.${accIdx}.accessory_quantity` as any, 0);
+                                                        }
+                                                    }}
+                                                    value={field.value || ''}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-9 rounded-lg border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink shadow-none">
+                                                            <SelectValue placeholder="Accessory…" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent className="rounded-xl border-none shadow-2xl max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        <SelectItem value="none" className="rounded-lg font-medium text-ant-muted text-sm">— None —</SelectItem>
+                                                        {accessories?.map((a: any) => (
+                                                            <SelectItem key={a.id} value={a.id} className="rounded-lg font-medium text-sm py-2">
+                                                                {a.name} <span className="text-ant-muted ml-1 text-xs">({a.code})</span>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                                {(() => {
+                                                    const selectedAccessory = accessories?.find((a: any) => a.id === field.value);
+                                                    if (!selectedAccessory) return null;
+                                                    const sn = toProductStockNumber(selectedAccessory?.stock);
+                                                    return <OrderLineProductStockHint stock={sn} blockZeroStock={false} />;
+                                                })()}
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            const current = form.getValues(`${namePrefix}.${index}.accessories` as any) || [];
+                                            current.splice(accIdx, 1);
+                                            form.setValue(`${namePrefix}.${index}.accessories` as any, current);
+                                        }}
+                                        className="h-9 w-9 rounded-lg text-red-400 hover:text-ant-rose hover:bg-ant-rose/10 shrink-0"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <FormField
+                                        control={form.control}
+                                        name={`${namePrefix}.${index}.accessories.${accIdx}.accessory_unit_price` as any}
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1">
+                                                <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Cost</FormLabel>
+                                                <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink text-center px-1" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name={`${namePrefix}.${index}.accessories.${accIdx}.accessory_quantity` as any}
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1">
+                                                <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Qty</FormLabel>
+                                                <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink text-center px-1" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="rounded-lg bg-white/80 border border-ant-ink/10 px-1.5 py-1 flex flex-col justify-center items-center">
+                                        <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Sum</span>
+                                        <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums tracking-[-0.01em]">{accSubtotal.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            const current = form.getValues(`${namePrefix}.${index}.accessories` as any) || [];
+                            current.push({ accessory_id: 'none', accessory_quantity: 0, accessory_unit_price: 0 });
+                            form.setValue(`${namePrefix}.${index}.accessories` as any, current);
+                        }}
+                        className="text-[9px] font-semibold uppercase text-ant-ink border-ant-ink/15 h-7 rounded-lg gap-1 w-full bg-white/80"
+                    >
+                        <Plus className="w-3 h-3" /> Add add-on
+                    </Button>
+                </div>
+            </div>
+        );
+    };
+
     // --- Mutations ---
     const createOrderMutation = useMutation({
         mutationFn: async (values: OrderFormValues) => {
@@ -1807,6 +2116,89 @@ const Orders = () => {
                     });
                 } catch (err) {
                     console.error('Initial order status history error:', err);
+                }
+            }
+
+            // ── Two-order split (exchange + additional sale) ───────────────
+            // When this is an exchange (replace) AND the operator added an "Additional
+            // sale", THIS order is the swap/return leg (replace=true); the sold product
+            // becomes a SEPARATE normal order (replace=false) that runs the standard
+            // paid/unpaid pipeline. seller_id is copied from the swap leg so
+            // auto_attribute_order does not advance the round-robin a second time.
+            const addItems = (values.additional_items || []).filter(
+                (it) =>
+                    (it.product_id && it.product_id !== 'none') ||
+                    (it.accessories || []).some((a) => a.accessory_id && a.accessory_id !== 'none')
+            );
+            if (values.replace && addItems.length > 0) {
+                const addTotal = addItems.reduce((acc, it) => acc + (it.quantity * it.unit_price), 0);
+                const { data: saleOrder, error: saleErr } = await (supabase as any)
+                    .from('orders')
+                    .insert({
+                        name: values.name,
+                        phone: values.phone,
+                        master_city_id: values.city_id,
+                        address: values.address,
+                        source_name: values.source_name,
+                        shipping_cost: 0,
+                        include_delivery_in_total: false,
+                        replace: false,
+                        note: values.note,
+                        delivery_note: values.delivery_note,
+                        delivery_type: values.delivery_type,
+                        order_status_id: insertStatusId,
+                        courier_id: values.courier_id,
+                        company_id: values.company_id,
+                        price: addTotal,
+                        raw_price: addTotal,
+                        seller_id: order.seller_id ?? null,
+                        date: new Date().toISOString(),
+                        'DigiCom Business': activeBusinessId,
+                    })
+                    .select()
+                    .single();
+                if (saleErr) throw saleErr;
+
+                const saleItemRecords: any[] = [];
+                addItems.forEach((item) => {
+                    saleItemRecords.push(
+                        ...buildOrderItemRecords(
+                            saleOrder.id,
+                            toOrderLineForRecords(item),
+                            activeBusinessId!,
+                            (productAccessoriesForOrders ?? []) as ProductAccessoryRow[],
+                            accessoryUnitPriceById
+                        )
+                    );
+                });
+                const { error: saleItemsError } = await (supabase as any)
+                    .from('order_items')
+                    .insert(saleItemRecords);
+                if (saleItemsError) throw saleItemsError;
+
+                if (wantsConfirm) {
+                    const userRes = await (supabase as any).auth.getUser();
+                    const creatorId = userRes.data.user?.id;
+                    const { error: saleConfErr } = await (supabase as any)
+                        .from('orders')
+                        .update({
+                            order_status_id: values.order_status_id,
+                            confirmed_by_id: creatorId,
+                            confirmation_date: new Date().toISOString(),
+                        })
+                        .eq('id', saleOrder.id);
+                    if (saleConfErr) throw saleConfErr;
+                }
+
+                // Link the sale leg to the SAME original as the swap leg, for burger grouping.
+                // Updating only exchange_of_order_id does NOT re-fire resolve_exchange_link
+                // (its trigger is UPDATE OF replace/old_tracking/raw_price), so it sticks on
+                // this replace=false order.
+                if (order.exchange_of_order_id) {
+                    await (supabase as any)
+                        .from('orders')
+                        .update({ exchange_of_order_id: order.exchange_of_order_id })
+                        .eq('id', saleOrder.id);
                 }
             }
 
@@ -3394,7 +3786,7 @@ const Orders = () => {
                 <>
                     {viewMode === 'grid' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
-                                {filteredOrders.map((order) => {
+                                {arrangeExchangePairs(filteredOrders).map((order) => {
                                             const isDuplicateClient = duplicatePhones.has(order.phone);
                                             const isShortCard = shortOrderIds.has(order.id);
                                             const cardLocked = isOrderLocked(order);
@@ -3415,6 +3807,7 @@ const Orders = () => {
                                                 || '';
                                             const cardProductCode: string =
                                                 cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
+                                            const exchangeRole = order._exchangeRole as ('exchange' | 'original' | undefined);
                                             return (
                                                 <div
                                         key={order.id}
@@ -3424,7 +3817,9 @@ const Orders = () => {
                                                 ? "border-ant-ink/20 shadow-md ring-1 ring-ant-ink/10"
                                                 : "border-ant-line shadow-sm hover:border-ant-ink/10",
                                             isDuplicateClient && !isShortCard && 'border-yellow-400/50 bg-yellow-400/[0.10]',
-                                            isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]'
+                                            isShortCard && 'ring-1 ring-red-500/50 border-red-300 bg-red-500/[0.06]',
+                                            exchangeRole === 'exchange' && 'ring-1 ring-purple-500/40 bg-purple-500/[0.05]',
+                                            exchangeRole === 'original' && 'ring-1 ring-purple-500/30 bg-purple-500/[0.04]',
                                         )}
                                     >
                                         {/* Top accent line — `overflow-hidden` on the card keeps the
@@ -3555,6 +3950,12 @@ const Orders = () => {
                                                                     <AlertTriangle className="w-3.5 h-3.5" />
                                                                 </button>
                                                             )}
+                                                            {exchangeRole === 'exchange' && (
+                                                                <span className="ml-1 shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-700 text-[9px] font-bold uppercase tracking-wide">ÉCHANGE</span>
+                                                            )}
+                                                            {exchangeRole === 'original' && (
+                                                                <span className="ml-1 shrink-0 inline-flex items-center gap-1 text-[9px] font-semibold text-purple-700/70" title="Colis d'origine (retour de l'échange)">↳ origine</span>
+                                                            )}
                                                         </div>
                                                         <p className="text-[11px] text-ant-mid font-medium tracking-wide truncate">{order.phone}</p>
                                                     </div>
@@ -3679,7 +4080,7 @@ const Orders = () => {
                         </div>
                     ) : (
                         <OrdersListView
-                            orders={filteredOrders}
+                            orders={arrangeExchangePairs(filteredOrders)}
                             selectedOrders={selectedOrders}
                             duplicatePhones={duplicatePhones}
                             shortOrderIds={shortOrderIds}
@@ -4464,14 +4865,17 @@ const Orders = () => {
                                                 />
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
 
+                                {/* Old-tracking spans full width (moved out of the 2-col grid) */}
                                         {form.watch('replace') &&
                                             orderCompanyIsColiaty(companies, form.watch('company_id')) && (
                                                 <FormField
                                                     control={form.control}
                                                     name="coliaty_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                        <FormItem className="space-y-2 sm:col-span-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
                                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (Coliaty)
                                                             </FormLabel>
@@ -4497,7 +4901,7 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="ameex_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                        <FormItem className="space-y-2 sm:col-span-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
                                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (AMEEX)
                                                             </FormLabel>
@@ -4523,7 +4927,7 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="quicklivraison_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                        <FormItem className="space-y-2 sm:col-span-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
                                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (Quick Livraison)
                                                             </FormLabel>
@@ -4549,7 +4953,7 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="forcelog_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                        <FormItem className="space-y-2 sm:col-span-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
                                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (Forcelog)
                                                             </FormLabel>
@@ -4575,7 +4979,7 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="sendit_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                        <FormItem className="space-y-2 sm:col-span-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
                                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (Sendit)
                                                             </FormLabel>
@@ -4601,7 +5005,7 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="delvoexpress_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                        <FormItem className="space-y-2 sm:col-span-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
                                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (Delevo Express)
                                                             </FormLabel>
@@ -4621,8 +5025,35 @@ const Orders = () => {
                                                     )}
                                                 />
                                             )}
-                                    </div>
-                                </div>
+
+                                {form.watch('replace') && (
+                                    <section className="rounded-xl border border-purple-400/40 bg-purple-500/[0.04] p-3 sm:p-4 space-y-3 shrink-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="space-y-0.5">
+                                                <h4 className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid flex items-center gap-2">
+                                                    <ShoppingBag className="w-3 h-3 text-purple-500/70" /> Additional sale (optional)
+                                                </h4>
+                                                <p className="text-[10px] text-ant-muted leading-snug">
+                                                    Extra product sold WITH this exchange → becomes a separate normal order (paid/unpaid). Leave empty for a pure swap.
+                                                </p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => addAppend({ product_id: '', quantity: 1, unit_price: 0, accessories: [] })}
+                                                className="text-[10px] font-medium text-ant-ink border-ant-line bg-ant-paper h-8 px-3 gap-1.5 rounded-full shrink-0 hover:border-ant-ink/25"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" /> Product
+                                            </Button>
+                                        </div>
+                                        {addFields.length > 0 && (
+                                            <div className="space-y-2">
+                                                {addFields.map((field, index) => renderOrderLine('additional_items', index, field.id, true, () => addRemove(index), `Sale ${index + 1}`))}
+                                            </div>
+                                        )}
+                                    </section>
+                                )}
 
                                 <section className="rounded-xl border border-ant-line bg-ant-paper p-3 sm:p-4 space-y-3 shrink-0">
                                     <div className="space-y-0.5">

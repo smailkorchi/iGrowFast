@@ -191,7 +191,7 @@ Deno.serve(async (req: Request) => {
         // orders can still surface here.
         const { data: orderMeta, error: orderMetaErr } = await supabase
             .from('orders')
-            .select('id, date_deleted, delivered, payed, date_livraison, package_status_id')
+            .select('id, date_deleted, delivered, payed, date_livraison, package_status_id, replace')
             .eq('id', orderId)
             .maybeSingle();
 
@@ -372,7 +372,13 @@ Deno.serve(async (req: Request) => {
             // Coliaty's PARCEL_SITUATION_CHANGED with STATUS=DELIVERED (sent at invoice-pay
             // time) from being treated as a fresh "delivery just happened" event — the
             // actual delivery may have been days earlier and date_livraison must not move.
-            if (TERMINAL_CATEGORIES.has(currentCat) && newCat !== currentCat) {
+            // Exchange orders (replace=true) get the single delivered → returned transition:
+            // Coliaty's swap shipment reports DELIVERED (new item handed over) then RETURNED
+            // (old item brought back), and the exchange order must settle at 'returned'. Every
+            // other terminal transition stays locked.
+            const exchangeDeliveredToReturned =
+                currentCat === 'delivered' && newCat === 'returned' && orderMeta.replace === true;
+            if (TERMINAL_CATEGORIES.has(currentCat) && newCat !== currentCat && !exchangeDeliveredToReturned) {
                 console.log(`[webhook] BLOCKED terminal regression: ${currentCat} → ${newCat}`);
                 if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: `Terminal lock: ${currentCat} → ${newCat}` }).eq('id', logEntry.id);
                 // Still record payment if applicable.
