@@ -6,7 +6,8 @@
 // password is accepted here once on create/rotate and never returned to clients.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+// nodemailer, not denomailer: denomailer@1.6.0 mis-folds non-ASCII Subject headers (see send-email).
+import nodemailer from "npm:nodemailer@6.9.14";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,26 +134,26 @@ Deno.serve(async (req) => {
         const { data: pw, error: pwErr } = await service.rpc("get_email_account_secret", { p_id: id });
         if (pwErr || !pw) throw new Error(pwErr?.message || "Could not read the stored password");
 
-        const client = new SMTPClient({
-          connection: {
-            hostname: acc.smtp_host,
-            port: acc.smtp_port,
-            tls: acc.smtp_security === "ssl" || acc.smtp_security === "tls", // implicit TLS (465); starttls/none use opportunistic STARTTLS (587)
-            auth: { username: acc.username, password: String(pw) },
-          },
+        const secure = acc.smtp_security === "ssl" || acc.smtp_port === 465; // implicit TLS (465) vs STARTTLS (587)
+        const transporter = nodemailer.createTransport({
+          host: acc.smtp_host,
+          port: acc.smtp_port,
+          secure,
+          auth: { user: acc.username, pass: String(pw) },
+          ...(secure ? {} : { requireTLS: acc.smtp_security === "tls" }),
         });
 
-        await client.send({
+        await transporter.sendMail({
           from: acc.from_name ? `${acc.from_name} <${acc.email_address}>` : acc.email_address,
           to,
           subject: "iGrowFast · SMTP test",
-          content: "This is a test email confirming your SMTP settings work. — iGrowFast",
+          text: "This is a test email confirming your SMTP settings work. — iGrowFast",
           html: `<div style="font-family:system-ui,Arial,sans-serif;font-size:14px;color:#141413">
             <p>This is a <strong>test email</strong> from iGrowFast confirming that the SMTP
             settings for <strong>${acc.name}</strong> are working.</p>
             <p style="color:#8a8a85;font-size:12px">Sent to ${to}</p></div>`,
         });
-        await client.close();
+        try { transporter.close(); } catch { /* ignore */ }
         ok = true;
       } catch (e) {
         errMsg = (e as Error)?.message || "SMTP connection failed";

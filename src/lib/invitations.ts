@@ -5,6 +5,8 @@ export type InviteRole = 'super admin' | 'admin' | 'commercial' | 'courier' | 'm
 
 export interface CreateInvitationInput {
     target_role: InviteRole;
+    /** Invitee email the admin knows — where the link/reminder/revocation notices are sent. Verified server-side. */
+    email: string;
     /** Admin-set authorization fields (everything that is NOT identity). Applied to the user on consume. */
     profile_payload: Record<string, unknown>;
     expires_in_days?: number;
@@ -15,6 +17,7 @@ export interface CreatedInvitation {
     id: string;
     target_role: InviteRole;
     expires_at: string;
+    email: string;
     token: string;
     link: string;
 }
@@ -106,11 +109,62 @@ export function checkSignupEmail(token: string, email: string): Promise<EmailChe
     return invokeJson<EmailCheckResult>('signup-email', { action: 'check', token, email: email.trim().toLowerCase() });
 }
 
+/** Admin-side deliverability check for the invitee email — runs BEFORE an invite exists (no token gate). */
+export function checkInviteEmail(email: string): Promise<EmailCheckResult> {
+    return invokeJson<EmailCheckResult>('create-invitation', { action: 'check_email', email: email.trim().toLowerCase() });
+}
+
 /** Re-validate the email and send a 6-digit confirmation code to it (gated by a valid invite). */
 export function requestSignupOtp(token: string, email: string): Promise<SignupOtpResult> {
     return invokeJson<SignupOtpResult>('signup-email', {
         action: 'send', token, email: email.trim().toLowerCase(), origin: window.location.origin,
     });
+}
+
+export interface SendInvitationResult {
+    ok: boolean;
+    reason?: string;
+    detail?: string;
+}
+
+/** Email the (already-created) invitation link to its stored recipient via the `invitation` template. */
+export function sendInvitationEmail(token: string): Promise<SendInvitationResult> {
+    return invokeJson<SendInvitationResult>('send-invitation', {
+        action: 'send', token, origin: window.location.origin,
+    });
+}
+
+/** Card action — rotate the token + email the `invitation_reminder` template.
+ *  `email` supplies a recipient when the invite has none on file (prompt-modal flow). */
+export function remindInvitation(invitationId: string, email?: string): Promise<SendInvitationResult> {
+    return invokeJson<SendInvitationResult>('send-invitation', {
+        action: 'remind', invitation_id: invitationId, origin: window.location.origin,
+        ...(email ? { email: email.trim().toLowerCase() } : {}),
+    });
+}
+
+/** Card action — revoke the invitation (always) + email the `invitation_revoked` notice when an email is known. */
+export function revokeInvitation(invitationId: string, email?: string): Promise<SendInvitationResult> {
+    return invokeJson<SendInvitationResult>('send-invitation', {
+        action: 'revoke', invitation_id: invitationId,
+        ...(email ? { email: email.trim().toLowerCase() } : {}),
+    });
+}
+
+/** Card action — hard-delete a revoked/expired invitation row (removes its card). */
+export function deleteInvitation(invitationId: string): Promise<SendInvitationResult> {
+    return invokeJson<SendInvitationResult>('send-invitation', { action: 'delete', invitation_id: invitationId });
+}
+
+export interface PendingInvitation {
+    id: string;
+    email: string | null;
+    target_role: string;
+    expires_at: string;
+    created_at: string;
+    consumed_at: string | null;
+    revoked_at: string | null;
+    reminder_sent_at: string | null;
 }
 
 // Human-readable copy for invitation problem states.
@@ -141,6 +195,10 @@ export function invitationReason(reason?: string): string {
         case 'otp_invalid': return 'Incorrect code. Check it and try again.';
         case 'too_many_attempts': return 'Too many attempts. Request a new code.';
         case 'email_mismatch': return 'This code was sent to a different email. Restart the step.';
+        // Send-invitation (email the link)
+        case 'send_failed': return 'The email could not be sent. Try again or copy the link instead.';
+        case 'not_found': return 'This invitation no longer exists.';
+        case 'forbidden': return 'You can’t send this invitation.';
         default: return 'Something went wrong. Please try again.';
     }
 }

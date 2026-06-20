@@ -110,6 +110,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
 import { InviteUserWizard } from '@/components/users/InviteUserWizard';
+import { InvitationsPanel } from '@/components/users/InvitationsPanel';
 import { requestCredentialChange } from '@/lib/credentialChange';
 
 const userSchema = z.object({
@@ -679,6 +680,9 @@ const Users = () => {
                     </div>
                 </div>
 
+                {/* Pending / revoked / expired invitations (self-renders only when there are some) */}
+                <InvitationsPanel activeBusinessId={activeBusinessId} />
+
                 {/* Content */}
                 {isLoading ? (
                     <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 rounded-2xl" />)}</div>
@@ -783,7 +787,7 @@ const Users = () => {
                     invitee sets their own identity (name, email, password, avatar). */}
                 <InviteUserWizard
                     isOpen={isAddModalOpen}
-                    onClose={() => setIsAddModalOpen(false)}
+                    onClose={() => { setIsAddModalOpen(false); queryClient.invalidateQueries({ queryKey: ['invitations'] }); }}
                     activeBusinessId={activeBusinessId}
                 />
 

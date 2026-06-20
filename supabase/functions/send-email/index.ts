@@ -1,10 +1,14 @@
 // @ts-nocheck
 // Shared email machine. One function sends ANY template by stable `key`, renders
-// {{vars}}, resolves the sender account, sends via SMTP (denomailer), logs to email_log.
+// {{vars}}, resolves the sender account, sends via SMTP (nodemailer), logs to email_log.
 // Callers: other edge functions (pass the service-role key as bearer) or the platform owner.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+// nodemailer (not denomailer): denomailer@1.6.0 — the latest — mis-folds long/accented
+// Subject headers (it soft-breaks the encoded-word with `=\r\n` and no leading whitespace,
+// so the receiver ends header parsing early and the whole MIME spills into the body).
+// nodemailer emits RFC 2047-correct multi-word folded headers.
+import nodemailer from "npm:nodemailer@6.9.14";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,25 +83,26 @@ Deno.serve(async (req) => {
     const html = renderHtml(tpl.html_body || "", vars);
     const text = renderText(tpl.text_body || "", vars);
 
-    const client = new SMTPClient({
-      connection: {
-        hostname: acc.smtp_host,
-        port: acc.smtp_port,
-        tls: acc.smtp_security === "ssl" || acc.smtp_security === "tls",
-        auth: { username: acc.username, password: String(pw) },
-      },
+    // Port 465 / "ssl" = implicit TLS (secure). 587 / "tls" = STARTTLS upgrade. 25 / "none" = plain.
+    const secure = acc.smtp_security === "ssl" || acc.smtp_port === 465;
+    const transporter = nodemailer.createTransport({
+      host: acc.smtp_host,
+      port: acc.smtp_port,
+      secure,
+      auth: { user: acc.username, pass: String(pw) },
+      ...(secure ? {} : { requireTLS: acc.smtp_security === "tls" }),
     });
     try {
-      await client.send({
+      await transporter.sendMail({
         from: acc.from_name ? `${acc.from_name} <${acc.email_address}>` : acc.email_address,
         to,
         subject,
-        content: text || " ",
+        text: text || " ",
         html,
       });
-      await client.close();
+      try { transporter.close(); } catch { /* ignore */ }
     } catch (sendErr) {
-      try { await client.close(); } catch { /* ignore */ }
+      try { transporter.close(); } catch { /* ignore */ }
       await service.from("email_log").insert({
         template_key: tpl.key, to_email: to, to_user_id: toUserId, account_id: accountId,
         status: "error", error: String((sendErr as Error)?.message ?? sendErr),

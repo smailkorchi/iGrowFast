@@ -13,9 +13,12 @@ import { FaWhatsapp } from 'react-icons/fa';
 import {
     Crown, Shield, Headphones, Bike, Target, ArrowRight, ArrowLeft, Loader2, Copy, Check,
     Link as LinkIcon, Search, SlidersHorizontal, UserPlus, Package, Wallet, Sparkles,
-    BarChart3, Megaphone, type LucideIcon,
+    BarChart3, Megaphone, Mail, MailCheck, AlertCircle, Send, type LucideIcon,
 } from 'lucide-react';
-import { createInvitation, USER_PAGES, type InviteRole } from '@/lib/invitations';
+import {
+    createInvitation, checkInviteEmail, sendInvitationEmail, invitationReason,
+    USER_PAGES, type InviteRole,
+} from '@/lib/invitations';
 
 interface RoleMeta {
     key: InviteRole;
@@ -74,14 +77,26 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
 
     const [generating, setGenerating] = useState(false);
     const [link, setLink] = useState<string | null>(null);
+    const [token, setToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+
+    // Invitee email (captured on step 1, BEFORE generating) — where the link / reminders / revocation go.
+    // Verified server-side with the same deliverability checks as registration.
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [emailCheck, setEmailCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'bad' | 'unknown'; reason?: string; suggestion?: string }>({ status: 'idle' });
+    // Step 2 "Send" button (emails the link to the stored invitee).
+    const [createdEmail, setCreatedEmail] = useState<string | null>(null); // email actually stored on the invite (null = none)
+    const [sending, setSending] = useState(false);
+    const [sentTo, setSentTo] = useState<string | null>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
 
     const reset = () => {
         setStep(0); setRole(null); setPages({}); setCommissionPrice(0); setCommissionBasis('per_order');
         setPaymentType('commission'); setSalaryAmount(0); setProductIds([]); setProductSearch('');
         setWaMode('none'); setWaInstanceIds([]); setParcelFragile(false); setParcelOpen(false);
-        setParcelTryOn(false); setPhone(''); setLink(null); setCopied(false); setGenerating(false);
+        setParcelTryOn(false); setPhone(''); setLink(null); setToken(null); setCopied(false); setGenerating(false);
         setGaMode('none'); setGaIds([]); setMetaMode('none'); setMetaIds([]);
+        setInviteEmail(''); setEmailCheck({ status: 'idle' }); setSending(false); setSentTo(null); setSendError(null); setCreatedEmail(null);
     };
 
     useEffect(() => { if (isOpen) reset(); }, [isOpen]);
@@ -158,12 +173,37 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         return base;
     };
 
+    const emailFmtValid = useMemo(() => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(inviteEmail.trim()), [inviteEmail]);
+    // Email is OPTIONAL — it never gates creation. The live check is a hint only.
+
+    // Debounced deliverability probe on the Access step (admin-gated, no invite token yet).
+    useEffect(() => {
+        if (step !== 1) return;
+        const e = inviteEmail.trim().toLowerCase();
+        if (!emailFmtValid) { setEmailCheck({ status: 'idle' }); return; }
+        setEmailCheck({ status: 'checking' });
+        let active = true;
+        const t = window.setTimeout(async () => {
+            const res = await checkInviteEmail(e);
+            if (!active) return;
+            if (res.ok && res.deliverable) setEmailCheck({ status: 'ok' });
+            else if (res.reason === 'error') setEmailCheck({ status: 'unknown' });
+            else setEmailCheck({ status: 'bad', reason: res.reason, suggestion: res.suggestion });
+        }, 600);
+        return () => { active = false; window.clearTimeout(t); };
+    }, [inviteEmail, emailFmtValid, step]);
+
     const generate = async () => {
         if (!role) return;
         setGenerating(true);
         try {
-            const res = await createInvitation({ target_role: role, profile_payload: buildPayload() });
+            const res = await createInvitation({
+                target_role: role, email: inviteEmail.trim().toLowerCase(), profile_payload: buildPayload(),
+            });
             setLink(res.link);
+            setToken(res.token);
+            setCreatedEmail(res.email ?? null);
+            setSentTo(null); setSendError(null);
             setStep(2);
         } catch (e) {
             toast({ title: 'Could not create link', description: (e as Error).message, variant: 'destructive' });
@@ -177,6 +217,20 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         await navigator.clipboard.writeText(link);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1500);
+    };
+
+    const sendInvite = async () => {
+        if (!token || sending) return;
+        setSending(true); setSendError(null);
+        try {
+            const res = await sendInvitationEmail(token);
+            if (!res.ok) { setSendError(invitationReason(res.reason)); return; }
+            setSentTo(inviteEmail.trim().toLowerCase());
+        } catch (e) {
+            setSendError((e as Error).message);
+        } finally {
+            setSending(false);
+        }
     };
 
     const toggle = (arr: string[], setArr: (v: string[]) => void, id: string) =>
@@ -302,6 +356,35 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                                     </div>
                                 </div>
                             )}
+
+                            {/* Invitee email — required before the link is generated; verified server-side. */}
+                            <div className="rounded-2xl border border-ant-line p-4 space-y-2">
+                                <SectionHeader icon={Mail} title="Invitee email" hint="Optional — add it to email the invite (and reminders). You can also leave it and add it later." />
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
+                                    <Input
+                                        type="email" placeholder="name@email.com" value={inviteEmail}
+                                        onChange={(e) => setInviteEmail(e.target.value)}
+                                        className={cn(inputCls, 'pl-9 pr-9')} autoComplete="off" autoCapitalize="off"
+                                    />
+                                    {emailCheck.status === 'checking' && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-ant-mid" />}
+                                    {emailCheck.status === 'ok' && <MailCheck className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-green" />}
+                                    {emailCheck.status === 'bad' && <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-rose" />}
+                                </div>
+                                {emailCheck.status === 'bad' && (
+                                    <p className="text-[11px] font-medium text-ant-rose/90 flex flex-wrap items-center gap-1">
+                                        {invitationReason(emailCheck.reason)}
+                                        {emailCheck.reason === 'typo' && emailCheck.suggestion && (
+                                            <button type="button" onClick={() => setInviteEmail(emailCheck.suggestion!)} className="font-semibold text-ant-orange hover:underline">
+                                                Use {emailCheck.suggestion}
+                                            </button>
+                                        )}
+                                    </p>
+                                )}
+                                {emailCheck.status === 'unknown' && (
+                                    <p className="text-[11px] font-medium text-ant-mid">Couldn’t verify right now — you can still proceed.</p>
+                                )}
+                            </div>
 
                             {role === 'super admin' && (
                                 <div className="rounded-2xl border border-ant-rose/25 bg-ant-rose/5 p-6 text-center">
@@ -534,7 +617,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                         </div>
                     )}
 
-                    {/* STEP 2 — LINK */}
+                    {/* STEP 2 — LINK + COPY + SEND */}
                     {step === 2 && link && (
                         <div className="space-y-5">
                             <div className="rounded-2xl border border-ant-green/30 bg-gradient-to-b from-ant-green/8 to-transparent p-5 text-center">
@@ -542,16 +625,50 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                                     <Check className="w-6 h-6 text-ant-green" />
                                 </div>
                                 <p className="font-display text-[16px] font-semibold text-ant-ink">Invite link ready</p>
-                                <p className="text-[12px] text-ant-mid mt-1">Send it to your new {roleMeta?.label.toLowerCase()}. They register themselves — single-use, expires in 7 days.</p>
+                                <p className="text-[12px] text-ant-mid mt-1">
+                                    {createdEmail
+                                        ? <>For <span className="font-semibold text-ant-ink break-all">{createdEmail}</span> · single-use · expires in 7 days.</>
+                                        : <>Single-use · expires in 7 days. No email on file — copy the link, or add an email later from the invitations list to send it.</>}
+                                </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="relative flex-1">
-                                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
-                                    <Input readOnly value={link} className={cn(inputCls, 'pl-9 font-mono text-[11px]')} onFocus={(e) => e.currentTarget.select()} />
+
+                            <div className="space-y-2">
+                                <label className={labelCls}>Invitation link</label>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative flex-1 min-w-0">
+                                        <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
+                                        <Input readOnly value={link} className={cn(inputCls, 'pl-9 font-mono text-[11px]')} onFocus={(e) => e.currentTarget.select()} />
+                                    </div>
+                                    <Button onClick={copy} className={cn('h-10 rounded-xl gap-1.5 px-4 text-[12px] font-semibold text-white transition shrink-0', copied ? 'bg-ant-green hover:bg-ant-green/90' : 'bg-ant-ink hover:bg-ant-ink/90')}>
+                                        {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                                    </Button>
+                                    {createdEmail && (
+                                        <Button
+                                            onClick={sendInvite}
+                                            disabled={sending || !!sentTo}
+                                            title={`Email the invitation to ${createdEmail}`}
+                                            className={cn('h-10 rounded-xl gap-1.5 px-4 text-[12px] font-semibold text-white transition shrink-0 disabled:opacity-60',
+                                                sentTo ? 'bg-ant-green hover:bg-ant-green/90' : 'bg-ant-orange hover:bg-ant-orange/90')}
+                                        >
+                                            {sending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
+                                                : sentTo ? <><MailCheck className="w-3.5 h-3.5" /> Sent</>
+                                                : <><Send className="w-3.5 h-3.5" /> Send</>}
+                                        </Button>
+                                    )}
                                 </div>
-                                <Button onClick={copy} className={cn('h-10 rounded-xl gap-1.5 px-4 text-[12px] font-semibold text-white transition', copied ? 'bg-ant-green hover:bg-ant-green/90' : 'bg-ant-ink hover:bg-ant-ink/90')}>
-                                    {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
-                                </Button>
+                                {sentTo && !sendError && (
+                                    <p className="text-[11px] font-medium text-ant-green flex items-center gap-1">
+                                        <Check className="w-3 h-3" /> Invitation emailed to {sentTo}.
+                                    </p>
+                                )}
+                                {sendError && (
+                                    <p className="text-[11px] font-semibold text-ant-rose bg-ant-rose/10 border border-ant-rose/30 rounded-lg px-3 py-2">{sendError}</p>
+                                )}
+                                <p className="text-[11px] text-ant-mid">
+                                    {createdEmail
+                                        ? 'The branded invitation is emailed to the address you entered. You can also copy the link to share it yourself.'
+                                        : 'Copy the link to share it yourself, or add an email later from the invitations list to send it (and enable reminders).'}
+                                </p>
                             </div>
                         </div>
                     )}
@@ -575,7 +692,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                         </Button>
                     )}
                     {step === 1 && (
-                        <Button onClick={generate} disabled={generating} className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-2">
+                        <Button onClick={generate} disabled={generating} className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-2 disabled:opacity-50">
                             {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</> : <><LinkIcon className="w-4 h-4" /> Generate link</>}
                         </Button>
                     )}
