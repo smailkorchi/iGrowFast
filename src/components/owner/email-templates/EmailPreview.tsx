@@ -1,6 +1,41 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Monitor, Tablet, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// The stored templates carry {{variables}}. Rendering them RAW makes a long placeholder
+// (e.g. "{{otp_code}}" in the big letter-spaced code box, or "{{revenue_total}}" in a narrow
+// stat cell) overflow the mobile frame — a preview-only artifact, not how the delivered email
+// (short real values) looks. So we substitute representative sample data before previewing.
+const SAMPLE_VALUES: Record<string, string> = {
+    user_name: 'Sarah', admin_name: 'Sarah', seller_name: 'Sarah', inviter_name: 'Yassine',
+    business_name: 'Golden Design', otp_code: '482159', otp_ttl: '10 minutes',
+    purpose: 'valider votre connexion', request_ip: '196.200.10.5',
+    month_label: 'Mai 2026', period_label: 'Mai 2026', currency: 'DH',
+    revenue_total: '125 000', net_profit: '38 400', ad_spend: '21 750',
+    delivered_orders: '512', delivery_rate: '62 %', new_customers: '143',
+    top_product: 'Sérum Vitamine C', role_label: 'Commercial',
+    role_description: 'Vous vendez, échangez avec les clients et percevez vos commissions.',
+    expires_in: '7 jours', days_left_label: '2 jours', expires_at: '28 juin 2026',
+    dashboard_url: 'https://igrowfast.com/dashboard', invite_url: 'https://igrowfast.com/register/exemple',
+};
+
+function sampleFor(name: string): string {
+    if (SAMPLE_VALUES[name]) return SAMPLE_VALUES[name];
+    const n = name.toLowerCase();
+    if (n.includes('url') || n.includes('link')) return 'https://igrowfast.com/…';
+    if (n.includes('email') || n.includes('mail')) return 'exemple@email.com';
+    if (n === 'ip' || n.includes('_ip') || n.includes('ip_')) return '196.200.10.5';
+    if (n.includes('date') || n.includes('month') || n.endsWith('_at') || n.includes('period') || n.includes('expire')) return 'Mai 2026';
+    if (n.includes('name')) return 'Sarah';
+    if (n.includes('rate') || n.includes('percent')) return '62 %';
+    if (n.includes('currency') || n.includes('devise')) return 'DH';
+    if (/amount|total|spend|profit|revenue|price|count|orders|customers|number|qty|salary|commission|balance|montant|net|paid|due|versement/.test(n)) return '12 500';
+    return 'Exemple';
+}
+
+/** Replace {{var}} tokens with representative sample data (mirrors the send-time {{var}} syntax). */
+const fillSamples = (str: string) =>
+    (str || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k) => sampleFor(k));
 
 type Device = 'desktop' | 'tablet' | 'mobile';
 
@@ -28,6 +63,11 @@ const EmailPreview = ({ html, subject, preheader, fromName = 'iGrowFast', fromEm
     const [device, setDevice] = useState<Device>('desktop');
     const width = DEVICES.find((d) => d.key === device)?.width ?? null;
     const initials = (fromName || 'iG').trim().slice(0, 2).toUpperCase();
+
+    // Preview with realistic sample data so it matches the delivered email (raw {{vars}} would overflow).
+    const previewHtml = useMemo(() => fillSamples(html), [html]);
+    const previewSubject = useMemo(() => fillSamples(subject), [subject]);
+    const previewPreheader = useMemo(() => (preheader ? fillSamples(preheader) : preheader), [preheader]);
 
     return (
         <div className="flex flex-col h-full">
@@ -71,10 +111,10 @@ const EmailPreview = ({ html, subject, preheader, fromName = 'iGrowFast', fromEm
                                 <span className="text-[10.5px] text-ant-mid shrink-0 tabular-nums">now</span>
                             </div>
                             <p className="text-[13px] text-ant-ink leading-snug truncate">
-                                {subject || <span className="text-ant-mid italic">No subject</span>}
+                                {previewSubject || <span className="text-ant-mid italic">No subject</span>}
                             </p>
                             <p className="text-[11.5px] text-ant-mid leading-snug truncate">
-                                {preheader || fromEmail}
+                                {previewPreheader || fromEmail}
                             </p>
                         </div>
                     </div>
@@ -83,7 +123,7 @@ const EmailPreview = ({ html, subject, preheader, fromName = 'iGrowFast', fromEm
                     <iframe
                         title="Email preview"
                         sandbox=""
-                        srcDoc={html || '<!doctype html><body style="margin:0;padding:24px;font-family:sans-serif;color:#8a8a85">Nothing to preview yet.</body>'}
+                        srcDoc={previewHtml || '<!doctype html><body style="margin:0;padding:24px;font-family:sans-serif;color:#8a8a85">Nothing to preview yet.</body>'}
                         className="w-full flex-1 min-h-[420px] bg-white border-0"
                     />
                 </div>
