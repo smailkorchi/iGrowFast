@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import NiceAvatar from 'react-nice-avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
+import { AvatarEditDialog } from '@/components/profile/AvatarEditDialog';
+import { SecuritySection } from '@/components/profile/SecuritySection';
 import {
     Phone,
     Mail,
@@ -37,6 +40,8 @@ const fmtMAD = (n: number | null | undefined) =>
 
 const CourierProfile = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const [avatarOpen, setAvatarOpen] = useState(false);
 
     const { data: me, isLoading } = useQuery({
         queryKey: ['courier-profile-me'],
@@ -103,15 +108,11 @@ const CourierProfile = () => {
             <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                 <div className="h-[3px] w-full bg-ant-ink" />
                 <div className="p-4 md:p-6 flex items-center gap-4">
-                    <div className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-2xl border border-ant-line bg-ant-light flex items-center justify-center overflow-hidden shrink-0">
-                        {me.avatar_url ? (
-                            <img src={me.avatar_url} className="w-full h-full object-cover" alt="" />
-                        ) : (me as any).avatar_config ? (
-                            <NiceAvatar className="w-full h-full" style={{ width: '100%', height: '100%' }} shape="square" {...((me as any).avatar_config)} />
-                        ) : (
-                            <span className="font-display text-[22px] md:text-[26px] text-ant-ink">{initials}</span>
-                        )}
-                    </div>
+                    <button type="button" onClick={() => setAvatarOpen(true)} title="Modifier l'avatar"
+                        className="relative w-16 h-16 md:w-[72px] md:h-[72px] rounded-2xl overflow-hidden border border-ant-line shrink-0 group cursor-pointer">
+                        <UserAvatar url={me.avatar_url} config={(me as any).avatar_config} name={me.name} className="w-full h-full text-[24px]" />
+                        <span className="absolute inset-0 bg-ant-ink/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-semibold uppercase tracking-[0.16em] text-white">Modifier</span>
+                    </button>
                     <div className="flex-1 min-w-0 space-y-1">
                         <p className="font-display text-[18px] md:text-[20px] text-ant-ink leading-tight truncate">
                             {me.name || firstName}
@@ -143,6 +144,8 @@ const CourierProfile = () => {
                 <InfoRow icon={Coins} label="Salaire (MAD)" value={fmtMAD(me.salary_amount)} tabular />
             </Section>
 
+            <SecuritySection email={me.email} chapter="03" />
+
             {/* Logout action (mobile-first, full-width) */}
             <button
                 type="button"
@@ -152,6 +155,12 @@ const CourierProfile = () => {
                 <LogOut className="w-3.5 h-3.5" />
                 Déconnexion
             </button>
+            <AvatarEditDialog
+                isOpen={avatarOpen}
+                onClose={() => setAvatarOpen(false)}
+                onSaved={() => queryClient.invalidateQueries({ queryKey: ['courier-profile-me'] })}
+                seed={me.email ?? undefined}
+            />
         </div>
     );
 };

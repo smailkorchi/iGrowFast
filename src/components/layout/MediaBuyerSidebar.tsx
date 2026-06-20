@@ -308,9 +308,9 @@ const MediaBuyerSidebar = () => {
                         ))}
                     </div>
 
-                    {/* Profile */}
+                    {/* Profile → /mediabuyer/profile */}
                     <div className="px-2 pt-2 pb-1.5 border-t border-white/[0.06]">
-                        <div className="flex items-center h-11 rounded-lg">
+                        <NavLink to="/mediabuyer/profile" className="flex items-center h-11 rounded-lg hover:bg-white/[0.04] transition-colors">
                             <div className="w-[44px] h-11 flex items-center justify-center shrink-0">
                                 <div className="w-8 h-8 rounded-full overflow-hidden bg-ant-ink-soft flex items-center justify-center ring-1 ring-white/10">
                                     {isProfileLoading ? (
@@ -331,7 +331,7 @@ const MediaBuyerSidebar = () => {
                                     </span>
                                 </span>
                             </div>
-                        </div>
+                        </NavLink>
                     </div>
 
                     {/* Actions */}

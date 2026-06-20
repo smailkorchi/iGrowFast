@@ -35,6 +35,44 @@ const Auth = () => {
         setResetSent(true);
     };
 
+    const [pending2FA, setPending2FA] = useState<null | { role: string | null; identifier: string }>(null);
+    const [code2FA, setCode2FA] = useState('');
+    const [verify2FABusy, setVerify2FABusy] = useState(false);
+    const [err2FA, setErr2FA] = useState<string | null>(null);
+
+    const proceed = (ctx: { role: string | null; identifier: string }) => {
+        void logAction({ action: 'login', metadata: { identifier: ctx.identifier, role: ctx.role } });
+        toast({ title: 'Bienvenue', description: 'Connexion réussie à iGrowFast.' });
+        const r = ctx.role;
+        if (r === 'commercial') navigate('/seller/dashboard');
+        else if (r === 'owner') navigate('/owner/dashboard');
+        else if (r === 'courier') navigate('/courier/dashboard');
+        else if (r === 'mediabuyer') navigate('/mediabuyer/dashboard');
+        else navigate('/');
+    };
+
+    const verify2FA = async () => {
+        if (!pending2FA || code2FA.trim().length < 6) return;
+        setVerify2FABusy(true); setErr2FA(null);
+        try {
+            const { data: factors } = await supabase.auth.mfa.listFactors();
+            const factorId = factors?.totp?.[0]?.id;
+            if (!factorId) throw new Error('Aucun authentificateur configuré.');
+            const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: code2FA.trim() });
+            if (error) throw error;
+            const ctx = { role: pending2FA.role, identifier: pending2FA.identifier };
+            setPending2FA(null); setCode2FA('');
+            proceed(ctx);
+        } catch (e) {
+            setErr2FA((e as Error).message || 'Code incorrect.');
+        } finally { setVerify2FABusy(false); }
+    };
+
+    const cancel2FA = async () => {
+        await supabase.auth.signOut();
+        setPending2FA(null); setCode2FA(''); setErr2FA(null);
+    };
+
     const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
     });
@@ -83,27 +121,17 @@ const Auth = () => {
                 localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
             }
 
-            void logAction({
-                action: 'login',
-                metadata: { identifier: values.identifier, role: profile?.role ?? null },
-            });
+            const ctx = { role: profile?.role ?? null, identifier: values.identifier };
 
-            toast({
-                title: 'Bienvenue',
-                description: 'Connexion réussie à iGrowFast.',
-            });
-
-            if (profile?.role === 'commercial') {
-                navigate('/seller/dashboard');
-            } else if (profile?.role === 'owner') {
-                navigate('/owner/dashboard');
-            } else if (profile?.role === 'courier') {
-                navigate('/courier/dashboard');
-            } else if (profile?.role === 'mediabuyer') {
-                navigate('/mediabuyer/dashboard');
-            } else {
-                navigate('/');
+            // ── Two-factor gate (TOTP authenticator app, native MFA / AAL) ──
+            const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+            if (aalData?.nextLevel === 'aal2' && aalData?.currentLevel === 'aal1') {
+                setPending2FA({ ...ctx });
+                setLoading(false);
+                return;
             }
+
+            proceed(ctx);
         } catch (error) {
             void logAction({
                 action: 'login_failed',
@@ -164,7 +192,41 @@ const Auth = () => {
                     <div className="w-full max-w-[440px] rounded-2xl border border-white/15 bg-white/[0.06] backdrop-blur-xl shadow-[0_32px_80px_-24px_rgba(0,0,0,0.45)] overflow-hidden">
                         <div className="h-[3px] w-full bg-ant-orange" />
                         <div className="p-6 sm:p-7 space-y-5">
-                            {view === 'forgot' ? (
+                            {pending2FA ? (
+                              <>
+                                <div className="space-y-2">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/60">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                        Vérification
+                                    </div>
+                                    <h2 className="font-display text-[26px] sm:text-[28px] leading-tight tracking-[-0.02em] text-white">
+                                        Double authentification
+                                    </h2>
+                                    <p className="font-serif italic text-[13px] leading-relaxed text-white/70">
+                                        Entrez le code de votre application d’authentification.
+                                    </p>
+                                </div>
+                                <div className="space-y-4">
+                                    <input inputMode="numeric" maxLength={6} placeholder="000000" value={code2FA}
+                                        onChange={(e) => setCode2FA(e.target.value.replace(/\D/g, ''))}
+                                        className="w-full h-12 px-4 rounded-xl border border-white/15 bg-white/[0.06] text-center text-[20px] tracking-[0.4em] font-mono text-white placeholder:text-white/30 focus:outline-none focus:border-ant-orange/60 focus:ring-2 focus:ring-ant-orange/20 transition-all" />
+                                    {err2FA && (
+                                        <p className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose/40 bg-ant-rose/15 px-2 py-0.5 text-[10px] font-semibold text-ant-rose">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" /> {err2FA}
+                                        </p>
+                                    )}
+                                    <button type="button" onClick={verify2FA} disabled={verify2FABusy || code2FA.trim().length < 6}
+                                        className="w-full h-12 rounded-full bg-white hover:bg-white/95 disabled:opacity-70 disabled:cursor-not-allowed text-ant-ink text-[13px] font-semibold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors active:scale-[0.99]">
+                                        {verify2FABusy ? <><Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> Vérification…</> : <><ShieldCheck className="w-4 h-4" strokeWidth={1.75} /> Vérifier</>}
+                                    </button>
+                                    <div className="flex items-center">
+                                        <button type="button" onClick={cancel2FA} className="text-[12px] text-white/50 hover:text-white/80 inline-flex items-center gap-1.5">
+                                            <ArrowLeft className="w-3.5 h-3.5" /> Annuler
+                                        </button>
+                                    </div>
+                                </div>
+                              </>
+                            ) : view === 'forgot' ? (
                               <>
                                 <div className="space-y-2">
                                     <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/60">

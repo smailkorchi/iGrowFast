@@ -9,7 +9,9 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
-import NiceAvatar from 'react-nice-avatar';
+import { UserAvatar } from '@/components/users/UserAvatar';
+import { AvatarEditDialog } from '@/components/profile/AvatarEditDialog';
+import { SecuritySection } from '@/components/profile/SecuritySection';
 
 const Profile = () => {
     const { toast } = useToast();
@@ -23,6 +25,7 @@ const Profile = () => {
 
     const [passwordData, setPasswordData] = useState({ new_password: '', confirm: '' });
     const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [avatarOpen, setAvatarOpen] = useState(false);
 
     const { data: profile, isLoading } = useQuery({
         queryKey: ['current-profile'],
@@ -86,29 +89,13 @@ const Profile = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
-            let avatar_url = profile?.avatar_url;
-
-            if (avatarFile) {
-                const ext = avatarFile.name.split('.').pop();
-                const path = `avatars/${user.id}.${ext}`;
-                const { error: uploadErr } = await supabase.storage
-                    .from('providers-logos')
-                    .upload(path, avatarFile, { upsert: true });
-                if (!uploadErr) {
-                    const { data: { publicUrl } } = supabase.storage
-                        .from('providers-logos')
-                        .getPublicUrl(path);
-                    avatar_url = publicUrl;
-                }
-            }
-
+            // Avatar is managed separately via AvatarEditDialog; this saves identity only.
             const { error } = await supabase
                 .from('users')
                 .update({
                     name: formData.name,
                     username: formData.username,
                     phone: formData.phone,
-                    avatar_url,
                 } as any)
                 .eq('id', user.id);
 
@@ -204,29 +191,22 @@ const Profile = () => {
                 <section className="rounded-2xl border border-ant-ink bg-ant-ink overflow-hidden">
                     <div className="h-[3px] w-full bg-ant-orange" />
                     <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
-                        <div
-                            {...getRootProps()}
-                            className={cn(
-                                'relative h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden border-2 border-white/10 shrink-0',
-                                isEditing && 'cursor-pointer group ring-2 ring-ant-orange/40'
-                            )}
+                        <button
+                            type="button"
+                            onClick={() => setAvatarOpen(true)}
+                            title="Modifier l'avatar"
+                            className="relative h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden border-2 border-white/10 shrink-0 group cursor-pointer"
                         >
-                            <input {...getInputProps()} />
-                            {avatarPreview ? (
-                                <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
-                            ) : (profile as any)?.avatar_config ? (
-                                <NiceAvatar className="w-full h-full" style={{ width: '100%', height: '100%' }} shape="square" {...((profile as any).avatar_config)} />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-white/5">
-                                    <span className="font-display text-[24px] font-semibold text-white/70">{initials}</span>
-                                </div>
-                            )}
-                            {isEditing && (
-                                <div className="absolute inset-0 bg-ant-ink/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Camera className="w-5 h-5 text-white" strokeWidth={1.75} />
-                                </div>
-                            )}
-                        </div>
+                            <UserAvatar
+                                url={(profile as any)?.avatar_url}
+                                config={(profile as any)?.avatar_config}
+                                name={(profile as any)?.name}
+                                className="w-full h-full text-[24px]"
+                            />
+                            <div className="absolute inset-0 bg-ant-ink/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Camera className="w-5 h-5 text-white" strokeWidth={1.75} />
+                            </div>
+                        </button>
 
                         <div className="flex-1 min-w-0 space-y-2">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
@@ -351,90 +331,15 @@ const Profile = () => {
                     </div>
                 </section>
 
-                {/* Security */}
-                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                    <div className="h-[3px] w-full bg-ant-rose" />
-                    <div className="p-5 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                <span className="font-display text-ant-orange font-semibold">02</span>
-                                Sécurité
-                            </div>
-                            <KeyRound className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
-                        </div>
-
-                        {isChangingPassword ? (
-                            <div className="space-y-3 max-w-md">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Nouveau mot de passe</label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
-                                        <Input
-                                            type="password"
-                                            placeholder="Au moins 6 caractères"
-                                            value={passwordData.new_password}
-                                            onChange={e => setPasswordData(p => ({ ...p, new_password: e.target.value }))}
-                                            className="h-10 pl-9 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink focus-visible:ring-1 focus-visible:ring-ant-orange/40"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Confirmation</label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
-                                        <Input
-                                            type="password"
-                                            placeholder="Retapez le mot de passe"
-                                            value={passwordData.confirm}
-                                            onChange={e => setPasswordData(p => ({ ...p, confirm: e.target.value }))}
-                                            className="h-10 pl-9 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink focus-visible:ring-1 focus-visible:ring-ant-orange/40"
-                                        />
-                                    </div>
-                                </div>
-                                {passwordData.new_password && passwordData.confirm && passwordData.new_password !== passwordData.confirm && (
-                                    <div className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose/25 bg-ant-rose/10 px-2 py-0.5 text-[10px] font-semibold text-ant-rose">
-                                        <AlertCircle className="w-3 h-3" strokeWidth={1.75} />
-                                        Les mots de passe ne correspondent pas
-                                    </div>
-                                )}
-                                <div className="flex gap-2 pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setIsChangingPassword(false); setPasswordData({ new_password: '', confirm: '' }); }}
-                                        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => passwordMutation.mutate()}
-                                        disabled={passwordMutation.isPending || !passwordData.new_password || passwordData.new_password !== passwordData.confirm}
-                                        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-semibold cursor-pointer transition-colors"
-                                    >
-                                        {passwordMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />}
-                                        Mettre à jour le mot de passe
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setIsChangingPassword(true)}
-                                className="group w-full md:w-auto inline-flex items-center gap-3 rounded-xl border border-ant-line bg-ant-light hover:bg-ant-paper hover:border-ant-ink/20 px-4 py-3 text-left cursor-pointer transition-colors"
-                            >
-                                <div className="h-10 w-10 rounded-xl border border-ant-ink/15 bg-ant-ink/6 text-ant-ink flex items-center justify-center shrink-0">
-                                    <Lock className="w-4 h-4" strokeWidth={1.75} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-display text-[13px] font-semibold text-ant-ink">Changer le mot de passe</p>
-                                    <p className="font-serif italic text-[11px] text-ant-mid">Rotation recommandée tous les 90 jours.</p>
-                                </div>
-                                <ChevronRight className="w-4 h-4 text-ant-mid group-hover:text-ant-ink transition-colors shrink-0" strokeWidth={1.75} />
-                            </button>
-                        )}
-                    </div>
-                </section>
+                {/* Security — OTP-gated email/password change + 2FA */}
+                <SecuritySection email={(profile as any)?.email} />
             </div>
+            <AvatarEditDialog
+                isOpen={avatarOpen}
+                onClose={() => setAvatarOpen(false)}
+                onSaved={() => queryClient.invalidateQueries({ queryKey: ['current-profile'] })}
+                seed={(profile as any)?.email}
+            />
         </div>
     );
 };

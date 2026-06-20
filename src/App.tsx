@@ -98,6 +98,8 @@ import AIBrainConsole from "./pages/admin/business/AIBrainConsole";
 import OwnerAIConsole from "./pages/owner/OwnerAIConsole";
 import OwnerConfig from "./pages/owner/Config";
 import OwnerEmailTemplates from "./pages/owner/EmailTemplates";
+import OwnerProfile from "./pages/owner/Profile";
+import MediaBuyerProfile from "./pages/mediabuyer/Profile";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
@@ -201,6 +203,7 @@ const App = () => (
                   <Route path="ai" element={<OwnerAIConsole />} />
                   <Route path="email-templates" element={<OwnerEmailTemplates />} />
                   <Route path="config" element={<OwnerConfig />} />
+                  <Route path="profile" element={<OwnerProfile />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </OwnerLayout>
@@ -225,6 +228,7 @@ const App = () => (
                   <Route path="demands" element={<MediaBuyerDemands />} />
                   <Route path="google-analytics" element={<GoogleAnalyticsPage />} />
                   <Route path="meta-ads" element={<MetaAdsPage />} />
+                  <Route path="profile" element={<MediaBuyerProfile />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </MediaBuyerLayout>

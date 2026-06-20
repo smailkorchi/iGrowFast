@@ -8,6 +8,8 @@ import {
     Fingerprint, MapPin, Zap, CheckCircle2, Target, Award,
     Search, ChevronRight, Package, X, ArrowUpDown,
 } from 'lucide-react';
+import { AvatarEditDialog } from '@/components/profile/AvatarEditDialog';
+import { SecuritySection } from '@/components/profile/SecuritySection';
 import {
     Select,
     SelectContent,
@@ -78,6 +80,7 @@ const SellerProfile = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [profile, setProfile] = useState<SellerProfileData | null>(null);
+    const [avatarOpen, setAvatarOpen] = useState(false);
 
     const [bankInfo, setBankInfo] = useState({
         bank_name: '',
@@ -474,7 +477,11 @@ const SellerProfile = () => {
                 <section className="rounded-2xl border border-ant-ink bg-ant-ink overflow-hidden">
                     <div className="h-[3px] w-full bg-ant-orange" />
                     <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
-                        <UserAvatar url={profile?.avatar_url} config={(profile as any)?.avatar_config} name={profile?.name} className="h-20 w-20 md:h-24 md:w-24 rounded-2xl border-2 border-white/10 bg-white/5 text-[24px]" />
+                        <button type="button" onClick={() => setAvatarOpen(true)} title="Modifier l'avatar"
+                            className="relative h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden border-2 border-white/10 shrink-0 group cursor-pointer">
+                            <UserAvatar url={profile?.avatar_url} config={(profile as any)?.avatar_config} name={profile?.name} className="w-full h-full text-[24px]" />
+                            <span className="absolute inset-0 bg-ant-ink/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-semibold uppercase tracking-[0.18em] text-white">Modifier</span>
+                        </button>
 
                         <div className="flex-1 min-w-0 space-y-2">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
@@ -933,6 +940,8 @@ const SellerProfile = () => {
                         )}
                     </div>
                 </section>
+
+                <SecuritySection email={profile?.email} />
             </div>
 
             {/* Product Detail Modal */}
@@ -1112,6 +1121,7 @@ const SellerProfile = () => {
                     })()}
                 </DialogContent>
             </Dialog>
+            <AvatarEditDialog isOpen={avatarOpen} onClose={() => setAvatarOpen(false)} onSaved={fetchProfile} seed={profile?.email} />
             </div>
         </div>
     );
