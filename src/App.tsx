@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
+import ChangeCredentials from "./pages/ChangeCredentials";
 import Dashboard from "./pages/admin/Dashboard";
 import Orders from "./pages/admin/Orders";
 import ImportOrders from "./pages/admin/ImportOrders";
@@ -181,6 +182,8 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           {/* Public self-registration via a single-use admin invite link */}
           <Route path="/register/:token" element={<Register />} />
+          {/* Public credential change (email/password) via a single-use admin-sent link */}
+          <Route path="/account/change/:token" element={<ChangeCredentials />} />
           {/* Owner Routes */}
           <Route path="/owner/*" element={
             <ProtectedRoute allowedRoles={['owner']}>

@@ -47,6 +47,7 @@ import {
     Sparkles,
     Power,
     PowerOff,
+    KeyRound,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -109,6 +110,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
 import { InviteUserWizard } from '@/components/users/InviteUserWizard';
+import { requestCredentialChange } from '@/lib/credentialChange';
 
 const userSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -428,6 +430,16 @@ const Users = () => {
         }
     });
 
+    const sendLinkMutation = useMutation({
+        mutationFn: (id: string) => requestCredentialChange(id),
+        onSuccess: (res) => {
+            toast({ title: 'Link sent', description: `A secure change link was emailed to ${res.email}.` });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Could not send link', description: error.message, variant: 'destructive' });
+        }
+    });
+
     const getRoleBucket = (rawRole: any): typeof ROLE_ORDER[number] => {
         const r = String(rawRole || '').toLowerCase();
         if (r === 'super admin') return 'super admin';
@@ -622,6 +634,7 @@ const Users = () => {
                                             onEdit={() => setEditingUser(user)}
                                             onDelete={() => setUserToDelete(user)}
                                             onToggleActive={() => toggleActiveMutation.mutate({ id: user.id, active: !user.active })}
+                                            onSendLink={() => sendLinkMutation.mutate(user.id)}
                                         />
                                     ))}
                                 </div>
@@ -695,6 +708,7 @@ const UserCard = ({
     onEdit,
     onDelete,
     onToggleActive,
+    onSendLink,
 }: {
     user: any;
     meta: typeof ROLE_META[string];
@@ -702,6 +716,7 @@ const UserCard = ({
     onEdit: () => void;
     onDelete: () => void;
     onToggleActive: () => void;
+    onSendLink: () => void;
 }) => {
     const isActive = user.active;
     const canEdit = hasEditableConfig(user.role);
@@ -783,6 +798,9 @@ const UserCard = ({
                                 {isActive
                                     ? <><PowerOff className="w-3.5 h-3.5 text-ant-mid" /> Disable account</>
                                     : <><Power className="w-3.5 h-3.5 text-ant-green" /> Enable account</>}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={onSendLink} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                <KeyRound className="w-3.5 h-3.5 text-ant-orange" /> Send change link
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="my-1 bg-ant-line" />
                             <DropdownMenuItem onClick={onDelete} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 gap-2">
