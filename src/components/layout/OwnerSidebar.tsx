@@ -15,6 +15,7 @@ import {
     Map,
     History,
     BrainCircuit,
+    Settings,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,7 @@ const navigation: NavItem[] = [
     { icon: Map, label: 'Zones', path: '/owner/zones' },
     { icon: History, label: 'Activity Log', path: '/owner/activity-log' },
     { icon: BrainCircuit, label: 'AI Platform', path: '/owner/ai' },
+    { icon: Settings, label: 'Config', path: '/owner/config' },
 ];
 
 const isParentPath = (path: string) => path === '/owner/dashboard';

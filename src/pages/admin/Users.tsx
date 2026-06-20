@@ -45,8 +45,21 @@ import {
     Headphones,
     Bike,
     Sparkles,
+    Power,
+    PowerOff,
     type LucideIcon,
 } from 'lucide-react';
+
+// Roles whose job has admin-configurable settings → get an Edit button.
+// super admin / courier / others have nothing to configure here (enable/disable + delete only).
+const EDITABLE_ROLES = ['admin', 'commercial', 'mediabuyer'];
+const hasEditableConfig = (role: unknown) => EDITABLE_ROLES.includes(String(role || '').toLowerCase());
+const firstConfigTab = (role: unknown): 'permissions' | 'performance' | 'payment' => {
+    const r = String(role || '').toLowerCase();
+    if (r === 'admin') return 'permissions';
+    if (r === 'mediabuyer') return 'payment';
+    return 'performance'; // commercial
+};
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -347,18 +360,24 @@ const Users = () => {
 
     const updateUserMutation = useMutation({
         mutationFn: async ({ id, values }: { id: string, values: UserFormValues }) => {
+            // Privacy: admins edit authorization & terms only — never identity/credentials
+            // (name, username, email, password, avatar are owned by the user).
+            const userData: Record<string, unknown> = {
+                role: values.role,
+                'DigiCom Business': activeBusinessId,
+                assignment: values.assignment,
+                commission_price: values.commission_price,
+                commission_basis: values.commission_basis,
+                payment_type: values.payment_type,
+                salary_amount: values.salary_amount,
+                products: values.products,
+                permissions: values.permissions,
+                whatsapp_access: values.role === 'commercial'
+                    ? { ...values.whatsapp_access, business_id: activeBusinessId }
+                    : { mode: 'none' },
+            };
             const { data, error } = await supabase.functions.invoke('manage-users', {
-                body: {
-                    action: 'update',
-                    userId: id,
-                    userData: {
-                        ...values,
-                        'DigiCom Business': activeBusinessId,
-                        whatsapp_access: values.role === 'commercial'
-                            ? { ...values.whatsapp_access, business_id: activeBusinessId }
-                            : { mode: 'none' },
-                    }
-                }
+                body: { action: 'update', userId: id, userData }
             });
 
             if (error) {
@@ -392,6 +411,20 @@ const Users = () => {
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const toggleActiveMutation = useMutation({
+        mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+            const { error } = await supabase.from('users').update({ active } as never).eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            toast({ title: 'Updated', description: 'Account status changed.' });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
         }
     });
 
@@ -588,6 +621,7 @@ const Users = () => {
                                             hasWhatsApp={usersWithWhatsApp?.has(user.id) || false}
                                             onEdit={() => setEditingUser(user)}
                                             onDelete={() => setUserToDelete(user)}
+                                            onToggleActive={() => toggleActiveMutation.mutate({ id: user.id, active: !user.active })}
                                         />
                                     ))}
                                 </div>
@@ -660,14 +694,17 @@ const UserCard = ({
     hasWhatsApp,
     onEdit,
     onDelete,
+    onToggleActive,
 }: {
     user: any;
     meta: typeof ROLE_META[string];
     hasWhatsApp?: boolean;
     onEdit: () => void;
     onDelete: () => void;
+    onToggleActive: () => void;
 }) => {
     const isActive = user.active;
+    const canEdit = hasEditableConfig(user.role);
 
     return (
         <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all">
@@ -733,9 +770,19 @@ const UserCard = ({
                                 <MoreVertical className="h-3.5 w-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[160px]">
-                            <DropdownMenuItem onClick={onEdit} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
-                                <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit profile
+                        <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[170px]">
+                            {canEdit && (
+                                <>
+                                    <DropdownMenuItem onClick={onEdit} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                        <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="my-1 bg-ant-line" />
+                                </>
+                            )}
+                            <DropdownMenuItem onClick={onToggleActive} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                {isActive
+                                    ? <><PowerOff className="w-3.5 h-3.5 text-ant-mid" /> Disable account</>
+                                    : <><Power className="w-3.5 h-3.5 text-ant-green" /> Enable account</>}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="my-1 bg-ant-line" />
                             <DropdownMenuItem onClick={onDelete} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 gap-2">
@@ -842,8 +889,8 @@ const UserModal = ({
         p.code.toLowerCase().includes(productSearch.toLowerCase())
     );
 
-    const [activeTab, setActiveTab] = useState<'identity' | 'permissions' | 'performance' | 'whatsapp' | 'payment'>('identity');
-    useEffect(() => { if (isOpen) setActiveTab('identity'); }, [isOpen]);
+    const [activeTab, setActiveTab] = useState<'permissions' | 'performance' | 'whatsapp' | 'payment'>('permissions');
+    useEffect(() => { if (isOpen) setActiveTab(firstConfigTab((initialData as any)?.role)); }, [isOpen, initialData]);
 
     useEffect(() => {
         if (isOpen) {
@@ -944,37 +991,21 @@ const UserModal = ({
                         {/* Editorial header */}
                         <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
                             <div className="flex items-center gap-4">
-                                <div
-                                    {...getRootProps()}
-                                    className={cn(
-                                        'relative group flex-shrink-0 flex items-center justify-center rounded-2xl transition-all cursor-pointer overflow-hidden w-16 h-16 border',
-                                        isDragActive ? 'border-ant-orange bg-ant-orange/5' : 'border-ant-line bg-ant-light hover:border-ant-ink/30',
-                                        avatarPreview && 'border-solid'
-                                    )}
-                                >
-                                    <input {...getInputProps()} />
-                                    {avatarPreview ? (
-                                        <>
-                                            <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-ant-ink/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Upload className="w-4 h-4 text-white" />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <Upload className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
-                                    )}
-                                </div>
+                                {/* Identity is read-only — owned by the user, never edited by an admin */}
+                                <UserAvatar
+                                    url={(initialData as any)?.avatar_url}
+                                    config={(initialData as any)?.avatar_config}
+                                    name={(initialData as any)?.name}
+                                    className="w-16 h-16 rounded-2xl border border-ant-line text-[18px]"
+                                />
                                 <div className="flex-1 min-w-0 space-y-1.5">
                                     <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
                                         <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                                        {initialData ? 'Edit · Team' : 'New · Team'}
+                                        Edit · Access &amp; terms
                                     </div>
                                     <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink truncate">{title}</DialogTitle>
-                                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                                        {currentRole === 'super admin' ? 'Highest privilege account — grant cautiously.'
-                                            : currentRole === 'admin' ? 'Choose which pages this admin can reach.'
-                                            : currentRole === 'mediabuyer' ? 'Configure how this media buyer gets paid.'
-                                            : 'Configure access, products, and inbox scope.'}
+                                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid truncate">
+                                        @{(initialData as any)?.username} · {(initialData as any)?.email}
                                     </DialogDescription>
                                 </div>
                             </div>
@@ -984,10 +1015,6 @@ const UserModal = ({
                         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
                             <div className="px-6 pt-4">
                                 <TabsList className="h-10 rounded-full p-1 bg-ant-light border border-ant-line inline-flex w-auto">
-                                    <TabsTrigger value="identity" className={tabClass}>
-                                        <UserIcon className="w-3 h-3" />
-                                        Identity
-                                    </TabsTrigger>
                                     {currentRole === 'admin' && (
                                         <TabsTrigger value="permissions" className={tabClass}>
                                             <Shield className="w-3 h-3" />
@@ -1017,164 +1044,6 @@ const UserModal = ({
 
                             {/* Body */}
                             <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-6">
-                                {/* IDENTITY */}
-                                <TabsContent value="identity" className="m-0 space-y-5 outline-none">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="name"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>Full name</FormLabel>
-                                                    <FormControl>
-                                                        <Input placeholder="E.g. Alexander Pierce" {...field} className={cn(inputCls, 'h-11 text-[13px]')} />
-                                                    </FormControl>
-                                                    <FormMessage className="text-ant-rose" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="role"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>System role</FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className={cn(inputCls, 'h-11 text-[13px]')}>
-                                                                <SelectValue placeholder="Assign a role" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="rounded-xl border-ant-line">
-                                                            {(['super admin', 'admin', 'commercial', 'courier', 'mediabuyer'] as const).map((role) => {
-                                                                const m = ROLE_META[role];
-                                                                const RoleIcon = m.icon;
-                                                                return (
-                                                                    <SelectItem key={role} value={role} className="text-[12px] capitalize">
-                                                                        <span className="inline-flex items-center gap-2">
-                                                                            <RoleIcon className="w-3.5 h-3.5 text-ant-mid" />
-                                                                            {m.label}
-                                                                        </span>
-                                                                    </SelectItem>
-                                                                );
-                                                            })}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-ant-rose" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="username"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>Username</FormLabel>
-                                                    <FormControl>
-                                                        <div className="relative">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ant-mid font-display font-semibold text-[13px]">@</span>
-                                                            <Input placeholder="p_alexander" {...field} className={cn(inputCls, 'pl-9 tabular-nums')} />
-                                                        </div>
-                                                    </FormControl>
-                                                    <FormMessage className="text-ant-rose" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="email"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>Email</FormLabel>
-                                                    <FormControl>
-                                                        <div className="relative">
-                                                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
-                                                            <Input type="email" placeholder="alex@igrowfast.team" {...field} className={cn(inputCls, 'pl-10')} />
-                                                        </div>
-                                                    </FormControl>
-                                                    <FormMessage className="text-ant-rose" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="password"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>Password</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="password"
-                                                            placeholder={initialData ? '••••••••' : 'Minimum 6 characters'}
-                                                            {...field}
-                                                            className={inputCls}
-                                                        />
-                                                    </FormControl>
-                                                    {initialData && (
-                                                        <FormDescription className="font-serif italic text-[11px] text-ant-mid">
-                                                            Leave blank to keep the current password.
-                                                        </FormDescription>
-                                                    )}
-                                                    <FormMessage className="text-ant-rose" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="active"
-                                            render={({ field }) => (
-                                                <FormItem className="flex flex-col space-y-1.5">
-                                                    <FormLabel className={labelCls}>Account status</FormLabel>
-                                                    <div className="flex items-center justify-between gap-3 h-10 bg-ant-paper border border-ant-line px-4 rounded-xl">
-                                                        <div className="flex items-center gap-2 min-w-0">
-                                                            <span className={cn('h-1.5 w-1.5 rounded-full', field.value ? 'bg-ant-green' : 'bg-ant-mid')} />
-                                                            <span className="text-[12px] font-semibold text-ant-ink">
-                                                                {field.value ? 'Live across the app' : 'Account disabled'}
-                                                            </span>
-                                                        </div>
-                                                        <Switch
-                                                            checked={field.value}
-                                                            onCheckedChange={field.onChange}
-                                                            className="data-[state=checked]:bg-ant-green"
-                                                        />
-                                                    </div>
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-
-                                    {currentRole === 'courier' && (
-                                        <FormField
-                                            control={form.control}
-                                            name="phone"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>Phone number</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="tel"
-                                                            placeholder="+212 6 00 00 00 00"
-                                                            {...field}
-                                                            value={field.value || ''}
-                                                            className={cn(inputCls, 'tabular-nums')}
-                                                        />
-                                                    </FormControl>
-                                                    <FormDescription className="font-serif italic text-[11px] text-ant-mid">
-                                                        Reachable number for delivery coordination.
-                                                    </FormDescription>
-                                                    <FormMessage className="text-ant-rose" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    )}
-                                </TabsContent>
-
                                 {/* PAGE ACCESS */}
                                 <TabsContent value="permissions" className="m-0 outline-none">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

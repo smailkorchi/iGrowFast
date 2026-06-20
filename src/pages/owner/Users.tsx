@@ -629,7 +629,7 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, kicke
                                     control={form.control}
                                     name="active"
                                     render={({ field }) => (
-                                        <FormItem className="flex flex-col justify-end space-y-1.5">
+                                        <FormItem className="space-y-1.5">
                                             <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Status</FormLabel>
                                             <div className="flex items-center gap-2.5 h-10 px-3.5 bg-ant-light rounded-xl border border-ant-line">
                                                 <Switch

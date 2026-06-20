@@ -178,19 +178,30 @@ const ActivityLogView: React.FC<ActivityLogViewProps> = ({ variant }) => {
     };
 
     return (
-        <div className="ant-surface min-h-screen">
-            <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
+        <div className={cn(variant === 'owner' ? '' : 'ant-surface min-h-screen')}>
+            <div className={cn('space-y-6', variant === 'owner' ? '' : 'px-4 md:px-8 py-6 md:py-8')}>
                 {/* Editorial header */}
                 <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                    <div className="space-y-2">
-                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                    <div className={cn(variant === 'owner' ? 'space-y-3' : 'space-y-2')}>
+                        <div className={cn(
+                            'inline-flex items-center gap-2 uppercase text-ant-mid',
+                            variant === 'owner'
+                                ? 'font-display text-[10px] tracking-[0.22em]'
+                                : 'text-[10px] font-medium tracking-[0.28em]',
+                        )}>
                             <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
                             {variant === 'admin' ? 'Security · Activity' : 'Platform · Forensic trail'}
                         </div>
-                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                        <h1 className={cn(
+                            'font-display leading-[1.05] tracking-[-0.02em] text-ant-ink',
+                            variant === 'owner' ? 'text-[26px] sm:text-[32px]' : 'text-[30px] md:text-[34px]',
+                        )}>
                             Activity log
                         </h1>
-                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                        <p className={cn(
+                            'font-serif italic leading-relaxed text-ant-mid max-w-xl',
+                            variant === 'owner' ? 'text-[13px] sm:text-[14px]' : 'text-[14px]',
+                        )}>
                             {variant === 'admin'
                                 ? 'The last 14 days of every action inside this business — older entries purged automatically.'
                                 : 'Every action, across every business, kept for posterity. The paper trail that answers every question.'}

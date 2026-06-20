@@ -95,6 +95,7 @@ import WhatsAppManager from "./pages/admin/business/WhatsAppManager";
 import WhatsAppInbox from "./pages/admin/business/WhatsAppInbox";
 import AIBrainConsole from "./pages/admin/business/AIBrainConsole";
 import OwnerAIConsole from "./pages/owner/OwnerAIConsole";
+import OwnerConfig from "./pages/owner/Config";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
@@ -194,6 +195,7 @@ const App = () => (
                   <Route path="zones" element={<OwnerZones />} />
                   <Route path="activity-log" element={<OwnerActivityLog />} />
                   <Route path="ai" element={<OwnerAIConsole />} />
+                  <Route path="config" element={<OwnerConfig />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </OwnerLayout>
