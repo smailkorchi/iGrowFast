@@ -29,6 +29,14 @@ export async function requestCredentialChange(userId: string): Promise<{ ok: boo
     return { ok: true, email: res.email };
 }
 
+/** Self-service forgot-password from the login page. Always resolves (anti-enumeration). */
+export async function requestPasswordReset(identifier: string): Promise<{ ok: boolean }> {
+    await supabase.functions.invoke('request-password-reset', {
+        body: { identifier: identifier.trim(), origin: window.location.origin },
+    });
+    return { ok: true };
+}
+
 export function credReason(reason?: string): string {
     switch (reason) {
         case 'invalid': return 'This link is invalid.';
