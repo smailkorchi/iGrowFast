@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -24,11 +25,12 @@ function CredentialChangeDialog({ mode, open, onClose, onDone }: {
     const [step, setStep] = useState<'input' | 'otp'>('input');
     const [value, setValue] = useState('');
     const [confirm, setConfirm] = useState('');
+    const [showPw, setShowPw] = useState(false);
     const [otp, setOtp] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => { if (open) { setStep('input'); setValue(''); setConfirm(''); setOtp(''); setError(null); } }, [open]);
+    useEffect(() => { if (open) { setStep('input'); setValue(''); setConfirm(''); setOtp(''); setError(null); setShowPw(false); } }, [open]);
 
     const inputValid = mode === 'email'
         ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim())
@@ -77,8 +79,11 @@ function CredentialChangeDialog({ mode, open, onClose, onDone }: {
                                 <Input type="email" placeholder="Nouvel e-mail" value={value} onChange={(e) => setValue(e.target.value)} className={inputCls} />
                             ) : (
                                 <>
-                                    <Input type="password" placeholder="Nouveau mot de passe (min. 6)" value={value} onChange={(e) => setValue(e.target.value)} className={inputCls} />
-                                    <Input type="password" placeholder="Confirmer le mot de passe" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputCls} />
+                                    <div className="relative">
+                                        <Input type={showPw ? 'text' : 'password'} placeholder="Nouveau mot de passe (min. 6)" value={value} onChange={(e) => setValue(e.target.value)} className={cn(inputCls, 'pr-11')} />
+                                        <EyePasswordToggle revealed={showPw} onToggle={() => setShowPw((v) => !v)} size={26} className="absolute right-2 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink transition-colors" />
+                                    </div>
+                                    <Input type={showPw ? 'text' : 'password'} placeholder="Confirmer le mot de passe" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputCls} />
                                 </>
                             )}
                             {error && <p className="text-[12px] font-semibold text-ant-rose">{error}</p>}

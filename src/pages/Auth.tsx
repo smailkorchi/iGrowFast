@@ -10,6 +10,7 @@ import * as z from 'zod';
 import { AuthBackground } from '@/components/auth/AuthBackground';
 import { requestPasswordReset } from '@/lib/credentialChange';
 import { describePasskeyError, listOwnPasskeys, registerOwnPasskey } from '@/lib/selfSecurity';
+import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
 
 const loginSchema = z.object({
     identifier: z.string().min(3, 'Identifiant ou email requis'),
@@ -20,6 +21,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Auth = () => {
     const [loading, setLoading] = useState(false);
+    const [showPw, setShowPw] = useState(false);
     const [view, setView] = useState<'login' | 'forgot'>('login');
     const [resetId, setResetId] = useState('');
     const [resetSent, setResetSent] = useState(false);
@@ -407,11 +409,17 @@ const Auth = () => {
                                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" strokeWidth={1.75} />
                                         <input
                                             id="password"
-                                            type="password"
+                                            type={showPw ? 'text' : 'password'}
                                             autoComplete="current-password"
                                             placeholder="••••••••"
                                             {...register('password')}
-                                            className="w-full h-12 pl-10 pr-4 rounded-xl border border-white/15 bg-white/[0.06] text-[16px] font-medium text-white placeholder:text-white/35 focus:outline-none focus:border-ant-orange/60 focus:ring-2 focus:ring-ant-orange/20 focus:bg-white/[0.09] transition-all"
+                                            className="w-full h-12 pl-10 pr-12 rounded-xl border border-white/15 bg-white/[0.06] text-[16px] font-medium text-white placeholder:text-white/35 focus:outline-none focus:border-ant-orange/60 focus:ring-2 focus:ring-ant-orange/20 focus:bg-white/[0.09] transition-all"
+                                        />
+                                        <EyePasswordToggle
+                                            revealed={showPw}
+                                            onToggle={() => setShowPw(v => !v)}
+                                            labels={{ show: 'Afficher le mot de passe', hide: 'Masquer le mot de passe' }}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors"
                                         />
                                     </div>
                                     {errors.password && (

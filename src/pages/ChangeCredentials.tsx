@@ -5,6 +5,7 @@ import {
     checkCredentialToken, requestCredentialOtp, confirmCredentialChange, credReason, type CredTokenStatus,
 } from '@/lib/credentialChange';
 import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, Check, KeyRound } from 'lucide-react';
+import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
 
 const ChangeCredentials = () => {
     const { token } = useParams<{ token: string }>();
@@ -16,6 +17,7 @@ const ChangeCredentials = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirm, setConfirm] = useState('');
+    const [showPw, setShowPw] = useState(false);
     const [otp, setOtp] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -131,12 +133,13 @@ const ChangeCredentials = () => {
                                                 </div>
                                                 <div className="relative">
                                                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                                                    <input className={inputCls} type="password" placeholder="New password (optional, min. 6)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                                                    <input className={`${inputCls} !pr-12`} type={showPw ? 'text' : 'password'} placeholder="New password (optional, min. 6)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                                                    <EyePasswordToggle revealed={showPw} onToggle={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors" />
                                                 </div>
                                                 {wantsPassword && (
                                                     <div className="relative">
                                                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                                                        <input className={inputCls} type="password" placeholder="Confirm new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+                                                        <input className={inputCls} type={showPw ? 'text' : 'password'} placeholder="Confirm new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
                                                     </div>
                                                 )}
                                             </div>

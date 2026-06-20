@@ -8,6 +8,7 @@ import { AvatarStudio } from '@/components/users/AvatarStudio';
 import { AuthBackground } from '@/components/auth/AuthBackground';
 import { cn } from '@/lib/utils';
 import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, User as UserIcon, Check } from 'lucide-react';
+import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
 
 const ROLE_LABEL: Record<string, string> = {
     'super admin': 'Super admin', 'admin': 'Admin', 'commercial': 'Commercial',
@@ -28,6 +29,7 @@ const Register = () => {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPw, setShowPw] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -196,7 +198,8 @@ const Register = () => {
                                             </div>
                                             <div className="relative">
                                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                                                <input className={inputCls} type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                                                <input className={`${inputCls} !pr-12`} type={showPw ? 'text' : 'password'} placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                                                <EyePasswordToggle revealed={showPw} onToggle={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors" />
                                             </div>
                                         </div>
 
