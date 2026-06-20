@@ -33,10 +33,29 @@ export interface ConsumeInput {
     username: string;
     email: string;
     password: string;
+    /** 6-digit email-confirmation code issued by requestSignupOtp. */
+    otp: string;
     /** Generated avatar config (stored as users.avatar_config, rendered live). */
     avatar_config?: unknown | null;
     /** Uploaded photo data URL (uploaded to storage → users.avatar_url). */
     avatar_data_url?: string | null;
+}
+
+export interface EmailCheckResult {
+    ok: boolean;
+    /** Set when ok: the domain can receive mail. */
+    deliverable?: boolean;
+    /** typo | disposable | no_mx | invalid_email | error */
+    reason?: string;
+    /** For reason 'typo': the corrected address to suggest. */
+    suggestion?: string;
+}
+
+export interface SignupOtpResult {
+    ok: boolean;
+    reason?: string;
+    suggestion?: string;
+    detail?: string;
 }
 
 export interface ConsumeResult {
@@ -82,6 +101,18 @@ export function consumeInvitation(input: ConsumeInput): Promise<ConsumeResult> {
     return invokeJson<ConsumeResult>('consume-invitation', input);
 }
 
+/** Verify an email is real/working (syntax + typo + disposable + mailbox-level) without side effects. */
+export function checkSignupEmail(token: string, email: string): Promise<EmailCheckResult> {
+    return invokeJson<EmailCheckResult>('signup-email', { action: 'check', token, email: email.trim().toLowerCase() });
+}
+
+/** Re-validate the email and send a 6-digit confirmation code to it (gated by a valid invite). */
+export function requestSignupOtp(token: string, email: string): Promise<SignupOtpResult> {
+    return invokeJson<SignupOtpResult>('signup-email', {
+        action: 'send', token, email: email.trim().toLowerCase(), origin: window.location.origin,
+    });
+}
+
 // Human-readable copy for invitation problem states.
 export function invitationReason(reason?: string): string {
     switch (reason) {
@@ -96,7 +127,20 @@ export function invitationReason(reason?: string): string {
         case 'invalid_email': return 'Enter a valid email address.';
         case 'invalid_username': return 'Username must be at least 3 characters.';
         case 'invalid_name': return 'Enter your full name.';
-        case 'weak_password': return 'Password must be at least 6 characters.';
+        case 'weak_password': return 'Password too weak. Choose a stronger one.';
+        // Email-deliverability check (signup-email action=check/send)
+        case 'disposable': return 'Disposable or temporary email addresses are not allowed.';
+        case 'no_mx': return 'This email domain can’t receive mail. Check the address.';
+        case 'undeliverable': return 'This email address doesn’t exist or can’t receive mail.';
+        case 'typo': return 'This email looks misspelled.';
+        case 'too_many_sends': return 'Too many codes requested. Use the latest code, or ask an admin for a new link.';
+        case 'resend_cooldown': return 'Please wait a few seconds before requesting another code.';
+        // Email-confirmation OTP (consume-invitation)
+        case 'otp_required': return 'Confirm your email first — request a code.';
+        case 'otp_expired': return 'The code expired. Request a new one.';
+        case 'otp_invalid': return 'Incorrect code. Check it and try again.';
+        case 'too_many_attempts': return 'Too many attempts. Request a new code.';
+        case 'email_mismatch': return 'This code was sent to a different email. Restart the step.';
         default: return 'Something went wrong. Please try again.';
     }
 }

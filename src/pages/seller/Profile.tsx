@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { AvatarEditDialog } from '@/components/profile/AvatarEditDialog';
 import { SecuritySection } from '@/components/profile/SecuritySection';
+import { listVerifiedTotp } from '@/lib/selfSecurity';
 import {
     Select,
     SelectContent,
@@ -111,10 +112,16 @@ const SellerProfile = () => {
     const [selectedProduct, setSelectedProduct] = useState<ProductStat | null>(null);
     const [sortBy, setSortBy] = useState<ProductSort>('attributed');
     const [performanceBucket, setPerformanceBucket] = useState<PerformanceBucket>('all');
+    const [totpActive, setTotpActive] = useState(false);
 
     useEffect(() => {
         fetchProfile();
     }, [statusCats.confirmedIds, statusCats.deliveredPkgIds]);
+
+    // Onboarding checklist needs the 2FA state (lives in the security service).
+    useEffect(() => {
+        listVerifiedTotp().then((f) => setTotpActive((f?.length ?? 0) > 0)).catch(() => { /* ignore */ });
+    }, []);
 
     const fetchProfile = async () => {
         try {
@@ -443,8 +450,15 @@ const SellerProfile = () => {
                     : { bg: 'bg-ant-light', border: 'border-ant-line', text: 'text-ant-mid', dot: 'bg-ant-mid' };
 
     const initials = profile?.name?.charAt(0).toUpperCase() || '?';
-    const joinYear = profile?.created_at ? new Date(profile.created_at).getFullYear() : 'N/A';
     const detailsLocked = !!profile?.bank_rib && !!profile?.cin_number;
+    const hasAvatar = !!(profile?.avatar_url || (profile as any)?.avatar_config);
+    const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const setupSteps = [
+        { key: 'bank', label: 'Coordonnées bancaires', done: detailsLocked, todo: 'À compléter', doneText: 'Verrouillé', act: () => scrollToId('bank-section') },
+        { key: '2fa', label: 'Double authentification', done: totpActive, todo: 'Configurer', doneText: 'Activée', act: () => scrollToId('security-section') },
+        { key: 'avatar', label: 'Photo de profil', done: hasAvatar, todo: 'Ajouter', doneText: 'Définie', act: () => setAvatarOpen(true) },
+    ];
+    const setupRemaining = setupSteps.filter((s) => !s.done).length;
 
     return (
         <div className="ant-surface min-h-screen">
@@ -502,19 +516,29 @@ const SellerProfile = () => {
                                     <ShieldCheck className="w-3 h-3" strokeWidth={1.75} />
                                     Vendeur vérifié
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/80">
-                                    Depuis {joinYear}
-                                </span>
+                            </div>
+                        </div>
+
+                        {/* Account meta — folded in from the old "Détails du compte" card */}
+                        <div className="shrink-0 flex flex-row md:flex-col gap-x-8 gap-y-2 md:text-right md:border-l md:border-white/10 md:pl-6">
+                            <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Date d'entrée</p>
+                                <p className="font-display text-[14px] font-semibold text-white tabular-nums">
+                                    {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Rôle</p>
+                                <p className="text-[12.5px] font-semibold text-white">Commercial partenaire</p>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                {/* Main grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                    <div className="lg:col-span-2 flex flex-col gap-3">
+                {/* Row 1 — identity (60%) + security (40%), vertically centered to each other */}
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-center">
                         {/* Bank & Identity */}
-                        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <section id="bank-section" className="lg:col-span-3 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                             <div className={`h-[3px] w-full ${detailsLocked ? 'bg-ant-green' : 'bg-ant-orange'}`} />
                             <div className="p-5 space-y-4">
                                 <div className="flex items-center justify-between">
@@ -657,17 +681,22 @@ const SellerProfile = () => {
                                 </div>
                             </div>
                         </section>
-                    </div>
 
-                {/* Sidebar: Performance + Financial + Account */}
-                <div className="space-y-3">
+                        {/* Account security — row 1, right (40%) */}
+                        <div id="security-section" className="lg:col-span-2">
+                            <SecuritySection email={profile?.email} chapter="02" />
+                        </div>
+                </div>
+
+                {/* Row 2 — three equal-height stat cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
                     {/* Performance Pulse */}
                     <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                         <div className="h-[3px] w-full bg-ant-green" />
                         <div className="p-5 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                    <span className="font-display text-ant-orange font-semibold">02</span>
+                                    <span className="font-display text-ant-orange font-semibold">03</span>
                                     Pouls de performance
                                 </div>
                                 <span className={cn(
@@ -709,14 +738,14 @@ const SellerProfile = () => {
                     </section>
 
                     {/* Financial Earnings */}
-                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden flex flex-col">
                         <div className="h-[3px] w-full bg-ant-orange" />
-                        <div className="p-5 space-y-3">
+                        <div className="p-5 space-y-3 flex-1 flex flex-col">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                <span className="font-display text-ant-orange font-semibold">03</span>
+                                <span className="font-display text-ant-orange font-semibold">04</span>
                                 Rémunération
                             </div>
-                            <div className="rounded-xl bg-ant-ink p-4">
+                            <div className="rounded-xl bg-ant-ink p-4 flex-1 flex flex-col justify-center">
                                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">Taux de commission</p>
                                 <p className="font-display text-[26px] font-semibold tabular-nums text-white leading-none mt-1.5">
                                     {profile?.commission_price || 0}
@@ -731,41 +760,50 @@ const SellerProfile = () => {
                         </div>
                     </section>
 
-                    {/* Account Details */}
+                    {/* Onboarding checklist — fills the right column */}
                     <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                        <div className="h-[3px] w-full bg-ant-ink" />
+                        <div className={`h-[3px] w-full ${setupRemaining === 0 ? 'bg-ant-green' : 'bg-ant-orange'}`} />
                         <div className="p-5 space-y-3">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                <span className="font-display text-ant-orange font-semibold">04</span>
-                                Détails du compte
+                                <span className="font-display text-ant-orange font-semibold">05</span>
+                                Mise en route
                             </div>
-                            <div className="space-y-px rounded-xl border border-ant-line overflow-hidden">
-                                <div className="bg-ant-paper px-3 py-2.5 flex items-center justify-between">
-                                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Date d'entrée</span>
-                                    <span className="font-display text-[12px] font-semibold text-ant-ink tabular-nums">
-                                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                                    </span>
-                                </div>
-                                <div className="bg-ant-paper px-3 py-2.5 flex items-center justify-between border-t border-ant-line">
-                                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Rôle</span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-ink/15 bg-ant-ink/6 px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
-                                        Commercial partenaire
-                                    </span>
-                                </div>
+                            <div className="space-y-1">
+                                {setupSteps.map((s) => (
+                                    <button
+                                        key={s.key}
+                                        type="button"
+                                        onClick={s.act}
+                                        className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 hover:bg-ant-light text-left cursor-pointer transition-colors"
+                                    >
+                                        {s.done
+                                            ? <CheckCircle2 className="w-4 h-4 text-ant-green shrink-0" strokeWidth={2} />
+                                            : <span className="w-3.5 h-3.5 rounded-full border-2 border-ant-orange/60 shrink-0" />}
+                                        <span className="flex-1 text-[12.5px] font-semibold text-ant-ink leading-tight">{s.label}</span>
+                                        <span className={cn('text-[11px] font-semibold', s.done ? 'text-ant-green' : 'text-ant-orange')}>
+                                            {s.done ? s.doneText : s.todo}
+                                        </span>
+                                        {!s.done && <ChevronRight className="w-3.5 h-3.5 text-ant-mid shrink-0" strokeWidth={1.75} />}
+                                    </button>
+                                ))}
                             </div>
+                            <p className="font-serif italic text-[11px] text-ant-mid pt-0.5">
+                                {setupRemaining === 0
+                                    ? 'Profil complet — paiements actifs.'
+                                    : `${setupRemaining} étape${setupRemaining > 1 ? 's' : ''} restante${setupRemaining > 1 ? 's' : ''} pour activer les paiements.`}
+                            </p>
                         </div>
                     </section>
                 </div>
 
-                {/* Inventory Performance */}
-                <section className="lg:col-span-3 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                {/* Inventory Performance — full width (row 3) */}
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                     <div className="h-[3px] w-full bg-ant-orange" />
                     <div className="px-5 py-4 border-b border-ant-line space-y-3">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                             <div>
                                 <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                                    <span className="font-display text-ant-orange font-semibold">05</span>
+                                    <span className="font-display text-ant-orange font-semibold">06</span>
                                     Performance produit
                                 </div>
                                 <p className="font-serif italic text-[11px] text-ant-mid mt-0.5 tabular-nums">
@@ -940,9 +978,6 @@ const SellerProfile = () => {
                         )}
                     </div>
                 </section>
-
-                <SecuritySection email={profile?.email} />
-            </div>
 
             {/* Product Detail Modal */}
             <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>

@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
     const username = String(body?.username ?? "").trim();
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "");
+    const otp = String(body?.otp ?? "").trim();
     // Invitee may send either a ready URL or a data URL (generated/uploaded avatar) to store server-side.
     const avatarDataUrl = typeof body?.avatar_data_url === "string" ? body.avatar_data_url : null;
     const avatarConfig = body?.avatar_config && typeof body.avatar_config === "object" ? body.avatar_config : null;
@@ -103,9 +104,32 @@ Deno.serve(async (req) => {
     if (username.length < 3) return json({ ok: false, reason: "invalid_username" }, 400);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ ok: false, reason: "invalid_email" }, 400);
     if (password.length < 6) return json({ ok: false, reason: "weak_password" }, 400);
+    if (!/^\d{6}$/.test(otp)) return json({ ok: false, reason: "otp_invalid" }, 400);
+
+    const tokenHash = await sha256Hex(token);
+
+    // 0) Verify the email-confirmation OTP BEFORE claiming the invite, so a wrong/
+    //    expired code never burns a still-valid invitation. The OTP was issued by
+    //    signup-email (action=send) and stored on the invitation row.
+    const { data: inv, error: invErr } = await service.from("user_invitations")
+      .select("id, signup_otp_hash, signup_otp_email, signup_otp_expires_at, signup_otp_attempts")
+      .eq("token_hash", `\\x${tokenHash}`).is("consumed_at", null).is("revoked_at", null).maybeSingle();
+    if (invErr) return json({ ok: false, reason: "error", detail: invErr.message }, 500);
+    if (!inv) return json({ ok: false, reason: "invalid_or_used" }, 400);
+    if (!inv.signup_otp_hash || !inv.signup_otp_expires_at) return json({ ok: false, reason: "otp_required" }, 400);
+    if (new Date(inv.signup_otp_expires_at) < new Date()) return json({ ok: false, reason: "otp_expired" }, 400);
+    if ((inv.signup_otp_attempts ?? 0) >= 5) return json({ ok: false, reason: "too_many_attempts" }, 429);
+    if (String(inv.signup_otp_email ?? "").toLowerCase() !== email) return json({ ok: false, reason: "email_mismatch" }, 400);
+    const otpHashHex = await sha256Hex(otp);
+    if (otpHashHex !== String(inv.signup_otp_hash).replace(/^\\x/, "")) {
+      await service.from("user_invitations")
+        .update({ signup_otp_attempts: (inv.signup_otp_attempts ?? 0) + 1 }).eq("id", inv.id);
+      return json({ ok: false, reason: "otp_invalid" }, 400);
+    }
+    await service.from("user_invitations")
+      .update({ email_verified_at: new Date().toISOString() }).eq("id", inv.id);
 
     // 1) Atomic single-use claim.
-    const tokenHash = await sha256Hex(token);
     const { data: claim, error: claimErr } = await service.rpc("invitation_claim", {
       p_token_hash: `\\x${tokenHash}`,
     });
