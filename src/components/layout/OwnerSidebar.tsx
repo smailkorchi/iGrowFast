@@ -15,6 +15,7 @@ import {
     Map,
     History,
     BrainCircuit,
+    Mails,
     Settings,
     type LucideIcon,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ const navigation: NavItem[] = [
     { icon: Map, label: 'Zones', path: '/owner/zones' },
     { icon: History, label: 'Activity Log', path: '/owner/activity-log' },
     { icon: BrainCircuit, label: 'AI Platform', path: '/owner/ai' },
+    { icon: Mails, label: 'Email Templates', path: '/owner/email-templates' },
     { icon: Settings, label: 'Config', path: '/owner/config' },
 ];
 
