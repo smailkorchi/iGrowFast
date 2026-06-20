@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
+import { PasswordStrengthBar } from '@/components/ui/PasswordStrengthBar';
+import { scorePassword } from '@/lib/passwordStrength';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -32,9 +34,10 @@ function CredentialChangeDialog({ mode, open, onClose, onDone }: {
 
     useEffect(() => { if (open) { setStep('input'); setValue(''); setConfirm(''); setOtp(''); setError(null); setShowPw(false); } }, [open]);
 
+    const pwStrength = scorePassword(value);
     const inputValid = mode === 'email'
         ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim())
-        : value.length >= 6 && value === confirm;
+        : pwStrength.valid && value === confirm;
 
     const sendCode = async () => {
         if (!inputValid) return;
@@ -53,7 +56,7 @@ function CredentialChangeDialog({ mode, open, onClose, onDone }: {
             new_password: mode === 'password' ? value : null,
         });
         setBusy(false);
-        if (!res.ok) { setError(otpReason(res.reason)); return; }
+        if (!res.ok) { setError(otpReason(res.reason, res.detail)); return; }
         toast({ title: mode === 'email' ? 'E-mail mis à jour' : 'Mot de passe mis à jour' });
         onDone(); onClose();
     };
@@ -80,10 +83,14 @@ function CredentialChangeDialog({ mode, open, onClose, onDone }: {
                             ) : (
                                 <>
                                     <div className="relative">
-                                        <Input type={showPw ? 'text' : 'password'} placeholder="Nouveau mot de passe (min. 6)" value={value} onChange={(e) => setValue(e.target.value)} className={cn(inputCls, 'pr-11')} />
+                                        <Input type={showPw ? 'text' : 'password'} placeholder="Nouveau mot de passe" value={value} onChange={(e) => setValue(e.target.value)} className={cn(inputCls, 'pr-11')} />
                                         <EyePasswordToggle revealed={showPw} onToggle={() => setShowPw((v) => !v)} size={26} className="absolute right-2 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink transition-colors" />
                                     </div>
+                                    {value.length > 0 && <PasswordStrengthBar strength={pwStrength} className="text-ant-mid" />}
                                     <Input type={showPw ? 'text' : 'password'} placeholder="Confirmer le mot de passe" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputCls} />
+                                    {confirm.length > 0 && value !== confirm && (
+                                        <p className="text-[11px] font-semibold text-ant-rose">Les mots de passe ne correspondent pas.</p>
+                                    )}
                                 </>
                             )}
                             {error && <p className="text-[12px] font-semibold text-ant-rose">{error}</p>}

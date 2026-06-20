@@ -9,6 +9,8 @@ import { AuthBackground } from '@/components/auth/AuthBackground';
 import { cn } from '@/lib/utils';
 import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, User as UserIcon, Check } from 'lucide-react';
 import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
+import { PasswordStrengthBar } from '@/components/ui/PasswordStrengthBar';
+import { scorePassword } from '@/lib/passwordStrength';
 
 const ROLE_LABEL: Record<string, string> = {
     'super admin': 'Super admin', 'admin': 'Admin', 'commercial': 'Commercial',
@@ -62,12 +64,13 @@ const Register = () => {
         };
     }, []);
 
+    const pwStrength = useMemo(() => scorePassword(password), [password]);
     const identityValid = useMemo(() =>
         name.trim().length >= 2 &&
         username.trim().length >= 3 &&
         /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) &&
-        password.length >= 6,
-        [name, username, email, password]);
+        pwStrength.valid,
+        [name, username, email, pwStrength]);
 
     const submit = async () => {
         if (!token || !identityValid) return;
@@ -198,9 +201,10 @@ const Register = () => {
                                             </div>
                                             <div className="relative">
                                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                                                <input className={`${inputCls} !pr-12`} type={showPw ? 'text' : 'password'} placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                                                <input className={`${inputCls} !pr-12`} type={showPw ? 'text' : 'password'} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
                                                 <EyePasswordToggle revealed={showPw} onToggle={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors" />
                                             </div>
+                                            {password.length > 0 && <PasswordStrengthBar strength={pwStrength} className="text-white/70" />}
                                         </div>
 
                                         {error && (

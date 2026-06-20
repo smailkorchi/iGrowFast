@@ -37,7 +37,11 @@ export async function requestPasswordReset(identifier: string): Promise<{ ok: bo
     return { ok: true };
 }
 
-export function credReason(reason?: string): string {
+function isPasswordPolicyDetail(detail?: string): boolean {
+    return /password|weak|pwned|leak|caract|at least|short|guess/i.test(detail ?? '');
+}
+
+export function credReason(reason?: string, detail?: string): string {
     switch (reason) {
         case 'invalid': return 'This link is invalid.';
         case 'used': return 'This link has already been used.';
@@ -48,8 +52,15 @@ export function credReason(reason?: string): string {
         case 'too_many_attempts': return 'Too many attempts. Request a new code.';
         case 'email_taken': return 'That email is already used by another account.';
         case 'invalid_email': return 'Enter a valid email address.';
-        case 'weak_password': return 'Password must be at least 6 characters.';
+        case 'weak_password': return 'Password too weak. Choose a stronger one.';
         case 'nothing_to_change': return 'Enter a new email or a new password.';
-        default: return 'Something went wrong. Please try again.';
+        case 'apply_failed':
+            return isPasswordPolicyDetail(detail)
+                ? 'This password was rejected: too weak or previously breached. Choose another.'
+                : (detail || 'Something went wrong. Please try again.');
+        default:
+            return isPasswordPolicyDetail(detail)
+                ? 'This password was rejected: too weak or previously breached. Choose another.'
+                : 'Something went wrong. Please try again.';
     }
 }

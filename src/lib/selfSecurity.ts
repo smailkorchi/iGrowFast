@@ -81,15 +81,27 @@ export function describePasskeyError(e: unknown): { cancelled: boolean; message:
     return { cancelled: false, message: 'La clé d’accès a échoué. Réessayez.' };
 }
 
-export function otpReason(reason?: string): string {
+/** True when a GoTrue/apply error message is about password policy (length, weak, leaked). */
+function isPasswordPolicyDetail(detail?: string): boolean {
+    return /password|weak|pwned|leak|caract|at least|short|guess/i.test(detail ?? '');
+}
+
+export function otpReason(reason?: string, detail?: string): string {
     switch (reason) {
         case 'otp_expired': return 'Le code a expiré. Demandez-en un nouveau.';
         case 'otp_invalid': return 'Code incorrect. Réessayez.';
         case 'too_many_attempts': return 'Trop de tentatives. Demandez un nouveau code.';
         case 'email_taken': return 'Cet e-mail est déjà utilisé par un autre compte.';
         case 'invalid_email': return 'Adresse e-mail invalide.';
-        case 'weak_password': return 'Le mot de passe doit faire au moins 6 caractères.';
+        case 'weak_password': return 'Mot de passe trop faible. Choisissez un mot de passe plus fort.';
         case 'unauthenticated': return 'Session expirée. Reconnectez-vous.';
-        default: return 'Une erreur est survenue. Réessayez.';
+        case 'apply_failed':
+            return isPasswordPolicyDetail(detail)
+                ? 'Ce mot de passe est refusé : trop faible ou déjà compromis. Choisissez-en un autre.'
+                : (detail || 'La modification a échoué. Réessayez.');
+        default:
+            return isPasswordPolicyDetail(detail)
+                ? 'Ce mot de passe est refusé : trop faible ou déjà compromis. Choisissez-en un autre.'
+                : 'Une erreur est survenue. Réessayez.';
     }
 }

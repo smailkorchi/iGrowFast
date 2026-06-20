@@ -6,6 +6,8 @@ import {
 } from '@/lib/credentialChange';
 import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, Check, KeyRound } from 'lucide-react';
 import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
+import { PasswordStrengthBar } from '@/components/ui/PasswordStrengthBar';
+import { scorePassword } from '@/lib/passwordStrength';
 
 const ChangeCredentials = () => {
     const { token } = useParams<{ token: string }>();
@@ -41,12 +43,13 @@ const ChangeCredentials = () => {
 
     const wantsEmail = email.trim().length > 0;
     const wantsPassword = password.length > 0;
+    const pwStrength = useMemo(() => scorePassword(password), [password]);
     const fieldsValid = useMemo(() => {
         if (!wantsEmail && !wantsPassword) return false;
         if (wantsEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return false;
-        if (wantsPassword && (password.length < 6 || password !== confirm)) return false;
+        if (wantsPassword && (!pwStrength.valid || password !== confirm)) return false;
         return true;
-    }, [wantsEmail, wantsPassword, email, password, confirm]);
+    }, [wantsEmail, wantsPassword, email, password, confirm, pwStrength]);
 
     const sendCode = async () => {
         if (!token || !fieldsValid) return;
@@ -66,7 +69,7 @@ const ChangeCredentials = () => {
             new_password: wantsPassword ? password : null,
         });
         setBusy(false);
-        if (!res.ok) { setError(credReason(res.reason)); return; }
+        if (!res.ok) { setError(credReason(res.reason, res.detail)); return; }
         setStep(2);
         window.setTimeout(() => navigate('/auth', { replace: true }), 2200);
     };
@@ -133,14 +136,18 @@ const ChangeCredentials = () => {
                                                 </div>
                                                 <div className="relative">
                                                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                                                    <input className={`${inputCls} !pr-12`} type={showPw ? 'text' : 'password'} placeholder="New password (optional, min. 6)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                                                    <input className={`${inputCls} !pr-12`} type={showPw ? 'text' : 'password'} placeholder="New password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
                                                     <EyePasswordToggle revealed={showPw} onToggle={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors" />
                                                 </div>
+                                                {wantsPassword && <PasswordStrengthBar strength={pwStrength} className="text-white/70" />}
                                                 {wantsPassword && (
                                                     <div className="relative">
                                                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
                                                         <input className={inputCls} type={showPw ? 'text' : 'password'} placeholder="Confirm new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
                                                     </div>
+                                                )}
+                                                {wantsPassword && confirm.length > 0 && password !== confirm && (
+                                                    <p className="text-[11px] font-semibold text-ant-rose/90">Les mots de passe ne correspondent pas.</p>
                                                 )}
                                             </div>
                                             {error && <p className="text-[12px] font-semibold text-ant-rose bg-ant-rose/10 border border-ant-rose/30 rounded-lg px-3 py-2">{error}</p>}
