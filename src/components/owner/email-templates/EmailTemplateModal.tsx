@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { X, Loader2, Code2, AlignLeft, Eye, Wand2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { X, Loader2, Code2, AlignLeft, Eye, Wand2, Send } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -8,8 +9,16 @@ import {
     DialogDescription,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { fetchEmailAccounts } from '@/lib/emailAccounts';
 import HtmlCodeEditor from './HtmlCodeEditor';
 import EmailPreview from './EmailPreview';
 import {
@@ -24,8 +33,10 @@ const inputClass =
     'w-full h-9 px-3 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/15 transition-all';
 
 const emptyForm = (): EmailTemplateInput => ({
-    name: '', subject: '', preheader: '', html_body: DEFAULT_TEMPLATE_HTML, text_body: '', is_active: true,
+    name: '', subject: '', preheader: '', html_body: DEFAULT_TEMPLATE_HTML, text_body: '', is_active: true, email_account_id: null,
 });
+
+const NO_SENDER = '__none';
 
 interface EmailTemplateModalProps {
     isOpen: boolean;
@@ -40,6 +51,9 @@ const EmailTemplateModal = ({ isOpen, onClose, onSubmit, initialData, loading }:
     const [form, setForm] = useState<EmailTemplateInput>(emptyForm());
     const [tab, setTab] = useState('html');
 
+    const { data: accounts } = useQuery({ queryKey: ['email-accounts'], queryFn: fetchEmailAccounts });
+    const selectedAccount = accounts?.find((a) => a.id === form.email_account_id) || null;
+
     useEffect(() => {
         if (!isOpen) return;
         setTab('html');
@@ -51,6 +65,7 @@ const EmailTemplateModal = ({ isOpen, onClose, onSubmit, initialData, loading }:
                 html_body: initialData.html_body,
                 text_body: initialData.text_body,
                 is_active: initialData.is_active,
+                email_account_id: initialData.email_account_id ?? null,
             });
         } else {
             setForm(emptyForm());
@@ -136,6 +151,31 @@ const EmailTemplateModal = ({ isOpen, onClose, onSubmit, initialData, loading }:
                                     <span className="text-[11px] font-medium text-ant-ink">{form.is_active ? 'Active' : 'Disabled'}</span>
                                 </div>
                             </div>
+
+                            <div className="space-y-1.5">
+                                <label className={cn(labelClass, 'flex items-center gap-1.5')}>
+                                    <Send className="w-3 h-3" /> Sender account
+                                </label>
+                                <Select
+                                    value={form.email_account_id ?? NO_SENDER}
+                                    onValueChange={(v) => set('email_account_id', v === NO_SENDER ? null : v)}
+                                >
+                                    <SelectTrigger className="h-9 rounded-lg border-ant-line bg-ant-paper text-[12px] px-3">
+                                        <SelectValue placeholder="Choose a mailbox" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                                        <SelectItem value={NO_SENDER} className="text-[12px]">No sender set</SelectItem>
+                                        {(accounts || []).map((a) => (
+                                            <SelectItem key={a.id} value={a.id} className="text-[12px]">
+                                                {a.name} · {a.email_address}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="font-serif italic text-[11px] text-ant-mid leading-snug">
+                                    The mailbox this email is sent from.
+                                </p>
+                            </div>
                         </div>
                     </aside>
 
@@ -177,7 +217,8 @@ const EmailTemplateModal = ({ isOpen, onClose, onSubmit, initialData, loading }:
                             </TabsContent>
 
                             <TabsContent value="preview" className="flex-1 min-h-0 mt-3 data-[state=inactive]:hidden">
-                                <EmailPreview html={form.html_body} subject={form.subject} preheader={form.preheader} />
+                                <EmailPreview html={form.html_body} subject={form.subject} preheader={form.preheader}
+                                    fromName={selectedAccount?.from_name || selectedAccount?.name} fromEmail={selectedAccount?.email_address} />
                             </TabsContent>
                         </Tabs>
                     </div>

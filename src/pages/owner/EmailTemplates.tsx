@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import EmailTemplateCard from '@/components/owner/email-templates/EmailTemplateCard';
 import EmailTemplateModal from '@/components/owner/email-templates/EmailTemplateModal';
+import EmailTemplatePreviewModal from '@/components/owner/email-templates/EmailTemplatePreviewModal';
 import {
     fetchEmailTemplates,
     createEmailTemplate,
@@ -23,6 +24,7 @@ import {
     type EmailTemplate,
     type EmailTemplateInput,
 } from '@/lib/emailTemplates';
+import { fetchEmailAccounts } from '@/lib/emailAccounts';
 
 const QK = ['email-templates'];
 
@@ -32,11 +34,16 @@ const OwnerEmailTemplates = () => {
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<EmailTemplate | null>(null);
+    const [previewTarget, setPreviewTarget] = useState<EmailTemplate | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<EmailTemplate | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
 
     const { data: templates, isLoading } = useQuery({ queryKey: QK, queryFn: fetchEmailTemplates });
+    const { data: accounts } = useQuery({ queryKey: ['email-accounts'], queryFn: fetchEmailAccounts });
+    const accountsById = new Map((accounts || []).map((a) => [a.id, a]));
     const invalidate = () => qc.invalidateQueries({ queryKey: QK });
+
+    const senderFor = (t: EmailTemplate) => (t.email_account_id ? accountsById.get(t.email_account_id) : undefined);
 
     const saveMutation = useMutation({
         mutationFn: async (values: EmailTemplateInput) => {
@@ -136,7 +143,10 @@ const OwnerEmailTemplates = () => {
                         <EmailTemplateCard
                             key={t.id}
                             template={t}
+                            senderName={senderFor(t)?.from_name || senderFor(t)?.name}
+                            senderEmail={senderFor(t)?.email_address}
                             onEdit={() => openEdit(t)}
+                            onPreview={() => setPreviewTarget(t)}
                             onDelete={() => setDeleteTarget(t)}
                             onToggle={() => handleToggle(t)}
                             toggling={togglingId === t.id}
@@ -151,6 +161,15 @@ const OwnerEmailTemplates = () => {
                 onSubmit={(v) => saveMutation.mutate(v)}
                 initialData={editing}
                 loading={saveMutation.isPending}
+            />
+
+            <EmailTemplatePreviewModal
+                isOpen={!!previewTarget}
+                onClose={() => setPreviewTarget(null)}
+                template={previewTarget}
+                fromName={previewTarget ? (senderFor(previewTarget)?.from_name || senderFor(previewTarget)?.name) : undefined}
+                fromEmail={previewTarget ? senderFor(previewTarget)?.email_address : undefined}
+                onEdit={() => { const t = previewTarget; setPreviewTarget(null); if (t) openEdit(t); }}
             />
 
             <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

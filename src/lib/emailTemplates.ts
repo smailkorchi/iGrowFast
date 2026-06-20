@@ -8,6 +8,7 @@ export interface EmailTemplate {
     html_body: string;
     text_body: string;
     is_active: boolean;
+    email_account_id: string | null;
     created_by: string | null;
     created_at: string;
     updated_at: string;
@@ -20,6 +21,7 @@ export interface EmailTemplateInput {
     html_body: string;
     text_body: string;
     is_active: boolean;
+    email_account_id?: string | null;
 }
 
 // Owner-only CRUD straight through RLS — templates hold no secrets.
@@ -66,6 +68,7 @@ function normalize(input: EmailTemplateInput) {
         html_body: input.html_body,
         text_body: input.text_body,
         is_active: input.is_active,
+        email_account_id: input.email_account_id || null,
     };
 }
 
