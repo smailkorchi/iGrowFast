@@ -8,7 +8,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    // Opt into WebAuthn passkeys (experimental). Other auth defaults (persistSession,
+    // autoRefreshToken, detectSessionInUrl) are preserved.
+    auth: { experimental: { passkey: true } },
+});
 
 /**
  * Paginated fetch that retrieves ALL rows from a Supabase table,

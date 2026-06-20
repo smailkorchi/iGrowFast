@@ -4,11 +4,12 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
-    Mail, Lock, Smartphone, Loader2, Check, KeyRound, ChevronRight, ArrowLeft, ArrowRight, X,
+    Mail, Lock, Smartphone, Loader2, Check, KeyRound, ChevronRight, ArrowLeft, ArrowRight, X, Fingerprint,
 } from 'lucide-react';
 import {
     requestSelfOtp, confirmSelfChange, otpReason,
     enrollTotp, verifyTotpEnroll, listVerifiedTotp, unenrollTotp,
+    registerOwnPasskey, listOwnPasskeys, deleteOwnPasskey, describePasskeyError, type PasskeyItem,
 } from '@/lib/selfSecurity';
 
 const inputCls = 'h-11 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink focus-visible:ring-1 focus-visible:ring-ant-orange/40';
@@ -201,6 +202,8 @@ export function SecuritySection({ email, chapter = '02' }: {
     const [dialog, setDialog] = useState<null | 'email' | 'password' | 'totp'>(null);
     const [totpActive, setTotpActive] = useState(false);
     const [totpFactorId, setTotpFactorId] = useState<string | null>(null);
+    const [addingPasskey, setAddingPasskey] = useState(false);
+    const [passkeys, setPasskeys] = useState<PasskeyItem[]>([]);
 
     const refreshTotp = useCallback(async () => {
         try {
@@ -210,10 +213,29 @@ export function SecuritySection({ email, chapter = '02' }: {
         } catch { /* ignore */ }
     }, []);
     useEffect(() => { refreshTotp(); }, [refreshTotp]);
+    const refreshPasskeys = useCallback(async () => {
+        try { setPasskeys(await listOwnPasskeys()); } catch { /* ignore */ }
+    }, []);
+    useEffect(() => { refreshPasskeys(); }, [refreshPasskeys]);
 
     const disableTotp = async () => {
         if (!totpFactorId) return;
         try { await unenrollTotp(totpFactorId); await refreshTotp(); toast({ title: 'Application d’authentification désactivée' }); }
+        catch (e) { toast({ title: 'Erreur', description: (e as Error).message, variant: 'destructive' }); }
+    };
+    const addPasskey = async () => {
+        setAddingPasskey(true);
+        try {
+            await registerOwnPasskey();
+            await refreshPasskeys();
+            toast({ title: 'Clé d’accès ajoutée', description: 'Vous pouvez désormais vous connecter sans mot de passe.' });
+        } catch (e) {
+            const { cancelled, message } = describePasskeyError(e);
+            if (!cancelled) toast({ title: 'Échec', description: message, variant: 'destructive' });
+        } finally { setAddingPasskey(false); }
+    };
+    const removePasskey = async (id: string) => {
+        try { await deleteOwnPasskey(id); await refreshPasskeys(); toast({ title: 'Clé d’accès supprimée' }); }
         catch (e) { toast({ title: 'Erreur', description: (e as Error).message, variant: 'destructive' }); }
     };
 
@@ -242,6 +264,43 @@ export function SecuritySection({ email, chapter = '02' }: {
                         <button onClick={() => setDialog('totp')} className={ghostBtn}>Configurer <ArrowRight className="w-3.5 h-3.5" /></button>
                     )}
                 </Row>
+                <div className="py-3.5 border-b border-ant-line last:border-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-ant-ink/5 border border-ant-line flex items-center justify-center text-ant-ink shrink-0">
+                            <Fingerprint className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-ant-ink leading-tight">Clé d’accès (Passkey)</p>
+                            <p className="text-[11.5px] text-ant-mid">
+                                {passkeys.length
+                                    ? `${passkeys.length} clé${passkeys.length > 1 ? 's' : ''} enregistrée${passkeys.length > 1 ? 's' : ''}`
+                                    : 'Connexion sans mot de passe — biométrie ou clé de sécurité'}
+                            </p>
+                        </div>
+                        <button onClick={addPasskey} disabled={addingPasskey} className={ghostBtn}>
+                            {addingPasskey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Ajouter <ArrowRight className="w-3.5 h-3.5" /></>}
+                        </button>
+                    </div>
+                    {passkeys.length > 0 && (
+                        <ul className="mt-3 space-y-2 md:pl-12">
+                            {passkeys.map((p) => (
+                                <li key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-ant-line bg-ant-light/60 px-3 py-2">
+                                    <div className="min-w-0">
+                                        <p className="text-[12.5px] font-semibold text-ant-ink truncate">{p.friendly_name || 'Clé d’accès'}</p>
+                                        <p className="text-[10.5px] text-ant-mid">
+                                            Ajoutée le {new Date(p.created_at).toLocaleDateString('fr-FR')}
+                                            {p.last_used_at ? ` · vue le ${new Date(p.last_used_at).toLocaleDateString('fr-FR')}` : ''}
+                                        </p>
+                                    </div>
+                                    <button onClick={() => removePasskey(p.id)} title="Supprimer"
+                                        className="text-ant-rose hover:text-ant-rose/70 shrink-0 cursor-pointer">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
             </div>
 
             <CredentialChangeDialog mode="email" open={dialog === 'email'} onClose={() => setDialog(null)} onDone={() => { /* email mirrored server-side; user may need to re-login */ }} />

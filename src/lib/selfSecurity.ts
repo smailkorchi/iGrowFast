@@ -30,7 +30,8 @@ export async function enrollTotp() {
     for (const f of stale) {
         try { await supabase.auth.mfa.unenroll({ factorId: f.id }); } catch { /* ignore */ }
     }
-    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator' });
+    // issuer = brand shown in the authenticator app (else GoTrue falls back to its host, e.g. 127.0.0.1:3030).
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator', issuer: 'iGrowFast' });
     if (error) throw error;
     return data; // { id, type, totp: { qr_code, secret, uri } }
 }
@@ -47,6 +48,37 @@ export async function listVerifiedTotp() {
 export async function unenrollTotp(factorId: string) {
     const { error } = await supabase.auth.mfa.unenroll({ factorId });
     if (error) throw error;
+}
+
+// ── WebAuthn passkey (experimental) ──
+export interface PasskeyItem { id: string; friendly_name?: string; created_at: string; last_used_at?: string }
+
+export async function registerOwnPasskey() {
+    const { data, error } = await (supabase.auth as any).registerPasskey();
+    if (error) throw error;
+    return data;
+}
+export async function listOwnPasskeys(): Promise<PasskeyItem[]> {
+    const { data, error } = await (supabase.auth as any).passkey.list();
+    if (error) throw error;
+    return (data ?? []) as PasskeyItem[];
+}
+export async function deleteOwnPasskey(passkeyId: string) {
+    const { error } = await (supabase.auth as any).passkey.delete({ passkeyId });
+    if (error) throw error;
+}
+
+/** Map WebAuthn/passkey errors to friendly FR text; flag user cancellations so callers can stay silent. */
+export function describePasskeyError(e: unknown): { cancelled: boolean; message: string } {
+    const err = e as { name?: string; message?: string };
+    const m = `${err?.name ?? ''} ${err?.message ?? ''}`.toLowerCase();
+    if (m.includes('notallowed') || m.includes('aborterror') || m.includes('timed out or was not allowed') || m.includes('not allowed') || m.includes('cancel') || m.includes('abort')) {
+        return { cancelled: true, message: 'Connexion par clé d’accès annulée.' };
+    }
+    if (m.includes('no credential') || m.includes('no passkey') || m.includes('not found')) {
+        return { cancelled: false, message: 'Aucune clé d’accès trouvée sur cet appareil.' };
+    }
+    return { cancelled: false, message: 'La clé d’accès a échoué. Réessayez.' };
 }
 
 export function otpReason(reason?: string): string {

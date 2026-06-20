@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { logAction } from '@/lib/auditLog';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, Check, KeyRound } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, Check, KeyRound, Fingerprint } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { AuthBackground } from '@/components/auth/AuthBackground';
 import { requestPasswordReset } from '@/lib/credentialChange';
+import { describePasskeyError, listOwnPasskeys, registerOwnPasskey } from '@/lib/selfSecurity';
 
 const loginSchema = z.object({
     identifier: z.string().min(3, 'Identifiant ou email requis'),
@@ -26,6 +27,14 @@ const Auth = () => {
     const { toast } = useToast();
     const navigate = useNavigate();
 
+    // Lock body overscroll so rubber-band scrolling doesn't reveal a blank canvas under the page.
+    useEffect(() => {
+        const html = document.documentElement, body = document.body;
+        const prev = { h: html.style.overscrollBehavior, b: body.style.overscrollBehavior, bg: body.style.backgroundColor };
+        html.style.overscrollBehavior = 'none'; body.style.overscrollBehavior = 'none'; body.style.backgroundColor = '#141413';
+        return () => { html.style.overscrollBehavior = prev.h; body.style.overscrollBehavior = prev.b; body.style.backgroundColor = prev.bg; };
+    }, []);
+
     const handleForgot = async (e: React.FormEvent) => {
         e.preventDefault();
         if (resetId.trim().length < 3) return;
@@ -39,6 +48,9 @@ const Auth = () => {
     const [code2FA, setCode2FA] = useState('');
     const [verify2FABusy, setVerify2FABusy] = useState(false);
     const [err2FA, setErr2FA] = useState<string | null>(null);
+    const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
+    const [passkeyPromptCtx, setPasskeyPromptCtx] = useState<{ role: string | null; identifier: string } | null>(null);
+    const [settingUpPasskey, setSettingUpPasskey] = useState(false);
 
     const proceed = (ctx: { role: string | null; identifier: string }) => {
         void logAction({ action: 'login', metadata: { identifier: ctx.identifier, role: ctx.role } });
@@ -51,6 +63,23 @@ const Auth = () => {
         else navigate('/');
     };
 
+    // After full auth: if the user has no passkey, show the setup nudge; otherwise continue.
+    const afterAuth = async (ctx: { role: string | null; identifier: string }) => {
+        try {
+            const list = await listOwnPasskeys();
+            if (list.length === 0) { setPasskeyPromptCtx(ctx); setShowPasskeyPrompt(true); return; }
+        } catch { /* passkeys unavailable — skip the nudge */ }
+        proceed(ctx);
+    };
+    const setupPasskeyNow = async () => {
+        if (!passkeyPromptCtx) return;
+        setSettingUpPasskey(true);
+        try { await registerOwnPasskey(); proceed(passkeyPromptCtx); }
+        catch (e) { const { cancelled, message } = describePasskeyError(e); if (!cancelled) toast({ title: 'Échec', description: message, variant: 'destructive' }); }
+        finally { setSettingUpPasskey(false); }
+    };
+    const skipPasskey = () => { if (passkeyPromptCtx) proceed(passkeyPromptCtx); };
+
     const verify2FA = async () => {
         if (!pending2FA || code2FA.trim().length < 6) return;
         setVerify2FABusy(true); setErr2FA(null);
@@ -62,7 +91,7 @@ const Auth = () => {
             if (error) throw error;
             const ctx = { role: pending2FA.role, identifier: pending2FA.identifier };
             setPending2FA(null); setCode2FA('');
-            proceed(ctx);
+            await afterAuth(ctx);
         } catch (e) {
             setErr2FA((e as Error).message || 'Code incorrect.');
         } finally { setVerify2FABusy(false); }
@@ -131,7 +160,7 @@ const Auth = () => {
                 return;
             }
 
-            proceed(ctx);
+            await afterAuth(ctx);
         } catch (error) {
             void logAction({
                 action: 'login_failed',
@@ -150,13 +179,73 @@ const Auth = () => {
         }
     };
 
+    // Passwordless sign-in via WebAuthn passkey. A passkey is strong on its own,
+    // so it bypasses the password+TOTP gate.
+    const handlePasskeyLogin = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await (supabase.auth as any).signInWithPasskey();
+            if (error) throw error;
+            if (!data?.user) throw new Error('Connexion par clé d’accès échouée.');
+            const { data: profile } = await supabase
+                .from('users').select('role, active, "DigiCom Business"').eq('id', data.user.id).single();
+            if (profile?.active === false) {
+                await supabase.auth.signOut();
+                throw new Error('Votre compte a été désactivé. Contactez votre administrateur.');
+            }
+            if (profile?.['DigiCom Business']) {
+                localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
+            }
+            proceed({ role: profile?.role ?? null, identifier: data.user.email ?? 'passkey' });
+        } catch (e) {
+            const { cancelled, message } = describePasskeyError(e);
+            if (!cancelled) {
+                void logAction({ action: 'login_failed', metadata: { reason: (e as Error).message, method: 'passkey' } });
+                toast({ title: 'Connexion échouée', description: message, variant: 'destructive' });
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="relative min-h-[100svh] w-full overflow-hidden">
             <AuthBackground />
 
-            {/* Content grid: mobile = single centered card, desktop = split copy + card.
-                `pointer-events-none` on the grid lets ripples reach the canvas in
-                empty regions; children re-enable pointer events where needed. */}
+            {showPasskeyPrompt ? (
+              /* Passkey setup nudge — centered glass modal, form hidden, background kept */
+              <div className="relative z-10 min-h-[100svh] w-full flex items-center justify-center px-5 py-8 pointer-events-none">
+                <div className="w-full max-w-[440px] rounded-2xl border border-white/15 bg-white/[0.06] backdrop-blur-xl shadow-[0_32px_80px_-24px_rgba(0,0,0,0.45)] overflow-hidden pointer-events-auto">
+                  <div className="h-[3px] w-full bg-ant-orange" />
+                  <div className="p-6 sm:p-7 space-y-5">
+                    <div className="space-y-3">
+                      <div className="h-12 w-12 rounded-2xl bg-ant-orange/15 border border-ant-orange/30 text-ant-orange flex items-center justify-center">
+                        <Fingerprint className="w-6 h-6" strokeWidth={1.5} />
+                      </div>
+                      <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/60">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" /> Connexion plus rapide
+                      </div>
+                      <h2 className="font-display text-[24px] sm:text-[26px] leading-tight tracking-[-0.02em] text-white">
+                        Activez votre clé d’accès
+                      </h2>
+                      <p className="font-serif italic text-[13px] leading-relaxed text-white/70">
+                        La prochaine fois, connectez-vous d’une empreinte ou d’un regard — sans mot de passe ni code. Plus rapide et plus sûr.
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      <button type="button" onClick={setupPasskeyNow} disabled={settingUpPasskey}
+                        className="w-full h-12 rounded-full bg-white hover:bg-white/95 disabled:opacity-70 disabled:cursor-not-allowed text-ant-ink text-[13px] font-semibold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors active:scale-[0.99]">
+                        {settingUpPasskey ? <><Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> Configuration…</> : <><Fingerprint className="w-4 h-4" strokeWidth={1.75} /> Configurer ma clé d’accès</>}
+                      </button>
+                      <button type="button" onClick={skipPasskey} disabled={settingUpPasskey}
+                        className="w-full text-center text-[12px] text-white/50 hover:text-white/80 transition-colors cursor-pointer">
+                        Plus tard
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
             <div className="relative z-10 min-h-[100svh] w-full flex flex-col lg:grid lg:grid-cols-2 lg:gap-10 px-5 py-8 sm:px-8 lg:px-16 lg:py-12 max-w-[1600px] mx-auto pointer-events-none">
                 {/* Brand mark (mobile: top-left · desktop: part of left column) */}
                 <div className="flex items-center gap-2.5 lg:col-span-2 pointer-events-auto w-fit">
@@ -176,15 +265,6 @@ const Auth = () => {
                     <p className="font-serif italic text-[15px] leading-relaxed text-white/70 mt-5 max-w-md">
                         Commandes, livraisons, paiements, campagnes — tout atterrit au même endroit. iGrowFast orchestre ce qui comptait hier sur dix onglets.
                     </p>
-                    <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-3 pr-5 w-fit">
-                        <div className="h-10 w-10 rounded-xl bg-ant-orange/15 border border-ant-orange/30 text-ant-orange flex items-center justify-center">
-                            <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />
-                        </div>
-                        <div className="leading-tight">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/60">Session chiffrée</p>
-                            <p className="font-display text-[14px] font-semibold text-white">TLS 1.3 · Cookies sécurisés</p>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Auth card — translucent glass over the background */}
@@ -366,20 +446,25 @@ const Auth = () => {
                                         </>
                                     )}
                                 </button>
+
+                                <div className="relative flex items-center justify-center py-1">
+                                    <span className="h-px flex-1 bg-white/10" />
+                                    <span className="px-3 text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">ou</span>
+                                    <span className="h-px flex-1 bg-white/10" />
+                                </div>
+
+                                <button type="button" onClick={handlePasskeyLogin} disabled={loading}
+                                    className="w-full h-12 rounded-full border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-60 text-white text-[13px] font-semibold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                                    <Fingerprint className="w-4 h-4" strokeWidth={1.75} /> Se connecter avec une clé d’accès
+                                </button>
                             </form>
                               </>
                             )}
-
-                            <div className="flex items-center gap-2 pt-3 border-t border-white/10">
-                                <ShieldCheck className="w-3.5 h-3.5 text-white/50 shrink-0" strokeWidth={1.75} />
-                                <p className="font-serif italic text-[11px] text-white/50">
-                                    Session chiffrée · TLS 1.3 · Cookies sécurisés
-                                </p>
-                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+            )}
         </div>
     );
 };
