@@ -15,7 +15,7 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{20,80}$/;
 // Keys the invitee owns or that are not `users` columns — never copied from the payload blob.
 const PAYLOAD_STRIP = new Set([
   "name", "username", "email", "password", "avatar_url", "avatar_config", "id", "role",
-  "DigiCom Business", "whatsapp_access", "created_at", "updated_at",
+  "DigiCom Business", "whatsapp_access", "ga_access", "meta_access", "created_at", "updated_at",
 ]);
 
 function json(obj: unknown, status: number) {
@@ -71,6 +71,53 @@ async function applyWhatsappAccess(supabase: any, userId: string, access: any) {
     await supabase.from("whatsapp_user_instances").insert(
       ids.map((iid) => ({ user_id: userId, business_id: businessId, instance_id: iid, scope: "explicit" })),
     );
+  }
+}
+
+// Per-mediabuyer Google Analytics property scoping (admin-assigned).
+// access = { mode: 'none'|'all'|'specific', ids: string[] (ga_connection ids) }.
+async function applyGaAccess(supabase: any, userId: string, businessId: string, access: any) {
+  if (!access || !access.mode) return;
+  await supabase.from("mediabuyer_ga_access").delete().eq("user_id", userId);
+  if (access.mode === "none") return;
+  if (access.mode === "all") {
+    await supabase.from("mediabuyer_ga_access")
+      .insert({ user_id: userId, business_id: businessId, ga_connection_id: null, scope: "all" });
+    return;
+  }
+  if (access.mode === "specific") {
+    const ids: string[] = Array.isArray(access.ids) ? access.ids.filter(Boolean) : [];
+    if (ids.length === 0) return;
+    // Only grant properties that actually belong to this business.
+    const { data: valid } = await supabase.from("google_analytics_connections")
+      .select("id").eq("DigiCom Business", businessId).in("id", ids);
+    const allowed = (valid ?? []).map((r: any) => r.id);
+    if (allowed.length === 0) return;
+    await supabase.from("mediabuyer_ga_access").insert(
+      allowed.map((id: string) => ({ user_id: userId, business_id: businessId, ga_connection_id: id, scope: "explicit" })));
+  }
+}
+
+// Per-mediabuyer Meta ad-account scoping (admin-assigned).
+// access = { mode: 'none'|'all'|'specific', ids: string[] (meta_ads_connection ids) }.
+async function applyMetaAccess(supabase: any, userId: string, businessId: string, access: any) {
+  if (!access || !access.mode) return;
+  await supabase.from("mediabuyer_meta_access").delete().eq("user_id", userId);
+  if (access.mode === "none") return;
+  if (access.mode === "all") {
+    await supabase.from("mediabuyer_meta_access")
+      .insert({ user_id: userId, business_id: businessId, meta_connection_id: null, scope: "all" });
+    return;
+  }
+  if (access.mode === "specific") {
+    const ids: string[] = Array.isArray(access.ids) ? access.ids.filter(Boolean) : [];
+    if (ids.length === 0) return;
+    const { data: valid } = await supabase.from("meta_ads_connections")
+      .select("id").eq("DigiCom Business", businessId).in("id", ids);
+    const allowed = (valid ?? []).map((r: any) => r.id);
+    if (allowed.length === 0) return;
+    await supabase.from("mediabuyer_meta_access").insert(
+      allowed.map((id: string) => ({ user_id: userId, business_id: businessId, meta_connection_id: id, scope: "explicit" })));
   }
 }
 
@@ -200,6 +247,14 @@ Deno.serve(async (req) => {
       }
     } catch (waErr) {
       console.error("applyWhatsappAccess (consume) failed:", waErr);
+    }
+
+    // 4b) Media-buyer GA / Meta visibility scoping (admin-assigned), business from the invite.
+    try {
+      if (payload?.ga_access) await applyGaAccess(service, createdUserId, businessId, payload.ga_access);
+      if (payload?.meta_access) await applyMetaAccess(service, createdUserId, businessId, payload.meta_access);
+    } catch (accErr) {
+      console.error("applyGa/MetaAccess (consume) failed:", accErr);
     }
 
     // 5) Mark the invitation consumed.

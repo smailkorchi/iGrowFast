@@ -171,6 +171,8 @@ const GoogleAnalyticsPage: React.FC = () => {
     const { data: profile, isLoading: profileLoading } = useCurrentProfile();
 
     const isOwner = profile?.role === 'owner';
+    // Mediabuyers view only the properties an admin assigned them — they cannot connect/remove/set-default.
+    const canManage = profile?.role !== 'mediabuyer';
     const { data: businesses } = useBusinessesForOwner(!!isOwner);
 
     const [ownerBusinessId, setOwnerBusinessId] = useState<string | null>(() => {
@@ -278,7 +280,14 @@ const GoogleAnalyticsPage: React.FC = () => {
             {connectionsLoading ? (
                 <Skeleton className="h-12 w-full rounded-xl bg-ant-line-soft" />
             ) : connections.length === 0 ? (
-                <OnboardingCard onAdd={() => setAddOpen(true)} />
+                canManage ? (
+                    <OnboardingCard onAdd={() => setAddOpen(true)} />
+                ) : (
+                    <div className="rounded-2xl border border-ant-line bg-ant-paper p-8 text-center">
+                        <p className="text-[13px] font-semibold text-ant-ink">Aucune propriété assignée</p>
+                        <p className="text-[12px] text-ant-mid mt-1">Demandez à un administrateur de vous donner accès à une propriété Google Analytics.</p>
+                    </div>
+                )
             ) : (
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 flex-wrap">
                     <PropertySwitcher
@@ -287,6 +296,7 @@ const GoogleAnalyticsPage: React.FC = () => {
                         onChange={(c) => setActivePropertyId(c.property_id)}
                         businessId={businessId!}
                         onAdd={() => setAddOpen(true)}
+                        canManage={canManage}
                     />
                     <DateRangeBar value={preset} onChange={setPreset} range={range} />
                     <RealtimePill total={realtime.data?.total ?? 0} isLoading={realtime.isLoading} />
@@ -387,7 +397,8 @@ const PropertySwitcher: React.FC<{
     onChange: (c: GAConnection) => void;
     businessId: string;
     onAdd: () => void;
-}> = ({ connections, active, onChange, businessId, onAdd }) => {
+    canManage: boolean;
+}> = ({ connections, active, onChange, businessId, onAdd, canManage }) => {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const setDefault = useSetDefaultGAConnection();
@@ -447,6 +458,7 @@ const PropertySwitcher: React.FC<{
                                     <Check className="w-3 h-3 text-ant-orange shrink-0" />
                                 )}
                             </button>
+                            {canManage && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <button className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-ant-paper opacity-0 group-hover:opacity-100 transition">
@@ -480,8 +492,10 @@ const PropertySwitcher: React.FC<{
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+                            )}
                         </div>
                     ))}
+                    {canManage && (
                     <div className="border-t border-ant-line mt-1 pt-1">
                         <button
                             onClick={() => {
@@ -494,6 +508,7 @@ const PropertySwitcher: React.FC<{
                             Connect another property
                         </button>
                     </div>
+                    )}
                 </PopoverContent>
             </Popover>
         </div>

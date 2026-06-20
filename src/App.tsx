@@ -89,6 +89,7 @@ import { WhatsAppNotificationsProvider } from "./components/notifications/WhatsA
 import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { MediaBuyerIntegrationGuard } from "./components/auth/MediaBuyerIntegrationGuard";
 import { Navigate } from "react-router-dom";
 
 // WhatsApp Imports
@@ -226,8 +227,8 @@ const App = () => (
                   <Route path="orders" element={<MediaBuyerOrders />} />
                   <Route path="payments" element={<MediaBuyerPayments />} />
                   <Route path="demands" element={<MediaBuyerDemands />} />
-                  <Route path="google-analytics" element={<GoogleAnalyticsPage />} />
-                  <Route path="meta-ads" element={<MetaAdsPage />} />
+                  <Route path="google-analytics" element={<MediaBuyerIntegrationGuard integration="ga"><GoogleAnalyticsPage /></MediaBuyerIntegrationGuard>} />
+                  <Route path="meta-ads" element={<MediaBuyerIntegrationGuard integration="meta"><MetaAdsPage /></MediaBuyerIntegrationGuard>} />
                   <Route path="profile" element={<MediaBuyerProfile />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>

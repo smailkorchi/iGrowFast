@@ -100,6 +100,55 @@ async function applyWhatsappAccess(supabase: any, userId: string, access: any) {
   }
 }
 
+// ── Mediabuyer Google Analytics property scoping ────────────────────
+// access shape: { mode: 'none'|'all'|'specific', ids?: string[], business_id?: string }
+async function applyGaAccess(supabase: any, userId: string, access: any) {
+  if (!access || !access.mode) return;
+  await supabase.from("mediabuyer_ga_access").delete().eq("user_id", userId);
+  if (access.mode === "none") return;
+  const businessId = access.business_id;
+  if (!businessId) return;
+  if (access.mode === "all") {
+    await supabase.from("mediabuyer_ga_access")
+      .insert({ user_id: userId, business_id: businessId, ga_connection_id: null, scope: "all" });
+    return;
+  }
+  if (access.mode === "specific") {
+    const ids: string[] = Array.isArray(access.ids) ? access.ids.filter(Boolean) : [];
+    if (ids.length === 0) return;
+    const { data: valid } = await supabase.from("google_analytics_connections")
+      .select("id").eq("DigiCom Business", businessId).in("id", ids);
+    const allowed = (valid ?? []).map((r: any) => r.id);
+    if (allowed.length === 0) return;
+    await supabase.from("mediabuyer_ga_access").insert(
+      allowed.map((id: string) => ({ user_id: userId, business_id: businessId, ga_connection_id: id, scope: "explicit" })));
+  }
+}
+
+// ── Mediabuyer Meta ad-account scoping ──────────────────────────────
+async function applyMetaAccess(supabase: any, userId: string, access: any) {
+  if (!access || !access.mode) return;
+  await supabase.from("mediabuyer_meta_access").delete().eq("user_id", userId);
+  if (access.mode === "none") return;
+  const businessId = access.business_id;
+  if (!businessId) return;
+  if (access.mode === "all") {
+    await supabase.from("mediabuyer_meta_access")
+      .insert({ user_id: userId, business_id: businessId, meta_connection_id: null, scope: "all" });
+    return;
+  }
+  if (access.mode === "specific") {
+    const ids: string[] = Array.isArray(access.ids) ? access.ids.filter(Boolean) : [];
+    if (ids.length === 0) return;
+    const { data: valid } = await supabase.from("meta_ads_connections")
+      .select("id").eq("DigiCom Business", businessId).in("id", ids);
+    const allowed = (valid ?? []).map((r: any) => r.id);
+    if (allowed.length === 0) return;
+    await supabase.from("mediabuyer_meta_access").insert(
+      allowed.map((id: string) => ({ user_id: userId, business_id: businessId, meta_connection_id: id, scope: "explicit" })));
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -120,7 +169,7 @@ Deno.serve(async (req) => {
     const { action, userData, userId } = await req.json();
 
     if (action === "create") {
-      const { email, password, name, username, role, whatsapp_access, ...rest } = userData;
+      const { email, password, name, username, role, whatsapp_access, ga_access, meta_access, ...rest } = userData;
 
       const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
         email,
@@ -160,6 +209,12 @@ Deno.serve(async (req) => {
       } catch (waErr) {
         console.error("applyWhatsappAccess (create) failed:", waErr);
       }
+      try {
+        await applyGaAccess(supabaseClient, authData.user.id, ga_access);
+        await applyMetaAccess(supabaseClient, authData.user.id, meta_access);
+      } catch (accErr) {
+        console.error("applyGa/MetaAccess (create) failed:", accErr);
+      }
 
       return new Response(JSON.stringify(profileData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -168,7 +223,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update") {
-      const { email, password, whatsapp_access, ...rest } = userData;
+      const { email, password, whatsapp_access, ga_access, meta_access, ...rest } = userData;
 
       // Read the current auth login email so we only touch GoTrue when something
       // actually changed. Forwarding an unchanged email made GoTrue treat every
@@ -218,6 +273,12 @@ Deno.serve(async (req) => {
         await applyWhatsappAccess(supabaseClient, userId, whatsapp_access);
       } catch (waErr) {
         console.error("applyWhatsappAccess (update) failed:", waErr);
+      }
+      try {
+        await applyGaAccess(supabaseClient, userId, ga_access);
+        await applyMetaAccess(supabaseClient, userId, meta_access);
+      } catch (accErr) {
+        console.error("applyGa/MetaAccess (update) failed:", accErr);
       }
 
       return new Response(JSON.stringify(profileData), {

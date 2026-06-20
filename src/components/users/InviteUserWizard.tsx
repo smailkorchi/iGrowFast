@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import { FaWhatsapp } from 'react-icons/fa';
 import {
     Crown, Shield, Headphones, Bike, Target, ArrowRight, ArrowLeft, Loader2, Copy, Check,
-    Link as LinkIcon, Search, SlidersHorizontal, UserPlus, Package, Wallet, Sparkles, type LucideIcon,
+    Link as LinkIcon, Search, SlidersHorizontal, UserPlus, Package, Wallet, Sparkles,
+    BarChart3, Megaphone, type LucideIcon,
 } from 'lucide-react';
 import { createInvitation, USER_PAGES, type InviteRole } from '@/lib/invitations';
 
@@ -61,6 +62,11 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
     const [productSearch, setProductSearch] = useState('');
     const [waMode, setWaMode] = useState<'none' | 'all' | 'specific'>('none');
     const [waInstanceIds, setWaInstanceIds] = useState<string[]>([]);
+    // Media-buyer integration scoping (which GA properties / Meta ad accounts they may see).
+    const [gaMode, setGaMode] = useState<'none' | 'all' | 'specific'>('none');
+    const [gaIds, setGaIds] = useState<string[]>([]);
+    const [metaMode, setMetaMode] = useState<'none' | 'all' | 'specific'>('none');
+    const [metaIds, setMetaIds] = useState<string[]>([]);
     const [parcelFragile, setParcelFragile] = useState(false);
     const [parcelOpen, setParcelOpen] = useState(false);
     const [parcelTryOn, setParcelTryOn] = useState(false);
@@ -75,6 +81,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         setPaymentType('commission'); setSalaryAmount(0); setProductIds([]); setProductSearch('');
         setWaMode('none'); setWaInstanceIds([]); setParcelFragile(false); setParcelOpen(false);
         setParcelTryOn(false); setPhone(''); setLink(null); setCopied(false); setGenerating(false);
+        setGaMode('none'); setGaIds([]); setMetaMode('none'); setMetaIds([]);
     };
 
     useEffect(() => { if (isOpen) reset(); }, [isOpen]);
@@ -104,6 +111,28 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         enabled: isOpen && role === 'commercial' && !!activeBusinessId,
     });
 
+    const { data: gaConns } = useQuery({
+        queryKey: ['invite-ga-conns', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data } = await supabase.from('google_analytics_connections')
+                .select('id, display_name, property_id').eq('DigiCom Business', activeBusinessId).order('display_name');
+            return data ?? [];
+        },
+        enabled: isOpen && role === 'mediabuyer' && !!activeBusinessId,
+    });
+
+    const { data: metaConns } = useQuery({
+        queryKey: ['invite-meta-conns', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data } = await supabase.from('meta_ads_connections')
+                .select('id, display_name, ad_account_id').eq('DigiCom Business', activeBusinessId).order('display_name');
+            return data ?? [];
+        },
+        enabled: isOpen && role === 'mediabuyer' && !!activeBusinessId,
+    });
+
     const filteredProducts = useMemo(() => (products ?? []).filter((p: any) =>
         p.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
         p.code?.toLowerCase().includes(productSearch.toLowerCase())), [products, productSearch]);
@@ -123,6 +152,8 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         };
         if (role === 'mediabuyer') return {
             ...base, payment_type: paymentType, salary_amount: salaryAmount, commission_price: commissionPrice,
+            ga_access: { mode: gaMode, ids: gaMode === 'specific' ? gaIds : [] },
+            meta_access: { mode: metaMode, ids: metaMode === 'specific' ? metaIds : [] },
         };
         return base;
     };
@@ -409,6 +440,76 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                                             })}
                                             {filteredProducts.length === 0 && <p className="text-[11px] text-ant-mid px-1">No products found.</p>}
                                         </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {role === 'mediabuyer' && (
+                                <>
+                                    {/* Google Analytics access */}
+                                    <div className="rounded-2xl border border-ant-line p-4 space-y-3">
+                                        <SectionHeader icon={BarChart3} title="Google Analytics" hint="Which GA properties this media buyer can view." />
+                                        <div className="flex items-center gap-2">
+                                            {(['none', 'all', 'specific'] as const).map((m) => (
+                                                <button key={m} onClick={() => setGaMode(m)} className={pillBtn(gaMode === m)}>
+                                                    {m === 'none' ? 'No access' : m === 'all' ? 'All properties' : 'Specific'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {gaMode === 'specific' && (
+                                            <div className="grid grid-cols-1 gap-1.5 pt-1">
+                                                {(gaConns ?? []).map((c: any) => {
+                                                    const on = gaIds.includes(c.id);
+                                                    return (
+                                                        <button key={c.id} onClick={() => toggle(gaIds, setGaIds, c.id)}
+                                                            className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer',
+                                                                on ? 'border-ant-orange bg-ant-orange/5' : 'border-ant-line hover:border-ant-ink/20')}>
+                                                            <span className={cn('w-4 h-4 rounded-md flex items-center justify-center shrink-0 border',
+                                                                on ? 'bg-ant-orange border-ant-orange text-white' : 'border-ant-line')}>
+                                                                {on && <Check className="w-3 h-3" />}
+                                                            </span>
+                                                            <span className="text-[12px] text-ant-ink truncate">{c.display_name} <span className="text-ant-mid">· {c.property_id}</span></span>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {(!gaConns || gaConns.length === 0) && (
+                                                    <p className="text-[11px] text-ant-mid">No GA properties connected to this business.</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Meta Ads access */}
+                                    <div className="rounded-2xl border border-ant-line p-4 space-y-3">
+                                        <SectionHeader icon={Megaphone} title="Meta Ads" hint="Which ad accounts this media buyer can use." />
+                                        <div className="flex items-center gap-2">
+                                            {(['none', 'all', 'specific'] as const).map((m) => (
+                                                <button key={m} onClick={() => setMetaMode(m)} className={pillBtn(metaMode === m)}>
+                                                    {m === 'none' ? 'No access' : m === 'all' ? 'All accounts' : 'Specific'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {metaMode === 'specific' && (
+                                            <div className="grid grid-cols-1 gap-1.5 pt-1">
+                                                {(metaConns ?? []).map((c: any) => {
+                                                    const on = metaIds.includes(c.id);
+                                                    return (
+                                                        <button key={c.id} onClick={() => toggle(metaIds, setMetaIds, c.id)}
+                                                            className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer',
+                                                                on ? 'border-ant-orange bg-ant-orange/5' : 'border-ant-line hover:border-ant-ink/20')}>
+                                                            <span className={cn('w-4 h-4 rounded-md flex items-center justify-center shrink-0 border',
+                                                                on ? 'bg-ant-orange border-ant-orange text-white' : 'border-ant-line')}>
+                                                                {on && <Check className="w-3 h-3" />}
+                                                            </span>
+                                                            <span className="text-[12px] text-ant-ink truncate">{c.display_name || c.ad_account_id} <span className="text-ant-mid">· {c.ad_account_id}</span></span>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {(!metaConns || metaConns.length === 0) && (
+                                                    <p className="text-[11px] text-ant-mid">No Meta ad accounts connected to this business.</p>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             )}

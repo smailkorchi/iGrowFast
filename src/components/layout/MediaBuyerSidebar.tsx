@@ -37,7 +37,12 @@ type NavSection = {
     items: NavItem[];
 };
 
-const navigation: NavSection[] = [
+// Google Analytics / Meta Ads are inserted right under Statistiques at runtime,
+// but only for the integrations this media buyer was granted access to.
+const GA_NAV: NavItem = { icon: FaGoogle, label: 'Google Analytics', path: '/mediabuyer/google-analytics' };
+const META_NAV: NavItem = { icon: SiMeta, label: 'Meta Ads', path: '/mediabuyer/meta-ads' };
+
+const baseNavigation: NavSection[] = [
     {
         items: [
             { icon: Home, label: 'Tableau de bord', path: '/mediabuyer/dashboard' },
@@ -57,8 +62,6 @@ const navigation: NavSection[] = [
             { icon: ShoppingCart, label: 'Commandes', path: '/mediabuyer/orders' },
             { icon: CreditCard, label: 'Paiements', path: '/mediabuyer/payments' },
             { icon: MessageSquare, label: 'Demandes', path: '/mediabuyer/demands' },
-            { icon: FaGoogle, label: 'Google Analytics', path: '/mediabuyer/google-analytics' },
-            { icon: SiMeta, label: 'Meta Ads', path: '/mediabuyer/meta-ads' },
         ],
     },
 ];
@@ -66,7 +69,7 @@ const navigation: NavSection[] = [
 const isParentPath = (path: string) => path === '/mediabuyer/dashboard';
 
 const isSectionActive = (pathname: string, label: string): boolean => {
-    const section = navigation.find((s) => s.label === label);
+    const section = baseNavigation.find((s) => s.label === label);
     if (!section) return false;
     return section.items.some((item) => pathname === item.path || pathname.startsWith(item.path + '/'));
 };
@@ -81,7 +84,7 @@ const MediaBuyerSidebar = () => {
 
     const [expandedSection, setExpandedSection] = React.useState<string | null>(() => {
         let active: string | null = null;
-        navigation.forEach((section) => {
+        baseNavigation.forEach((section) => {
             if (section.label && isSectionActive(location.pathname, section.label)) {
                 active = section.label;
             }
@@ -94,7 +97,7 @@ const MediaBuyerSidebar = () => {
     };
 
     React.useEffect(() => {
-        navigation.forEach((section) => {
+        baseNavigation.forEach((section) => {
             if (section.label && isSectionActive(location.pathname, section.label)) {
                 const label = section.label;
                 setExpandedSection((prev) => (prev !== label ? label : prev));
@@ -126,6 +129,37 @@ const MediaBuyerSidebar = () => {
             return data;
         }
     });
+
+    // Show the GA / Meta nav items only for integrations this media buyer can access.
+    // RLS scopes these tables to the buyer's allow-list, so a count > 0 means "has access".
+    const { data: hasGa } = useQuery({
+        queryKey: ['mb-sidebar-has-ga'],
+        queryFn: async () => {
+            const { count } = await supabase
+                .from('google_analytics_connections')
+                .select('id', { count: 'exact', head: true });
+            return (count ?? 0) > 0;
+        },
+    });
+    const { data: hasMeta } = useQuery({
+        queryKey: ['mb-sidebar-has-meta'],
+        queryFn: async () => {
+            const { count } = await supabase
+                .from('meta_ads_connections')
+                .select('id', { count: 'exact', head: true });
+            return (count ?? 0) > 0;
+        },
+    });
+
+    const navigation = React.useMemo(() => {
+        const extras: NavItem[] = [];
+        if (hasGa) extras.push(GA_NAV);
+        if (hasMeta) extras.push(META_NAV);
+        if (extras.length === 0) return baseNavigation;
+        const nav = baseNavigation.map((s) => ({ ...s, items: [...s.items] }));
+        nav[0].items.push(...extras); // directly under "Statistiques" in the top group
+        return nav;
+    }, [hasGa, hasMeta]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

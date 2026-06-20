@@ -77,6 +77,8 @@ const MetaAdsPage: React.FC = () => {
     const qc = useQueryClient();
     const { data: profile, isLoading: profileLoading } = useCurrentProfile();
     const isOwner = profile?.role === 'owner';
+    // Mediabuyers run campaigns on assigned ad accounts but cannot connect/remove/set-default.
+    const canManage = profile?.role !== 'mediabuyer';
     const { data: businesses } = useBusinessesForOwner(!!isOwner);
     const startOAuth = useStartMetaOAuth();
 
@@ -307,10 +309,17 @@ const MetaAdsPage: React.FC = () => {
             {connectionsLoading ? (
                 <Skeleton className="h-12 w-full rounded-xl bg-ant-line-soft" />
             ) : connections.length === 0 ? (
-                <OnboardingCard
-                    onConnect={() => connectWithFacebook(businessId!)}
-                    isConnecting={startOAuth.isPending}
-                />
+                canManage ? (
+                    <OnboardingCard
+                        onConnect={() => connectWithFacebook(businessId!)}
+                        isConnecting={startOAuth.isPending}
+                    />
+                ) : (
+                    <div className="rounded-2xl border border-ant-line bg-ant-paper p-8 text-center">
+                        <p className="text-[13px] font-semibold text-ant-ink">Aucun compte publicitaire assigné</p>
+                        <p className="text-[12px] text-ant-mid mt-1">Demandez à un administrateur de vous donner accès à un compte Meta Ads.</p>
+                    </div>
+                )
             ) : (
                 <div className="flex items-center gap-2">
                     <ConnectionSwitcher
@@ -319,6 +328,7 @@ const MetaAdsPage: React.FC = () => {
                         onChange={(c) => setActiveConnectionId(c.id)}
                         businessId={businessId!}
                         onAdd={() => connectWithFacebook(businessId!)}
+                        canManage={canManage}
                     />
                 </div>
             )}
@@ -413,7 +423,8 @@ const ConnectionSwitcher: React.FC<{
     onChange: (c: MetaConnection) => void;
     businessId: string;
     onAdd: () => void;
-}> = ({ connections, active, onChange, businessId, onAdd }) => {
+    canManage: boolean;
+}> = ({ connections, active, onChange, businessId, onAdd, canManage }) => {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const setDefault = useSetDefaultMetaConnection();
@@ -469,6 +480,7 @@ const ConnectionSwitcher: React.FC<{
                                 <Check className="w-3 h-3 text-ant-orange shrink-0" />
                             )}
                         </button>
+                        {canManage && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-ant-paper opacity-0 group-hover:opacity-100 transition">
@@ -499,8 +511,10 @@ const ConnectionSwitcher: React.FC<{
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        )}
                     </div>
                 ))}
+                {canManage && (
                 <div className="border-t border-ant-line mt-1 pt-1">
                     <button
                         onClick={() => { setOpen(false); onAdd(); }}
@@ -510,6 +524,7 @@ const ConnectionSwitcher: React.FC<{
                         Connect another account
                     </button>
                 </div>
+                )}
             </PopoverContent>
         </Popover>
     );

@@ -132,6 +132,15 @@ const userSchema = z.object({
         mode: z.enum(['none', 'all', 'specific']).default('none'),
         instance_ids: z.array(z.string()).default([]),
     }).default({ mode: 'none', instance_ids: [] }),
+    // Mediabuyer integration scoping — which GA properties / Meta ad accounts they may see.
+    ga_access: z.object({
+        mode: z.enum(['none', 'all', 'specific']).default('none'),
+        ids: z.array(z.string()).default([]),
+    }).default({ mode: 'none', ids: [] }),
+    meta_access: z.object({
+        mode: z.enum(['none', 'all', 'specific']).default('none'),
+        ids: z.array(z.string()).default([]),
+    }).default({ mode: 'none', ids: [] }),
 });
 
 type UserFormValues = z.infer<typeof userSchema>;
@@ -139,6 +148,87 @@ type UserFormValues = z.infer<typeof userSchema>;
 type UserModalInitialData = Partial<UserFormValues> & {
     id?: string;
     avatar_url?: string | null;
+};
+
+// Reusable picker for a mediabuyer's GA / Meta access (mode none/all/specific + checkboxes).
+const IntegrationAccessField: React.FC<{
+    control: any;
+    name: 'ga_access' | 'meta_access';
+    title: string;
+    hint: string;
+    conns: any[] | undefined;
+    primaryKey: string;   // display label field
+    secondaryKey: string; // mono sub-label field (property_id / ad_account_id)
+    emptyText: string;
+}> = ({ control, name, title, hint, conns, primaryKey, secondaryKey, emptyText }) => {
+    const modes: Array<['none' | 'all' | 'specific', string]> = [['none', 'No access'], ['all', 'All'], ['specific', 'Specific']];
+    return (
+        <FormField
+            control={control}
+            name={name as any}
+            render={({ field }: any) => {
+                const access = field.value || { mode: 'none', ids: [] };
+                const setMode = (mode: 'none' | 'all' | 'specific') =>
+                    field.onChange({ mode, ids: mode === 'specific' ? (access.ids || []) : [] });
+                const toggle = (id: string) => {
+                    const cur: string[] = access.ids || [];
+                    field.onChange({ mode: 'specific', ids: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+                };
+                return (
+                    <FormItem className="space-y-3 rounded-2xl border border-ant-line bg-ant-paper p-5">
+                        <div className="space-y-0.5">
+                            <FormLabel className="font-display text-[14px] font-semibold text-ant-ink block">{title}</FormLabel>
+                            <p className="font-serif italic text-[12px] text-ant-mid leading-snug">{hint}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {modes.map(([m, lbl]) => (
+                                <button
+                                    type="button"
+                                    key={m}
+                                    onClick={() => setMode(m)}
+                                    className={cn(
+                                        'h-9 px-3.5 rounded-full text-[11px] font-semibold border transition cursor-pointer',
+                                        access.mode === m ? 'bg-ant-ink text-white border-ant-ink shadow-sm'
+                                            : 'border-ant-line text-ant-mid hover:text-ant-ink hover:border-ant-ink/30',
+                                    )}
+                                >
+                                    {lbl}
+                                </button>
+                            ))}
+                        </div>
+                        {access.mode === 'specific' && (
+                            <div className="grid grid-cols-1 gap-1.5 pt-1">
+                                {!conns?.length ? (
+                                    <p className="font-serif italic text-[12px] text-ant-mid">{emptyText}</p>
+                                ) : (
+                                    conns.map((c: any) => {
+                                        const on = (access.ids || []).includes(c.id);
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={c.id}
+                                                onClick={() => toggle(c.id)}
+                                                className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer',
+                                                    on ? 'border-ant-orange bg-ant-orange/5' : 'border-ant-line hover:border-ant-ink/20')}
+                                            >
+                                                <span className={cn('w-4 h-4 rounded-md flex items-center justify-center shrink-0 border',
+                                                    on ? 'bg-ant-orange border-ant-orange text-white' : 'border-ant-line')}>
+                                                    {on && <Check className="w-3 h-3" />}
+                                                </span>
+                                                <span className="text-[12px] text-ant-ink truncate">
+                                                    {c[primaryKey] || c[secondaryKey]} <span className="text-ant-mid">· {c[secondaryKey]}</span>
+                                                </span>
+                                            </button>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
+                    </FormItem>
+                );
+            }}
+        />
+    );
 };
 
 interface UserModalProps {
@@ -340,6 +430,12 @@ const Users = () => {
                         whatsapp_access: values.role === 'commercial'
                             ? { ...values.whatsapp_access, business_id: activeBusinessId }
                             : { mode: 'none' },
+                        ga_access: values.role === 'mediabuyer'
+                            ? { ...values.ga_access, business_id: activeBusinessId }
+                            : { mode: 'none' },
+                        meta_access: values.role === 'mediabuyer'
+                            ? { ...values.meta_access, business_id: activeBusinessId }
+                            : { mode: 'none' },
                     }
                 }
             });
@@ -376,6 +472,12 @@ const Users = () => {
                 permissions: values.permissions,
                 whatsapp_access: values.role === 'commercial'
                     ? { ...values.whatsapp_access, business_id: activeBusinessId }
+                    : { mode: 'none' },
+                ga_access: values.role === 'mediabuyer'
+                    ? { ...values.ga_access, business_id: activeBusinessId }
+                    : { mode: 'none' },
+                meta_access: values.role === 'mediabuyer'
+                    ? { ...values.meta_access, business_id: activeBusinessId }
                     : { mode: 'none' },
             };
             const { data, error } = await supabase.functions.invoke('manage-users', {
@@ -845,6 +947,8 @@ const UserModal = ({
             active: true,
             permissions: {},
             whatsapp_access: { mode: 'none', instance_ids: [] },
+            ga_access: { mode: 'none', ids: [] },
+            meta_access: { mode: 'none', ids: [] },
         }
     });
 
@@ -885,6 +989,52 @@ const UserModal = ({
         enabled: !!editingUserId && isOpen,
     });
 
+    // Mediabuyer GA / Meta current grants (round-trip) + the business's connectable properties/accounts.
+    const { data: existingGaAccess } = useQuery({
+        queryKey: ['mb-ga-access', editingUserId],
+        queryFn: async () => {
+            if (!editingUserId) return null;
+            const { data, error } = await (supabase as any).from('mediabuyer_ga_access').select('ga_connection_id, scope').eq('user_id', editingUserId);
+            if (error) throw error;
+            const rows = data || [];
+            if (rows.length === 0) return { mode: 'none' as const, ids: [] };
+            if (rows.some((r: any) => r.scope === 'all')) return { mode: 'all' as const, ids: [] };
+            return { mode: 'specific' as const, ids: rows.map((r: any) => r.ga_connection_id).filter(Boolean) };
+        },
+        enabled: !!editingUserId && isOpen,
+    });
+    const { data: existingMetaAccess } = useQuery({
+        queryKey: ['mb-meta-access', editingUserId],
+        queryFn: async () => {
+            if (!editingUserId) return null;
+            const { data, error } = await (supabase as any).from('mediabuyer_meta_access').select('meta_connection_id, scope').eq('user_id', editingUserId);
+            if (error) throw error;
+            const rows = data || [];
+            if (rows.length === 0) return { mode: 'none' as const, ids: [] };
+            if (rows.some((r: any) => r.scope === 'all')) return { mode: 'all' as const, ids: [] };
+            return { mode: 'specific' as const, ids: rows.map((r: any) => r.meta_connection_id).filter(Boolean) };
+        },
+        enabled: !!editingUserId && isOpen,
+    });
+    const { data: gaConns } = useQuery({
+        queryKey: ['mb-ga-conns', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data } = await supabase.from('google_analytics_connections').select('id, display_name, property_id').eq('DigiCom Business', activeBusinessId).order('display_name');
+            return data ?? [];
+        },
+        enabled: !!activeBusinessId && isOpen,
+    });
+    const { data: metaConns } = useQuery({
+        queryKey: ['mb-meta-conns', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data } = await supabase.from('meta_ads_connections').select('id, display_name, ad_account_id').eq('DigiCom Business', activeBusinessId).order('display_name');
+            return data ?? [];
+        },
+        enabled: !!activeBusinessId && isOpen,
+    });
+
     const { data: products, isLoading: isProductsLoading } = useQuery({
         queryKey: ['products-user-modal', activeBusinessId],
         queryFn: async () => {
@@ -907,7 +1057,7 @@ const UserModal = ({
         p.code.toLowerCase().includes(productSearch.toLowerCase())
     );
 
-    const [activeTab, setActiveTab] = useState<'permissions' | 'performance' | 'whatsapp' | 'payment'>('permissions');
+    const [activeTab, setActiveTab] = useState<'permissions' | 'performance' | 'whatsapp' | 'payment' | 'integrations'>('permissions');
     useEffect(() => { if (isOpen) setActiveTab(firstConfigTab((initialData as any)?.role)); }, [isOpen, initialData]);
 
     useEffect(() => {
@@ -926,6 +1076,8 @@ const UserModal = ({
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
                     whatsapp_access: existingAccess || { mode: 'none', instance_ids: [] },
+                    ga_access: existingGaAccess || { mode: 'none', ids: [] },
+                    meta_access: existingMetaAccess || { mode: 'none', ids: [] },
                 });
                 setAvatarPreview(initialData.avatar_url ?? null);
             } else {
@@ -945,11 +1097,13 @@ const UserModal = ({
                     active: true,
                     permissions: {},
                     whatsapp_access: { mode: 'none', instance_ids: [] },
+                    ga_access: { mode: 'none', ids: [] },
+                    meta_access: { mode: 'none', ids: [] },
                 });
                 setAvatarPreview(null);
             }
         }
-    }, [initialData, form, isOpen, existingAccess]);
+    }, [initialData, form, isOpen, existingAccess, existingGaAccess, existingMetaAccess]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -1040,10 +1194,16 @@ const UserModal = ({
                                         </TabsTrigger>
                                     )}
                                     {currentRole === 'mediabuyer' && (
-                                        <TabsTrigger value="payment" className={tabClass}>
-                                            <DollarSign className="w-3 h-3" />
-                                            Payment
-                                        </TabsTrigger>
+                                        <>
+                                            <TabsTrigger value="payment" className={tabClass}>
+                                                <DollarSign className="w-3 h-3" />
+                                                Payment
+                                            </TabsTrigger>
+                                            <TabsTrigger value="integrations" className={tabClass}>
+                                                <BarChart2 className="w-3 h-3" />
+                                                Integrations
+                                            </TabsTrigger>
+                                        </>
                                     )}
                                     {currentRole === 'commercial' && (
                                         <>
@@ -1373,6 +1533,30 @@ const UserModal = ({
                                                 </FormItem>
                                             );
                                         }}
+                                    />
+                                </TabsContent>
+
+                                {/* INTEGRATIONS (mediabuyer) — which GA properties / Meta ad accounts they may see */}
+                                <TabsContent value="integrations" className="m-0 space-y-4 outline-none">
+                                    <IntegrationAccessField
+                                        control={form.control}
+                                        name="ga_access"
+                                        title="Google Analytics"
+                                        hint="Which GA properties this media buyer can view."
+                                        conns={gaConns}
+                                        primaryKey="display_name"
+                                        secondaryKey="property_id"
+                                        emptyText="No Google Analytics properties connected to this business."
+                                    />
+                                    <IntegrationAccessField
+                                        control={form.control}
+                                        name="meta_access"
+                                        title="Meta Ads"
+                                        hint="Which ad accounts this media buyer can use."
+                                        conns={metaConns}
+                                        primaryKey="display_name"
+                                        secondaryKey="ad_account_id"
+                                        emptyText="No Meta ad accounts connected to this business."
                                     />
                                 </TabsContent>
 
