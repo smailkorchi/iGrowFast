@@ -288,6 +288,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
+      // Capture identity BEFORE deletion so the notice can be emailed afterwards.
+      const { data: doomed } = await supabaseClient
+        .from("users").select('name, email, role, "DigiCom Business"').eq("id", userId).maybeSingle();
+
       const { error: authError } = await supabaseClient.auth.admin.deleteUser(userId);
       if (authError) throw authError;
 
@@ -297,6 +301,41 @@ Deno.serve(async (req) => {
         .eq("id", userId);
 
       if (profileError) throw profileError;
+
+      // Best-effort "Compte supprimé" email — never affects the deletion result.
+      try {
+        if (doomed?.email) {
+          const ROLE_FR: Record<string, string> = {
+            "super admin": "Super administrateur", "admin": "Administrateur", "commercial": "Commercial",
+            "courier": "Livreur", "mediabuyer": "Media buyer", "owner": "Propriétaire",
+          };
+          let businessName = "votre entreprise";
+          if (doomed["DigiCom Business"]) {
+            const { data: biz } = await supabaseClient.from("businesses").select("name").eq("id", doomed["DigiCom Business"]).maybeSingle();
+            if (biz?.name) businessName = biz.name;
+          }
+          const nowFr = (() => {
+            try { return new Date().toLocaleString("fr-FR", { timeZone: "Africa/Casablanca", dateStyle: "long", timeStyle: "short" }); }
+            catch { return new Date().toISOString(); }
+          })();
+          const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SERVICE}`, "apikey": SERVICE },
+            body: JSON.stringify({
+              key: "account_deleted", to: doomed.email,
+              vars: {
+                user_name: doomed.name || "",
+                role_label: ROLE_FR[doomed.role] || String(doomed.role || ""),
+                business_name: businessName,
+                deleted_at: nowFr,
+              },
+            }),
+          });
+        }
+      } catch (e) {
+        console.error("account_deleted email failed:", e);
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

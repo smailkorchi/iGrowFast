@@ -361,8 +361,12 @@ const Businesses = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.rpc('delete_business', { p_business_id: id });
-            if (error) throw error;
+            // Edge fn captures the super admins, runs delete_business, then emails business_deleted to them.
+            const { data, error } = await supabase.functions.invoke('delete-business', {
+                body: { business_id: id, origin: window.location.origin },
+            });
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
+            if (data && data.ok === false) throw new Error(data.detail || data.reason || 'Deletion failed.');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['businesses'] });

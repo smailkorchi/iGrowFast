@@ -7,18 +7,25 @@ export async function edgeFnErrorMessage(
     data: unknown,
     fallback = 'Something went wrong. Please try again.',
 ): Promise<string> {
-    // Some functions return 200 with { error } in the body.
-    if (data && typeof data === 'object' && 'error' in data && (data as any).error) {
-        return String((data as any).error);
-    }
+    // Functions vary: some return { error }, others { ok:false, reason, detail }.
+    const pick = (b: any): string | null => {
+        if (!b || typeof b !== 'object') return (typeof b === 'string' && b.trim()) ? b.trim() : null;
+        if (b.error) return String(b.error);
+        if (b.detail) return String(b.detail);
+        if (b.reason && b.reason !== 'error') return String(b.reason);
+        return null;
+    };
+
+    const fromData = pick(data);
+    if (fromData) return fromData;
 
     const ctx = (error as any)?.context;
     if (ctx) {
         try {
             const res = typeof ctx.clone === 'function' ? ctx.clone() : ctx;
             const body = await res.json();
-            if (body?.error) return String(body.error);
-            if (typeof body === 'string' && body.trim()) return body.trim();
+            const fromBody = pick(body);
+            if (fromBody) return fromBody;
         } catch {
             // body wasn't JSON — fall through
         }
