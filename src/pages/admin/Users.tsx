@@ -106,6 +106,7 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { FaWhatsapp } from 'react-icons/fa';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
@@ -385,6 +386,9 @@ const Users = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<any>(null);
     const [userToDelete, setUserToDelete] = useState<any>(null);
+    // Suspend / reactivate flow: capture an optional reason (fed into the email) before flipping status.
+    const [statusTarget, setStatusTarget] = useState<{ user: any; active: boolean } | null>(null);
+    const [statusReason, setStatusReason] = useState('');
     const [searchQuery, setSearchQuery] = useState("");
     const [roleFilter, setRoleFilter] = useState<'all' | typeof ROLE_ORDER[number]>('all');
     const { toast } = useToast();
@@ -520,13 +524,22 @@ const Users = () => {
     });
 
     const toggleActiveMutation = useMutation({
-        mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-            const { error } = await supabase.from('users').update({ active } as never).eq('id', id);
-            if (error) throw error;
+        mutationFn: async ({ id, active, reason }: { id: string; active: boolean; reason?: string }) => {
+            // Server-side: flips users.active AND emails account_suspended / account_reactivated with the reason.
+            const { data, error } = await supabase.functions.invoke('account-status-change', {
+                body: { user_id: id, active, reason: reason ?? '', origin: window.location.origin },
+            });
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
+            if (data && data.ok === false) throw new Error(data.detail || data.reason || 'Could not change the account status.');
+            return data as { active: boolean; email_warning?: string | null };
         },
-        onSuccess: () => {
+        onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
-            toast({ title: 'Updated', description: 'Account status changed.' });
+            setStatusTarget(null); setStatusReason('');
+            toast({
+                title: res?.active ? 'Account reactivated' : 'Account suspended',
+                description: res?.email_warning ? 'Status changed — but the email could not be sent.' : 'Status changed and the user was notified by email.',
+            });
         },
         onError: (error: any) => {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -739,7 +752,7 @@ const Users = () => {
                                             hasWhatsApp={usersWithWhatsApp?.has(user.id) || false}
                                             onEdit={() => setEditingUser(user)}
                                             onDelete={() => setUserToDelete(user)}
-                                            onToggleActive={() => toggleActiveMutation.mutate({ id: user.id, active: !user.active })}
+                                            onToggleActive={() => { setStatusReason(''); setStatusTarget({ user, active: !user.active }); }}
                                             onSendLink={() => sendLinkMutation.mutate(user.id)}
                                         />
                                     ))}
@@ -778,6 +791,61 @@ const Users = () => {
                                 {deleteUserMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                 <Trash2 className="w-3.5 h-3.5" />
                                 Confirm delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Suspend / reactivate — capture an optional reason fed into the email notice */}
+                <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !toggleActiveMutation.isPending) { setStatusTarget(null); setStatusReason(''); } }}>
+                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <div className={cn('h-[3px] w-full', statusTarget?.active ? 'bg-ant-green' : 'bg-ant-rose')} />
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                            <div className={cn('inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em]', statusTarget?.active ? 'text-ant-green' : 'text-ant-rose')}>
+                                <span className={cn('h-1.5 w-1.5 rounded-full', statusTarget?.active ? 'bg-ant-green' : 'bg-ant-rose')} />
+                                {statusTarget?.active ? 'Réactivation' : 'Suspension'}
+                            </div>
+                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+                                {statusTarget?.active ? 'Reactivate this account?' : 'Suspend this account?'}
+                            </DialogTitle>
+                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                <span className="not-italic font-semibold text-ant-ink">&ldquo;{statusTarget?.user?.name}&rdquo;</span>{' '}
+                                {statusTarget?.active
+                                    ? 'will regain access and be emailed a reactivation notice.'
+                                    : 'will lose access and be emailed a suspension notice.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="px-6 py-5 space-y-2">
+                            <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                {statusTarget?.active ? 'Note (optional)' : 'Reason (optional)'}
+                            </label>
+                            <Textarea
+                                value={statusReason}
+                                onChange={(e) => setStatusReason(e.target.value)}
+                                rows={3}
+                                autoFocus
+                                placeholder={statusTarget?.active ? 'Ex. Problème résolu — accès rétabli.' : 'Ex. Paiement en retard / non-respect des règles…'}
+                                className="rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink resize-none focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                            />
+                            <p className="text-[11px] text-ant-mid">Shown to the user in the email. Leave blank to use a default message.</p>
+                        </div>
+                        <DialogFooter className="px-6 py-4 gap-2">
+                            <Button
+                                variant="ghost"
+                                onClick={() => { setStatusTarget(null); setStatusReason(''); }}
+                                disabled={toggleActiveMutation.isPending}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => statusTarget && toggleActiveMutation.mutate({ id: statusTarget.user.id, active: statusTarget.active, reason: statusReason })}
+                                disabled={toggleActiveMutation.isPending}
+                                className={cn('h-10 px-5 rounded-full text-[12px] font-semibold text-white gap-2 cursor-pointer',
+                                    statusTarget?.active ? 'bg-ant-green hover:bg-ant-green/90' : 'bg-ant-rose hover:bg-ant-rose/90')}
+                            >
+                                {toggleActiveMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                {statusTarget?.active ? 'Reactivate & notify' : 'Suspend & notify'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
