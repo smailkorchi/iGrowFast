@@ -248,7 +248,7 @@ const CourierPayments = () => {
             if (!businessId) return null;
             const { data } = await (supabase as any)
                 .from('businesses')
-                .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website')
+                .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website, cachet_url, signature_url')
                 .eq('id', businessId)
                 .single();
             return (data || null) as (Record<string, string | null>) | null;
@@ -290,6 +290,8 @@ const CourierPayments = () => {
         business_phone: businessMeta?.business_phone ?? null,
         business_email: businessMeta?.business_email ?? null,
         website: businessMeta?.website ?? null,
+        cachet_url: businessMeta?.cachet_url ?? null,
+        signature_url: businessMeta?.signature_url ?? null,
     };
 
     const buildPdfInput = (note: PaymentNote): CourierPayoutPdfInput => ({

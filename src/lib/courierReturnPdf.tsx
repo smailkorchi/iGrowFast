@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { blobToBase64 } from './documentPdf/toBase64';
 import { LegalFooter, type LegalFooterBusiness } from './documentPdf/legalFooter';
+import { StampBlock } from './documentPdf/stampBlock';
 
 const NAVY = '#141413';
 const EMERALD = '#2D7A3E';
@@ -38,7 +39,7 @@ export type CourierReturnPdfInput = {
     received_at: string | null;
     created_at: string;
     line_items: CourierReturnPdfLineItem[];
-    business: { name: string; logo: string | null } & LegalFooterBusiness;
+    business: { name: string; logo: string | null; cachet_url?: string | null; signature_url?: string | null } & LegalFooterBusiness;
     courier: { name: string; avatar_url: string | null };
 };
 
@@ -179,6 +180,8 @@ function CourierReturnDocument({ input }: { input: CourierReturnPdfInput }) {
                     ))}
                 </View>
 
+                {/* Cachet + signature — identical to facture (bottom-right, only when set) */}
+                <StampBlock cachet={business.cachet_url} signature={business.signature_url} />
                 {/* Legal footer — identical layout to facture/devis */}
                 <LegalFooter business={business} />
             </Page>
@@ -187,22 +190,16 @@ function CourierReturnDocument({ input }: { input: CourierReturnPdfInput }) {
 }
 
 export async function buildCourierReturnPdfBlob(input: CourierReturnPdfInput): Promise<Blob> {
-    const needsLogoFetch = !!input.business.logo && !input.business.logo.startsWith('data:');
-    const needsAvatarFetch = !!input.courier.avatar_url && !input.courier.avatar_url.startsWith('data:');
-    let logoDataUri = input.business.logo;
-    let avatarDataUri = input.courier.avatar_url;
-    if (needsLogoFetch || needsAvatarFetch) {
-        const [lg, av] = await Promise.all([
-            needsLogoFetch ? fetchUrlAsDataUri(input.business.logo as string) : Promise.resolve(input.business.logo),
-            needsAvatarFetch ? fetchUrlAsDataUri(input.courier.avatar_url as string) : Promise.resolve(input.courier.avatar_url),
-        ]);
-        logoDataUri = lg;
-        avatarDataUri = av;
-    }
+    // Embed remote images (logo, cachet, signature, courier avatar) as data URIs;
+    // already-resolved data URIs pass through untouched.
+    const embed = (u?: string | null) => (u && /^https?:\/\//i.test(u) ? fetchUrlAsDataUri(u) : Promise.resolve(u ?? null));
+    const [logo, cachet, signature, avatar] = await Promise.all([
+        embed(input.business.logo), embed(input.business.cachet_url), embed(input.business.signature_url), embed(input.courier.avatar_url),
+    ]);
     const resolved: CourierReturnPdfInput = {
         ...input,
-        business: { ...input.business, logo: logoDataUri || null },
-        courier: { ...input.courier, avatar_url: avatarDataUri || null },
+        business: { ...input.business, logo: logo ?? null, cachet_url: cachet ?? null, signature_url: signature ?? null },
+        courier: { ...input.courier, avatar_url: avatar ?? null },
     };
     return pdf(<CourierReturnDocument input={resolved} />).toBlob();
 }

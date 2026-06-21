@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { blobToBase64 } from './documentPdf/toBase64';
 import { LegalFooter, type LegalFooterBusiness } from './documentPdf/legalFooter';
+import { StampBlock } from './documentPdf/stampBlock';
 import { saveBlob, type SaveBlobResult } from './saveBlob';
 
 // ─── Brand palette (Anthropic editorial tokens) ──────────────────────────────
@@ -52,7 +53,7 @@ export type CourierPayoutPdfInput = {
     paid_at: string | null;
     created_at: string;
     line_items: CourierPayoutPdfLineItem[];
-    business: { name: string; logo: string | null } & LegalFooterBusiness;
+    business: { name: string; logo: string | null; cachet_url?: string | null; signature_url?: string | null } & LegalFooterBusiness;
     courier: { name: string; avatar_url: string | null };
 };
 
@@ -457,6 +458,8 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
                     ))}
                 </View>
 
+                {/* Cachet + signature — identical to facture (bottom-right, only when set) */}
+                <StampBlock cachet={business.cachet_url} signature={business.signature_url} />
                 {/* Legal footer — identical layout to facture/devis */}
                 <LegalFooter business={business} />
             </Page>
@@ -481,26 +484,17 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
  * which adds latency and risks iOS user-activation expiration.
  */
 export async function buildCourierPayoutPdfBlob(input: CourierPayoutPdfInput): Promise<Blob> {
-    // Inline remote images only if they're still URLs (caller may have
-    // already resolved them into data URIs at page load).
-    const needsLogoFetch = !!input.business.logo && !input.business.logo.startsWith('data:');
-    const needsAvatarFetch = !!input.courier.avatar_url && !input.courier.avatar_url.startsWith('data:');
-
-    let logoDataUri = input.business.logo;
-    let avatarDataUri = input.courier.avatar_url;
-    if (needsLogoFetch || needsAvatarFetch) {
-        const [lg, av] = await Promise.all([
-            needsLogoFetch ? fetchUrlAsDataUri(input.business.logo as string) : Promise.resolve(input.business.logo),
-            needsAvatarFetch ? fetchUrlAsDataUri(input.courier.avatar_url as string) : Promise.resolve(input.courier.avatar_url),
-        ]);
-        logoDataUri = lg;
-        avatarDataUri = av;
-    }
+    // Embed remote images (logo, cachet, signature, courier avatar) as data URIs;
+    // already-resolved data URIs pass through untouched.
+    const embed = (u?: string | null) => (u && /^https?:\/\//i.test(u) ? fetchUrlAsDataUri(u) : Promise.resolve(u ?? null));
+    const [logo, cachet, signature, avatar] = await Promise.all([
+        embed(input.business.logo), embed(input.business.cachet_url), embed(input.business.signature_url), embed(input.courier.avatar_url),
+    ]);
 
     const resolved: CourierPayoutPdfInput = {
         ...input,
-        business: { ...input.business, logo: logoDataUri || null },
-        courier: { ...input.courier, avatar_url: avatarDataUri || null },
+        business: { ...input.business, logo: logo ?? null, cachet_url: cachet ?? null, signature_url: signature ?? null },
+        courier: { ...input.courier, avatar_url: avatar ?? null },
     };
 
     return pdf(<CourierPayoutDocument input={resolved} />).toBlob();

@@ -45,12 +45,13 @@ type BusinessBranding = {
   identifiant_fiscal: string | null; cnss: string | null;
   legal_address: string | null; legal_city: string | null; postal_code: string | null;
   business_phone: string | null; business_email: string | null; website: string | null;
+  cachet_url: string | null; signature_url: string | null;
 };
 
 async function fetchBusinessBranding(businessId: string): Promise<BusinessBranding> {
   const { data } = await (supabase as any)
     .from('businesses')
-    .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website')
+    .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website, cachet_url, signature_url')
     .eq('id', businessId)
     .maybeSingle();
   return {
@@ -69,6 +70,8 @@ async function fetchBusinessBranding(businessId: string): Promise<BusinessBrandi
     business_phone: data?.business_phone ?? null,
     business_email: data?.business_email ?? null,
     website: data?.website ?? null,
+    cachet_url: data?.cachet_url ?? null,
+    signature_url: data?.signature_url ?? null,
   };
 }
 

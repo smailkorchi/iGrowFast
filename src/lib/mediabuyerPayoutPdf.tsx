@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { blobToBase64 } from './documentPdf/toBase64';
 import { LegalFooter, type LegalFooterBusiness } from './documentPdf/legalFooter';
+import { StampBlock } from './documentPdf/stampBlock';
 
 const NAVY = '#141413';
 const EMERALD = '#2D7A3E';
@@ -40,7 +41,7 @@ export type MediaBuyerPayoutPdfInput = {
   already_paid: number;
   remaining_owed: number;
   daily?: MediaBuyerPayoutDailyRow[];
-  business: { name: string; logo: string | null } & LegalFooterBusiness;
+  business: { name: string; logo: string | null; cachet_url?: string | null; signature_url?: string | null } & LegalFooterBusiness;
   mediabuyer: { name: string; avatar_url: string | null };
 };
 
@@ -212,6 +213,8 @@ function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }
           </>
         )}
 
+        {/* Cachet + signature — identical to facture (bottom-right, only when set) */}
+        <StampBlock cachet={business.cachet_url} signature={business.signature_url} />
         {/* Legal footer — identical layout to facture/devis */}
         <LegalFooter business={business} />
       </Page>
@@ -219,18 +222,16 @@ function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }
   );
 }
 
+const embed = (u?: string | null) => (u && /^https?:\/\//i.test(u) ? fetchUrlAsDataUri(u) : Promise.resolve(u ?? null));
+
 async function resolveImages(input: MediaBuyerPayoutPdfInput): Promise<MediaBuyerPayoutPdfInput> {
-  const needLogo = !!input.business.logo && !input.business.logo.startsWith('data:');
-  const needAvatar = !!input.mediabuyer.avatar_url && !input.mediabuyer.avatar_url.startsWith('data:');
-  if (!needLogo && !needAvatar) return input;
-  const [logo, avatar] = await Promise.all([
-    needLogo ? fetchUrlAsDataUri(input.business.logo as string) : Promise.resolve(input.business.logo),
-    needAvatar ? fetchUrlAsDataUri(input.mediabuyer.avatar_url as string) : Promise.resolve(input.mediabuyer.avatar_url),
+  const [logo, cachet, signature, avatar] = await Promise.all([
+    embed(input.business.logo), embed(input.business.cachet_url), embed(input.business.signature_url), embed(input.mediabuyer.avatar_url),
   ]);
   return {
     ...input,
-    business: { ...input.business, logo: logo || null },
-    mediabuyer: { ...input.mediabuyer, avatar_url: avatar || null },
+    business: { ...input.business, logo: logo ?? null, cachet_url: cachet ?? null, signature_url: signature ?? null },
+    mediabuyer: { ...input.mediabuyer, avatar_url: avatar ?? null },
   };
 }
 
