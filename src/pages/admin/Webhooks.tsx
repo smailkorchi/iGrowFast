@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import {
     Plus,
     Search,
@@ -475,8 +476,8 @@ const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
             <CardHeader className="flex flex-row items-start justify-between p-4 pb-3 space-y-0">
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="h-10 w-10 rounded-lg bg-ant-light border border-ant-line p-1.5 flex items-center justify-center overflow-hidden shrink-0">
-                        {hook.providers?.logo_url ? (
-                            <img src={hook.providers.logo_url} alt="" className="max-w-full max-h-full object-contain" />
+                        {resolveProviderLogo(hook.providers) ? (
+                            <img src={resolveProviderLogo(hook.providers)!} alt="" className="max-w-full max-h-full object-contain" />
                         ) : (
                             <Building2 className="w-4 h-4 text-ant-mid" strokeWidth={1.75} />
                         )}

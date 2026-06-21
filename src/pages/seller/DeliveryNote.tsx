@@ -82,6 +82,7 @@ import { CourierDeliveryNoteWizard } from '@/components/delivery/CourierDelivery
 import { printCourierDeliveryNote } from '@/lib/courierLabelGenerator';
 import { removeCompanyParcelFromDeliveryNote } from '@/lib/removeCompanyParcelFromDeliveryNote';
 import { deleteOpenCompanyDeliveryNote } from '@/lib/deleteOpenCompanyDeliveryNote';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 const DeliveryNote = () => {
     const { toast } = useToast();
@@ -1056,7 +1057,7 @@ const DeliveryNote = () => {
         const displayName = isCourier
             ? (courier?.name || 'Local')
             : (provider?.business_name || provider?.name || 'N/A');
-        const logoUrl = !isCourier ? provider?.logo_url : null;
+        const logoUrl = !isCourier ? resolveProviderLogo(provider) : null;
         const avatarUrl = isCourier ? courier?.avatar_url : null;
 
         return (
@@ -1196,7 +1197,7 @@ const DeliveryNote = () => {
                             const displayName = isCourier
                                 ? (courier?.name || 'Local')
                                 : (provider?.business_name || provider?.name || 'Local');
-                            const logoUrl = !isCourier ? provider?.logo_url : null;
+                            const logoUrl = !isCourier ? resolveProviderLogo(provider) : null;
                             const avatarUrl = isCourier ? courier?.avatar_url : null;
 
                             return (
@@ -1524,9 +1525,9 @@ const DeliveryNote = () => {
                                 <p className="text-[9px] uppercase tracking-[0.18em] text-ant-mid font-bold">Delivery Note</p>
                                 <p className="text-[13px] font-semibold text-ant-ink mt-0.5">{selectedNote?.reference}</p>
                             </div>
-                            {noteDetails?.provider?.logo_url ? (
+                            {resolveProviderLogo(noteDetails?.provider) ? (
                                 <div className="p-1.5 bg-ant-light rounded-lg border border-ant-line flex items-center justify-center min-w-[48px]">
-                                    <img src={noteDetails.provider.logo_url} alt="Provider Logo" className="h-7 w-auto object-contain" />
+                                    <img src={resolveProviderLogo(noteDetails.provider)!} alt="Provider Logo" className="h-7 w-auto object-contain" />
                                 </div>
                             ) : noteDetails?.provider?.avatar_url ? (
                                 <div className="w-9 h-9 rounded-lg border border-ant-line overflow-hidden shrink-0">

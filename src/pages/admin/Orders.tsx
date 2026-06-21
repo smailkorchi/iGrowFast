@@ -91,6 +91,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { orderMatchesTopSearch } from '@/lib/orderSearch';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, isWithinInterval } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
@@ -1001,7 +1002,7 @@ const Orders = () => {
                     city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
-                    company:providers(id, name, logo_url),
+                    company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
@@ -1474,7 +1475,7 @@ const Orders = () => {
                         city:master_cities(id, name),
                         courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                         assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
-                        company:providers(id, name, logo_url),
+                        company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                         history:order_status_history(*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)),
@@ -3742,7 +3743,7 @@ const Orders = () => {
                                             return p?.name ?? 'All';
                                         }}
                                         renderItem={(p: any) => {
-                                            const img = p.type === 'courier' ? p.avatar_url : p.logo_url;
+                                            const img = p.type === 'courier' ? p.avatar_url : resolveProviderLogo(p);
                                             return (
                                                 <span className="flex items-center gap-2 min-w-0">
                                                     {img ? (
@@ -4016,8 +4017,8 @@ const Orders = () => {
                                                 ) : null}
                                                 {(order.company?.name || order.courier?.name) && (
                                                     <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
-                                                        {order.company?.logo_url ? (
-                                                            <img src={order.company.logo_url} alt="" className="w-4 h-4 rounded-full object-contain bg-white" />
+                                                        {resolveProviderLogo(order.company) ? (
+                                                            <img src={resolveProviderLogo(order.company)!} alt="" className="w-4 h-4 rounded-full object-contain bg-white" />
                                                         ) : (
                                                             <UserAvatar url={order.courier?.avatar_url} config={(order.courier as any)?.avatar_config} name={order.courier?.name || order.company?.name} className="w-4 h-4 rounded-full" />
                                                         )}
@@ -4664,8 +4665,8 @@ const Orders = () => {
                                                                                 {p.type === 'courier' ? (
                                                                                     <UserAvatar url={p.avatar_url} config={(p as any).avatar_config} name={p.name} className="w-5 h-5 rounded-full" />
                                                                                 ) : (
-                                                                                    p.logo_url ? (
-                                                                                        <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-ant-line" />
+                                                                                    resolveProviderLogo(p) ? (
+                                                                                        <img src={resolveProviderLogo(p)!} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-ant-line" />
                                                                                     ) : (
                                                                                         <span className="w-5 h-5 rounded-full bg-ant-ink/10 flex items-center justify-center text-[9px] font-semibold text-ant-ink/60">
                                                                                             {(p.name || '?').slice(0, 1).toUpperCase()}
@@ -5581,8 +5582,8 @@ const Orders = () => {
                                             {(selectedOrder.courier || selectedOrder.company) && (
                                                 <div className="flex items-start gap-4">
                                                     <div className="w-10 h-10 rounded-2xl bg-ant-ink/5 flex items-center justify-center text-ant-mid shrink-0 shadow-sm overflow-hidden">
-                                                        {selectedOrder.company?.logo_url ? (
-                                                            <img src={selectedOrder.company.logo_url} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
+                                                        {resolveProviderLogo(selectedOrder.company) ? (
+                                                            <img src={resolveProviderLogo(selectedOrder.company)!} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
                                                         ) : selectedOrder.courier ? (
                                                             <UserAvatar url={selectedOrder.courier.avatar_url} config={(selectedOrder.courier as any).avatar_config} name={selectedOrder.courier.name} className="w-full h-full bg-transparent" />
                                                         ) : (

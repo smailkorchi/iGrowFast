@@ -16,6 +16,7 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import SourceIcon from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { cn } from '@/lib/utils';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
 interface SellerOrdersListViewProps {
@@ -273,9 +274,9 @@ export default function SellerOrdersListView({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="shrink-0">
-                                {order.company?.logo_url ? (
+                                {resolveProviderLogo(order.company) ? (
                                   <img
-                                    src={order.company.logo_url}
+                                    src={resolveProviderLogo(order.company)!}
                                     alt=""
                                     className="w-7 h-7 rounded-lg object-contain bg-white border border-ant-line p-0.5"
                                   />

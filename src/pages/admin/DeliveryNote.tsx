@@ -85,6 +85,7 @@ import { CourierDeliveryNoteWizard } from '@/components/delivery/CourierDelivery
 import { printCourierDeliveryNote } from '@/lib/courierLabelGenerator';
 import { removeCompanyParcelFromDeliveryNote } from '@/lib/removeCompanyParcelFromDeliveryNote';
 import { deleteOpenCompanyDeliveryNote } from '@/lib/deleteOpenCompanyDeliveryNote';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 const DeliveryNote = () => {
     const { toast } = useToast();
@@ -1036,7 +1037,7 @@ const DeliveryNote = () => {
         const displayName = isCourier
             ? (courier?.name || 'Local')
             : (provider?.business_name || provider?.name || 'N/A');
-        const logoUrl = !isCourier ? provider?.logo_url : null;
+        const logoUrl = !isCourier ? resolveProviderLogo(provider) : null;
         const avatarUrl = isCourier ? courier?.avatar_url : null;
         const parcelCount = note.parcel_count || 0;
 
@@ -1231,7 +1232,7 @@ const DeliveryNote = () => {
                             const displayName = isCourier
                                 ? (courier?.name || 'Local')
                                 : (provider?.business_name || provider?.name || 'Local');
-                            const logoUrl = !isCourier ? provider?.logo_url : null;
+                            const logoUrl = !isCourier ? resolveProviderLogo(provider) : null;
                             const avatarUrl = isCourier ? courier?.avatar_url : null;
 
                             return (
@@ -1581,9 +1582,9 @@ const DeliveryNote = () => {
                                     Handover manifest for {noteDetails?.provider?.isCourier ? 'the courier' : 'the provider'}.
                                 </p>
                             </div>
-                            {noteDetails?.provider?.logo_url ? (
+                            {resolveProviderLogo(noteDetails?.provider) ? (
                                 <div className="p-3 bg-white rounded-2xl shadow-sm border border-ant-line flex items-center justify-center min-w-[80px]">
-                                    <img src={noteDetails.provider.logo_url} alt="Provider Logo" className="h-10 w-auto object-contain" />
+                                    <img src={resolveProviderLogo(noteDetails.provider)!} alt="Provider Logo" className="h-10 w-auto object-contain" />
                                 </div>
                             ) : noteDetails?.provider?.avatar_url ? (
                                 <div className="w-16 h-16 rounded-2xl shadow-sm border border-ant-line overflow-hidden">

@@ -20,6 +20,7 @@ import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';
 import { format } from 'date-fns';
 import { orderMatchesSellerProducts } from '@/components/delivery/DeliveryNoteWizard';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 // Package status "Retourné"
 const RETOURNE_PACKAGE_STATUS_ID = 'c98d2ec2-94aa-4bfd-bc27-cdf93d46f3a9';
@@ -32,9 +33,9 @@ interface ReturnOrder {
     tracking_number: string | null; company_id: string | null; courier_id: string | null;
     master_city_id: string | null;
     current_return_note_id: string | null; current_courier_return_note_id: string | null;
-    parcels: { tracking_code: string | null; provider: { id: string; name: string; logo_url: string | null } | null }[];
+    parcels: { tracking_code: string | null; provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null }[];
     courier_parcels: { tracking_code: string | null }[];
-    company: { id: string; name: string; logo_url: string | null } | null;
+    company: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
     courier: { id: string; name: string; avatar_url: string | null } | null;
     items: { quantity: number; unit_price: number; product_id?: string; product: { name: string } | null }[];
 }
@@ -56,7 +57,7 @@ interface ReturnNote {
     id: string; reference: string; status: string; total_amount: number;
     total_shipping_fees: number; net_amount: number; order_count: number;
     received_at: string | null; note: string | null; created_at: string;
-    provider: { id: string; name: string; logo_url: string | null } | null;
+    provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
     courier?: { id: string; name: string; avatar_url: string | null } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
@@ -112,10 +113,10 @@ const ReturnNote = () => {
             const { data, error } = await (supabase as any)
                 .from('orders')
                 .select(`*,
-                    company:providers(id, name, logo_url),
+                    company:providers(id, name, provider_type, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                     items:order_items(quantity, unit_price, product_id, product:products(name)),
-                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
+                    parcels:company_parcels(tracking_code, provider:providers(id, name, provider_type, logo_url), company_delivery_note_id, created_at),
                     courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('package_status_id', RETOURNE_PACKAGE_STATUS_ID)
@@ -142,7 +143,7 @@ const ReturnNote = () => {
             const [companyRes, courierRes] = await Promise.all([
                 (supabase as any)
                     .from('company_return_notes')
-                    .select(`*, provider:providers(id, name, logo_url), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, provider:providers(id, name, provider_type, logo_url), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .eq('created_by', sellerShippingCtx.userId)
                     .order('created_at', { ascending: false }),
@@ -226,7 +227,7 @@ const ReturnNote = () => {
             } else {
                 const providerId = order.company?.id || order.parcels?.[0]?.provider?.id || 'unknown';
                 const providerName = order.company?.name || order.parcels?.[0]?.provider?.name || 'Unknown';
-                const logoUrl = order.company?.logo_url || order.parcels?.[0]?.provider?.logo_url || null;
+                const logoUrl = resolveProviderLogo(order.company) ?? resolveProviderLogo(order.parcels?.[0]?.provider);
                 if (!companyMap.has(providerId)) {
                     companyMap.set(providerId, {
                         kind: 'company',
@@ -468,7 +469,10 @@ const ReturnNote = () => {
         }
 
         const entityName = note.kind === 'courier' ? (note.courier?.name || 'Unknown courier') : (note.provider?.name || 'Unknown provider');
-        const entityImage = note.kind === 'courier' ? (note.courier?.avatar_url || null) : (note.provider?.logo_url || null);
+        const providerLogo = resolveProviderLogo(note.provider);
+        const entityImage = note.kind === 'courier'
+            ? (note.courier?.avatar_url || null)
+            : (providerLogo ? `${window.location.origin}${providerLogo}` : null);
         const entityLabel = note.kind === 'courier' ? 'Courier Agent' : 'Provider';
         const createdAt = format(new Date(note.created_at), 'dd MMM yyyy • HH:mm');
 
@@ -1131,7 +1135,7 @@ const ReturnNote = () => {
                                 <div className="flex items-center gap-3">
                                     <EntityLogo
                                         kind={selectedNote.kind}
-                                        logoUrl={selectedNote.provider?.logo_url || null}
+                                        logoUrl={resolveProviderLogo(selectedNote.provider)}
                                         avatarUrl={selectedNote.courier?.avatar_url || null}
                                         name={selectedNote.kind === 'courier' ? (selectedNote.courier?.name || '??') : (selectedNote.provider?.name || '??')}
                                         size="sm"

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
     CheckCircle2, Clock, Building2, CreditCard, AlertTriangle,
@@ -30,9 +31,9 @@ interface UnpaidOrder {
     current_courier_payment_note_id: string | null;
     include_delivery_in_total: boolean | null;
     master_city_id: string | null;
-    parcels: { tracking_code: string | null; provider: { id: string; name: string; logo_url: string | null } | null }[];
+    parcels: { tracking_code: string | null; provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null }[];
     courier_parcels: { tracking_code: string | null }[];
-    company: { id: string; name: string; logo_url: string | null } | null;
+    company: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
     courier: { id: string; name: string; avatar_url: string | null } | null;
     items: { quantity: number; unit_price: number; product: { name: string } | null }[];
 }
@@ -54,7 +55,7 @@ interface PaymentNote {
     id: string; reference: string; status: string; total_amount: number;
     total_shipping_fees: number; net_amount: number; order_count: number;
     paid_at: string | null; note: string | null; created_at: string;
-    provider: { id: string; name: string; logo_url: string | null } | null;
+    provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
     courier?: { id: string; name: string; avatar_url: string | null } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
@@ -91,10 +92,10 @@ const Payments = () => {
         queryFn: async () => {
             if (!activeBusinessId || !unpaidStatusId || !deliveredPkgId) return [];
             const SELECT = `*,
-                    company:providers(id, name, logo_url),
+                    company:providers(id, name, provider_type, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     items:order_items(quantity, unit_price, product:products(name)),
-                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url), company_delivery_note_id, created_at),
+                    parcels:company_parcels(tracking_code, provider:providers(id, name, provider_type, logo_url), company_delivery_note_id, created_at),
                     courier_parcels(tracking_code, courier_delivery_note_id, created_at)`;
             // Normal payouts: unpaid + delivered, not yet noted.
             const normal = await fetchAllRows('orders', SELECT, {
@@ -204,7 +205,7 @@ const Payments = () => {
             const [companyRes, courierRes] = await Promise.all([
                 (supabase as any)
                     .from('company_payment_notes')
-                    .select(`*, provider:providers(id, name, logo_url), line_items:company_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, provider:providers(id, name, provider_type, logo_url), line_items:company_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false }),
                 (supabase as any)
@@ -252,7 +253,7 @@ const Payments = () => {
             } else {
                 const providerId = order.company?.id || order.parcels?.[0]?.provider?.id || 'unknown';
                 const providerName = order.company?.name || order.parcels?.[0]?.provider?.name || 'Unknown';
-                const logoUrl = order.company?.logo_url || order.parcels?.[0]?.provider?.logo_url || null;
+                const logoUrl = resolveProviderLogo(order.company) ?? resolveProviderLogo(order.parcels?.[0]?.provider);
                 if (!companyMap.has(providerId)) {
                     companyMap.set(providerId, {
                         kind: 'company',
@@ -506,7 +507,10 @@ const Payments = () => {
         }
 
         const entityName = note.kind === 'courier' ? (note.courier?.name || 'Unknown courier') : (note.provider?.name || 'Unknown provider');
-        const entityImage = note.kind === 'courier' ? (note.courier?.avatar_url || null) : (note.provider?.logo_url || null);
+        const providerLogo = resolveProviderLogo(note.provider);
+        const entityImage = note.kind === 'courier'
+            ? (note.courier?.avatar_url || null)
+            : (providerLogo ? `${window.location.origin}${providerLogo}` : null);
         const entityLabel = note.kind === 'courier' ? 'Courier agent' : 'Provider';
         const createdAt = format(new Date(note.created_at), "dd MMM yyyy 'at' HH:mm");
         const paidAt = note.paid_at ? format(new Date(note.paid_at), "dd MMM yyyy 'at' HH:mm") : null;
@@ -819,7 +823,7 @@ const Payments = () => {
                                 <CardContent className="p-0">
                                     <div className="p-5 md:px-6 md:py-5 flex flex-col md:flex-row md:items-center justify-between gap-5">
                                         <div className="flex items-start gap-4 flex-1 min-w-0">
-                                            <EntityLogo kind={note.kind} logoUrl={note.provider?.logo_url || null} avatarUrl={note.courier?.avatar_url || null} name={targetName} size="md" />
+                                            <EntityLogo kind={note.kind} logoUrl={resolveProviderLogo(note.provider)} avatarUrl={note.courier?.avatar_url || null} name={targetName} size="md" />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <h3 className="font-display text-[16px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
@@ -1373,7 +1377,7 @@ const Payments = () => {
                                 <div className="flex items-center gap-4">
                                     <EntityLogo
                                         kind={selectedNote.kind}
-                                        logoUrl={selectedNote.provider?.logo_url || null}
+                                        logoUrl={resolveProviderLogo(selectedNote.provider)}
                                         avatarUrl={selectedNote.courier?.avatar_url || null}
                                         name={(selectedNote.kind === 'courier' ? selectedNote.courier?.name : selectedNote.provider?.name) || '??'}
                                         size="lg"

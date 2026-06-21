@@ -77,6 +77,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 // Types are not yet updated in the generated schema, so we'll use any for table names
 const PROVIDERS_TABLE = 'providers' as any;
@@ -206,7 +207,7 @@ const KNOWN_PROVIDERS = [
     {
         type: 'quicklivraison',
         name: 'Quick Livraison',
-        logo: 'https://clients.quicklivraison.ma/public/assets/v2/img/Logo-light.png',
+        logo: '/providers/Quick%20Livraison.png',
         color: '#15803d',
         baseUrl: 'https://clients.quicklivraison.ma/api',
         description: 'Livraison rapide au Maroc. Suivi par polling (pas de webhook, pas de bon de ramassage API).',
@@ -1090,7 +1091,7 @@ function PartnerCard({ company, onEdit, onZones, onFees, onReturnFees, onPermiss
     const template = getProviderTemplateByType(company.provider_type);
     const accent = template?.color || company.color || '#141413';
     const displayName = template?.name || company.name;
-    const logoUrl = template?.logo || company.logo_url;
+    const logoUrl = resolveProviderLogo(company) ?? template?.logo ?? null;
     const slug = template?.type || (company.provider_type || '').toLowerCase();
     const requiredFields = (PROVIDER_FIELD_SCHEMA[slug] || []) as ProviderConfigField[];
     const completed = requiredFields.filter((f) => {

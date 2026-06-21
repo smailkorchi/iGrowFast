@@ -67,7 +67,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
     const { data: providers } = useQuery({
         queryKey: ['analytics-providers', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('providers').select('id, name, logo_url').eq('DigiCom Business', businessId);
+            const { data } = await supabase.from('providers').select('id, name, provider_type, logo_url').eq('DigiCom Business', businessId);
             return data || [];
         },
         enabled: !!businessId,
@@ -144,7 +144,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         // Fulfiller lookup — providers AND in-house couriers share one map so the
         // same "By provider" list shows both with their proper names and avatars.
         const fulfillerInfo = new Map<string, { name: string; logo_url: string | null; kind: 'provider' | 'courier' }>();
-        (providers || []).forEach(p => fulfillerInfo.set(p.id, { name: p.name || 'Provider', logo_url: p.logo_url, kind: 'provider' }));
+        (providers || []).forEach(p => fulfillerInfo.set(p.id, { name: p.name || 'Provider', logo_url: resolveProviderLogo(p), kind: 'provider' }));
         (couriers || []).forEach(c => fulfillerInfo.set(c.id, { name: c.name || 'Courier', logo_url: c.avatar_url, kind: 'courier' }));
 
         // Use ALL orders in the window that have been handed off to a provider or courier,
