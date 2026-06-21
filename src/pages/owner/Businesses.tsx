@@ -140,6 +140,9 @@ const Businesses = () => {
     const [deleteStep, setDeleteStep] = useState(1);
     const [confirmName, setConfirmName] = useState("");
     const [confirmDeleteText, setConfirmDeleteText] = useState("");
+    // Suspend / reactivate reason capture (emailed to the business's super admins).
+    const [statusReasonTarget, setStatusReasonTarget] = useState<{ businessId: string; action: 'suspend' | 'reactivate'; name: string } | null>(null);
+    const [statusReason, setStatusReason] = useState('');
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -256,7 +259,7 @@ const Businesses = () => {
     });
 
     const statusChangeMutation = useMutation({
-        mutationFn: async ({ businessId, action }: { businessId: string; action: 'extend' | 'suspend' | 'deactivate' | 'reactivate' }) => {
+        mutationFn: async ({ businessId, action, reason }: { businessId: string; action: 'extend' | 'suspend' | 'deactivate' | 'reactivate'; reason?: string }) => {
             const target = businesses?.find(b => b.id === businessId);
             if (!target) throw new Error("Business not found");
 
@@ -294,18 +297,39 @@ const Businesses = () => {
 
             const { error } = await supabase.from('businesses').update(updates).eq('id', businessId);
             if (error) throw error;
+
+            // suspend / reactivate → email every super admin of the business (best-effort).
+            let notifyWarning: string | null = null;
+            if (action === 'suspend' || action === 'reactivate') {
+                try {
+                    const { data, error: nErr } = await supabase.functions.invoke('business-status-notify', {
+                        body: { business_id: businessId, action, reason: reason ?? '', origin: window.location.origin },
+                    });
+                    if (nErr) notifyWarning = await edgeFnErrorMessage(nErr, data);
+                    else if (data && data.ok === false) notifyWarning = data.detail || data.reason || 'notify failed';
+                } catch (e) { notifyWarning = (e as Error).message; }
+            }
+            return { action, notifyWarning };
         },
-        onSuccess: (_, { action }) => {
+        onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: ['businesses'] });
             setIsAddEditModalOpen(false);
             setSelectedBusiness(null);
+            setStatusReasonTarget(null);
+            setStatusReason('');
             const labels: Record<string, string> = {
                 extend: 'License extended',
                 suspend: 'Business suspended',
                 deactivate: 'Business deactivated',
                 reactivate: 'Business reactivated',
             };
-            toast({ title: labels[action], description: "Status updated successfully." });
+            const notified = res.action === 'suspend' || res.action === 'reactivate';
+            toast({
+                title: labels[res.action],
+                description: notified
+                    ? (res.notifyWarning ? 'Status updated — but the email notice could not be sent.' : 'Status updated and the super admins were notified by email.')
+                    : 'Status updated successfully.',
+            });
         },
         onError: (err) => {
             toast({ title: "Error", description: errorMessage(err), variant: "destructive" });
@@ -367,6 +391,13 @@ const Businesses = () => {
     };
 
     const handleStatusChange = (businessId: string, action: 'extend' | 'suspend' | 'deactivate' | 'reactivate') => {
+        // Suspend / reactivate capture a reason (emailed to the business's super admins) via a modal.
+        if (action === 'suspend' || action === 'reactivate') {
+            const target = businesses?.find(b => b.id === businessId);
+            setStatusReason('');
+            setStatusReasonTarget({ businessId, action, name: target?.name ?? '' });
+            return;
+        }
         statusChangeMutation.mutate({ businessId, action });
     };
 
@@ -551,6 +582,58 @@ const Businesses = () => {
                 onSubmit={(values) => createAdminMutation.mutate(values)}
                 loading={createAdminMutation.isPending}
             />
+
+            {/* Suspend / reactivate — capture a reason, emailed to all the business's super admins */}
+            <Dialog open={!!statusReasonTarget} onOpenChange={(v) => { if (!v && !statusChangeMutation.isPending) { setStatusReasonTarget(null); setStatusReason(''); } }}>
+                <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl overflow-hidden">
+                    <div className={cn('h-[3px] w-full', statusReasonTarget?.action === 'reactivate' ? 'bg-ant-green' : 'bg-ant-orange')} />
+                    <DialogHeader className="px-6 pt-5 pb-4 border-b border-ant-line space-y-1.5 text-left">
+                        <div className={cn('inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em]', statusReasonTarget?.action === 'reactivate' ? 'text-ant-green' : 'text-ant-orange')}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', statusReasonTarget?.action === 'reactivate' ? 'bg-ant-green' : 'bg-ant-orange')} />
+                            {statusReasonTarget?.action === 'reactivate' ? 'Réactivation' : 'Suspension'}
+                        </div>
+                        <DialogTitle className="font-display text-[18px] leading-tight text-ant-ink">
+                            {statusReasonTarget?.action === 'reactivate' ? 'Reactivate this business?' : 'Suspend this business?'}
+                        </DialogTitle>
+                        <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                            <span className="not-italic font-semibold text-ant-ink">&ldquo;{statusReasonTarget?.name}&rdquo;</span>{' '}
+                            — all its super admins will be emailed {statusReasonTarget?.action === 'reactivate' ? 'a reactivation notice.' : 'a suspension notice.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="px-6 py-5 space-y-2">
+                        <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                            {statusReasonTarget?.action === 'reactivate' ? 'Note (optional)' : 'Reason (optional)'}
+                        </label>
+                        <textarea
+                            value={statusReason}
+                            onChange={(e) => setStatusReason(e.target.value)}
+                            rows={3}
+                            autoFocus
+                            placeholder={statusReasonTarget?.action === 'reactivate' ? 'Ex. Paiement régularisé — accès rétabli.' : 'Ex. Paiement en retard / abonnement expiré…'}
+                            className="w-full rounded-xl border border-ant-line bg-ant-paper text-[13px] text-ant-ink p-3 resize-none focus:outline-none focus:ring-1 focus:ring-ant-orange/40"
+                        />
+                        <p className="text-[11px] text-ant-mid">Shown to the super admins in the email. Leave blank to use a default message.</p>
+                    </div>
+                    <div className="px-6 py-4 border-t border-ant-line flex items-center justify-end gap-2">
+                        <button
+                            onClick={() => { setStatusReasonTarget(null); setStatusReason(''); }}
+                            disabled={statusChangeMutation.isPending}
+                            className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => statusReasonTarget && statusChangeMutation.mutate({ businessId: statusReasonTarget.businessId, action: statusReasonTarget.action, reason: statusReason })}
+                            disabled={statusChangeMutation.isPending}
+                            className={cn('h-10 px-5 rounded-full text-[12px] font-semibold text-white inline-flex items-center gap-2 cursor-pointer disabled:opacity-50',
+                                statusReasonTarget?.action === 'reactivate' ? 'bg-ant-green hover:bg-ant-green/90' : 'bg-ant-orange hover:bg-ant-orange/90')}
+                        >
+                            {statusChangeMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            {statusReasonTarget?.action === 'reactivate' ? 'Reactivate & notify' : 'Suspend & notify'}
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
