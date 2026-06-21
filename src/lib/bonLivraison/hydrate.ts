@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BonLivraisonHydrateResult, BonLivraisonParcelSnapshot } from './types';
 import type { DevisClientBlock, DevisLine } from '@/lib/devis/types';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 type CityRow = { name?: string | null } | null;
 
@@ -155,9 +156,9 @@ export async function hydrateBonLivraisonFromOrder(
     order_id: orderId,
   }));
 
-  const company = o.company as { name?: string; logo_url?: string | null } | null;
+  const company = o.company as { name?: string; provider_type?: string | null; logo_url?: string | null } | null;
   const transport = company
-    ? { provider_name: company.name ?? null, provider_logo_url: company.logo_url ?? null }
+    ? { provider_name: company.name ?? null, provider_logo_url: resolveProviderLogo(company) }
     : null;
 
   return {
@@ -180,7 +181,7 @@ export async function hydrateBonLivraisonFromCompanyNote(
 ): Promise<BonLivraisonHydrateResult | null> {
   const { data: note, error: nErr } = await supabase
     .from('company_delivery_notes')
-    .select('id, reference, provider:providers(name, logo_url)')
+    .select('id, reference, provider:providers(name, provider_type, logo_url)')
     .eq('id', noteId)
     .eq('DigiCom Business', businessId)
     .maybeSingle();
@@ -188,9 +189,9 @@ export async function hydrateBonLivraisonFromCompanyNote(
   if (nErr || !note) return null;
 
   const n = note as Record<string, unknown>;
-  const provider = n.provider as { name?: string; logo_url?: string | null } | null;
+  const provider = n.provider as { name?: string; provider_type?: string | null; logo_url?: string | null } | null;
   const transport = provider
-    ? { provider_name: provider.name ?? null, provider_logo_url: provider.logo_url ?? null }
+    ? { provider_name: provider.name ?? null, provider_logo_url: resolveProviderLogo(provider) }
     : null;
 
   const { data: parcelRows, error: pErr } = await supabase

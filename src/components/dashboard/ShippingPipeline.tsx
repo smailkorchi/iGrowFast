@@ -9,6 +9,7 @@ import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
 interface ShippingPipelineProps {
@@ -47,7 +48,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         queryFn: async () => {
             const { data } = await supabase
                 .from('providers')
-                .select('id, name, logo_url')
+                .select('id, name, provider_type, logo_url')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -81,7 +82,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             package_status_id: string | null;
             package_status_label: string | null;
         };
-        type SPProvider = { id: string; name: string; logo_url: string | null };
+        type SPProvider = { id: string; name: string; provider_type: string | null; logo_url: string | null };
         type SPCourier = { id: string; name: string; avatar_url: string | null };
 
         const hasExplicitFilter = !!dateFilter.from || !!dateFilter.to;
@@ -192,7 +193,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                         kind: 'provider' as const,
                         id: stats.id,
                         name: p?.name || 'Unknown provider',
-                        imageUrl: p?.logo_url || null,
+                        imageUrl: resolveProviderLogo(p),
                         total: stats.total,
                         delivered: stats.delivered,
                         returned: stats.returned,

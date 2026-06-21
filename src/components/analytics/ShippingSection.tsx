@@ -13,6 +13,7 @@ import {
     isReturned,
     placementTimestamp,
 } from '@/lib/analyticsDefinitions';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';

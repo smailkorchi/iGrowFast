@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import { syncParcelTracking, type TrackableParcel } from '@/lib/orders/syncOrderTracking';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     Dialog,

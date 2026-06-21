@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { showOrderStatusToast } from './OrderStatusToast';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 type Role = 'admin' | 'seller';
 
@@ -134,7 +135,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                     // payload doesn't include joined relations.
                     const { data: parcelRow } = await supabase
                         .from('company_parcels')
-                        .select('tracking_code, provider:providers(name, logo_url)')
+                        .select('tracking_code, provider:providers(name, provider_type, logo_url)')
                         .eq('order_id', newRow.id)
                         .order('created_at', { ascending: false })
                         .limit(1)
@@ -155,7 +156,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                             orderId: newRow.id,
                             orderName: newRow.name || null,
                             trackingCode,
-                            providerLogo: provider?.logo_url || null,
+                            providerLogo: resolveProviderLogo(provider),
                             providerName: provider?.name || null,
                             statusLabel: resolved?.label ?? newRow.package_status_label ?? null,
                             statusColor: resolved?.color ?? newRow.package_status_color ?? null,

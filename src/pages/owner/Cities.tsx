@@ -50,6 +50,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
+import { resolveProviderLogo } from '@/lib/providerLogos';
 
 type ProviderFieldDef = {
     key: 'ameex' | 'coliaty' | 'ozon' | 'quicklivraison' | 'vitex' | 'forcelog' | 'sendit' | 'digylog' | 'delvoexpress';
@@ -563,24 +564,21 @@ const Cities = () => {
                 .not('logo_url', 'is', null)
                 .order('updated_at', { ascending: false, nullsFirst: false });
             if (error) throw error;
-            // Bundled fallbacks render the logo before the provider is added (cards still show the brand).
-            const map: Record<string, string> = {
-                ameex: '/providers/Ameex.png',
-                coliaty: '/providers/Coliaty.png',
-                ozon: '/providers/OZON.png',
-                quicklivraison: '/providers/Quick Livraison.png',
-                vitex: '/providers/Vitex.png',
-                forcelog: '/providers/Forcelog.png',
-                sendit: '/providers/Sendit.jpg',
-                digylog: '/providers/Digylog.webp',
-                delvoexpress: '/providers/Delvo.png',
-            };
+            // Provider logos are PRESET local assets resolved by provider_type — the DB
+            // `logo_url` column is dead (stale upload URLs that now 404). Seed the map
+            // with the known carrier keys so brands render before any provider row exists.
+            const map: Record<string, string> = {};
+            for (const p of PROVIDER_FIELDS) {
+                const logo = resolveProviderLogo({ provider_type: p.key });
+                if (logo) map[p.key] = logo;
+            }
+            // Absorb provider_type naming drift from actual provider rows.
             for (const row of data || []) {
-                const raw = String(row.provider_type || '').trim().toLowerCase();
-                const t =
-                    raw === 'ozonexpress' || raw === 'ozon_express' ? 'ozon' : raw;
-                const url = String(row.logo_url || '').trim();
-                if (t && url) map[t] = row.logo_url as string; // DB row overrides the bundled fallback.
+                const logo = resolveProviderLogo({ provider_type: row.provider_type });
+                if (logo) {
+                    const key = String(row.provider_type || '').trim().toLowerCase();
+                    if (key) map[key] = logo;
+                }
             }
             return map;
         },

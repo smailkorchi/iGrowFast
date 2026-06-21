@@ -182,7 +182,7 @@ const KNOWN_PROVIDERS = [
     {
         type: 'ameex',
         name: 'AMEEX',
-        logo: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/providers-logos/logos/0.2729560049630101.png`,
+        logo: '/providers/Ameex.png',
         color: '#f97316',
         baseUrl: 'https://api.ameex.app',
         description: 'Full delivery management with tracking, labels, and delivery notes.',
@@ -190,7 +190,7 @@ const KNOWN_PROVIDERS = [
     {
         type: 'coliaty',
         name: 'Coliaty',
-        logo: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/providers-logos/logos/0.6419997609504474.png`,
+        logo: '/providers/Coliaty.png',
         color: '#10b981',
         baseUrl: 'https://customer-api-v1.coliaty.com',
         description: 'Parcel delivery with pickup notes and real-time status tracking.',
@@ -198,7 +198,7 @@ const KNOWN_PROVIDERS = [
     {
         type: 'ozon',
         name: 'OzonExpress',
-        logo: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/providers-logos/logos/0.9436752251055719.png`,
+        logo: '/providers/OZON.png',
         color: '#ef4444',
         baseUrl: 'https://api.ozonexpress.ma',
         description: 'Express delivery network with multipart parcel creation.',

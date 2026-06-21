@@ -76,7 +76,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
             try {
                 const { data: parcel, error } = await supabase
                     .from('company_parcels')
-                    .select('id, tracking_code, external_id, provider_id, provider:providers(id, name, logo_url)')
+                    .select('id, tracking_code, external_id, provider_id, provider:providers(id, name, provider_type, logo_url)')
                     .eq('order_id', orderId)
                     .order('created_at', { ascending: false })
                     .limit(1)
