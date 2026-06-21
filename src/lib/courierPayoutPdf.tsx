@@ -76,7 +76,7 @@ const fmtDate = (iso?: string | null) => {
 const styles = StyleSheet.create({
     page: {
         paddingTop: 40,
-        paddingBottom: 40,
+        paddingBottom: 150, // reserved band so table rows never overlap the last-page stamp + footer
         paddingHorizontal: 38,
         fontSize: 10,
         fontFamily: 'Helvetica',

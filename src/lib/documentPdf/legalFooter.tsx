@@ -1,13 +1,15 @@
 /**
  * Shared legal footer for collaborator payout/statement PDFs.
  *
- * Mirrors EXACTLY the facture/devis layout (FacturePdfDocument.buildFooterLines)
- * so seller/media-buyer/courier documents carry the same legal block as the rest
- * of the app's official documents: a centered 3-line footer —
+ * Carries the SAME legal lines as the facture/devis (FacturePdfDocument.buildFooterLines):
  *   1) {name} {legal_form} au capital de {capital} Dhs · RC · Patente · IF · ICE · CNSS
  *   2) Siège : {address} · {city} {postal} · Maroc
  *   3) Tél · Email · Site Web
  * Lines with no data are skipped gracefully.
+ *
+ * Pinned to the BOTTOM of the LAST page only (like the devis/facture footer) — gated to the
+ * final page via react-pdf's `fixed` + `render` (pageNumber === totalPages) so it does NOT
+ * repeat on every page of a multi-page note.
  */
 import { View, Text, StyleSheet } from '@react-pdf/renderer';
 
@@ -61,21 +63,29 @@ export function buildLegalFooterLines(b: LegalFooterBusiness): string[] {
 }
 
 const styles = StyleSheet.create({
-  footer: { position: 'absolute', bottom: 20 },
+  footer: { position: 'absolute', left: 38, right: 38, bottom: 20 },
   divider: { height: 0.5, backgroundColor: '#bbb', marginBottom: 5 },
   text: { fontSize: 7, color: '#555', textAlign: 'center', lineHeight: 1.45 },
 });
 
-/** Fixed legal footer (repeats on every page), matching the facture/devis layout. */
-export function LegalFooter({ business, pad = 38 }: { business: LegalFooterBusiness; pad?: number }) {
+/** Legal footer pinned to the bottom of the LAST page only (fixed + last-page render gate). */
+export function LegalFooter({ business }: { business: LegalFooterBusiness }) {
   const lines = buildLegalFooterLines(business);
   if (lines.length === 0) return null;
   return (
-    <View style={[styles.footer, { left: pad, right: pad }]} fixed>
-      <View style={styles.divider} />
-      {lines.map((line, i) => (
-        <Text key={i} style={styles.text}>{line}</Text>
-      ))}
-    </View>
+    <View
+      style={styles.footer}
+      fixed
+      render={({ pageNumber, totalPages }) =>
+        pageNumber === totalPages ? (
+          <View>
+            <View style={styles.divider} />
+            {lines.map((line, i) => (
+              <Text key={i} style={styles.text}>{line}</Text>
+            ))}
+          </View>
+        ) : null
+      }
+    />
   );
 }

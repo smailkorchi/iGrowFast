@@ -59,7 +59,7 @@ const fmtDateTime = (iso?: string | null) => {
 };
 
 const styles = StyleSheet.create({
-  page: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 38, fontSize: 10, fontFamily: 'Helvetica', color: NAVY, backgroundColor: '#ffffff' },
+  page: { paddingTop: 40, paddingBottom: 150, paddingHorizontal: 38, fontSize: 10, fontFamily: 'Helvetica', color: NAVY, backgroundColor: '#ffffff' }, // paddingBottom = reserved band for last-page stamp + footer
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 18, marginBottom: 18, borderBottomWidth: 1, borderBottomColor: BORDER },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   brandLogoBox: { width: 48, height: 48, borderRadius: 12, backgroundColor: BG_CREAM, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
