@@ -1,11 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Trash2, Plus, Wallet } from 'lucide-react';
+import { Loader2, Trash2, Plus, Wallet, ArrowRight, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Dialog,
     DialogContent,
@@ -15,9 +16,33 @@ import {
     DialogFooter,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { fmtCur, fmtCurFull } from '@/lib/formatNumbers';
+import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 import { sendSellerPayoutEmail, sendMediaBuyerPayoutEmail } from '@/lib/sendPayoutStatement';
 import { cn } from '@/lib/utils';
+
+// ── Small presentational helpers for the pay modal ───────────────────────────
+const LedgerRow: React.FC<{ label: string; value: string; sub?: string; strong?: boolean; muted?: boolean; green?: boolean }> = ({ label, value, sub, strong, muted, green }) => (
+    <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+        <div>
+            <p className={cn('text-[12px]', strong ? 'font-semibold text-ant-ink' : muted ? 'text-ant-mid' : 'text-ant-ink')}>{label}</p>
+            {sub ? <p className="text-[10px] text-ant-mid mt-0.5 tabular-nums">{sub}</p> : null}
+        </div>
+        <span className={cn('text-[13px] tabular-nums shrink-0', strong ? 'font-display font-semibold text-ant-ink' : green ? 'font-semibold text-ant-green' : 'font-medium text-ant-ink')}>{value}</span>
+    </div>
+);
+const PaySection: React.FC<{ title: string; count?: number; children: React.ReactNode }> = ({ title, count, children }) => (
+    <div>
+        <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">{title}</span>
+            {count != null ? <span className="text-[10px] font-semibold text-ant-mid/70 tabular-nums">{count}</span> : null}
+        </div>
+        <div className="rounded-xl border border-ant-line bg-ant-paper px-2">{children}</div>
+    </div>
+);
+const PayEmpty: React.FC<{ text: string }> = ({ text }) => <p className="text-[11.5px] text-ant-mid italic text-center py-4">{text}</p>;
+const PayChip: React.FC<{ onClick: () => void; active?: boolean; children: React.ReactNode }> = ({ onClick, active, children }) => (
+    <button type="button" onClick={onClick} className={cn('h-7 rounded-full px-3 text-[11px] font-semibold border transition cursor-pointer', active ? 'bg-ant-ink text-white border-ant-ink' : 'bg-ant-paper text-ant-mid border-ant-line hover:border-ant-ink/30 hover:text-ant-ink')}>{children}</button>
+);
 
 /**
  * Two dialogs for partial-payout flow:
@@ -46,6 +71,9 @@ const queryInvalidationKeys = (k: PayoutKind) =>
               'seller-payouts',
               'seller-payouts-stats',
               'seller-payment-txns',
+              // rolling-ledger keys → the Salaries table rows + KPIs (useSellerLedger)
+              'seller-ledger-users',
+              'seller-ledger-tickets',
               // live-owed hook keys so the dialog + list + profile re-derive after pay
               'seller-live-owed-users',
               'seller-live-owed-orders',
@@ -78,6 +106,17 @@ interface RecordPaymentDialogProps {
     //    carry-forward), mirroring the seller flow. Without it, falls back to the
     //    legacy direct txn insert against payoutId.
     mbLiveId?: string;                 // the mediabuyer_id to pay against the rolling ledger
+    // ── rich ledger context for the 2-step review (all optional; degrade gracefully)
+    collaboratorEmail?: string | null;
+    collaboratorAvatarUrl?: string | null;
+    collaboratorAvatarConfig?: unknown;
+    rate?: number | null;                  // commission_price
+    rateUnit?: 'unit' | 'order' | null;
+    ticketId?: string | null;              // open ticket id → versements + (seller) orders
+    ledgerMonth?: string | null;           // 'YYYY-MM-01' → month label + seller_month_orders
+    carriedIn?: number | null;
+    monthEarned?: number | null;
+    delivered?: number | null;
 }
 
 export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
@@ -96,25 +135,43 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     sellerCanonicalRowTotal,
     sellerOtherRowsTotal,
     mbLiveId,
+    collaboratorEmail,
+    collaboratorAvatarUrl,
+    collaboratorAvatarConfig,
+    rate,
+    rateUnit,
+    ticketId,
+    ledgerMonth,
+    carriedIn,
+    monthEarned,
+    delivered,
 }) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    // Seller live-owed mode: display + pay against live accrued − paid, not the
-    // frozen row's total_amount. mediabuyer keeps the row-based remaining.
-    const isSellerLive = kind === 'seller' && sellerAccruedTotal != null;
-    // Media-buyer rolling-ledger mode: pay via pay_mediabuyer (ensures open ticket + carry).
+    // Pay routing: seller → pay_seller, media buyer → pay_mediabuyer, else legacy insert.
+    const isSellerLive = kind === 'seller' && (sellerId != null || sellerAccruedTotal != null);
     const isMbLive = kind === 'mediabuyer' && mbLiveId != null;
-    const displayTotal = isSellerLive ? Number(sellerAccruedTotal || 0) : Number(totalAmount || 0);
-    const displayPaid = isSellerLive ? Number(sellerPaidAcrossRows || 0) : Number(paidAmount || 0);
-    const remaining = Math.max(0, displayTotal - displayPaid);
-    const [amount, setAmount] = useState<string>('');
-    const [paidAt, setPaidAt] = useState<string>('');
+
+    // Ledger math (carry-aware): total = carried_in + month_earned; remaining = total − paid.
+    const hasLedger = carriedIn != null || monthEarned != null;
+    const ci = Number(carriedIn || 0);
+    const me = Number(monthEarned || 0);
+    const total = hasLedger ? ci + me : (isSellerLive ? Number(sellerAccruedTotal || 0) : Number(totalAmount || 0));
+    const paid = hasLedger ? Number(paidAmount || 0) : (isSellerLive ? Number(sellerPaidAcrossRows || 0) : Number(paidAmount || 0));
+    const remaining = Math.max(0, total - paid);
+    const statusKind: 'paid' | 'partial' | 'pending' = remaining <= 0.005 && total > 0 ? 'paid' : paid > 0.005 ? 'partial' : 'pending';
+    const monthLabel = ledgerMonth ? format(new Date(ledgerMonth), 'MMM yyyy') : '';
+
+    const [step, setStep] = useState(0);
+    const [amount, setAmount] = useState('');
+    const [paidAt, setPaidAt] = useState('');
     const [note, setNote] = useState('');
 
-    // Reset on open so the dialog always starts with "pay the remaining balance".
+    // Reset on open → start on the review step with "pay the remaining balance".
     useEffect(() => {
         if (open) {
+            setStep(0);
             setAmount(remaining > 0 ? remaining.toFixed(2) : '');
             setPaidAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
             setNote('');
@@ -124,6 +181,27 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     const numericAmount = Number(amount || 0);
     const overpaying = numericAmount > remaining + 0.0001;
     const invalid = !numericAmount || numericAmount <= 0 || overpaying;
+    const afterRemaining = Math.max(0, remaining - numericAmount);
+
+    // Versements already recorded against the open ticket this month.
+    const { data: versements = [] } = useQuery({
+        queryKey: ['paydlg-txns', kind, ticketId],
+        enabled: open && !!ticketId,
+        queryFn: async () => {
+            const { data } = await (supabase as any).from(txnTable(kind))
+                .select('id, amount, paid_at, note').eq(fkColumn(kind), ticketId).order('paid_at', { ascending: false });
+            return (data || []) as { id: string; amount: number; paid_at: string; note: string | null }[];
+        },
+    });
+    // Seller only: the delivered orders behind this month's commission (the "what").
+    const { data: orderLines = [] } = useQuery({
+        queryKey: ['paydlg-orders', sellerId, businessId, ledgerMonth],
+        enabled: open && kind === 'seller' && !!sellerId && !!businessId && !!ledgerMonth,
+        queryFn: async () => {
+            const { data } = await (supabase as any).rpc('seller_month_orders', { p_seller: sellerId, p_business: businessId, p_month: ledgerMonth });
+            return (data || []) as { order_id: string; client: string; phone: string; tracking: string | null; units: number; commission: number }[];
+        },
+    });
 
     const mutation = useMutation({
         mutationFn: async () => {
@@ -209,131 +287,160 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             <DialogContent
                 onPointerDownOutside={(e) => e.preventDefault()}
                 onInteractOutside={(e) => e.preventDefault()}
-                className="ant-surface w-[min(96vw,480px)] p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden"
+                className="ant-surface w-[min(96vw,540px)] p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col"
             >
-                <DialogHeader className="px-5 py-4 border-b border-ant-line">
-                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                {/* Header — collaborator identity */}
+                <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line text-left space-y-0">
+                    <div className="flex items-center gap-2 mb-3">
                         <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                        Record payment
+                        <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">Versement{monthLabel ? ` · ${monthLabel}` : ''}</span>
                     </div>
-                    <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink tracking-tight mt-1">
-                        Pay {collaboratorName}
-                    </DialogTitle>
-                    <DialogDescription className="text-[12px] text-ant-mid mt-0.5">
-                        Adds a new entry to the payment history. The remaining balance updates automatically.
-                    </DialogDescription>
+                    <div className="flex items-center gap-3">
+                        <UserAvatar url={collaboratorAvatarUrl} config={collaboratorAvatarConfig} name={collaboratorName} className="h-11 w-11 shrink-0 rounded-xl border border-ant-line text-[13px] font-display font-semibold" />
+                        <div className="min-w-0 flex-1">
+                            <DialogTitle className="font-display text-[17px] font-semibold text-ant-ink tracking-tight leading-tight truncate">{collaboratorName}</DialogTitle>
+                            <DialogDescription className="text-[11.5px] text-ant-mid leading-tight truncate mt-0.5">
+                                {collaboratorEmail || (kind === 'seller' ? 'Commercial' : 'Media buyer')}
+                                {rate != null ? <span className="text-ant-mid/70"> · {rate} {currency}/{rateUnit === 'order' ? 'commande' : 'unité'}</span> : null}
+                            </DialogDescription>
+                        </div>
+                        <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold shrink-0', kind === 'seller' ? 'bg-ant-ink/[0.06] text-ant-ink' : 'bg-ant-orange/10 text-ant-orange')}>
+                            {kind === 'seller' ? 'Commercial' : 'Media buyer'}
+                        </span>
+                    </div>
                 </DialogHeader>
 
-                <div className="px-5 py-4 space-y-4">
-                    {/* Balance summary */}
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
-                        <div className="rounded-lg border border-ant-line bg-ant-light/50 px-3 py-2">
-                            <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">Total earned</p>
-                            <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums mt-0.5">
-                                {fmtCurFull(displayTotal, currency)}
-                            </p>
-                        </div>
-                        <div className="rounded-lg border border-ant-green/25 bg-ant-green-soft/40 px-3 py-2">
-                            <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-green">Already paid</p>
-                            <p className="font-display text-[14px] font-semibold text-ant-green tabular-nums mt-0.5">
-                                {fmtCurFull(displayPaid, currency)}
-                            </p>
-                        </div>
-                        <div className="rounded-lg border border-ant-orange/25 bg-ant-orange-soft/30 px-3 py-2">
-                            <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-orange">Remaining</p>
-                            <p className="font-display text-[14px] font-semibold text-ant-orange tabular-nums mt-0.5">
-                                {fmtCurFull(remaining, currency)}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Amount field */}
-                    <div>
-                        <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">
-                            Amount to pay now
-                        </label>
-                        <div className="relative">
-                            <Input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                max={remaining}
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                className={cn(
-                                    'h-11 rounded-lg border bg-ant-paper text-[15px] font-display font-semibold text-ant-ink pr-14 pl-3 tabular-nums focus-visible:ring-ant-orange focus-visible:ring-offset-0',
-                                    overpaying ? 'border-ant-rose/50 focus-visible:border-ant-rose/50' : 'border-ant-line',
-                                )}
-                                placeholder="0.00"
-                                autoFocus
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-ant-mid">
-                                {currency}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-1.5">
-                            <button
-                                type="button"
-                                onClick={() => setAmount(remaining.toFixed(2))}
-                                className="text-[10px] font-semibold text-ant-orange hover:underline underline-offset-2"
-                            >
-                                Set to remaining
-                            </button>
-                            {overpaying && (
-                                <span className="text-[10px] font-semibold text-ant-rose">
-                                    Exceeds remaining balance
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Date field */}
-                    <div>
-                        <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">
-                            Payment date
-                        </label>
-                        <Input
-                            type="datetime-local"
-                            value={paidAt}
-                            onChange={(e) => setPaidAt(e.target.value)}
-                            className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink focus-visible:ring-ant-orange focus-visible:ring-offset-0"
-                        />
-                    </div>
-
-                    {/* Note field */}
-                    <div>
-                        <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">
-                            Note <span className="text-ant-muted normal-case font-normal">— optional</span>
-                        </label>
-                        <Textarea
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                            placeholder="Advance, bank transfer ref, cash in hand…"
-                            className="min-h-[64px] rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink resize-y focus-visible:ring-ant-orange focus-visible:ring-offset-0"
-                        />
-                    </div>
+                {/* Stepper */}
+                <div className="px-6 pt-4 flex items-center gap-3 shrink-0">
+                    {[{ i: 0, label: 'Aperçu' }, { i: 1, label: 'Régler' }].map((s, idx, arr) => {
+                        const active = step >= s.i; const current = step === s.i;
+                        return (
+                            <React.Fragment key={s.i}>
+                                <button type="button" onClick={() => { if (s.i < step) setStep(s.i); }} disabled={s.i > step} className="flex items-center gap-2 disabled:cursor-default cursor-pointer">
+                                    <span className={cn('font-display w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold tabular-nums border transition-all', current ? 'bg-ant-ink text-white border-ant-ink' : active ? 'bg-ant-orange/10 text-ant-orange border-ant-orange/30' : 'bg-ant-paper text-ant-mid border-ant-line')}>{String(s.i + 1).padStart(2, '0')}</span>
+                                    <span className={cn('text-[11px] font-medium uppercase tracking-[0.2em]', current ? 'text-ant-ink' : 'text-ant-mid')}>{s.label}</span>
+                                </button>
+                                {idx < arr.length - 1 && <div className={cn('flex-1 h-px', step > s.i ? 'bg-ant-orange' : 'bg-ant-line')} />}
+                            </React.Fragment>
+                        );
+                    })}
                 </div>
 
-                <DialogFooter className="px-5 py-3 border-t border-ant-line bg-ant-light/50 flex flex-row items-center justify-between gap-2">
-                    <Button
-                        variant="ghost"
-                        onClick={() => onOpenChange(false)}
-                        className="h-9 px-4 rounded-full text-[12px] font-semibold text-ant-mid hover:bg-ant-paper hover:text-ant-ink"
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={() => mutation.mutate()}
-                        disabled={invalid || mutation.isPending}
-                        className="h-9 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {mutation.isPending ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                            <Wallet className="w-3.5 h-3.5" />
-                        )}
-                        <span className="ml-1.5">Generate payment</span>
-                    </Button>
+                {/* Body */}
+                <div className="px-6 py-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                    {step === 0 ? (
+                        <>
+                            {/* Hero — reste à payer */}
+                            <div className="rounded-2xl bg-ant-ink text-ant-light p-5">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-ant-light/55">Reste à payer</span>
+                                    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold', statusKind === 'paid' ? 'bg-ant-green/20 text-ant-green' : statusKind === 'partial' ? 'bg-white/15 text-ant-light' : 'bg-ant-orange/20 text-ant-orange')}>
+                                        <span className={cn('h-1.5 w-1.5 rounded-full', statusKind === 'paid' ? 'bg-ant-green' : statusKind === 'partial' ? 'bg-ant-light' : 'bg-ant-orange')} />
+                                        {statusKind === 'paid' ? 'Réglé' : statusKind === 'partial' ? 'Partiel' : 'En attente'}
+                                    </span>
+                                </div>
+                                <p className="font-display text-[34px] font-semibold tabular-nums tracking-[-0.02em] mt-1 leading-none">{fmtCur(remaining, currency)}<span className="text-[14px] font-normal text-ant-light/50 ml-1.5">{currency}</span></p>
+                                <div className="mt-4 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-ant-green transition-all" style={{ width: `${total > 0 ? Math.min(100, (paid / total) * 100) : 0}%` }} /></div>
+                                <p className="text-[10.5px] text-ant-light/55 mt-1.5 tabular-nums">{fmtCur(paid, currency)} versé sur {fmtCur(total, currency)} {currency}</p>
+                            </div>
+
+                            {/* Ledger math */}
+                            <div className="rounded-xl border border-ant-line bg-ant-paper divide-y divide-ant-line/70">
+                                {ci !== 0 ? <LedgerRow label={ci > 0 ? 'Reporté des mois précédents' : 'Crédit reporté'} value={`${ci > 0 ? '+' : ''}${fmtCur(ci, currency)}`} muted /> : null}
+                                <LedgerRow label={`Gagné${monthLabel ? ` · ${monthLabel}` : ''}`} value={`+${fmtCur(me, currency)}`} sub={delivered != null ? `${fmtNum(delivered)} ${kind === 'seller' ? (rateUnit === 'order' ? 'commandes' : 'unités') : 'livrées'}` : undefined} />
+                                <LedgerRow label="Total dû" value={fmtCur(total, currency)} strong />
+                                <LedgerRow label="Déjà versé" value={`−${fmtCur(paid, currency)}`} green={paid > 0} />
+                            </div>
+
+                            {/* Seller: orders behind the commission */}
+                            {kind === 'seller' ? (
+                                <PaySection title="Commandes incluses" count={orderLines.length}>
+                                    {orderLines.length === 0 ? <PayEmpty text="Aucune commande livrée pour ce mois." /> : (
+                                        <div className="max-h-[180px] overflow-y-auto custom-scrollbar divide-y divide-ant-line/60">
+                                            {orderLines.map((o) => (
+                                                <div key={o.order_id} className="flex items-center justify-between gap-3 py-2 px-1">
+                                                    <div className="min-w-0"><p className="text-[12px] font-medium text-ant-ink truncate">{o.client || '—'}</p><p className="text-[10.5px] text-ant-mid font-mono truncate">{o.tracking || o.phone}</p></div>
+                                                    <div className="text-right shrink-0"><p className="text-[12px] font-semibold text-ant-ink tabular-nums">{fmtCur(o.commission, currency)} {currency}</p><p className="text-[10px] text-ant-mid tabular-nums">{fmtNum(o.units)} u.</p></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </PaySection>
+                            ) : null}
+
+                            {/* Versements this month */}
+                            <PaySection title="Versements ce mois" count={versements.length}>
+                                {versements.length === 0 ? <PayEmpty text="Aucun versement enregistré pour ce mois." /> : (
+                                    <div className="divide-y divide-ant-line/60">
+                                        {versements.map((v) => (
+                                            <div key={v.id} className="flex items-center justify-between gap-3 py-2 px-1">
+                                                <div className="min-w-0"><p className="text-[12px] font-semibold text-ant-green tabular-nums">{fmtCur(v.amount, currency)} {currency}</p>{v.note ? <p className="text-[10.5px] text-ant-mid truncate">{v.note}</p> : null}</div>
+                                                <p className="text-[10.5px] text-ant-mid shrink-0">{v.paid_at ? format(new Date(v.paid_at), 'd MMM · HH:mm') : ''}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </PaySection>
+                        </>
+                    ) : (
+                        <>
+                            {/* Amount */}
+                            <div>
+                                <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-2">Montant à verser</label>
+                                <div className="relative">
+                                    <Input type="number" step="0.01" min="0.01" max={remaining} value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus placeholder="0.00"
+                                        className={cn('h-14 rounded-xl border bg-ant-paper text-[24px] font-display font-semibold text-ant-ink pr-16 pl-4 tabular-nums focus-visible:ring-ant-orange focus-visible:ring-offset-0', overpaying ? 'border-ant-rose/50' : 'border-ant-line')} />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-ant-mid">{currency}</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <PayChip onClick={() => setAmount(remaining.toFixed(2))} active={Math.abs(numericAmount - remaining) < 0.005 && remaining > 0}>Tout · {fmtCur(remaining, currency)}</PayChip>
+                                    <PayChip onClick={() => setAmount((remaining / 2).toFixed(2))}>Moitié</PayChip>
+                                    {overpaying ? <span className="ml-auto text-[10.5px] font-semibold text-ant-rose">Dépasse le reste dû</span> : null}
+                                </div>
+                            </div>
+
+                            {/* After-payment preview */}
+                            <div className="rounded-xl border border-ant-line bg-ant-light/50 p-4 flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Reste après ce versement</p>
+                                    <p className="font-display text-[20px] font-semibold tabular-nums mt-1 text-ant-ink">{fmtCur(afterRemaining, currency)} <span className="text-[11px] text-ant-mid font-normal">{currency}</span></p>
+                                </div>
+                                <div className="text-right text-[11px] tabular-nums">
+                                    <span className="text-ant-orange font-semibold">{fmtCur(remaining, currency)}</span> <span className="text-ant-mid">→</span> <span className={cn('font-semibold', afterRemaining <= 0.005 ? 'text-ant-green' : 'text-ant-ink')}>{fmtCur(afterRemaining, currency)}</span>
+                                    {afterRemaining <= 0.005 && numericAmount > 0 ? <p className="text-ant-green font-semibold mt-0.5">Solde réglé ✓</p> : null}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">Date du versement</label>
+                                <Input type="datetime-local" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink focus-visible:ring-ant-orange focus-visible:ring-offset-0" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">Note <span className="text-ant-muted normal-case font-normal">— optionnel</span></label>
+                                <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Virement, espèces, référence…" className="min-h-[60px] rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink resize-y focus-visible:ring-ant-orange focus-visible:ring-offset-0" />
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <DialogFooter className="px-6 py-4 border-t border-ant-line bg-ant-light/40 flex-row items-center justify-between gap-2 shrink-0">
+                    {step === 0 ? (
+                        <>
+                            <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-4 rounded-full text-[12px] font-semibold text-ant-mid hover:bg-ant-paper hover:text-ant-ink">Annuler</Button>
+                            <Button onClick={() => setStep(1)} disabled={remaining <= 0.005} className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {remaining <= 0.005 ? 'Rien à régler' : 'Régler'} <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button variant="ghost" onClick={() => setStep(0)} className="h-10 px-4 rounded-full text-[12px] font-semibold text-ant-mid hover:bg-ant-paper hover:text-ant-ink gap-1.5"><ArrowLeft className="w-3.5 h-3.5" /> Retour</Button>
+                            <Button onClick={() => mutation.mutate()} disabled={invalid || mutation.isPending} className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wallet className="w-3.5 h-3.5" />}
+                                Confirmer{numericAmount > 0 ? ` · ${fmtCur(numericAmount, currency)} ${currency}` : ''}
+                            </Button>
+                        </>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

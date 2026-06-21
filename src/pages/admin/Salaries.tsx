@@ -287,6 +287,7 @@ const SellerPayoutsList: React.FC = () => {
     const openHistory = (sellerId: string) => { const o = liveOwed.byId(sellerId); if (o) { setActiveSeller(o); setHistoryOpen(true); } };
 
     const activeCanonical = activeSeller ? resolveCanonical(activeSeller) : null;
+    const sellerOpen = activeSeller ? (ledger.byId(activeSeller.seller_id)?.open ?? null) : null;
     // alias so the shared empty-state copy that references `payouts.length` compiles
     const payouts = allRows;
 
@@ -521,10 +522,20 @@ const SellerPayoutsList: React.FC = () => {
                         open={recordOpen}
                         onOpenChange={setRecordOpen}
                         kind="seller"
-                        payoutId={activeCanonical?.canonical?.id || ''}
+                        payoutId={sellerOpen?.id || ''}
+                        ticketId={sellerOpen?.id ?? null}
+                        ledgerMonth={sellerOpen?.payout_month ?? null}
+                        carriedIn={sellerOpen?.carried_in ?? null}
+                        monthEarned={sellerOpen?.month_earned ?? null}
+                        delivered={sellerOpen?.delivered_orders ?? null}
                         totalAmount={0}
-                        paidAmount={0}
+                        paidAmount={sellerOpen?.paid_amount ?? 0}
                         collaboratorName={activeSeller.name}
+                        collaboratorEmail={activeSeller.email}
+                        collaboratorAvatarUrl={activeSeller.avatar_url}
+                        collaboratorAvatarConfig={(activeSeller as any).avatar_config}
+                        rate={activeSeller.commissionPrice}
+                        rateUnit={activeSeller.commissionBasis === 'per_unit' ? 'unit' : 'order'}
                         businessId={activeBusinessId}
                         sellerAccruedTotal={activeSeller.accruedTotal}
                         sellerPaidAcrossRows={activeSeller.paidAcrossRows}
@@ -963,9 +974,17 @@ const MediaBuyerPayoutsList: React.FC = () => {
                         kind="mediabuyer"
                         payoutId={activeRow.id}
                         mbLiveId={activeRow.mediabuyer_id}
+                        ticketId={activeRow.id}
+                        ledgerMonth={activeRow.payout_month}
+                        carriedIn={Number(activeRow.carried_in || 0)}
+                        monthEarned={Number(activeRow.month_earned || 0)}
+                        delivered={Number(activeRow.delivered_orders || 0)}
                         totalAmount={Number(activeRow.total_amount || 0)}
                         paidAmount={Number(activeRow.paid_amount || 0)}
                         collaboratorName={activeRow.mediabuyer?.name || 'Media buyer'}
+                        collaboratorEmail={activeRow.mediabuyer?.email}
+                        collaboratorAvatarUrl={activeRow.mediabuyer?.avatar_url}
+                        collaboratorAvatarConfig={(activeRow.mediabuyer as any)?.avatar_config}
                         businessId={activeBusinessId}
                     />
                     <PaymentHistoryDialog
