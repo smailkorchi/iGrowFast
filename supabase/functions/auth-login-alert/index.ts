@@ -36,15 +36,20 @@ function deviceFromUA(ua: string): string {
   return os ? `${browser} sur ${os}` : browser;
 }
 
-async function geo(ip: string): Promise<string> {
-  if (!ip) return "Localisation inconnue";
+// Short address via ipgeolocation.io — the SAME keyed provider the audit-log geo cron uses
+// (Vault key fetched through get_ipgeo_api_key). Falls back gracefully if the key/lookup fails.
+async function geo(ip: string, apiKey: string | null): Promise<string> {
+  if (!ip || !apiKey) return "Localisation inconnue";
   const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 3000);
+  const t = setTimeout(() => ac.abort(), 3500);
   try {
-    const r = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, { signal: ac.signal });
+    const r = await fetch(
+      `https://api.ipgeolocation.io/ipgeo?apiKey=${encodeURIComponent(apiKey)}&ip=${encodeURIComponent(ip)}`,
+      { headers: { accept: "application/json" }, signal: ac.signal },
+    );
     if (!r.ok) return "Localisation inconnue";
     const j = await r.json();
-    const parts = [j.city, j.country_name].filter(Boolean);
+    const parts = [j.city, j.state_prov, j.country_name].filter((p) => p && String(p).trim());
     return parts.length ? parts.join(", ") : "Localisation inconnue";
   } catch { return "Localisation inconnue"; } finally { clearTimeout(t); }
 }
@@ -72,6 +77,9 @@ Deno.serve(async (req) => {
     const { data: u } = await service.from("users").select("name, email").eq("id", userId).maybeSingle();
     if (!u?.email) return json({ ok: true, skipped: "no_email" }, 200);
 
+    // Reuse the app's keyed ipgeolocation.io provider (Vault) instead of a throwaway free API.
+    const { data: ipgeoKey } = await service.rpc("get_ipgeo_api_key");
+
     const origin = (Deno.env.get("SITE_URL") || "https://igrowfast.com").replace(/\/$/, "");
     let loginTime = createdAt;
     try { loginTime = new Date(createdAt).toLocaleString("fr-FR", { timeZone: "Africa/Casablanca", dateStyle: "long", timeStyle: "short" }); } catch { /* keep iso */ }
@@ -84,7 +92,7 @@ Deno.serve(async (req) => {
         vars: {
           user_name: u.name || "",
           device: deviceFromUA(ua),
-          location: await geo(ip),
+          location: await geo(ip, ipgeoKey ?? null),
           ip_address: ip || "Inconnue",
           login_time: loginTime,
           secure_url: `${origin}/auth`,
