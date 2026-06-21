@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Trash2, Plus, Wallet, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Loader2, Trash2, Plus, Wallet, ArrowRight, ArrowLeft, Landmark } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -166,7 +166,6 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     const [step, setStep] = useState(0);
     const [amount, setAmount] = useState('');
     const [paidAt, setPaidAt] = useState('');
-    const [note, setNote] = useState('');
 
     // Reset on open → start on the review step with "pay the remaining balance".
     useEffect(() => {
@@ -174,7 +173,6 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             setStep(0);
             setAmount(remaining > 0 ? remaining.toFixed(2) : '');
             setPaidAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
-            setNote('');
         }
     }, [open, remaining]);
 
@@ -202,6 +200,19 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             return (data || []) as { order_id: string; client: string; phone: string; tracking: string | null; units: number; commission: number }[];
         },
     });
+    // Collaborator bank coordinates — shown on the pay step (where the money goes).
+    const collabId = sellerId ?? mbLiveId ?? null;
+    const { data: bank } = useQuery({
+        queryKey: ['paydlg-bank', collabId],
+        enabled: open && !!collabId,
+        queryFn: async () => {
+            const { data } = await (supabase as any).from('users')
+                .select('bank_name, bank_account_holder, bank_rib, cin_number').eq('id', collabId).maybeSingle();
+            return (data || null) as { bank_name: string | null; bank_account_holder: string | null; bank_rib: string | null; cin_number: string | null } | null;
+        },
+    });
+    const formatRib = (r?: string | null) => (r || '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
+    const hasBank = !!(bank?.bank_rib || bank?.bank_name || bank?.bank_account_holder);
 
     const mutation = useMutation({
         mutationFn: async () => {
@@ -216,7 +227,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             if (isSellerLive) {
                 const { error: rpcErr } = await (supabase as any).rpc('pay_seller', {
                     p_seller_id: sellerId, p_business_id: businessId, p_amount: numericAmount,
-                    p_paid_at: paidAtIso, p_note: note.trim() || null,
+                    p_paid_at: paidAtIso, p_note: null,
                 });
                 if (rpcErr) throw rpcErr;
                 return;
@@ -224,7 +235,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             if (isMbLive) {
                 const { error: rpcErr } = await (supabase as any).rpc('pay_mediabuyer', {
                     p_mb: mbLiveId, p_business_id: businessId, p_amount: numericAmount,
-                    p_paid_at: paidAtIso, p_note: note.trim() || null,
+                    p_paid_at: paidAtIso, p_note: null,
                 });
                 if (rpcErr) throw rpcErr;
                 return;
@@ -235,7 +246,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 [fkColumn(kind)]: payoutId,
                 amount: numericAmount,
                 paid_at: paidAtIso,
-                note: note.trim() || null,
+                note: null,
                 created_by: user?.id || null,
                 'DigiCom Business': businessId,
             });
@@ -384,6 +395,36 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                         </>
                     ) : (
                         <>
+                            {/* Bank destination — where the money goes */}
+                            <div className="rounded-2xl bg-ant-ink text-ant-light p-5 relative overflow-hidden">
+                                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/[0.04]" />
+                                <div className="absolute -right-10 top-6 w-20 h-20 rounded-full bg-white/[0.03]" />
+                                <div className="flex items-center justify-between relative">
+                                    <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-ant-light/55">Coordonnées bancaires</span>
+                                    <Landmark className="w-4 h-4 text-ant-light/40" strokeWidth={1.75} />
+                                </div>
+                                {hasBank ? (
+                                    <div className="relative">
+                                        <p className="font-display text-[15px] font-semibold mt-2.5">{bank?.bank_name || '—'}</p>
+                                        <p className="font-mono text-[15.5px] tracking-[0.16em] text-ant-light/90 mt-3 break-all">{formatRib(bank?.bank_rib) || '—'}</p>
+                                        <div className="flex items-end justify-between mt-3.5 gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] text-ant-light/40">Titulaire</p>
+                                                <p className="text-[12px] font-medium mt-0.5 truncate">{bank?.bank_account_holder || collaboratorName}</p>
+                                            </div>
+                                            {bank?.cin_number ? (
+                                                <div className="text-right shrink-0">
+                                                    <p className="text-[9px] uppercase tracking-[0.2em] text-ant-light/40">CIN</p>
+                                                    <p className="text-[12px] font-medium mt-0.5 tabular-nums">{bank.cin_number}</p>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-[12px] text-ant-light/55 italic mt-3 relative">Coordonnées bancaires non renseignées pour ce collaborateur.</p>
+                                )}
+                            </div>
+
                             {/* Amount */}
                             <div>
                                 <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-2">Montant à verser</label>
@@ -414,10 +455,6 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                             <div>
                                 <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">Date du versement</label>
                                 <Input type="datetime-local" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink focus-visible:ring-ant-orange focus-visible:ring-offset-0" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">Note <span className="text-ant-muted normal-case font-normal">— optionnel</span></label>
-                                <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Virement, espèces, référence…" className="min-h-[60px] rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink resize-y focus-visible:ring-ant-orange focus-visible:ring-offset-0" />
                             </div>
                         </>
                     )}
