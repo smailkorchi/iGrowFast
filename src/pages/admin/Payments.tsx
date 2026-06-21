@@ -20,7 +20,7 @@ import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';
 import { format } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
-import { sendCourierPayoutEmail } from '@/lib/sendPayoutStatement';
+import { sendCourierPaymentNoteEmail } from '@/lib/sendPayoutStatement';
 
 interface UnpaidOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
@@ -364,7 +364,7 @@ const Payments = () => {
             // (the same PDF) with the business's super admins in CC. Provider notes don't
             // map to a platform user, so no email there. Never blocks the mark-as-paid.
             if (note?.kind === 'courier' && note.courier?.id && activeBusinessId) {
-                sendCourierPayoutEmail({
+                sendCourierPaymentNoteEmail({
                     note: {
                         id: note.id,
                         reference: note.reference,

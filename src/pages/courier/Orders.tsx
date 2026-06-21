@@ -23,6 +23,7 @@ import {
     Hash,
     MessageCircle,
     QrCode,
+    RotateCcw,
 } from 'lucide-react';
 import QrScanModal from '@/components/scanner/QrScanModal';
 import {
@@ -71,7 +72,7 @@ type CourierOrderRow = {
     };
 };
 
-type TabKey = 'all' | 'livre' | 'nouveau' | 'suivi' | 'reported';
+type TabKey = 'all' | 'livre' | 'nouveau' | 'suivi' | 'reported' | 'retour';
 
 const TABS: Array<{
     key: TabKey;
@@ -84,6 +85,7 @@ const TABS: Array<{
     { key: 'suivi', label: 'Suivi', icon: AlertCircle, match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed' && (s?.category || '') !== 'delivered' },
     { key: 'reported', label: 'Reporté', icon: Clock, match: (s) => (s?.category || '') === 'postponed' },
     { key: 'livre', label: 'Livré', icon: CheckCircle2, match: (s) => (s?.category || '') === 'delivered' },
+    { key: 'retour', label: 'Retour', icon: RotateCcw, match: (s) => (s?.category || '') === 'returned' },
 ];
 
 const fmtMAD = (n: number) => new Intl.NumberFormat('fr-FR').format(n || 0);
@@ -212,7 +214,7 @@ const CourierOrders = () => {
     }, [rows, searchParams, setSearchParams, toast]);
 
     const counts = useMemo(() => {
-        const c: Record<TabKey, number> = { all: 0, livre: 0, nouveau: 0, suivi: 0, reported: 0 };
+        const c: Record<TabKey, number> = { all: 0, livre: 0, nouveau: 0, suivi: 0, reported: 0, retour: 0 };
         for (const r of rows) {
             for (const t of TABS) if (t.match(r.parcel_status)) c[t.key]++;
         }

@@ -513,7 +513,7 @@ export async function buildCourierPayoutPdfBase64(input: CourierPayoutPdfInput):
     const blob = await buildCourierPayoutPdfBlob(input);
     const base64 = await blobToBase64(blob);
     const safeRef = (input.reference || 'versement').replace(/[^a-zA-Z0-9_-]+/g, '-');
-    return { base64, filename: `versement-livreur-${safeRef}.pdf` };
+    return { base64, filename: `bon-paiement-livreur-${safeRef}.pdf` };
 }
 
 /**

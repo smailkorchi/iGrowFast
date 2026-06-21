@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { buildSellerPayoutPdfBase64, type SellerPayoutPdfInput } from '@/lib/sellerPayoutPdf';
 import { buildMediaBuyerPayoutPdfBase64, type MediaBuyerPayoutPdfInput } from '@/lib/mediabuyerPayoutPdf';
 import { buildCourierPayoutPdfBase64, type CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
+import { buildCourierReturnPdfBase64, type CourierReturnPdfInput } from '@/lib/courierReturnPdf';
 import { getPlatformSource } from '@/lib/campaignConstants';
 
 const CURRENCY = 'MAD';
@@ -281,7 +282,9 @@ export type CourierNoteForEmail = {
   courier: { id: string; name: string; avatar_url: string | null } | null;
 };
 
-export async function sendCourierPayoutEmail(params: {
+// Courier DELIVERY/PAYMENT note (sent from the Payments page on mark-paid) — a
+// transaction record (not a salary "versement"): COD collected, delivery fees kept, net remitted.
+export async function sendCourierPaymentNoteEmail(params: {
   note: CourierNoteForEmail;
   businessId: string;
   paidAtIso: string;
@@ -326,6 +329,67 @@ export async function sendCourierPayoutEmail(params: {
       order_count: String(Number(note.order_count || 0)),
       total_collected: fmtMAD(Number(note.total_amount || 0)),
       net_to_business: fmtMAD(Number(note.net_amount || 0)),
+    },
+  });
+}
+
+export type CourierReturnNoteForEmail = {
+  id: string;
+  reference: string;
+  total_amount: number;
+  total_shipping_fees: number;
+  net_amount: number;
+  order_count: number;
+  created_at: string;
+  line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
+  courier: { id: string; name: string; avatar_url: string | null } | null;
+};
+
+// Courier RETURN note (sent from the Return Notes page on mark-received) — a transaction
+// record of the returned parcels and the return fees the courier kept.
+export async function sendCourierReturnNoteEmail(params: {
+  note: CourierReturnNoteForEmail;
+  businessId: string;
+  receivedAtIso: string;
+}): Promise<void> {
+  const { note, businessId, receivedAtIso } = params;
+  if (!note.courier?.id) throw new Error('courier_missing');
+
+  const branding = await fetchBusinessBranding(businessId);
+
+  const pdfInput: CourierReturnPdfInput = {
+    reference: note.reference,
+    total_amount: Number(note.total_amount || 0),
+    total_shipping_fees: Number(note.total_shipping_fees || 0),
+    net_amount: Number(note.net_amount || 0),
+    order_count: Number(note.order_count || 0),
+    received_at: receivedAtIso,
+    created_at: note.created_at,
+    line_items: (note.line_items || []).map((li) => ({
+      id: li.id, tracking_code: li.tracking_code, amount: Number(li.amount || 0), shipping_fee: Number(li.shipping_fee || 0),
+    })),
+    business: { name: branding.name, logo: branding.logo },
+    courier: { name: note.courier.name, avatar_url: note.courier.avatar_url },
+  };
+
+  const { base64, filename } = await buildCourierReturnPdfBase64(pdfInput);
+
+  await invokeEdge({
+    role: 'courier_return',
+    business_id: businessId,
+    recipient_user_id: note.courier.id,
+    pdf_base64: base64,
+    pdf_filename: filename,
+    vars: {
+      user_name: note.courier.name || 'Livreur',
+      business_name: branding.name,
+      reference: note.reference,
+      return_fees: fmtMAD(Number(note.total_shipping_fees || 0)),
+      currency: CURRENCY,
+      received_at: fmtDateFr(receivedAtIso),
+      order_count: String(Number(note.order_count || 0)),
+      parcels_value: fmtMAD(Number(note.total_amount || 0)),
+      net_amount: fmtMAD(Number(note.net_amount || 0)),
     },
   });
 }

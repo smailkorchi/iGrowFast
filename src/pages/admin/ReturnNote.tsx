@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';
 import { format } from 'date-fns';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
+import { sendCourierReturnNoteEmail } from '@/lib/sendPayoutStatement';
 
 // Package status "Retourné"
 const RETOURNE_PACKAGE_STATUS_ID = 'c98d2ec2-94aa-4bfd-bc27-cdf93d46f3a9';
@@ -359,12 +360,32 @@ const ReturnNote = () => {
                 if (ordErr) throw ordErr;
             }
         },
-        onSuccess: () => {
+        onSuccess: (_data, note: ReturnNote) => {
             queryClient.invalidateQueries({ queryKey: ['return-notes'] });
             queryClient.invalidateQueries({ queryKey: ['retourne-orders'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             toast({ title: 'Marked as received', description: 'All linked orders changed to RETURN. Stock has been restored.' });
             setIsViewNoteOpen(false); setSelectedNote(null);
+
+            // Fire-and-forget: courier return notes email the livreur a return-note record
+            // (branded PDF) with super admins in CC. Company returns map to no platform user.
+            if (note?.kind === 'courier' && note.courier?.id && activeBusinessId) {
+                sendCourierReturnNoteEmail({
+                    note: {
+                        id: note.id,
+                        reference: note.reference,
+                        total_amount: note.total_amount,
+                        total_shipping_fees: note.total_shipping_fees,
+                        net_amount: note.net_amount,
+                        order_count: note.order_count,
+                        created_at: note.created_at,
+                        line_items: note.line_items || [],
+                        courier: note.courier ?? null,
+                    },
+                    businessId: activeBusinessId,
+                    receivedAtIso: new Date().toISOString(),
+                }).catch((e) => console.error('[return-note] courier email failed', e));
+            }
         },
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });

@@ -9,6 +9,7 @@ import {
     resolveCourierPayoutImages,
     type CourierPayoutPdfInput,
 } from '@/lib/courierPayoutPdf';
+import { buildCourierReturnPdfBlob, type CourierReturnPdfInput } from '@/lib/courierReturnPdf';
 import { saveBlob, canDirectSave } from '@/lib/saveBlob';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,6 +23,7 @@ import {
     X,
     FileText,
     Save,
+    RotateCcw,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -46,12 +48,37 @@ type PaymentNote = {
     }>;
 };
 
+// Return notes the courier received back: he subtracted these return fees from the COD
+// before remitting, so for him they are also earnings. Same shape as a payment note,
+// keyed on `received_at` instead of `paid_at`.
+type ReturnNote = {
+    id: string;
+    reference: string;
+    status: string;
+    total_amount: number;
+    total_shipping_fees: number;
+    net_amount: number;
+    order_count: number;
+    received_at: string | null;
+    created_at: string;
+    note: string | null;
+    line_items: Array<{
+        id: string;
+        order_id: string;
+        tracking_code: string | null;
+        amount: number;
+        shipping_fee: number;
+    }>;
+};
+
 const fmtMAD = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
 const CourierPayments = () => {
     const [searchQuery, setSearchQuery] = useState('');
+    const [view, setView] = useState<'payments' | 'returns'>('payments');
     const [selectedNote, setSelectedNote] = useState<PaymentNote | null>(null);
+    const [selectedReturn, setSelectedReturn] = useState<ReturnNote | null>(null);
 
     const { data: me } = useQuery({
         queryKey: ['courier-me-payments'],
@@ -136,19 +163,55 @@ const CourierPayments = () => {
         enabled: !!courierId && !!businessId,
     });
 
+    // Return notes received back from this courier — the return fees he kept are also earnings.
+    const { data: returnNotes = [] } = useQuery({
+        queryKey: ['courier-return-notes', courierId, businessId],
+        queryFn: async () => {
+            if (!courierId || !businessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('courier_return_notes')
+                .select(
+                    `id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, received_at, created_at, note,
+                    line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`
+                )
+                .eq('courier_id', courierId)
+                .eq('DigiCom Business', businessId)
+                .eq('status', 'received')
+                .order('received_at', { ascending: false, nullsFirst: false });
+            if (error) throw error;
+            return (data || []) as ReturnNote[];
+        },
+        enabled: !!courierId && !!businessId,
+    });
+
     const stats = useMemo(() => {
-        const lifetimeEarnings = notes.reduce((s, n) => s + Number(n.total_shipping_fees || 0), 0);
+        const deliveryEarnings = notes.reduce((s, n) => s + Number(n.total_shipping_fees || 0), 0);
         const lifetimeDelivered = notes.reduce((s, n) => s + Number(n.order_count || 0), 0);
         const lifetimeGross = notes.reduce((s, n) => s + Number(n.total_amount || 0), 0);
+        const returnEarnings = returnNotes.reduce((s, n) => s + Number(n.total_shipping_fees || 0), 0);
+        const returnedCount = returnNotes.reduce((s, n) => s + Number(n.order_count || 0), 0);
+        const now = new Date();
+        const mFrom = startOfMonth(now).getTime();
+        const mTo = endOfMonth(now).getTime();
+        const returnsThisMonth = returnNotes.reduce((s, n) => {
+            const t = n.received_at ? new Date(n.received_at).getTime() : 0;
+            return t >= mFrom && t <= mTo ? s + Number(n.total_shipping_fees || 0) : s;
+        }, 0);
 
         return {
-            lifetimeEarnings,
+            deliveryEarnings,
+            returnEarnings,
+            combinedEarnings: deliveryEarnings + returnEarnings,
             lifetimeDelivered,
             lifetimeGross,
-            thisMonthEarnings: earnedThisMonth,
+            returnedCount,
+            thisMonthEarnings: Number(earnedThisMonth || 0),
+            returnsThisMonth,
+            combinedThisMonth: Number(earnedThisMonth || 0) + returnsThisMonth,
             totalNotes: notes.length,
+            totalReturnNotes: returnNotes.length,
         };
-    }, [notes, earnedThisMonth]);
+    }, [notes, returnNotes, earnedThisMonth]);
 
     const filteredNotes = useMemo(() => {
         if (!searchQuery.trim()) return notes;
@@ -160,8 +223,19 @@ const CourierPayments = () => {
         );
     }, [notes, searchQuery]);
 
+    const filteredReturns = useMemo(() => {
+        if (!searchQuery.trim()) return returnNotes;
+        const q = searchQuery.toLowerCase();
+        return returnNotes.filter(
+            (n) =>
+                n.reference.toLowerCase().includes(q) ||
+                n.line_items.some((li) => (li.tracking_code || '').toLowerCase().includes(q))
+        );
+    }, [returnNotes, searchQuery]);
+
     const { toast } = useToast();
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [downloadingReturnId, setDownloadingReturnId] = useState<string | null>(null);
     const [readyBlob, setReadyBlob] = useState<{
         blob: Blob;
         filename: string;
@@ -267,6 +341,60 @@ const CourierPayments = () => {
         }
     };
 
+    const handlePrintReturn = async (rn: ReturnNote) => {
+        if (downloadingReturnId) return;
+        setDownloadingReturnId(rn.id);
+        try {
+            const input: CourierReturnPdfInput = {
+                reference: rn.reference,
+                total_amount: Number(rn.total_amount || 0),
+                total_shipping_fees: Number(rn.total_shipping_fees || 0),
+                net_amount: Number(rn.net_amount || 0),
+                order_count: rn.order_count,
+                received_at: rn.received_at,
+                created_at: rn.created_at,
+                line_items: rn.line_items.map((li) => ({
+                    id: li.id,
+                    tracking_code: li.tracking_code,
+                    amount: Number(li.amount || 0),
+                    shipping_fee: Number(li.shipping_fee || 0),
+                })),
+                business: { name: businessMeta?.name || 'iGrowFast', logo: resolvedImages?.businessLogo || null },
+                courier: { name: me?.name || 'Courier', avatar_url: resolvedImages?.courierAvatar || null },
+            };
+            const blob = await buildCourierReturnPdfBlob(input);
+            const filename = `${rn.reference || 'courier-return'}.pdf`;
+            const result = await saveBlob(blob, {
+                filename,
+                title: `${rn.reference} — Retour`,
+                text: `Relevé de retour ${rn.reference}`,
+                mimeType: 'application/pdf',
+            });
+            switch (result.status) {
+                case 'shared':
+                    toast({ title: 'Enregistré', description: `${filename} a été enregistré via le partage système.` });
+                    break;
+                case 'downloaded':
+                    toast({ title: 'Téléchargé', description: `${filename} est dans vos téléchargements.` });
+                    break;
+                case 'cancelled':
+                    break;
+                default:
+                    setReadyBlob({ blob, filename, noteRef: rn.reference });
+                    break;
+            }
+        } catch (e: any) {
+            console.error('[courier-returns] PDF generation failed', e);
+            toast({
+                title: 'Téléchargement impossible',
+                description: e?.message || "Le PDF n'a pas pu être généré.",
+                variant: 'destructive',
+            });
+        } finally {
+            setDownloadingReturnId(null);
+        }
+    };
+
     const handleRetrySave = async () => {
         if (!readyBlob) return;
         const result = await saveBlob(readyBlob.blob, {
@@ -301,10 +429,10 @@ const CourierPayments = () => {
     };
 
     const kpiTiles = [
-        { label: 'Gains cumulés', value: `${fmtMAD(stats.lifetimeEarnings)}`, unit: 'MAD', accent: 'bg-ant-green' },
-        { label: 'Ce mois-ci', value: `${fmtMAD(stats.thisMonthEarnings)}`, unit: 'MAD', accent: 'bg-ant-orange' },
-        { label: 'Livrés', value: String(stats.lifetimeDelivered), unit: 'colis', accent: 'bg-ant-ink' },
-        { label: 'Paiements', value: String(stats.totalNotes), unit: 'reçus', accent: 'bg-ant-ink' },
+        { label: 'Gains cumulés', value: `${fmtMAD(stats.combinedEarnings)}`, unit: 'MAD', accent: 'bg-ant-green', sub: `Livraison ${fmtMAD(stats.deliveryEarnings)} · Retour ${fmtMAD(stats.returnEarnings)}` },
+        { label: 'Ce mois-ci', value: `${fmtMAD(stats.combinedThisMonth)}`, unit: 'MAD', accent: 'bg-ant-orange', sub: `Livraison ${fmtMAD(stats.thisMonthEarnings)} · Retour ${fmtMAD(stats.returnsThisMonth)}` },
+        { label: 'Livrés', value: String(stats.lifetimeDelivered), unit: 'colis', accent: 'bg-ant-ink', sub: `${stats.totalNotes} paiement${stats.totalNotes !== 1 ? 's' : ''}` },
+        { label: 'Retournés', value: String(stats.returnedCount), unit: 'colis', accent: 'bg-ant-ink', sub: `${stats.totalReturnNotes} bon${stats.totalReturnNotes !== 1 ? 's' : ''}` },
     ];
 
     return (
@@ -323,7 +451,7 @@ const CourierPayments = () => {
                             Historique des paiements
                         </h1>
                         <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
-                            Versements réglés par votre business — reçus détaillés, téléchargeables en PDF.
+                            Vos gains — frais de livraison et frais de retour réglés par votre business.
                         </p>
                     </div>
                 </div>
@@ -343,8 +471,37 @@ const CourierPayments = () => {
                             {k.value}
                             <span className="text-[11px] text-ant-mid ml-1 font-normal tracking-normal">{k.unit}</span>
                         </p>
+                        {k.sub && (
+                            <p className="text-[9px] text-ant-mid tabular-nums leading-tight truncate">{k.sub}</p>
+                        )}
                     </div>
                 ))}
+            </div>
+
+            {/* Paiements / Retours toggle */}
+            <div className="inline-flex p-1 rounded-full border border-ant-line bg-ant-paper gap-1">
+                <button
+                    type="button"
+                    onClick={() => setView('payments')}
+                    className={cn(
+                        'h-8 px-4 rounded-full text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+                        view === 'payments' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                    )}
+                >
+                    Paiements
+                    <span className="ml-1.5 font-normal tracking-normal opacity-70">{stats.totalNotes}</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setView('returns')}
+                    className={cn(
+                        'h-8 px-4 rounded-full text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+                        view === 'returns' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                    )}
+                >
+                    Retours
+                    <span className="ml-1.5 font-normal tracking-normal opacity-70">{stats.totalReturnNotes}</span>
+                </button>
             </div>
 
             {/* Search */}
@@ -375,6 +532,151 @@ const CourierPayments = () => {
                     <Loader2 className="w-6 h-6 text-ant-mid animate-spin" />
                     <p className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">Chargement…</p>
                 </div>
+            ) : view === 'returns' ? (
+                filteredReturns.length === 0 ? (
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-10 flex flex-col items-center gap-3 text-center">
+                            <SearchX className="w-6 h-6 text-ant-mid" />
+                            <div className="space-y-1">
+                                <p className="font-display text-[14px] text-ant-ink">
+                                    {searchQuery ? 'Aucun retour trouvé' : 'Aucun retour pour le moment'}
+                                </p>
+                                <p className="font-serif italic text-[12px] text-ant-mid max-w-xs mx-auto">
+                                    {searchQuery
+                                        ? 'Essayez un autre terme de recherche.'
+                                        : 'Vos frais de retour apparaîtront ici une fois les colis reçus par votre business.'}
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+                ) : (
+                    <>
+                        {/* Mobile: return cards */}
+                        <div className="md:hidden space-y-2">
+                            {filteredReturns.map((rn) => {
+                                const dateStr = rn.received_at
+                                    ? format(new Date(rn.received_at), 'dd MMM yyyy', { locale: fr })
+                                    : format(new Date(rn.created_at), 'dd MMM yyyy', { locale: fr });
+                                return (
+                                    <button
+                                        key={rn.id}
+                                        type="button"
+                                        onClick={() => setSelectedReturn(rn)}
+                                        className="w-full rounded-2xl border border-ant-line bg-ant-paper overflow-hidden text-left active:scale-[0.995] transition-transform"
+                                    >
+                                        <div className="h-[3px] w-full bg-ant-orange" />
+                                        <div className="p-4 space-y-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0 flex-1 space-y-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-orange/12 text-ant-orange">
+                                                        <RotateCcw className="w-2.5 h-2.5" />
+                                                        Reçu
+                                                    </span>
+                                                    <p className="font-mono text-[12px] font-semibold text-ant-ink truncate">
+                                                        {rn.reference}
+                                                    </p>
+                                                    <p className="text-[11px] text-ant-mid">{dateStr}</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); handlePrintReturn(rn); }}
+                                                    disabled={downloadingReturnId === rn.id}
+                                                    className="w-9 h-9 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors disabled:opacity-50 shrink-0"
+                                                    aria-label="Télécharger PDF"
+                                                >
+                                                    {downloadingReturnId === rn.id
+                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        : <Download className="w-3.5 h-3.5" />}
+                                                </button>
+                                            </div>
+                                            <div className="flex items-end justify-between pt-2 border-t border-ant-line">
+                                                <div>
+                                                    <p className="text-[9px] uppercase tracking-[0.2em] text-ant-mid mb-0.5">Colis</p>
+                                                    <p className="font-display text-[16px] tabular-nums text-ant-ink leading-none">
+                                                        {rn.order_count}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[9px] uppercase tracking-[0.2em] text-ant-mid mb-0.5">Frais de retour</p>
+                                                    <p className="font-display text-[18px] tabular-nums text-ant-green leading-none">
+                                                        +{fmtMAD(rn.total_shipping_fees)}{' '}
+                                                        <span className="text-[11px] text-ant-mid font-normal">MAD</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Desktop: return table */}
+                        <section className="hidden md:block rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                            <div className="h-[3px] w-full bg-ant-orange" />
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-ant-line bg-ant-light/40">
+                                        <th className="text-left px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Référence</th>
+                                        <th className="text-left px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Reçu le</th>
+                                        <th className="text-right px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Colis</th>
+                                        <th className="text-right px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Frais de retour</th>
+                                        <th className="px-4 py-3 w-16"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredReturns.map((rn) => {
+                                        const dateStr = rn.received_at
+                                            ? format(new Date(rn.received_at), 'dd MMM yyyy', { locale: fr })
+                                            : format(new Date(rn.created_at), 'dd MMM yyyy', { locale: fr });
+                                        return (
+                                            <tr key={rn.id} className="border-b border-ant-line last:border-b-0 hover:bg-ant-light/50 transition-colors">
+                                                <td className="px-4 py-3">
+                                                    <div className="space-y-1">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-orange/12 text-ant-orange">
+                                                            <RotateCcw className="w-2.5 h-2.5" />
+                                                            Reçu
+                                                        </span>
+                                                        <p className="font-mono text-[12px] font-semibold text-ant-ink">{rn.reference}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-[12px] text-ant-ink tabular-nums">{dateStr}</td>
+                                                <td className="text-right px-4 py-3 text-[12px] text-ant-ink tabular-nums">{rn.order_count}</td>
+                                                <td className="text-right px-4 py-3">
+                                                    <p className="font-display text-[14px] tabular-nums text-ant-green">+{fmtMAD(rn.total_shipping_fees)}</p>
+                                                    <p className="text-[10px] text-ant-mid tabular-nums">MAD</p>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedReturn(rn)}
+                                                            className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                                                            title="Voir"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={downloadingReturnId === rn.id}
+                                                            onClick={() => handlePrintReturn(rn)}
+                                                            className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors disabled:opacity-50"
+                                                            title="Télécharger PDF"
+                                                        >
+                                                            {downloadingReturnId === rn.id
+                                                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                : <Download className="w-3.5 h-3.5" />}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </section>
+                    </>
+                )
             ) : filteredNotes.length === 0 ? (
                 <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                     <div className="h-[3px] w-full bg-ant-orange" />
@@ -529,6 +831,15 @@ const CourierPayments = () => {
                 isDownloading={!!selectedNote && downloadingId === selectedNote.id}
             />
 
+            {/* Return detail sheet */}
+            <PayoutDetailSheet
+                note={selectedReturn ? { ...selectedReturn, paid_at: selectedReturn.received_at } : null}
+                variant="return"
+                onClose={() => setSelectedReturn(null)}
+                onPrint={() => selectedReturn && handlePrintReturn(selectedReturn)}
+                isDownloading={!!selectedReturn && downloadingReturnId === selectedReturn.id}
+            />
+
             {/* PDF ready modal */}
             <PdfReadyModal
                 ready={readyBlob}
@@ -550,12 +861,15 @@ function PayoutDetailSheet({
     onClose,
     onPrint,
     isDownloading,
+    variant = 'payment',
 }: {
-    note: PaymentNote | null;
+    note: (PaymentNote | (ReturnNote & { paid_at: string | null })) | null;
     onClose: () => void;
     onPrint: () => void;
     isDownloading: boolean;
+    variant?: 'payment' | 'return';
 }) {
+    const isReturn = variant === 'return';
     return (
         <Dialog open={!!note} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
@@ -588,7 +902,7 @@ function PayoutDetailSheet({
                                     <div className="flex items-center gap-2">
                                         <span className="w-1.5 h-1.5 rounded-full bg-ant-green" />
                                         <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                                            Paiement · Reçu
+                                            {isReturn ? 'Retour · Reçu' : 'Paiement · Reçu'}
                                         </span>
                                     </div>
                                     <DialogTitle className="font-mono text-[18px] leading-tight text-ant-ink truncate">
@@ -596,7 +910,7 @@ function PayoutDetailSheet({
                                     </DialogTitle>
                                     <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
                                         {note.paid_at
-                                            ? `Réglé le ${format(new Date(note.paid_at), 'dd MMMM yyyy · HH:mm', { locale: fr })}`
+                                            ? `${isReturn ? 'Reçu' : 'Réglé'} le ${format(new Date(note.paid_at), 'dd MMMM yyyy · HH:mm', { locale: fr })}`
                                             : 'Date inconnue'}
                                     </DialogDescription>
                                 </div>
@@ -629,7 +943,7 @@ function PayoutDetailSheet({
                                     <span className="text-[13px] text-ant-light/60 ml-1 font-normal">MAD</span>
                                 </p>
                                 <p className="font-serif italic text-[11px] text-ant-light/60 mt-2">
-                                    sur {note.order_count} colis livré{note.order_count !== 1 ? 's' : ''}
+                                    sur {note.order_count} colis {isReturn ? 'retourné' : 'livré'}{note.order_count !== 1 ? 's' : ''}
                                 </p>
                             </div>
 
@@ -646,11 +960,11 @@ function PayoutDetailSheet({
                                 </div>
                                 <div className="p-4 space-y-2.5">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] text-ant-mid">Total encaissé</span>
+                                        <span className="text-[12px] text-ant-mid">{isReturn ? 'Valeur des colis' : 'Total encaissé'}</span>
                                         <span className="font-display text-[13px] tabular-nums text-ant-ink">{fmtMAD(note.total_amount)} MAD</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] text-ant-green">Vos frais de livraison</span>
+                                        <span className="text-[12px] text-ant-green">{isReturn ? 'Vos frais de retour' : 'Vos frais de livraison'}</span>
                                         <span className="font-display text-[13px] tabular-nums text-ant-green">+{fmtMAD(note.total_shipping_fees)} MAD</span>
                                     </div>
                                     <div className="h-px bg-ant-line" />
@@ -668,7 +982,7 @@ function PayoutDetailSheet({
                                     <div className="flex items-center gap-2">
                                         <span className="font-display text-[10px] text-ant-orange">02</span>
                                         <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                                            Colis réglés
+                                            {isReturn ? 'Colis retournés' : 'Colis réglés'}
                                         </span>
                                     </div>
                                     <span className="text-[11px] tabular-nums text-ant-mid">{note.line_items.length}</span>

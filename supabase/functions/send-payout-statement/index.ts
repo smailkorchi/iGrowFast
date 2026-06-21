@@ -19,7 +19,8 @@ const json = (o: unknown, s: number) =>
 const TEMPLATE_BY_ROLE: Record<string, string> = {
   seller: "seller_payout_statement",
   mediabuyer: "mediabuyer_payout_statement",
-  courier: "courier_payout_statement",
+  courier: "courier_payment_note",        // delivery settlement (Payments page)
+  courier_return: "courier_return_note",  // return note (Return Notes page)
 };
 
 Deno.serve(async (req) => {
