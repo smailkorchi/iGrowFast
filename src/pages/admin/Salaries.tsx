@@ -84,7 +84,6 @@ const PayoutKpi: React.FC<{
 // ═════════════════════════ Main Page ═════════════════════════
 const Salaries = () => {
     const [tab, setTab] = useState<Role>('seller');
-    const [bulkOpen, setBulkOpen] = useState(false);
 
     return (
         <div className="ant-surface min-h-screen">
@@ -100,16 +99,9 @@ const Salaries = () => {
                             Salaries
                         </h1>
                         <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
-                            The monthly ritual — commission accrued, deliveries counted, bank details snapshotted. Generate payouts, mark them paid, keep the ledger honest.
+                            The monthly ritual — commission accrues per collaborator, the ledger carries unpaid balances forward. Open a row, pay what's owed.
                         </p>
                     </div>
-                    <Button
-                        onClick={() => setBulkOpen(true)}
-                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
-                    >
-                        <Sparkles className="w-4 h-4" />
-                        Generate payouts
-                    </Button>
                 </header>
 
                 {/* Role tabs */}
@@ -137,8 +129,6 @@ const Salaries = () => {
                 </div>
 
                 {tab === 'seller' ? <SellerPayoutsList /> : <MediaBuyerPayoutsList />}
-
-                <BulkGenerateDialog open={bulkOpen} onOpenChange={setBulkOpen} initialRole={tab} />
             </div>
         </div>
     );
@@ -356,16 +346,6 @@ const SellerPayoutsList: React.FC = () => {
                     >
                         <Eye className="w-3.5 h-3.5" /> Overview
                     </Button>
-                    {selected.length > 0 && (
-                        <Button
-                            onClick={() => settleMutation.mutate(selected)}
-                            disabled={settleMutation.isPending}
-                            className="h-10 px-5 rounded-full bg-ant-green hover:bg-ant-green/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
-                        >
-                            {settleMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            Settle {selected.length} in full
-                        </Button>
-                    )}
                 </div>
             </div>
 
@@ -394,16 +374,6 @@ const SellerPayoutsList: React.FC = () => {
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-ant-line">
-                                    <th className="pl-5 pr-2 py-4 w-10">
-                                        <Checkbox
-                                            checked={pageSelectable.length > 0 && pageSelectable.every((id) => selected.includes(id))}
-                                            onCheckedChange={(v) => {
-                                                if (v) setSelected(Array.from(new Set([...selected, ...pageSelectable])));
-                                                else setSelected(selected.filter((id) => !pageSelectable.includes(id)));
-                                            }}
-                                            className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                        />
-                                    </th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Seller</th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
                                     <th className="px-3 py-4 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Delivered</th>
@@ -430,15 +400,6 @@ const SellerPayoutsList: React.FC = () => {
                                           : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                     return (
                                         <tr key={ticket.id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
-                                            <td className="pl-5 pr-2 py-4">
-                                                {settleable ? (
-                                                    <Checkbox
-                                                        checked={selected.includes(seller.seller_id)}
-                                                        onCheckedChange={(v) => setSelected(v ? [...selected, seller.seller_id] : selected.filter((id) => id !== seller.seller_id))}
-                                                        className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                                    />
-                                                ) : <span className="block w-4" />}
-                                            </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <UserAvatar
@@ -624,6 +585,10 @@ type MBPayout = {
     campaigns_count: number;
     bank_snapshot: any;
     status: PayoutStatus;
+    period_state?: 'open' | 'closed';
+    carried_in?: number | string;
+    month_earned?: number | string;
+    carried_out?: number | string | null;
     created_at: string;
     paid_at: string | null;
     mediabuyer: { name: string; email: string; avatar_url: string | null; avatar_config?: unknown } | null;
@@ -728,7 +693,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
             const paid = Number(p.paid_amount || 0);
             totalPaid += paid;
             totalPending += Math.max(0, total - paid);
-            if (p.payout_month === thisMonthKey) thisMonth += 1;
+            if (p.payout_month.startsWith(thisMonthKey)) thisMonth += 1;
         }
         return { totalPaid, totalPending, thisMonth };
     }, [payouts]);
@@ -824,16 +789,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
                     >
                         <Eye className="w-3.5 h-3.5" /> Overview
                     </Button>
-                    {selected.length > 0 && (
-                        <Button
-                            onClick={() => settleMutation.mutate(selected)}
-                            disabled={settleMutation.isPending}
-                            className="h-10 px-5 rounded-full bg-ant-green hover:bg-ant-green/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
-                        >
-                            {settleMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            Settle {selected.length} in full
-                        </Button>
-                    )}
                 </div>
             </div>
 
@@ -862,16 +817,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-ant-line">
-                                    <th className="pl-5 pr-2 py-4 w-10">
-                                        <Checkbox
-                                            checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
-                                            onCheckedChange={(v) => {
-                                                if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
-                                                else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
-                                            }}
-                                            className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                        />
-                                    </th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Media buyer</th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Month</th>
                                     <th className="px-3 py-4 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Type</th>
@@ -898,13 +843,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                           : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                     return (
                                         <tr key={p.id} className="group hover:bg-ant-light/40 transition-colors border-t border-ant-line/60 tabular-nums">
-                                            <td className="pl-5 pr-2 py-4">
-                                                <Checkbox
-                                                    checked={selected.includes(p.id)}
-                                                    onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))}
-                                                    className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
-                                                />
-                                            </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <UserAvatar
@@ -919,7 +857,10 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-3 py-4 text-[12px] text-ant-mid whitespace-nowrap">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
+                                            <td className="px-3 py-4">
+                                                <p className="font-display text-[12px] font-semibold text-ant-ink capitalize whitespace-nowrap">{format(new Date(p.payout_month), 'MMM yyyy')}</p>
+                                                <p className="text-[10px] text-ant-mid/80 italic">{p.period_state === 'closed' ? 'clôturé' : 'mois en cours'}</p>
+                                            </td>
                                             <td className="px-3 py-4">
                                                 <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 text-ant-orange' : 'bg-ant-green/10 text-ant-green')}>
                                                     <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />
@@ -971,7 +912,9 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                                     >
                                                         <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                    {isPaid ? (
+                                                    {p.period_state === 'closed' ? (
+                                                        <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid bg-ant-light border border-ant-line">Clôturé</span>
+                                                    ) : isPaid ? (
                                                         <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green bg-ant-green/10 border border-ant-green/25">
                                                             Réglé
                                                         </span>
@@ -984,7 +927,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
                                                                 isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
                                                             )}
                                                         >
-                                                            {isPartial ? 'Continue' : 'Record'}
+                                                            {isPartial ? 'Continue' : 'Pay'}
                                                         </Button>
                                                     )}
                                                 </div>
@@ -1019,6 +962,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
                         onOpenChange={setRecordOpen}
                         kind="mediabuyer"
                         payoutId={activeRow.id}
+                        mbLiveId={activeRow.mediabuyer_id}
                         totalAmount={Number(activeRow.total_amount || 0)}
                         paidAmount={Number(activeRow.paid_amount || 0)}
                         collaboratorName={activeRow.mediabuyer?.name || 'Media buyer'}

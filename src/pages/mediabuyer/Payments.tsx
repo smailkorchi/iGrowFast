@@ -304,7 +304,7 @@ const Payments: React.FC = () => {
                                             <div className="flex items-center gap-1.5">
                                                 <Calendar className="w-3 h-3 text-ant-mid" />
                                                 <span className="font-display text-[13px] text-ant-ink capitalize">
-                                                    {format(parseISO(p.payout_month + '-01'), 'MMMM yyyy', { locale: fr })}
+                                                    {format(parseISO(p.payout_month), 'MMMM yyyy', { locale: fr })}
                                                 </span>
                                             </div>
                                             <span className={cn(
@@ -393,7 +393,7 @@ const Payments: React.FC = () => {
                                                 <div className="inline-flex items-center gap-1.5">
                                                     <Calendar className="w-3.5 h-3.5 text-ant-mid" />
                                                     <span className="font-display text-[12px] text-ant-ink capitalize">
-                                                        {format(parseISO(p.payout_month + '-01'), 'MMMM yyyy', { locale: fr })}
+                                                        {format(parseISO(p.payout_month), 'MMMM yyyy', { locale: fr })}
                                                     </span>
                                                 </div>
                                             </td>
@@ -494,7 +494,7 @@ const Payments: React.FC = () => {
                                         </span>
                                     </div>
                                     <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight capitalize">
-                                        {format(parseISO(selected.payout_month + '-01'), 'MMMM yyyy', { locale: fr })}
+                                        {format(parseISO(selected.payout_month), 'MMMM yyyy', { locale: fr })}
                                     </DialogTitle>
                                     <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
                                         {(() => { const d = settledDate(selected); return d ? `Versé le ${format(new Date(d), 'd MMMM yyyy', { locale: fr })}` : 'Pas encore versé'; })()}

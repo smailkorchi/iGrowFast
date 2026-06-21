@@ -51,7 +51,7 @@ const queryInvalidationKeys = (k: PayoutKind) =>
               'seller-live-owed-orders',
               'seller-live-owed-payments',
           ]
-        : ['mb-payouts', 'mb-payouts-stats', 'mediabuyer-payment-txns'];
+        : ['mb-payouts', 'mb-payouts-stats', 'mediabuyer-payment-txns', 'mediabuyer-ledger', 'mb-earnings-prior'];
 
 // ── Record Payment Dialog ────────────────────────────────────────────────────
 interface RecordPaymentDialogProps {
@@ -73,6 +73,11 @@ interface RecordPaymentDialogProps {
     sellerId?: string;                 // to INSERT a catch-up row when none exists
     sellerCanonicalRowTotal?: number;  // current total_amount of the canonical row (0 if none)
     sellerOtherRowsTotal?: number;     // Σ total_amount of the seller's OTHER rows
+    // ── media-buyer ROLLING-LEDGER mode. When kind==='mediabuyer' and mbLiveId is
+    //    provided, pay via the pay_mediabuyer RPC (ensures the open monthly ticket +
+    //    carry-forward), mirroring the seller flow. Without it, falls back to the
+    //    legacy direct txn insert against payoutId.
+    mbLiveId?: string;                 // the mediabuyer_id to pay against the rolling ledger
 }
 
 export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
@@ -90,6 +95,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     sellerId,
     sellerCanonicalRowTotal,
     sellerOtherRowsTotal,
+    mbLiveId,
 }) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -97,6 +103,8 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     // Seller live-owed mode: display + pay against live accrued − paid, not the
     // frozen row's total_amount. mediabuyer keeps the row-based remaining.
     const isSellerLive = kind === 'seller' && sellerAccruedTotal != null;
+    // Media-buyer rolling-ledger mode: pay via pay_mediabuyer (ensures open ticket + carry).
+    const isMbLive = kind === 'mediabuyer' && mbLiveId != null;
     const displayTotal = isSellerLive ? Number(sellerAccruedTotal || 0) : Number(totalAmount || 0);
     const displayPaid = isSellerLive ? Number(sellerPaidAcrossRows || 0) : Number(paidAmount || 0);
     const remaining = Math.max(0, displayTotal - displayPaid);
@@ -120,36 +128,40 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     const mutation = useMutation({
         mutationFn: async () => {
             const { data: { user } } = await supabase.auth.getUser();
+            const paidAtIso = paidAt ? new Date(paidAt).toISOString() : new Date().toISOString();
 
-            // ── Media buyer (and any non-seller-live caller): unchanged single
-            //    txn insert against its own frozen row. ──
-            if (!isSellerLive) {
-                const { error } = await (supabase as any).from(txnTable(kind)).insert({
-                    [fkColumn(kind)]: payoutId,
-                    amount: numericAmount,
-                    paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
-                    note: note.trim() || null,
-                    created_by: user?.id || null,
-                    'DigiCom Business': businessId,
+            // ── Seller / media-buyer rolling ledger: pay via the RPC. It ensures the
+            //    current open ticket exists, syncs its live earned, and records the
+            //    disbursement against it (the open ticket holds all carried-forward
+            //    debt → FIFO oldest-first by construction). created_by captured in-RPC.
+            void user;
+            if (isSellerLive) {
+                const { error: rpcErr } = await (supabase as any).rpc('pay_seller', {
+                    p_seller_id: sellerId, p_business_id: businessId, p_amount: numericAmount,
+                    p_paid_at: paidAtIso, p_note: note.trim() || null,
                 });
-                if (error) throw error;
+                if (rpcErr) throw rpcErr;
+                return;
+            }
+            if (isMbLive) {
+                const { error: rpcErr } = await (supabase as any).rpc('pay_mediabuyer', {
+                    p_mb: mbLiveId, p_business_id: businessId, p_amount: numericAmount,
+                    p_paid_at: paidAtIso, p_note: note.trim() || null,
+                });
+                if (rpcErr) throw rpcErr;
                 return;
             }
 
-            // ── Seller: pay against the rolling monthly ledger via the pay_seller
-            //    RPC. It ensures the current open ticket exists, syncs its live
-            //    earned, and records the disbursement against it (the open ticket
-            //    holds all carried-forward debt, so this is FIFO oldest-first by
-            //    construction). Replaces the old canonical-row top-up hack.
-            void user; // created_by is captured inside the RPC (auth.uid())
-            const { error: rpcErr } = await (supabase as any).rpc('pay_seller', {
-                p_seller_id: sellerId,
-                p_business_id: businessId,
-                p_amount: numericAmount,
-                p_paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
-                p_note: note.trim() || null,
+            // ── Legacy fallback: single txn insert against an existing frozen row. ──
+            const { error } = await (supabase as any).from(txnTable(kind)).insert({
+                [fkColumn(kind)]: payoutId,
+                amount: numericAmount,
+                paid_at: paidAtIso,
+                note: note.trim() || null,
+                created_by: user?.id || null,
+                'DigiCom Business': businessId,
             });
-            if (rpcErr) throw rpcErr;
+            if (error) throw error;
         },
         onSuccess: () => {
             queryInvalidationKeys(kind).forEach((key) => {
