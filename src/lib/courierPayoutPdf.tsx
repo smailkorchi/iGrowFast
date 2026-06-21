@@ -20,6 +20,7 @@ import {
 import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { blobToBase64 } from './documentPdf/toBase64';
+import { LegalFooter, type LegalFooterBusiness } from './documentPdf/legalFooter';
 import { saveBlob, type SaveBlobResult } from './saveBlob';
 
 // ─── Brand palette (Anthropic editorial tokens) ──────────────────────────────
@@ -51,15 +52,15 @@ export type CourierPayoutPdfInput = {
     paid_at: string | null;
     created_at: string;
     line_items: CourierPayoutPdfLineItem[];
-    business: { name: string; logo: string | null };
+    business: { name: string; logo: string | null } & LegalFooterBusiness;
     courier: { name: string; avatar_url: string | null };
 };
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
 const fmtMAD = (n: number) =>
-    new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-        n || 0,
-    );
+    new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        .format(n || 0)
+        .replace(/[  ]/g, ' '); // narrow/no-break space → regular space (Helvetica has no glyph)
 
 const fmtDate = (iso?: string | null) => {
     if (!iso) return '—';
@@ -331,12 +332,11 @@ const styles = StyleSheet.create({
         left: 38,
         right: 38,
         bottom: 24,
-        paddingTop: 14,
+        paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: BORDER,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
     },
+    footerRow: { flexDirection: 'row', justifyContent: 'space-between' },
     footerText: {
         fontSize: 7,
         fontFamily: 'Helvetica-Bold',
@@ -344,6 +344,7 @@ const styles = StyleSheet.create({
         letterSpacing: 1.2,
         textTransform: 'uppercase',
     },
+    footerLegal: { fontSize: 7, color: MUTED, marginTop: 4 },
 });
 
 // ─── Document ────────────────────────────────────────────────────────────────
@@ -355,9 +356,9 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
 
     return (
         <Document
-            title={`${reference} — Payout`}
+            title={`${reference} — Bon de paiement`}
             author={business.name || 'iGrowFast'}
-            subject="Courier Payout Statement"
+            subject="Bon de paiement livreur"
         >
             <Page size="A4" style={styles.page} wrap>
                 {/* Header */}
@@ -374,12 +375,12 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
                         )}
                         <View>
                             <Text style={styles.brandName}>{business.name || 'iGrowFast'}</Text>
-                            <Text style={styles.brandSub}>Courier Payout</Text>
+                            <Text style={styles.brandSub}>Bon de paiement</Text>
                         </View>
                     </View>
 
                     <View style={styles.metaWrap}>
-                        <Text style={styles.metaKicker}>Settled</Text>
+                        <Text style={styles.metaKicker}>Réglé</Text>
                         <Text style={styles.metaRef}>{reference}</Text>
                         <Text style={styles.metaDate}>{fmtDate(paid_at)}</Text>
                     </View>
@@ -397,38 +398,38 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
                         </View>
                     )}
                     <View style={styles.courierInfo}>
-                        <Text style={styles.courierLabel}>Beneficiary</Text>
+                        <Text style={styles.courierLabel}>Bénéficiaire · Livreur</Text>
                         <Text style={styles.courierName}>{courier.name || 'Courier'}</Text>
                     </View>
                     <View style={styles.badge}>
-                        <Text style={styles.badgeText}>Paid</Text>
+                        <Text style={styles.badgeText}>Payé</Text>
                     </View>
                 </View>
 
                 {/* Earnings hero */}
                 <View style={styles.hero}>
-                    <Text style={styles.heroLabel}>Your Earnings</Text>
+                    <Text style={styles.heroLabel}>Vos frais de livraison</Text>
                     <View style={styles.heroValRow}>
                         <Text style={styles.heroVal}>{fmtMAD(total_shipping_fees)}</Text>
                         <Text style={styles.heroUnit}>MAD</Text>
                     </View>
                     <Text style={styles.heroSub}>
-                        Delivery fees for {order_count} successfully delivered parcel{order_count !== 1 ? 's' : ''}
+                        Frais de livraison pour {order_count} colis livré{order_count !== 1 ? 's' : ''}
                     </Text>
                 </View>
 
                 {/* Stats */}
                 <View style={styles.stats}>
                     <View style={styles.stat}>
-                        <Text style={styles.statK}>Delivered</Text>
+                        <Text style={styles.statK}>Livrés</Text>
                         <Text style={styles.statV}>{order_count}</Text>
                     </View>
                     <View style={styles.stat}>
-                        <Text style={styles.statK}>Gross Collected</Text>
+                        <Text style={styles.statK}>Total encaissé</Text>
                         <Text style={styles.statVGhost}>{fmtMAD(total_amount)} MAD</Text>
                     </View>
                     <View style={styles.stat}>
-                        <Text style={styles.statK}>Settled to Business</Text>
+                        <Text style={styles.statK}>Reversé au business</Text>
                         <Text style={styles.statVGhost}>{fmtMAD(net_amount)} MAD</Text>
                     </View>
                 </View>
@@ -437,10 +438,10 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
                 <View style={styles.table}>
                     <View style={styles.tableHeader} fixed>
                         <Text style={[styles.thText, { width: '8%' }]}>#</Text>
-                        <Text style={[styles.thText, { width: '32%' }]}>Tracking</Text>
-                        <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>Order</Text>
-                        <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>Your Fee</Text>
-                        <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>To Business</Text>
+                        <Text style={[styles.thText, { width: '32%' }]}>Suivi</Text>
+                        <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>Commande</Text>
+                        <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>Vos frais</Text>
+                        <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>Au business</Text>
                     </View>
 
                     {line_items.map((li, i) => (
@@ -456,11 +457,8 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
                     ))}
                 </View>
 
-                {/* Footer */}
-                <View style={styles.footer} fixed>
-                    <Text style={styles.footerText}>{business.name || 'iGrowFast'} · Payout Statement</Text>
-                    <Text style={styles.footerText}>Generated {fmtDate(created_at)}</Text>
-                </View>
+                {/* Legal footer — identical layout to facture/devis */}
+                <LegalFooter business={business} />
             </Page>
         </Document>
     );

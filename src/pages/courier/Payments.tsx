@@ -248,10 +248,10 @@ const CourierPayments = () => {
             if (!businessId) return null;
             const { data } = await (supabase as any)
                 .from('businesses')
-                .select('name, logo')
+                .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website')
                 .eq('id', businessId)
                 .single();
-            return (data || null) as { name: string | null; logo: string | null } | null;
+            return (data || null) as (Record<string, string | null>) | null;
         },
         enabled: !!businessId,
         staleTime: 10 * 60_000,
@@ -273,6 +273,25 @@ const CourierPayments = () => {
         staleTime: 30 * 60_000,
     });
 
+    // Full branding (name + logo + legal fields) shared by both PDF builders — matches the facture footer.
+    const pdfBusiness = {
+        name: businessMeta?.name || 'iGrowFast',
+        logo: resolvedImages?.businessLogo || null,
+        legal_form: businessMeta?.legal_form ?? null,
+        capital_social: businessMeta?.capital_social ?? null,
+        ice: businessMeta?.ice ?? null,
+        rc: businessMeta?.rc ?? null,
+        patente: businessMeta?.patente ?? null,
+        identifiant_fiscal: businessMeta?.identifiant_fiscal ?? null,
+        cnss: businessMeta?.cnss ?? null,
+        legal_address: businessMeta?.legal_address ?? null,
+        legal_city: businessMeta?.legal_city ?? null,
+        postal_code: businessMeta?.postal_code ?? null,
+        business_phone: businessMeta?.business_phone ?? null,
+        business_email: businessMeta?.business_email ?? null,
+        website: businessMeta?.website ?? null,
+    };
+
     const buildPdfInput = (note: PaymentNote): CourierPayoutPdfInput => ({
         reference: note.reference,
         status: note.status,
@@ -288,10 +307,7 @@ const CourierPayments = () => {
             amount: Number(li.amount || 0),
             shipping_fee: Number(li.shipping_fee || 0),
         })),
-        business: {
-            name: businessMeta?.name || 'iGrowFast',
-            logo: resolvedImages?.businessLogo || null,
-        },
+        business: pdfBusiness,
         courier: {
             name: me?.name || 'Courier',
             avatar_url: resolvedImages?.courierAvatar || null,
@@ -359,7 +375,7 @@ const CourierPayments = () => {
                     amount: Number(li.amount || 0),
                     shipping_fee: Number(li.shipping_fee || 0),
                 })),
-                business: { name: businessMeta?.name || 'iGrowFast', logo: resolvedImages?.businessLogo || null },
+                business: pdfBusiness,
                 courier: { name: me?.name || 'Courier', avatar_url: resolvedImages?.courierAvatar || null },
             };
             const blob = await buildCourierReturnPdfBlob(input);

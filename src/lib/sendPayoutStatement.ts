@@ -22,7 +22,9 @@ import { getPlatformSource } from '@/lib/campaignConstants';
 
 const CURRENCY = 'MAD';
 const fmtMAD = (n: number) =>
-  new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+  new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .format(Number(n) || 0)
+    .replace(/[  ]/g, ' '); // narrow/no-break space → regular space (Helvetica has no glyph)
 const fmtDateFr = (iso: string | null) => {
   if (!iso) return '—';
   try { return format(new Date(iso), 'dd MMMM yyyy à HH:mm', { locale: fr }); } catch { return '—'; }
@@ -38,26 +40,35 @@ const monthLabel = (month: string | null): string => {
 
 type BusinessBranding = {
   name: string; logo: string | null;
-  ice: string | null; rc: string | null;
-  legal_address: string | null; legal_city: string | null;
-  business_phone: string | null; business_email: string | null;
+  legal_form: string | null; capital_social: string | null;
+  ice: string | null; rc: string | null; patente: string | null;
+  identifiant_fiscal: string | null; cnss: string | null;
+  legal_address: string | null; legal_city: string | null; postal_code: string | null;
+  business_phone: string | null; business_email: string | null; website: string | null;
 };
 
 async function fetchBusinessBranding(businessId: string): Promise<BusinessBranding> {
   const { data } = await (supabase as any)
     .from('businesses')
-    .select('name, logo, ice, rc, legal_address, legal_city, business_phone, business_email')
+    .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website')
     .eq('id', businessId)
     .maybeSingle();
   return {
     name: data?.name || 'iGrowFast',
     logo: data?.logo ?? null,
+    legal_form: data?.legal_form ?? null,
+    capital_social: data?.capital_social ?? null,
     ice: data?.ice ?? null,
     rc: data?.rc ?? null,
+    patente: data?.patente ?? null,
+    identifiant_fiscal: data?.identifiant_fiscal ?? null,
+    cnss: data?.cnss ?? null,
     legal_address: data?.legal_address ?? null,
     legal_city: data?.legal_city ?? null,
+    postal_code: data?.postal_code ?? null,
     business_phone: data?.business_phone ?? null,
     business_email: data?.business_email ?? null,
+    website: data?.website ?? null,
   };
 }
 
@@ -306,7 +317,7 @@ export async function sendCourierPaymentNoteEmail(params: {
     line_items: (note.line_items || []).map((li) => ({
       id: li.id, tracking_code: li.tracking_code, amount: Number(li.amount || 0), shipping_fee: Number(li.shipping_fee || 0),
     })),
-    business: { name: branding.name, logo: branding.logo },
+    business: branding,
     courier: { name: note.courier.name, avatar_url: note.courier.avatar_url },
   };
 
@@ -368,7 +379,7 @@ export async function sendCourierReturnNoteEmail(params: {
     line_items: (note.line_items || []).map((li) => ({
       id: li.id, tracking_code: li.tracking_code, amount: Number(li.amount || 0), shipping_fee: Number(li.shipping_fee || 0),
     })),
-    business: { name: branding.name, logo: branding.logo },
+    business: branding,
     courier: { name: note.courier.name, avatar_url: note.courier.avatar_url },
   };
 

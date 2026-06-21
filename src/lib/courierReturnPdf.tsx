@@ -12,6 +12,7 @@ import {
 import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { blobToBase64 } from './documentPdf/toBase64';
+import { LegalFooter, type LegalFooterBusiness } from './documentPdf/legalFooter';
 
 const NAVY = '#141413';
 const EMERALD = '#2D7A3E';
@@ -37,12 +38,14 @@ export type CourierReturnPdfInput = {
     received_at: string | null;
     created_at: string;
     line_items: CourierReturnPdfLineItem[];
-    business: { name: string; logo: string | null };
+    business: { name: string; logo: string | null } & LegalFooterBusiness;
     courier: { name: string; avatar_url: string | null };
 };
 
 const fmtMAD = (n: number) =>
-    new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+    new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        .format(n || 0)
+        .replace(/[  ]/g, ' '); // narrow/no-break space → regular space (Helvetica has no glyph)
 const fmtDate = (iso?: string | null) => {
     if (!iso) return '—';
     try { return format(new Date(iso), 'dd MMM yyyy • HH:mm'); } catch { return '—'; }
@@ -96,8 +99,10 @@ const styles = StyleSheet.create({
     cAmount: { width: '23%', fontSize: 9, color: NAVY, textAlign: 'right' },
     cFee: { width: '23%', fontSize: 9, fontFamily: 'Helvetica-Bold', color: EMERALD, textAlign: 'right' },
 
-    footer: { position: 'absolute', left: 38, right: 38, bottom: 24, paddingTop: 14, borderTopWidth: 1, borderTopColor: BORDER, flexDirection: 'row', justifyContent: 'space-between' },
+    footer: { position: 'absolute', left: 38, right: 38, bottom: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
+    footerRow: { flexDirection: 'row', justifyContent: 'space-between' },
     footerText: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: MUTED, letterSpacing: 1.2, textTransform: 'uppercase' },
+    footerLegal: { fontSize: 7, color: MUTED, marginTop: 4 },
 });
 
 function CourierReturnDocument({ input }: { input: CourierReturnPdfInput }) {
@@ -117,7 +122,7 @@ function CourierReturnDocument({ input }: { input: CourierReturnPdfInput }) {
                         )}
                         <View>
                             <Text style={styles.brandName}>{business.name || 'iGrowFast'}</Text>
-                            <Text style={styles.brandSub}>Relevé de retour</Text>
+                            <Text style={styles.brandSub}>Bon de retour</Text>
                         </View>
                     </View>
                     <View style={styles.metaWrap}>
@@ -174,10 +179,8 @@ function CourierReturnDocument({ input }: { input: CourierReturnPdfInput }) {
                     ))}
                 </View>
 
-                <View style={styles.footer} fixed>
-                    <Text style={styles.footerText}>{business.name || 'iGrowFast'} · Relevé de retour</Text>
-                    <Text style={styles.footerText}>Généré {fmtDate(created_at)}</Text>
-                </View>
+                {/* Legal footer — identical layout to facture/devis */}
+                <LegalFooter business={business} />
             </Page>
         </Document>
     );

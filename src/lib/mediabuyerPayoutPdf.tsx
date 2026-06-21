@@ -13,6 +13,7 @@ import {
 import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { blobToBase64 } from './documentPdf/toBase64';
+import { LegalFooter, type LegalFooterBusiness } from './documentPdf/legalFooter';
 
 const NAVY = '#141413';
 const EMERALD = '#2D7A3E';
@@ -39,17 +40,14 @@ export type MediaBuyerPayoutPdfInput = {
   already_paid: number;
   remaining_owed: number;
   daily?: MediaBuyerPayoutDailyRow[];
-  business: {
-    name: string; logo: string | null;
-    ice?: string | null; rc?: string | null;
-    legal_address?: string | null; legal_city?: string | null;
-    business_phone?: string | null; business_email?: string | null;
-  };
+  business: { name: string; logo: string | null } & LegalFooterBusiness;
   mediabuyer: { name: string; avatar_url: string | null };
 };
 
 const fmtMAD = (n: number) =>
-  new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+  new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .format(n || 0)
+    .replace(/[  ]/g, ' '); // narrow/no-break space → regular space (Helvetica has no glyph)
 const fmtDate = (iso?: string | null) => {
   if (!iso) return '—';
   try { return format(new Date(iso), 'dd MMM yyyy'); } catch { return '—'; }
@@ -122,10 +120,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 7, color: MUTED },
   footerStrong: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: MUTED, letterSpacing: 1 },
 });
-
-function joinLegal(parts: (string | null | undefined)[]): string {
-  return parts.map(p => (p || '').trim()).filter(Boolean).join('  ·  ');
-}
 
 function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }) {
   const { reference, period_label, status_label, paid_at, currency, paid_amount,
@@ -218,20 +212,8 @@ function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }
           </>
         )}
 
-        <View style={styles.footer} fixed>
-          <View style={styles.footerRow}>
-            <Text style={styles.footerStrong}>{(business.name || 'iGrowFast').toUpperCase()} · RELEVÉ DE VERSEMENT</Text>
-            <Text style={styles.footerStrong}>{fmtDate(paid_at)}</Text>
-          </View>
-          <Text style={[styles.footerText, { marginTop: 4 }]}>
-            {joinLegal([
-              business.legal_address, business.legal_city,
-              business.ice ? `ICE ${business.ice}` : null,
-              business.rc ? `RC ${business.rc}` : null,
-              business.business_phone, business.business_email,
-            ]) || 'Document généré par iGrowFast'}
-          </Text>
-        </View>
+        {/* Legal footer — identical layout to facture/devis */}
+        <LegalFooter business={business} />
       </Page>
     </Document>
   );
