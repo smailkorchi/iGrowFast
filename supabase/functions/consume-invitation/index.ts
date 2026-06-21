@@ -18,6 +18,18 @@ const PAYLOAD_STRIP = new Set([
   "DigiCom Business", "whatsapp_access", "ga_access", "meta_access", "created_at", "updated_at",
 ]);
 
+// FR copy + post-registration landing path per role (matches Register.tsx routing) for the welcome email.
+const ROLE_FR: Record<string, { label: string; desc: string }> = {
+  "super admin": { label: "Super administrateur", desc: "Vous disposez d'un accès complet à l'espace de l'entreprise." },
+  "admin": { label: "Administrateur", desc: "Vous gérez les opérations selon les accès qui vous sont attribués." },
+  "commercial": { label: "Commercial", desc: "Vous vendez, échangez avec les clients et percevez vos commissions." },
+  "courier": { label: "Livreur", desc: "Vous livrez les colis aux clients." },
+  "mediabuyer": { label: "Media buyer", desc: "Vous pilotez les campagnes publicitaires sur toutes les plateformes." },
+};
+const DASH_PATH: Record<string, string> = {
+  commercial: "/seller/dashboard", courier: "/courier/dashboard", mediabuyer: "/mediabuyer/dashboard",
+};
+
 function json(obj: unknown, status: number) {
   return new Response(JSON.stringify(obj), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -259,6 +271,34 @@ Deno.serve(async (req) => {
 
     // 5) Mark the invitation consumed.
     await service.rpc("invitation_finalize", { p_invite_id: inviteId, p_new_user: createdUserId });
+
+    // 6) Welcome email (best-effort — never blocks/rolls back the registration).
+    try {
+      const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const baseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const origin = typeof body?.origin === "string" && /^https?:\/\//.test(body.origin)
+        ? body.origin.replace(/\/$/, "") : (Deno.env.get("SITE_URL") || "https://igrowfast.com").replace(/\/$/, "");
+      const { data: biz } = await service.from("businesses").select("name").eq("id", businessId).maybeSingle();
+      const roleFr = ROLE_FR[targetRole] || { label: String(targetRole), desc: "" };
+      await fetch(`${baseUrl}/functions/v1/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SERVICE}`, "apikey": SERVICE },
+        body: JSON.stringify({
+          key: "welcome", to: email, user_id: createdUserId,
+          vars: {
+            user_name: name,
+            role_label: roleFr.label,
+            role_description: roleFr.desc,
+            business_name: biz?.name || "votre entreprise",
+            username,
+            login_email: email,
+            dashboard_url: `${origin}${DASH_PATH[targetRole] || "/"}`,
+          },
+        }),
+      });
+    } catch (welcomeErr) {
+      console.error("welcome email (consume) failed:", welcomeErr);
+    }
 
     return json({ ok: true, target_role: targetRole }, 200);
   } catch (e) {
