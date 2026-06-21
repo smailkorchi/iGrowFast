@@ -476,20 +476,21 @@ const SellerPayoutsList: React.FC = () => {
                                                     >
                                                         <History className="w-3.5 h-3.5" />
                                                     </Button>
-                                                    {isOpen ? (
+                                                    {!isOpen ? (
+                                                        <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid bg-ant-light border border-ant-line">Clôturé</span>
+                                                    ) : remaining <= 0.005 ? (
+                                                        <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green bg-ant-green/10 border border-ant-green/25">Réglé</span>
+                                                    ) : (
                                                         <Button
                                                             size="sm"
-                                                            disabled={remaining <= 0.005}
                                                             onClick={() => openPay(seller.seller_id)}
                                                             className={cn(
-                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white disabled:opacity-40 disabled:cursor-not-allowed',
+                                                                'h-8 rounded-full px-3 text-[11px] font-semibold cursor-pointer text-white',
                                                                 isPartial ? 'bg-ant-blue hover:bg-ant-blue/90' : 'bg-ant-ink hover:bg-ant-ink/90'
                                                             )}
                                                         >
-                                                            {remaining <= 0.005 ? 'Réglé' : isPartial ? 'Continue' : 'Pay'}
+                                                            {isPartial ? 'Continue' : 'Pay'}
                                                         </Button>
-                                                    ) : (
-                                                        <span className="inline-flex items-center h-8 rounded-full px-3 text-[11px] font-semibold text-ant-mid bg-ant-light border border-ant-line">Clôturé</span>
                                                     )}
                                                 </div>
                                             </td>
