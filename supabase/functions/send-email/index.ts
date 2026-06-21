@@ -54,6 +54,23 @@ Deno.serve(async (req) => {
     const vars = (body?.vars && typeof body.vars === "object") ? body.vars : {};
     const toUserId = body?.user_id ? String(body.user_id) : null;
 
+    // Optional CC list (e.g. super admins for traceability) — validated emails only.
+    const cc = Array.isArray(body?.cc)
+      ? body.cc.map((x: unknown) => String(x ?? "").trim())
+          .filter((x: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))
+      : [];
+    // Optional attachments: [{ filename, content(base64), contentType }]. Sent as base64.
+    const attachments = Array.isArray(body?.attachments)
+      ? body.attachments
+          .filter((a: Record<string, unknown>) => a && a.filename && a.content)
+          .map((a: Record<string, unknown>) => ({
+            filename: String(a.filename),
+            content: String(a.content),
+            encoding: "base64",
+            contentType: a.contentType ? String(a.contentType) : "application/octet-stream",
+          }))
+      : [];
+
     if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return json({ ok: false, error: "invalid recipient" }, 400);
     if (!key && !templateId) return json({ ok: false, error: "template key required" }, 400);
 
@@ -96,9 +113,11 @@ Deno.serve(async (req) => {
       await transporter.sendMail({
         from: acc.from_name ? `${acc.from_name} <${acc.email_address}>` : acc.email_address,
         to,
+        ...(cc.length ? { cc } : {}),
         subject,
         text: text || " ",
         html,
+        ...(attachments.length ? { attachments } : {}),
       });
       try { transporter.close(); } catch { /* ignore */ }
     } catch (sendErr) {

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { fmtCur, fmtCurFull } from '@/lib/formatNumbers';
+import { sendSellerPayoutEmail, sendMediaBuyerPayoutEmail } from '@/lib/sendPayoutStatement';
 import { cn } from '@/lib/utils';
 
 /**
@@ -159,6 +160,33 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 description: `${fmtCur(numericAmount, currency)} paid to ${collaboratorName}.`,
             });
             onOpenChange(false);
+
+            // Fire-and-forget: email the collaborator a branded payout statement (PDF)
+            // with the business's super admins in CC. Never blocks/undoes the payment.
+            const paidAtIso = paidAt ? new Date(paidAt).toISOString() : new Date().toISOString();
+            const sent =
+                isSellerLive && sellerId && businessId
+                    ? sendSellerPayoutEmail({
+                          sellerId,
+                          businessId,
+                          amountPaid: numericAmount,
+                          paidAtIso,
+                          accruedTotal: Number(sellerAccruedTotal || 0),
+                          paidBefore: Number(sellerPaidAcrossRows || 0),
+                      })
+                    : kind === 'mediabuyer' && payoutId && businessId
+                      ? sendMediaBuyerPayoutEmail({ payoutId, businessId, amountPaid: numericAmount, paidAtIso })
+                      : null;
+            if (sent) {
+                sent.catch((e) => {
+                    console.error('[payout-statement] email failed', e);
+                    toast({
+                        title: 'Paiement enregistré',
+                        description: "Le relevé PDF n'a pas pu être envoyé par e-mail.",
+                        variant: 'destructive',
+                    });
+                });
+            }
         },
         onError: (err: any) =>
             toast({ title: 'Error', description: err.message, variant: 'destructive' }),

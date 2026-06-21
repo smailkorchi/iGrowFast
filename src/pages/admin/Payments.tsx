@@ -20,6 +20,7 @@ import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';
 import { format } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
+import { sendCourierPayoutEmail } from '@/lib/sendPayoutStatement';
 
 interface UnpaidOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
@@ -352,12 +353,33 @@ const Payments = () => {
                 .eq('id', note.id);
             if (noteErr) throw noteErr;
         },
-        onSuccess: () => {
+        onSuccess: (_data, note: PaymentNote) => {
             queryClient.invalidateQueries({ queryKey: ['payment-notes'] });
             queryClient.invalidateQueries({ queryKey: ['unpaid-livre-orders'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             toast({ title: 'Marked as paid', description: 'All linked orders changed to PAID.' });
             setIsViewNoteOpen(false); setSelectedNote(null);
+
+            // Fire-and-forget: courier notes email the livreur a branded payout statement
+            // (the same PDF) with the business's super admins in CC. Provider notes don't
+            // map to a platform user, so no email there. Never blocks the mark-as-paid.
+            if (note?.kind === 'courier' && note.courier?.id && activeBusinessId) {
+                sendCourierPayoutEmail({
+                    note: {
+                        id: note.id,
+                        reference: note.reference,
+                        total_amount: note.total_amount,
+                        total_shipping_fees: note.total_shipping_fees,
+                        net_amount: note.net_amount,
+                        order_count: note.order_count,
+                        created_at: note.created_at,
+                        line_items: note.line_items || [],
+                        courier: note.courier ?? null,
+                    },
+                    businessId: activeBusinessId,
+                    paidAtIso: new Date().toISOString(),
+                }).catch((e) => console.error('[payout-statement] courier email failed', e));
+            }
         },
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });

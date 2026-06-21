@@ -19,6 +19,7 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
+import { blobToBase64 } from './documentPdf/toBase64';
 import { saveBlob, type SaveBlobResult } from './saveBlob';
 
 // ─── Brand palette (Anthropic editorial tokens) ──────────────────────────────
@@ -505,6 +506,14 @@ export async function buildCourierPayoutPdfBlob(input: CourierPayoutPdfInput): P
     };
 
     return pdf(<CourierPayoutDocument input={resolved} />).toBlob();
+}
+
+/** Build the courier payout PDF and return { base64, filename } for an email attachment. */
+export async function buildCourierPayoutPdfBase64(input: CourierPayoutPdfInput): Promise<{ base64: string; filename: string }> {
+    const blob = await buildCourierPayoutPdfBlob(input);
+    const base64 = await blobToBase64(blob);
+    const safeRef = (input.reference || 'versement').replace(/[^a-zA-Z0-9_-]+/g, '-');
+    return { base64, filename: `versement-livreur-${safeRef}.pdf` };
 }
 
 /**
