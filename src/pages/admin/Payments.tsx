@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
@@ -112,7 +112,7 @@ const Payments = () => {
             // the leg settles at package=returned so it never hits "unpaid+livré". Surface
             // any fee-bearing, shipped, carrier-handled replace=true leg not yet noted so its
             // delivery fee is reconciled. It bundles at amount=price (0 for a pure swap),
-            // fee=shipping_cost, and is NEVER flipped to PAID (cascade/pin triggers exempt
+            // fee resolved via resolveOrderFee (courier/company city fee), and is NEVER flipped to PAID (cascade/pin triggers exempt
             // replace=true). Split sale legs (replace=false) flow through `normal` above; the
             // matching return leg carries shipping_cost 0 here and is filtered out.
             const swapRaw = await fetchAllRows('orders', SELECT, {
@@ -140,6 +140,61 @@ const Payments = () => {
         },
         enabled: !!unpaidStatusId && !!deliveredPkgId,
     });
+
+    // ─── Courier delivery-fee map (courier_id → master_city_id → fee) ───
+    // SINGLE source of truth for the per-order courier fee, shared by the preview
+    // (group totals + wizard table) AND the generate mutation so they never diverge.
+    const { data: courierFeeRows } = useQuery({
+        queryKey: ['courier-fee-map', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data } = await (supabase as any)
+                .from('courier_fees')
+                .select('courier_id, master_city_id, fee')
+                .eq('DigiCom Business', activeBusinessId);
+            return (data || []) as Array<{ courier_id: string; master_city_id: string; fee: number | string | null }>;
+        },
+        enabled: !!activeBusinessId,
+    });
+    const courierFeeMap = useMemo(() => {
+        const m = new Map<string, Map<string, number>>();
+        for (const r of courierFeeRows || []) {
+            if (!r.courier_id || !r.master_city_id) continue;
+            if (!m.has(r.courier_id)) m.set(r.courier_id, new Map());
+            m.get(r.courier_id)!.set(r.master_city_id, Number(r.fee || 0));
+        }
+        return m;
+    }, [courierFeeRows]);
+    // Same per-city fee model for delivery companies (company_fees, keyed by company_id).
+    const { data: companyFeeRows } = useQuery({
+        queryKey: ['company-fee-map', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data } = await (supabase as any)
+                .from('company_fees')
+                .select('company_id, master_city_id, fee')
+                .eq('DigiCom Business', activeBusinessId);
+            return (data || []) as Array<{ company_id: string; master_city_id: string; fee: number | string | null }>;
+        },
+        enabled: !!activeBusinessId,
+    });
+    const companyFeeMap = useMemo(() => {
+        const m = new Map<string, Map<string, number>>();
+        for (const r of companyFeeRows || []) {
+            if (!r.company_id || !r.master_city_id) continue;
+            if (!m.has(r.company_id)) m.set(r.company_id, new Map());
+            m.get(r.company_id)!.set(r.master_city_id, Number(r.fee || 0));
+        }
+        return m;
+    }, [companyFeeRows]);
+    // BOTH couriers and delivery companies ALWAYS bill their configured city fee
+    // (courier_fees.fee / company_fees.fee) regardless of the order's delivery-in-total toggle;
+    // a city with no configured fee row deducts 0 (owner must configure it). Exchange/swap legs
+    // are couriers/companies too, so they follow the exact same rule.
+    const resolveOrderFee = useCallback((o: UnpaidOrder, kind: 'company' | 'courier', targetId?: string): number => {
+        const feeMap = kind === 'courier' ? courierFeeMap : companyFeeMap;
+        return o.master_city_id && targetId ? (feeMap.get(targetId)?.get(o.master_city_id) ?? 0) : 0;
+    }, [courierFeeMap, companyFeeMap]);
 
     // ─── Fetch payment notes (company + courier) ───
     const { data: paymentNotes, isLoading: isLoadingNotes } = useQuery({
@@ -190,7 +245,7 @@ const Payments = () => {
                 const group = courierMap.get(id)!;
                 group.orders.push(order);
                 const amount = Number(order.price || 0);
-                const shipping = Number(order.shipping_cost || 0);
+                const shipping = resolveOrderFee(order, 'courier', id);
                 group.total_amount = +(group.total_amount + amount).toFixed(2);
                 group.total_shipping = +(group.total_shipping + shipping).toFixed(2);
                 group.net_amount = +(group.total_amount - group.total_shipping).toFixed(2);
@@ -214,7 +269,7 @@ const Payments = () => {
                 const group = companyMap.get(providerId)!;
                 group.orders.push(order);
                 const amount = Number(order.price || 0);
-                const shipping = Number(order.shipping_cost || 0);
+                const shipping = resolveOrderFee(order, 'company', providerId);
                 group.total_amount = +(group.total_amount + amount).toFixed(2);
                 group.total_shipping = +(group.total_shipping + shipping).toFixed(2);
                 group.net_amount = +(group.total_amount - group.total_shipping).toFixed(2);
@@ -224,7 +279,7 @@ const Payments = () => {
             companyGroups: Array.from(companyMap.values()),
             courierGroups: Array.from(courierMap.values()),
         };
-    }, [unpaidOrders]);
+    }, [unpaidOrders, resolveOrderFee]);
 
     const activeGroups = activeTab === 'courier' ? courierGroups : companyGroups;
     const selectedGroup = activeGroups.find(g => g.target_id === selectedTarget);
@@ -240,37 +295,13 @@ const Payments = () => {
             const lineItemsTable = isCourier ? 'courier_payment_note_orders' : 'company_payment_note_orders';
             const orderLinkField = isCourier ? 'current_courier_payment_note_id' : 'payment_delivery_id';
 
-            // Resolve the per-order courier fee.
-            //   - Provider notes: shipping_fee = orders.shipping_cost (unchanged).
-            //   - Courier notes: shipping_fee = orders.shipping_cost when the
-            //     include_delivery_in_total toggle is on (per-order override),
-            //     otherwise courier_fees.fee for (courier_id, master_city_id).
-            //     No matching courier_fees row -> 0. Owner's responsibility.
-            let courierFeeMap = new Map<string, number>();
-            if (isCourier) {
-                const cityIds = Array.from(new Set(orders.map(o => o.master_city_id).filter(Boolean) as string[]));
-                if (cityIds.length > 0) {
-                    const { data: fees, error: feesError } = await (supabase as any)
-                        .from('courier_fees')
-                        .select('master_city_id, fee')
-                        .eq('courier_id', group.target_id)
-                        .in('master_city_id', cityIds);
-                    if (feesError) throw feesError;
-                    for (const f of (fees || []) as Array<{ master_city_id: string; fee: number | string | null }>) {
-                        courierFeeMap.set(f.master_city_id, Number(f.fee || 0));
-                    }
-                }
-            }
-
-            const resolveShippingFee = (o: UnpaidOrder): number => {
-                if (!isCourier) return Number(o.shipping_cost || 0);
-                if (o.include_delivery_in_total) return Number(o.shipping_cost || 0);
-                return o.master_city_id ? (courierFeeMap.get(o.master_city_id) ?? 0) : 0;
-            };
+            // Per-order fee uses the shared component-level `resolveOrderFee` (providers →
+            // shipping_cost; couriers → courier_fees.fee for the city, 0 if none) — the SAME
+            // source as the preview, so the saved note can never diverge from what was shown.
 
             // Recalculate totals from selected orders
             const total_amount = orders.reduce((s, o) => s + Number(o.price || 0), 0);
-            const total_shipping = orders.reduce((s, o) => s + resolveShippingFee(o), 0);
+            const total_shipping = orders.reduce((s, o) => s + resolveOrderFee(o, group.kind, group.target_id), 0);
             const net_amount = total_amount - total_shipping;
 
             const insertPayload: any = {
@@ -305,7 +336,7 @@ const Payments = () => {
                     ? pickShippedCourierTrackingCode(o)
                     : pickShippedCompanyTrackingCode(o),
                 amount: +Number(o.price || 0).toFixed(2),
-                shipping_fee: +resolveShippingFee(o).toFixed(2),
+                shipping_fee: +resolveOrderFee(o, group.kind, group.target_id).toFixed(2),
                 'DigiCom Business': activeBusinessId,
             }));
             const { error: itemsError } = await (supabase as any).from(lineItemsTable).insert(lineItems);
@@ -1203,7 +1234,7 @@ const Payments = () => {
                                                             <span className="text-[10px] font-medium text-ant-mid ml-1">MAD</span>
                                                         </p>
                                                         <p className="text-[10px] text-ant-rose tabular-nums">
-                                                            −{Number(order.shipping_cost || 0).toFixed(2)} ship
+                                                            −{resolveOrderFee(order, selectedGroup.kind, selectedGroup.target_id).toFixed(2)} ship
                                                         </p>
                                                     </div>
                                                 </div>
@@ -1235,7 +1266,7 @@ const Payments = () => {
                         {wizardStep === 2 && selectedGroup && (() => {
                             const filteredOrders = selectedGroup.orders.filter(o => selectedOrderIds.has(o.id));
                             const totalAmount = filteredOrders.reduce((s, o) => s + Number(o.price || 0), 0);
-                            const totalShipping = filteredOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+                            const totalShipping = filteredOrders.reduce((s, o) => s + resolveOrderFee(o, selectedGroup.kind, selectedGroup.target_id), 0);
                             const netAmount = totalAmount - totalShipping;
                             return (
                                 <div className="space-y-4">
@@ -1268,15 +1299,16 @@ const Payments = () => {
                                                     const trackingCode = selectedGroup.kind === 'courier'
                                                         ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || 'N/A')
                                                         : (o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A');
+                                                    const fee = resolveOrderFee(o, selectedGroup.kind, selectedGroup.target_id);
                                                     return (
                                                         <tr key={o.id} className="border-t border-ant-line hover:bg-ant-line-soft transition-colors">
                                                             <td className="px-3 py-2 text-ant-mid tabular-nums">{i + 1}</td>
                                                             <td className="px-3 py-2 font-medium text-ant-ink truncate">{o.name}</td>
                                                             <td className="px-3 py-2 font-mono text-[11.5px] text-ant-ink">{trackingCode}</td>
                                                             <td className="px-3 py-2 text-right font-medium tabular-nums">{Number(o.price || 0).toFixed(2)}</td>
-                                                            <td className="px-3 py-2 text-right text-ant-rose font-medium tabular-nums">−{Number(o.shipping_cost || 0).toFixed(2)}</td>
+                                                            <td className="px-3 py-2 text-right text-ant-rose font-medium tabular-nums">−{fee.toFixed(2)}</td>
                                                             <td className="px-3 py-2 text-right font-display font-semibold text-ant-ink tabular-nums">
-                                                                {(Number(o.price || 0) - Number(o.shipping_cost || 0)).toFixed(2)}
+                                                                {(Number(o.price || 0) - fee).toFixed(2)}
                                                             </td>
                                                         </tr>
                                                     );
