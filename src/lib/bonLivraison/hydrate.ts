@@ -123,7 +123,7 @@ export async function hydrateBonLivraisonFromOrder(
       `
       id, name, phone, address, delivery_note,
       city:master_cities(name),
-      company:providers(id, name, logo_url),
+      company:providers(id, name, provider_type, logo_url),
       items:order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product:products(id, name), accessory:accessories(name))
     `,
     )
