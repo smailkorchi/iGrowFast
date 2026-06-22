@@ -118,7 +118,7 @@ const Dashboard: React.FC = () => {
             .filter((d) => d.date >= sparklineStart)
             .map((d) => ({
                 date: format(parseISO(d.date), 'dd MMM'),
-                Dépense: Number(d.spend.toFixed(2)),
+                Livré: d.delivered,
                 Revenu: Number(d.revenue.toFixed(2)),
             }));
     }, [daily, sparklineStart]);
@@ -220,7 +220,7 @@ const Dashboard: React.FC = () => {
                                     </span>
                                 </div>
                                 <p className="font-serif italic text-[12px] text-ant-mid mt-1">
-                                    Dépenses vs revenus quotidiens
+                                    Livraisons vs revenus quotidiens
                                 </p>
                             </div>
                             <button
@@ -243,9 +243,9 @@ const Dashboard: React.FC = () => {
                                 <ResponsiveContainer width="100%" height={200}>
                                     <AreaChart data={sparklineData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                                         <defs>
-                                            <linearGradient id="mbDashSpendGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#c93942" stopOpacity={0.22} />
-                                                <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
+                                            <linearGradient id="mbDashDelivGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#141413" stopOpacity={0.16} />
+                                                <stop offset="95%" stopColor="#141413" stopOpacity={0} />
                                             </linearGradient>
                                             <linearGradient id="mbDashRevGrad" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.28} />
@@ -264,7 +264,7 @@ const Dashboard: React.FC = () => {
                                                 fontSize: 11,
                                             }}
                                         />
-                                        <Area type="monotone" dataKey="Dépense" stroke="#c93942" strokeWidth={1.75} fill="url(#mbDashSpendGrad)" />
+                                        <Area type="monotone" dataKey="Livré" stroke="#141413" strokeWidth={1.75} fill="url(#mbDashDelivGrad)" />
                                         <Area type="monotone" dataKey="Revenu" stroke="#2D7A3E" strokeWidth={1.75} fill="url(#mbDashRevGrad)" />
                                     </AreaChart>
                                 </ResponsiveContainer>

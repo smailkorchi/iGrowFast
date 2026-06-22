@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid';
 
 /** Standardized self-profile: editable avatar + identity + Security (OTP change + 2FA). */
-export function ProfileScaffold({ roleLabel, extra }: { roleLabel: string; extra?: (profile: any) => React.ReactNode }) {
+export function ProfileScaffold({ roleLabel, extra, securityChapter }: { roleLabel: string; extra?: (profile: any) => React.ReactNode; securityChapter?: string }) {
     const { toast } = useToast();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -129,7 +129,7 @@ export function ProfileScaffold({ roleLabel, extra }: { roleLabel: string; extra
 
                 {extra ? extra(profile) : null}
 
-                <SecuritySection email={profile?.email} chapter={extra ? '03' : '02'} />
+                <SecuritySection email={profile?.email} chapter={securityChapter ?? (extra ? '03' : '02')} />
             </div>
 
             <AvatarEditDialog isOpen={avatarOpen} onClose={() => setAvatarOpen(false)} onSaved={invalidate} seed={profile?.email} />

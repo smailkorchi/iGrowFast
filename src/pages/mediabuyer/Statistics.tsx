@@ -430,9 +430,9 @@ const Statistics: React.FC = () => {
                                     <ResponsiveContainer width="100%" height={220}>
                                         <AreaChart data={chartData}>
                                             <defs>
-                                                <linearGradient id="spendStatsGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor={ANT.rose} stopOpacity={0.25} />
-                                                    <stop offset="95%" stopColor={ANT.rose} stopOpacity={0} />
+                                                <linearGradient id="delivStatsGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor={ANT.ink} stopOpacity={0.16} />
+                                                    <stop offset="95%" stopColor={ANT.ink} stopOpacity={0} />
                                                 </linearGradient>
                                                 <linearGradient id="revStatsGrad" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor={ANT.green} stopOpacity={0.28} />
@@ -444,7 +444,7 @@ const Statistics: React.FC = () => {
                                             <YAxis tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} />
                                             <Tooltip content={<ChartTooltip />} />
                                             <Legend iconType="circle" wrapperStyle={{ fontSize: 11, color: ANT.mid }} />
-                                            <Area type="monotone" dataKey="Dépense" stroke={ANT.rose} strokeWidth={1.75} fill="url(#spendStatsGrad)" />
+                                            <Area type="monotone" dataKey="Livrées" stroke={ANT.ink} strokeWidth={1.75} fill="url(#delivStatsGrad)" />
                                             <Area type="monotone" dataKey="Revenu" stroke={ANT.green} strokeWidth={1.75} fill="url(#revStatsGrad)" />
                                         </AreaChart>
                                     </ResponsiveContainer>
