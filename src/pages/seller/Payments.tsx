@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { classifyMonthOrders, type OrderSettlementState } from '@/lib/payoutOrderAttribution';
 import {
     Wallet,
     Calendar,
@@ -35,6 +36,13 @@ import {
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+
+// Per-order settlement badge (FIFO): which orders the month's payments have settled.
+const orderStateMeta: Record<OrderSettlementState, { label: string; cls: string; dot: string }> = {
+    settled: { label: 'Réglée', cls: 'border-ant-green/25 bg-ant-green/10 text-ant-green', dot: 'bg-ant-green' },
+    partial: { label: 'Partiel', cls: 'border-ant-blue/25 bg-ant-blue/10 text-ant-blue', dot: 'bg-ant-blue' },
+    pending: { label: 'En attente', cls: 'border-ant-orange/25 bg-ant-orange/10 text-ant-orange', dot: 'bg-ant-orange' },
+};
 
 // One monthly payout ticket (record). Source: public.seller_ledger.
 interface LedgerTicket {
@@ -542,13 +550,14 @@ const SellerPayments = () => {
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {orders.map((o) => (
+                                                            {classifyMonthOrders(orders, selected.carried_in, selected.paid_amount).map((o) => (
                                                                 <tr key={o.order_id} className="border-b border-ant-line/50 last:border-0 hover:bg-ant-light/40 transition-colors">
                                                                     <td className="px-3 py-2">
                                                                         <p className="font-display text-[12px] font-semibold text-ant-ink truncate max-w-[180px]">{o.client || <span className="font-serif italic font-normal text-ant-mid">Sans nom</span>}</p>
                                                                         {o.tracking && (
                                                                             <p className="font-mono text-[10px] text-ant-mid inline-flex items-center gap-1"><Hash className="w-2.5 h-2.5" strokeWidth={2} />{o.tracking}</p>
                                                                         )}
+                                                                        <span className={cn('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold mt-1', orderStateMeta[o.state].cls)}><span className={cn('h-1 w-1 rounded-full', orderStateMeta[o.state].dot)} />{orderStateMeta[o.state].label}</span>
                                                                     </td>
                                                                     <td className="px-3 py-2">
                                                                         <p className="font-serif italic text-[11px] text-ant-mid tabular-nums">{format(new Date(o.delivered_at), 'd MMM', { locale: fr })}</p>

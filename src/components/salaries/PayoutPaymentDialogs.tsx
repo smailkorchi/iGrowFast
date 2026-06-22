@@ -18,6 +18,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 import { sendSellerPayoutEmail, sendMediaBuyerPayoutEmail } from '@/lib/sendPayoutStatement';
+import { attributePaymentOrders } from '@/lib/payoutOrderAttribution';
 import { cn } from '@/lib/utils';
 
 // ── Small presentational helpers for the pay modal ───────────────────────────
@@ -162,6 +163,8 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     const remaining = Math.max(0, total - paid);
     const statusKind: 'paid' | 'partial' | 'pending' = remaining <= 0.005 && total > 0 ? 'paid' : paid > 0.005 ? 'partial' : 'pending';
     const monthLabel = ledgerMonth ? format(new Date(ledgerMonth), 'MMM yyyy') : '';
+    // Plain 2-decimal money (currency token comes from the adjacent span, never doubled).
+    const money = (n: number | null | undefined) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const [step, setStep] = useState(0);
     const [amount, setAmount] = useState('');
@@ -197,7 +200,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
         enabled: open && kind === 'seller' && !!sellerId && !!businessId && !!ledgerMonth,
         queryFn: async () => {
             const { data } = await (supabase as any).rpc('seller_month_orders', { p_seller: sellerId, p_business: businessId, p_month: ledgerMonth });
-            return (data || []) as { order_id: string; client: string; phone: string; tracking: string | null; units: number; commission: number }[];
+            return (data || []) as { order_id: string; client: string; phone: string; tracking: string | null; units: number; commission: number; delivered_at: string | null }[];
         },
     });
     // Collaborator bank coordinates — shown on the pay step (where the money goes).
@@ -213,6 +216,9 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     });
     const formatRib = (r?: string | null) => (r || '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
     const hasBank = !!(bank?.bank_rib || bank?.bank_name || bank?.bank_account_holder);
+    // FIFO: the orders THIS versement settles = the slice [already-paid, already-paid+amount].
+    // Carried-in (prior-month debt) is settled first. Matches the emailed statement exactly.
+    const paySlice = attributePaymentOrders(orderLines, ci, paid, paid + numericAmount);
 
     const mutation = useMutation({
         mutationFn: async () => {
@@ -350,9 +356,9 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                                         {statusKind === 'paid' ? 'Réglé' : statusKind === 'partial' ? 'Partiel' : 'En attente'}
                                     </span>
                                 </div>
-                                <p className="font-display text-[34px] font-semibold tabular-nums tracking-[-0.02em] mt-1 leading-none">{fmtCur(remaining, currency)}<span className="text-[14px] font-normal text-ant-light/50 ml-1.5">{currency}</span></p>
+                                <p className="font-display text-[34px] font-semibold tabular-nums tracking-[-0.02em] mt-1 leading-none">{money(remaining)}<span className="text-[14px] font-normal text-ant-light/50 ml-1.5">{currency}</span></p>
                                 <div className="mt-4 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-ant-green transition-all" style={{ width: `${total > 0 ? Math.min(100, (paid / total) * 100) : 0}%` }} /></div>
-                                <p className="text-[10.5px] text-ant-light/55 mt-1.5 tabular-nums">{fmtCur(paid, currency)} versé sur {fmtCur(total, currency)} {currency}</p>
+                                <p className="text-[10.5px] text-ant-light/55 mt-1.5 tabular-nums">{money(paid)} versé sur {money(total)} {currency}</p>
                             </div>
 
                             {/* Ledger math */}
@@ -365,13 +371,13 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
 
                             {/* Seller: orders behind the commission */}
                             {kind === 'seller' ? (
-                                <PaySection title="Commandes incluses" count={orderLines.length}>
+                                <PaySection title="Commandes du mois" count={orderLines.length}>
                                     {orderLines.length === 0 ? <PayEmpty text="Aucune commande livrée pour ce mois." /> : (
                                         <div className="max-h-[180px] overflow-y-auto custom-scrollbar divide-y divide-ant-line/60">
                                             {orderLines.map((o) => (
                                                 <div key={o.order_id} className="flex items-center justify-between gap-3 py-2 px-1">
                                                     <div className="min-w-0"><p className="text-[12px] font-medium text-ant-ink truncate">{o.client || '—'}</p><p className="text-[10.5px] text-ant-mid font-mono truncate">{o.tracking || o.phone}</p></div>
-                                                    <div className="text-right shrink-0"><p className="text-[12px] font-semibold text-ant-ink tabular-nums">{fmtCur(o.commission, currency)} {currency}</p><p className="text-[10px] text-ant-mid tabular-nums">{fmtNum(o.units)} u.</p></div>
+                                                    <div className="text-right shrink-0"><p className="text-[12px] font-semibold text-ant-ink tabular-nums">{money(o.commission)} {currency}</p><p className="text-[10px] text-ant-mid tabular-nums">{fmtNum(o.units)} u.</p></div>
                                                 </div>
                                             ))}
                                         </div>
@@ -385,7 +391,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                                     <div className="divide-y divide-ant-line/60">
                                         {versements.map((v) => (
                                             <div key={v.id} className="flex items-center justify-between gap-3 py-2 px-1">
-                                                <div className="min-w-0"><p className="text-[12px] font-semibold text-ant-green tabular-nums">{fmtCur(v.amount, currency)} {currency}</p>{v.note ? <p className="text-[10.5px] text-ant-mid truncate">{v.note}</p> : null}</div>
+                                                <div className="min-w-0"><p className="text-[12px] font-semibold text-ant-green tabular-nums">{money(v.amount)} {currency}</p>{v.note ? <p className="text-[10.5px] text-ant-mid truncate">{v.note}</p> : null}</div>
                                                 <p className="text-[10.5px] text-ant-mid shrink-0">{v.paid_at ? format(new Date(v.paid_at), 'd MMM · HH:mm') : ''}</p>
                                             </div>
                                         ))}
@@ -444,13 +450,37 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                             <div className="rounded-xl border border-ant-line bg-ant-light/50 p-4 flex items-center justify-between gap-3">
                                 <div>
                                     <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">Reste après ce versement</p>
-                                    <p className="font-display text-[20px] font-semibold tabular-nums mt-1 text-ant-ink">{fmtCur(afterRemaining, currency)} <span className="text-[11px] text-ant-mid font-normal">{currency}</span></p>
+                                    <p className="font-display text-[20px] font-semibold tabular-nums mt-1 text-ant-ink">{money(afterRemaining)} <span className="text-[11px] text-ant-mid font-normal">{currency}</span></p>
                                 </div>
                                 <div className="text-right text-[11px] tabular-nums">
                                     <span className="text-ant-orange font-semibold">{fmtCur(remaining, currency)}</span> <span className="text-ant-mid">→</span> <span className={cn('font-semibold', afterRemaining <= 0.005 ? 'text-ant-green' : 'text-ant-ink')}>{fmtCur(afterRemaining, currency)}</span>
                                     {afterRemaining <= 0.005 && numericAmount > 0 ? <p className="text-ant-green font-semibold mt-0.5">Solde réglé ✓</p> : null}
                                 </div>
                             </div>
+
+                            {/* Seller: the orders THIS versement settles (FIFO, live with the amount) */}
+                            {kind === 'seller' && numericAmount > 0 ? (
+                                <PaySection title="Réglées par ce versement" count={paySlice.orders.length}>
+                                    {paySlice.reportPortion > 0.005 ? (
+                                        <div className="flex items-center justify-between gap-3 py-2 px-1 border-b border-ant-line/60">
+                                            <p className="text-[12px] text-ant-mid">Report mois précédent</p>
+                                            <p className="text-[12px] font-semibold text-ant-ink tabular-nums">{money(paySlice.reportPortion)} {currency}</p>
+                                        </div>
+                                    ) : null}
+                                    {paySlice.orders.length === 0 && paySlice.reportPortion <= 0.005 ? (
+                                        <PayEmpty text="Aucune commande couverte par ce montant." />
+                                    ) : (
+                                        <div className="max-h-[180px] overflow-y-auto custom-scrollbar divide-y divide-ant-line/60">
+                                            {paySlice.orders.map((o) => (
+                                                <div key={o.order_id} className="flex items-center justify-between gap-3 py-2 px-1">
+                                                    <div className="min-w-0"><p className="text-[12px] font-medium text-ant-ink truncate">{o.client || '—'}{o.partial ? <span className="text-ant-orange font-normal"> · partiel</span> : null}</p><p className="text-[10.5px] text-ant-mid font-mono truncate">{o.tracking || o.phone}</p></div>
+                                                    <div className="text-right shrink-0"><p className="text-[12px] font-semibold text-ant-ink tabular-nums">{money(o.paidPortion)} {currency}</p><p className="text-[10px] text-ant-mid tabular-nums">{fmtNum(o.units)} u.</p></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </PaySection>
+                            ) : null}
 
                             <div>
                                 <label className="block text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1.5">Date du versement</label>
@@ -474,7 +504,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                             <Button variant="ghost" onClick={() => setStep(0)} className="h-10 px-4 rounded-full text-[12px] font-semibold text-ant-mid hover:bg-ant-paper hover:text-ant-ink gap-1.5"><ArrowLeft className="w-3.5 h-3.5" /> Retour</Button>
                             <Button onClick={() => mutation.mutate()} disabled={invalid || mutation.isPending} className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                                 {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wallet className="w-3.5 h-3.5" />}
-                                Confirmer{numericAmount > 0 ? ` · ${fmtCur(numericAmount, currency)} ${currency}` : ''}
+                                Confirmer{numericAmount > 0 ? ` · ${money(numericAmount)} ${currency}` : ''}
                             </Button>
                         </>
                     )}

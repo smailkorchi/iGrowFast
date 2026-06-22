@@ -53,6 +53,8 @@ export type MediaBuyerEarnings = {
     bank_account_holder: string | null;
     bank_rib: string | null;
     cin_number: string | null;
+    address: string | null;
+    created_at: string | null;
     currency: string;
     // Computed for this month
     delivered_orders: number;
@@ -88,6 +90,8 @@ type MBUser = {
     bank_account_holder: string | null;
     bank_rib: string | null;
     cin_number: string | null;
+    address: string | null;
+    created_at: string | null;
     active: boolean | null;
 };
 
@@ -136,7 +140,7 @@ export function useMediaBuyerEarnings(month: string) {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, email, avatar_url, avatar_config, phone, role, payment_type, commission_price, salary_amount, bank_name, bank_account_holder, bank_rib, cin_number, active')
+                .select('id, name, email, avatar_url, avatar_config, phone, role, payment_type, commission_price, salary_amount, bank_name, bank_account_holder, bank_rib, cin_number, address, created_at, active')
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('role', 'mediabuyer');
             if (error) throw error;
@@ -295,6 +299,8 @@ export function useMediaBuyerEarnings(month: string) {
                 bank_account_holder: u.bank_account_holder,
                 bank_rib: u.bank_rib,
                 cin_number: u.cin_number,
+                address: u.address ?? null,
+                created_at: u.created_at ?? null,
                 currency: 'MAD',
                 delivered_orders: delivered,
                 total_spend: totalSpend,

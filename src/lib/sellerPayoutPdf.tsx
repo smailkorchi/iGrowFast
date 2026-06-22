@@ -37,6 +37,10 @@ export type SellerPayoutPdfOrder = {
   units: number;
   commission: number;
   delivered_at?: string | null;
+  /** Portion of this order's commission settled BY THIS payment (FIFO). */
+  paidPortion?: number;
+  /** True when only part of the commission is settled by this payment (boundary order). */
+  partial?: boolean;
 };
 
 export type SellerPayoutPdfInput = {
@@ -53,6 +57,10 @@ export type SellerPayoutPdfInput = {
   remaining_owed: number;
   delivered_orders: number;
   processing_orders: number;
+  /** Portion of this payment that settled the prior-month carry-in (no listable orders). */
+  report_portion?: number;
+  /** Delivered orders still awaiting settlement after this payment. */
+  remaining_orders?: number;
   orders: SellerPayoutPdfOrder[];
   business: { name: string; logo: string | null; cachet_url?: string | null; signature_url?: string | null } & LegalFooterBusiness;
   seller: { name: string; avatar_url: string | null };
@@ -143,7 +151,9 @@ const styles = StyleSheet.create({
 function SellerPayoutDocument({ input }: { input: SellerPayoutPdfInput }) {
   const { reference, period_label, status_label, paid_at, currency, paid_amount,
     month_earned, carried_in, total_owed, already_paid, remaining_owed,
-    delivered_orders, processing_orders, orders, business, seller } = input;
+    delivered_orders, processing_orders, report_portion = 0, remaining_orders = 0, orders, business, seller } = input;
+  const hasPartial = orders.some((o) => o.partial);
+  const settledCount = orders.length;
   const bizInitials = (business.name || 'DC').substring(0, 2).toUpperCase();
   const selInitials = (seller.name || 'CM').substring(0, 2).toUpperCase();
   const isPaid = (status_label || '').toLowerCase().includes('pay');
@@ -194,12 +204,13 @@ function SellerPayoutDocument({ input }: { input: SellerPayoutPdfInput }) {
             <Text style={styles.heroVal}>{fmtMAD(paid_amount)}</Text>
             <Text style={styles.heroUnit}>{currency}</Text>
           </View>
-          <Text style={styles.heroSub}>Commission pour {delivered_orders} commande{delivered_orders !== 1 ? 's' : ''} livrée{delivered_orders !== 1 ? 's' : ''} · {period_label}</Text>
+          <Text style={styles.heroSub}>{settledCount} commande{settledCount !== 1 ? 's' : ''} réglée{settledCount !== 1 ? 's' : ''} par ce versement · {period_label}</Text>
         </View>
 
         {/* Stats */}
         <View style={styles.stats}>
-          <View style={styles.stat}><Text style={styles.statK}>Livrées</Text><Text style={styles.statV}>{delivered_orders}</Text></View>
+          <View style={styles.stat}><Text style={styles.statK}>Réglées</Text><Text style={styles.statV}>{settledCount}</Text></View>
+          <View style={styles.stat}><Text style={styles.statK}>Restantes à régler</Text><Text style={styles.statVGhost}>{remaining_orders}</Text></View>
           <View style={styles.stat}><Text style={styles.statK}>En traitement</Text><Text style={styles.statVGhost}>{processing_orders}</Text></View>
           <View style={styles.stat}><Text style={styles.statK}>Reste à verser</Text><Text style={styles.statVGhost}>{fmtMAD(remaining_owed)} {currency}</Text></View>
         </View>
@@ -214,8 +225,13 @@ function SellerPayoutDocument({ input }: { input: SellerPayoutPdfInput }) {
           <View style={styles.brRowStrong}><Text style={styles.brKStrong}>Reste à verser</Text><Text style={styles.brVStrong}>{fmtMAD(remaining_owed)} {currency}</Text></View>
         </View>
 
-        {/* Per-order commission table */}
-        <Text style={styles.sectionTitle}>Commandes livrées · {orders.length}</Text>
+        {/* Per-order commission table — only the orders THIS payment settled (FIFO) */}
+        <Text style={styles.sectionTitle}>Commandes réglées par ce versement · {settledCount}</Text>
+        {report_portion > 0.005 && (
+          <Text style={{ fontSize: 8, color: MUTED, marginBottom: 4 }}>
+            Dont {fmtMAD(report_portion)} {currency} affectés au report du mois précédent.
+          </Text>
+        )}
         <View style={styles.table}>
           <View style={styles.tableHeader} fixed>
             <Text style={[styles.thText, { width: '7%' }]}>#</Text>
@@ -223,7 +239,7 @@ function SellerPayoutDocument({ input }: { input: SellerPayoutPdfInput }) {
             <Text style={[styles.thText, { width: '20%' }]}>Téléphone</Text>
             <Text style={[styles.thText, { width: '26%' }]}>Suivi</Text>
             <Text style={[styles.thText, { width: '8%', textAlign: 'right' }]}>Unités</Text>
-            <Text style={[styles.thText, { width: '12%', textAlign: 'right' }]}>Comm.</Text>
+            <Text style={[styles.thText, { width: '12%', textAlign: 'right' }]}>Réglé</Text>
           </View>
           {orders.map((o, i) => (
             <View style={styles.tr} key={o.order_id} wrap={false}>
@@ -232,10 +248,15 @@ function SellerPayoutDocument({ input }: { input: SellerPayoutPdfInput }) {
               <Text style={styles.cPhone}>{o.phone || '—'}</Text>
               <Text style={styles.cTrack}>{o.tracking || '—'}</Text>
               <Text style={styles.cUnits}>{o.units}</Text>
-              <Text style={styles.cComm}>{fmtMAD(o.commission)}</Text>
+              <Text style={styles.cComm}>{fmtMAD(o.paidPortion ?? o.commission)}{o.partial ? ' *' : ''}</Text>
             </View>
           ))}
         </View>
+        {hasPartial && (
+          <Text style={{ fontSize: 7, color: MUTED, marginTop: 4 }}>
+            * Commande réglée partiellement par ce versement — le solde sera réglé au prochain versement.
+          </Text>
+        )}
 
         {/* Cachet + signature — identical to facture (bottom-right, only when set) */}
         <StampBlock cachet={business.cachet_url} signature={business.signature_url} />

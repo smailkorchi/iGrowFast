@@ -26,6 +26,11 @@ const ROW_BORDER = '#f1efe8';
 
 export type MediaBuyerPayoutDailyRow = { date: string; source?: string | null; spend: number };
 
+// Tree node: a (day, source) the MB spent on, with the delivered orders THIS payment settled
+// beneath it (FIFO-sliced) and the MB's revenue from them.
+export type MediaBuyerPayoutTreeOrder = { order_id: string; client: string | null; phone: string | null; tracking: string | null; units: number; paidPortion: number; partial: boolean };
+export type MediaBuyerPayoutTreeGroup = { date: string; source: string | null; spend: number; revenue: number; orders: MediaBuyerPayoutTreeOrder[] };
+
 export type MediaBuyerPayoutPdfInput = {
   reference: string;
   period_label: string;       // e.g. "Juin 2026"
@@ -41,6 +46,8 @@ export type MediaBuyerPayoutPdfInput = {
   already_paid: number;
   remaining_owed: number;
   daily?: MediaBuyerPayoutDailyRow[];
+  /** Orders settled by THIS payment, grouped day→source (commission MBs). Falls back to `daily` when empty. */
+  tree?: MediaBuyerPayoutTreeGroup[];
   business: { name: string; logo: string | null; cachet_url?: string | null; signature_url?: string | null } & LegalFooterBusiness;
   mediabuyer: { name: string; avatar_url: string | null };
 };
@@ -125,7 +132,10 @@ const styles = StyleSheet.create({
 function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }) {
   const { reference, period_label, status_label, paid_at, currency, paid_amount,
     commission_earned, total_spend, delivered_orders, campaigns_count, commission_price,
-    already_paid, remaining_owed, daily, business, mediabuyer } = input;
+    already_paid, remaining_owed, daily, tree, business, mediabuyer } = input;
+  const treeGroups = tree ?? [];
+  const treeCount = treeGroups.reduce((s, g) => s + g.orders.length, 0);
+  const treeHasPartial = treeGroups.some((g) => g.orders.some((o) => o.partial));
   const bizInitials = (business.name || 'DC').substring(0, 2).toUpperCase();
   const mbInitials = (mediabuyer.name || 'MB').substring(0, 2).toUpperCase();
   const isPaid = (status_label || '').toLowerCase().includes('pay');
@@ -193,7 +203,29 @@ function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }
           <View style={styles.brRowStrong}><Text style={styles.brKStrong}>Reste à verser</Text><Text style={styles.brVStrong}>{fmtMAD(remaining_owed)} {currency}</Text></View>
         </View>
 
-        {rows.length > 0 && (
+        {treeGroups.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Commandes réglées par ce versement · {treeCount}</Text>
+            {treeGroups.map((g, gi) => (
+              <View key={`${g.date}-${g.source}-${gi}`} wrap={false} style={{ marginBottom: 7 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f3f1ea', paddingVertical: 4, paddingHorizontal: 7, borderRadius: 3 }}>
+                  <Text style={{ fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#141413' }}>{fmtDate(g.date)} · {g.source || '—'}</Text>
+                  <Text style={{ fontSize: 7.5, color: MUTED }}>Dépense {fmtMAD(g.spend)} · Revenu {fmtMAD(g.revenue)} {currency}</Text>
+                </View>
+                {g.orders.map((o, oi) => (
+                  <View key={o.order_id} style={{ flexDirection: 'row', paddingVertical: 2.5, paddingHorizontal: 7, borderBottomWidth: 0.5, borderBottomColor: '#ece9e0' }}>
+                    <Text style={{ width: '7%', fontSize: 7.5, color: MUTED }}>{String(oi + 1).padStart(2, '0')}</Text>
+                    <Text style={{ width: '38%', fontSize: 8, color: '#141413' }}>{o.client || '—'}{o.partial ? ' *' : ''}</Text>
+                    <Text style={{ width: '33%', fontSize: 7.5, color: MUTED }}>{o.tracking || o.phone || '—'}</Text>
+                    <Text style={{ width: '10%', fontSize: 8, color: MUTED, textAlign: 'right' }}>{o.units}</Text>
+                    <Text style={{ width: '12%', fontSize: 8, color: '#141413', textAlign: 'right' }}>{fmtMAD(o.paidPortion)}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+            {treeHasPartial ? <Text style={{ fontSize: 7, color: MUTED, marginTop: 4 }}>* Commande réglée partiellement par ce versement — le solde sera réglé au prochain versement.</Text> : null}
+          </>
+        ) : rows.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>Dépense quotidienne · {rows.length} jour{rows.length !== 1 ? 's' : ''}</Text>
             <View style={styles.table}>
@@ -211,7 +243,7 @@ function MediaBuyerPayoutDocument({ input }: { input: MediaBuyerPayoutPdfInput }
               ))}
             </View>
           </>
-        )}
+        ) : null}
 
         {/* Cachet + signature — identical to facture (bottom-right, only when set) */}
         <StampBlock cachet={business.cachet_url} signature={business.signature_url} />

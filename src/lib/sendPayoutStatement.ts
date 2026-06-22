@@ -18,6 +18,7 @@ import { buildSellerPayoutPdfBase64, type SellerPayoutPdfInput } from '@/lib/sel
 import { buildMediaBuyerPayoutPdfBase64, type MediaBuyerPayoutPdfInput } from '@/lib/mediabuyerPayoutPdf';
 import { buildCourierPayoutPdfBase64, type CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
 import { buildCourierReturnPdfBase64, type CourierReturnPdfInput } from '@/lib/courierReturnPdf';
+import { attributePaymentOrders } from '@/lib/payoutOrderAttribution';
 import { getPlatformSource } from '@/lib/campaignConstants';
 
 const CURRENCY = 'MAD';
@@ -146,6 +147,16 @@ export async function sendSellerPayoutEmail(params: {
   const period = monthLabel(month) || 'la période en cours';
   const reference = `VC-${(month || '').replace('-', '').slice(0, 6) || 'NA'}-${sellerId.slice(0, 6).toUpperCase()}`;
 
+  // FIFO: this payment settles the OLDEST still-unpaid orders. Its money window runs from
+  // what was paid before it (paidBefore) to what is paid after it; carried-in (prior-month
+  // debt) is settled first. Only the orders inside that window appear on this statement.
+  const carriedInNum = Number(openTicket?.carried_in || 0);
+  const paidBeforeNum = Number(paidBefore || 0);
+  const slice = attributePaymentOrders(orders, carriedInNum, paidBeforeNum, paidBeforeNum + Number(amountPaid || 0));
+  // Delivered orders still awaiting settlement after this payment (the "(restant)" counterpart).
+  const settledCumulative = attributePaymentOrders(orders, carriedInNum, 0, alreadyPaid).orders.length;
+  const remainingOrders = Math.max(0, orders.length - settledCumulative);
+
   const pdfInput: SellerPayoutPdfInput = {
     reference,
     period_label: period,
@@ -160,7 +171,9 @@ export async function sendSellerPayoutEmail(params: {
     remaining_owed: remainingOwed,
     delivered_orders: deliveredOrders,
     processing_orders: processingOrders,
-    orders,
+    report_portion: slice.reportPortion,
+    remaining_orders: remainingOrders,
+    orders: slice.orders,
     business: branding,
     seller: { name: seller?.name || 'Commercial', avatar_url: seller?.avatar_url ?? null },
   };
@@ -186,7 +199,8 @@ export async function sendSellerPayoutEmail(params: {
       total_owed: fmtMAD(totalOwed),
       already_paid: fmtMAD(alreadyPaid),
       remaining_owed: fmtMAD(remainingOwed),
-      delivered_orders: String(deliveredOrders),
+      delivered_orders: String(slice.orders.length),
+      remaining_orders: String(remainingOrders),
       processing_orders: String(processingOrders),
     },
   });
@@ -203,7 +217,7 @@ export async function sendMediaBuyerPayoutEmail(params: {
 
   const { data: payout } = await (supabase as any)
     .from('mediabuyer_payments')
-    .select('mediabuyer_id, payout_month, total_amount, paid_amount, commission_earned, total_spend, delivered_orders, campaigns_count')
+    .select('mediabuyer_id, payout_month, total_amount, paid_amount, carried_in, commission_earned, total_spend, delivered_orders, campaigns_count')
     .eq('id', payoutId).maybeSingle();
   if (!payout?.mediabuyer_id) throw new Error('mb_payout_not_found');
 
@@ -231,12 +245,59 @@ export async function sendMediaBuyerPayoutEmail(params: {
     spend: Number(e.spend || 0),
   }));
 
-  const alreadyPaid = Number(payout.paid_amount || 0) + Number(amountPaid || 0);
+  // `paid_amount` is read back AFTER pay_mediabuyer committed this disbursement, so it is
+  // already the cumulative total paid — do NOT add amountPaid again (that double-counted it,
+  // wrongly showing "Payé / reste 0" on a partial). The seller path passes a pre-payment value.
+  const alreadyPaid = Number(payout.paid_amount || 0);
   const totalAmount = Number(payout.total_amount || 0);
   const remainingOwed = Math.max(0, totalAmount - alreadyPaid);
   const statusLabel = remainingOwed <= 0.01 ? 'Payé' : 'Partiel';
   const period = monthLabel(month);
   const reference = `VM-${month.replace('-', '')}-${mbId.slice(0, 6).toUpperCase()}`;
+
+  // Day→source tree of the orders THIS payment settled (FIFO oldest-first, like sellers),
+  // with the day's ad-spend and the MB's revenue (commission_price per delivered order).
+  const carriedIn = Number(payout.carried_in || 0);
+  const paidBefore = Math.max(0, alreadyPaid - Number(amountPaid || 0));
+  const { data: mbOrderRows } = await (supabase as any).rpc('mediabuyer_month_orders', {
+    p_mb: mbId, p_business: businessId, p_month: `${month}-01`,
+  });
+  const mbOrders = ((mbOrderRows || []) as Array<Record<string, unknown>>).map((r) => ({
+    order_id: String(r.order_id),
+    client: (r.client as string) ?? null,
+    phone: (r.phone as string) ?? null,
+    tracking: (r.tracking as string) ?? null,
+    units: Number(r.units || 0),
+    commission: Number(r.commission || 0),
+    delivered_at: (r.delivered_at as string) ?? null,
+    bucket_date: String(r.bucket_date),
+    source: (r.source as string) ?? null,
+  }));
+  const mbSlice = attributePaymentOrders(mbOrders, carriedIn, paidBefore, alreadyPaid);
+  const spendByBucket = new Map<string, number>();
+  for (const d of daily) {
+    const k = `${d.date}|${(d.source || '').toLowerCase()}`;
+    spendByBucket.set(k, (spendByBucket.get(k) || 0) + Number(d.spend || 0));
+  }
+  type TreeGroup = { date: string; source: string | null; spend: number; revenue: number; orders: Array<{ order_id: string; client: string | null; phone: string | null; tracking: string | null; units: number; paidPortion: number; partial: boolean }> };
+  const groupMap = new Map<string, TreeGroup>();
+  for (const o of mbSlice.orders as Array<Record<string, unknown>>) {
+    const srcRaw = String(o.source || '');
+    const k = `${String(o.bucket_date)}|${srcRaw.toLowerCase()}`;
+    let g = groupMap.get(k);
+    if (!g) {
+      const srcDisplay = srcRaw ? srcRaw.charAt(0).toUpperCase() + srcRaw.slice(1) : null;
+      g = { date: String(o.bucket_date), source: srcDisplay, spend: spendByBucket.get(k) || 0, revenue: 0, orders: [] };
+      groupMap.set(k, g);
+    }
+    g.revenue += Number(o.paidPortion || 0);
+    g.orders.push({
+      order_id: String(o.order_id), client: (o.client as string) ?? null, phone: (o.phone as string) ?? null,
+      tracking: (o.tracking as string) ?? null, units: Number(o.units || 0),
+      paidPortion: Number(o.paidPortion || 0), partial: !!o.partial,
+    });
+  }
+  const mbTree = Array.from(groupMap.values()).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const pdfInput: MediaBuyerPayoutPdfInput = {
     reference,
@@ -253,6 +314,7 @@ export async function sendMediaBuyerPayoutEmail(params: {
     already_paid: alreadyPaid,
     remaining_owed: remainingOwed,
     daily,
+    tree: mbTree,
     business: branding,
     mediabuyer: { name: mb?.name || 'Media Buyer', avatar_url: mb?.avatar_url ?? null },
   };
