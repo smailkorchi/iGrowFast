@@ -6,7 +6,6 @@ import {
     DollarSign,
     BarChart2,
     Megaphone,
-    Settings,
     ShoppingBag,
     Truck,
     FileText,
@@ -30,7 +29,6 @@ import {
     Loader2,
     Calculator,
     Wrench,
-    Store,
     MessageSquare,
     Puzzle,
     Briefcase,
@@ -42,8 +40,10 @@ import {
     Smartphone,
     BrainCircuit,
     Plug,
+    Cable,
     LineChart,
     UserCheck,
+    UsersRound,
     Bike,
     Radar,
     Trash2,
@@ -61,6 +61,7 @@ type NavItem = {
     icon: LucideIcon | React.ComponentType<{ className?: string }>;
     label: string;
     path: string;
+    beta?: boolean;
 };
 
 type NavSection = {
@@ -75,7 +76,7 @@ const navigation: NavSection[] = [
             { icon: Home, label: 'Dashboard', path: '/' },
             { icon: BarChart2, label: 'Analytics', path: '/analytics' },
             { icon: FaGoogle, label: 'Google Analytics', path: '/google-analytics' },
-            { icon: SiMeta, label: 'Meta Ads', path: '/meta-ads' },
+            { icon: SiMeta, label: 'Meta Ads', path: '/meta-ads', beta: true },
         ],
     },
     {
@@ -87,7 +88,7 @@ const navigation: NavSection[] = [
         ],
     },
     {
-        items: [{ icon: BrainCircuit, label: 'AI Brain', path: '/business/ai-brain' }],
+        items: [{ icon: BrainCircuit, label: 'AI Brain', path: '/business/ai-brain', beta: true }],
     },
     {
         items: [{ icon: ShoppingBag, label: 'Orders', path: '/orders' }],
@@ -121,16 +122,22 @@ const navigation: NavSection[] = [
         ],
     },
     {
+        label: 'Integrations',
+        icon: Cable,
         items: [
             { icon: Plug, label: 'Sales Channels', path: '/sales-channels' },
-            { icon: ClipboardList, label: 'Sheet Review', path: '/sheet-review' },
+            { icon: ClipboardList, label: 'Leads Review', path: '/sheet-review' },
+        ],
+    },
+    {
+        items: [
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
         ],
     },
     {
-        label: 'Collaborators',
-        icon: Store,
+        label: 'Teams',
+        icon: UsersRound,
         items: [
             { icon: UserCheck, label: 'Sellers', path: '/collaborators/sellers' },
             { icon: Bike, label: 'Couriers', path: '/collaborators/couriers' },
@@ -174,13 +181,13 @@ const navigation: NavSection[] = [
         ],
     },
     {
-        label: 'Settings',
-        icon: Settings,
+        label: 'Imports',
+        icon: Upload,
         items: [
-            { icon: Upload, label: 'Import Orders', path: '/import-orders' },
-            { icon: Upload, label: 'Import Products', path: '/import-products' },
-            { icon: Upload, label: 'Import Accessories', path: '/import-accessories' },
-            { icon: Upload, label: 'Import Customers', path: '/import-customers' },
+            { icon: Upload, label: 'Orders', path: '/import-orders' },
+            { icon: Upload, label: 'Products', path: '/import-products' },
+            { icon: Upload, label: 'Accessories', path: '/import-accessories' },
+            { icon: Upload, label: 'Customers', path: '/import-customers' },
         ],
     },
 ];
@@ -390,6 +397,11 @@ const Sidebar = () => {
                                                                 <span className="font-medium text-[11.5px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
                                                                     {item.label}
                                                                 </span>
+                                                                {item.beta && (
+                                                                    <span className="ml-1.5 inline-flex items-center rounded-full bg-ant-orange/15 text-ant-orange text-[8px] font-bold uppercase tracking-[0.12em] leading-none px-1.5 py-0.5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
+                                                                        Beta
+                                                                    </span>
+                                                                )}
                                                             </>
                                                         )}
                                                     </NavLink>
@@ -434,6 +446,11 @@ const Sidebar = () => {
                                                         <span className="font-medium text-[12px] tracking-tight opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
                                                             {item.label}
                                                         </span>
+                                                        {item.beta && (
+                                                            <span className="ml-1.5 inline-flex items-center rounded-full bg-ant-orange/15 text-ant-orange text-[8px] font-bold uppercase tracking-[0.12em] leading-none px-1.5 py-0.5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
+                                                                Beta
+                                                            </span>
+                                                        )}
                                                     </>
                                                 )}
                                             </NavLink>

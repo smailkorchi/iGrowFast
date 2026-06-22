@@ -204,17 +204,23 @@ const Calculator = () => {
         const totalLossFromFailures = lossPerFailed * failedOrders;
 
         const grossRevenue = deliveredOrders * salePrice;
-        const totalProductCosts = confirmedOrders * upfrontCostPerOrder;
+        // Sheet model ("calcul" tab): product cost is incurred only on DELIVERED orders
+        // (returns are recovered), not on every confirmed order. = "total prix intial".
+        const totalProductCosts = deliveredOrders * upfrontCostPerOrder;
         const totalShippingCosts = deliveredOrders * shippingFee;
         const totalCosts = totalAdSpend + totalProductCosts + totalShippingCosts;
         const netProfit = grossRevenue - totalCosts;
 
+        // Sheet "Investissement" = ad spend + delivered product cost (shipping excluded).
+        const investment = totalAdSpend + totalProductCosts;
+
         const profitMargin = grossRevenue > 0 ? (netProfit / grossRevenue) * 100 : 0;
         const costMargin = grossRevenue > 0 ? (totalCosts / grossRevenue) * 100 : 0;
-        const roi = totalCosts > 0 ? (netProfit / totalCosts) * 100 : 0;
+        // Sheet ROI = net profit ÷ Investissement.
+        const roi = investment > 0 ? (netProfit / investment) * 100 : 0;
         const roas = totalAdSpend > 0 ? grossRevenue / totalAdSpend : 0;
 
-        const initialInvestment = totalAdSpend + (confirmedOrders * upfrontCostPerOrder);
+        const initialInvestment = investment;
         const breakEvenDays = netProfit > 0 ? Math.ceil(initialInvestment / netProfit) : Infinity;
 
         const monthlyLeads = fbLeads * 28;
