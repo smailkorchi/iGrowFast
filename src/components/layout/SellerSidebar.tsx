@@ -35,15 +35,15 @@ type NavItem = {
 
 const baseNavigation: NavItem[] = [
     { icon: Home, label: 'Dashboard', path: '/seller/dashboard' },
+    { icon: BarChart2, label: 'Statistics', path: '/seller/statistics' },
+    { icon: Wallet, label: 'My wallet', path: '/seller/wallet' },
     { icon: ShoppingBag, label: 'Orders', path: '/seller/orders' },
-    { icon: Package, label: 'Products', path: '/seller/products' },
-    { icon: Puzzle, label: 'Accessories', path: '/seller/accessories' },
     { icon: Truck, label: 'Delivery notes', path: '/seller/delivery-note' },
     { icon: Repeat, label: 'Return notes', path: '/seller/return-note' },
-    { icon: BarChart2, label: 'Statistics', path: '/seller/statistics' },
     { icon: CreditCard, label: 'Payments', path: '/seller/payments' },
-    { icon: Wallet, label: 'My wallet', path: '/seller/wallet' },
     { icon: MessageSquare, label: 'Demands', path: '/seller/demands' },
+    { icon: Package, label: 'Products', path: '/seller/products' },
+    { icon: Puzzle, label: 'Accessories', path: '/seller/accessories' },
 ];
 
 const footerNavigation: NavItem[] = [

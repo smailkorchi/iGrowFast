@@ -30,6 +30,7 @@ import {
     MapPinned,
     ExternalLink,
     RefreshCcw,
+    Undo2,
     User,
     Filter,
     Building2,
@@ -102,6 +103,7 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { RETURNED_PKG_CATS } from '@/lib/status-categories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { Badge } from "@/components/ui/badge";
@@ -635,7 +637,7 @@ const Orders = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-    const [activeTab, setActiveTab] = useState<'all' | 'confirmed' | 'new' | 'confirmation' | 'suivi' | 'reported' | 'delivered'>('new');
+    const [activeTab, setActiveTab] = useState<'all' | 'confirmed' | 'new' | 'confirmation' | 'suivi' | 'reported' | 'delivered' | 'returned'>('new');
     const [quickStatusOrder, setQuickStatusOrder] = useState<any>(null);
     const [isQuickStatusOpen, setIsQuickStatusOpen] = useState(false);
 
@@ -652,6 +654,7 @@ const Orders = () => {
             || tab === 'suivi'
             || tab === 'reported'
             || tab === 'delivered'
+            || tab === 'returned'
         ) {
             setActiveTab(tab);
         }
@@ -2354,6 +2357,10 @@ const Orders = () => {
                 // rule used everywhere else in the app.
                 return !!o.package_status_id
                     && statusCats.isPkgCategory(o.package_status_id, 'delivered');
+            case 'returned':
+                // Returned family: package_status category in returned / returning / refused.
+                return !!o.package_status_id
+                    && statusCats.isPkgInCategories(o.package_status_id, RETURNED_PKG_CATS);
             default:
                 return false;
         }
@@ -2441,7 +2448,7 @@ const Orders = () => {
     }, [searchQuery, activeTab, filterStatus, pillStatusIds, pillPackageStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
 
     const tabCounts = useMemo(() => {
-        const counts = { all: 0, confirmed: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, reportedToday: false, reportedNow: false };
+        const counts = { all: 0, confirmed: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, returned: 0, reportedToday: false, reportedNow: false };
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
         const currentHour = now.getHours();
@@ -2455,6 +2462,7 @@ const Orders = () => {
             if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
             if (isOrderInTab(o, 'suivi')) counts.suivi++;
             if (isOrderInTab(o, 'delivered')) counts.delivered++;
+            if (isOrderInTab(o, 'returned')) counts.returned++;
             if (isOrderInTab(o, 'reported')) {
                 counts.reported++;
                 if (o.reported_date) {
@@ -2855,9 +2863,10 @@ const Orders = () => {
                 <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper w-full overflow-x-auto ant-scroll">
                     {[
                         { id: 'all', label: 'Toutes', count: tabCounts.all, icon: LayoutGrid },
+                        { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
                         { id: 'confirmed', label: 'Confirmée', count: tabCounts.confirmed, icon: BadgeCheck },
                         { id: 'delivered', label: 'Livré', count: tabCounts.delivered, icon: CheckCircle2 },
-                        { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
+                        { id: 'returned', label: 'Retourné', count: tabCounts.returned, icon: Undo2 },
                         { id: 'confirmation', label: 'Confirmation', count: tabCounts.confirmation, icon: Phone },
                         { id: 'suivi', label: 'Suivi', count: tabCounts.suivi, icon: Truck },
                         { id: 'reported', label: 'Signalées', count: tabCounts.reported, icon: AlertTriangle },

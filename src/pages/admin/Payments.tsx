@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { resolveProviderLogo } from '@/lib/providerLogos';
+import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
     CheckCircle2, Clock, Building2, CreditCard, AlertTriangle,
@@ -34,7 +35,7 @@ interface UnpaidOrder {
     parcels: { tracking_code: string | null; provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null }[];
     courier_parcels: { tracking_code: string | null }[];
     company: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
-    courier: { id: string; name: string; avatar_url: string | null } | null;
+    courier: { id: string; name: string; avatar_url: string | null; avatar_config?: unknown } | null;
     items: { quantity: number; unit_price: number; product: { name: string } | null }[];
 }
 
@@ -44,6 +45,7 @@ interface TargetGroup {
     target_name: string;
     logo_url: string | null;
     avatar_url: string | null;
+    avatar_config?: unknown;
     orders: UnpaidOrder[];
     total_amount: number;
     total_shipping: number;
@@ -56,7 +58,7 @@ interface PaymentNote {
     total_shipping_fees: number; net_amount: number; order_count: number;
     paid_at: string | null; note: string | null; created_at: string;
     provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
-    courier?: { id: string; name: string; avatar_url: string | null } | null;
+    courier?: { id: string; name: string; avatar_url: string | null; avatar_config?: unknown } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
 
@@ -93,7 +95,7 @@ const Payments = () => {
             if (!activeBusinessId || !unpaidStatusId || !deliveredPkgId) return [];
             const SELECT = `*,
                     company:providers(id, name, provider_type, logo_url),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                     items:order_items(quantity, unit_price, product:products(name)),
                     parcels:company_parcels(tracking_code, provider:providers(id, name, provider_type, logo_url), company_delivery_note_id, created_at),
                     courier_parcels(tracking_code, courier_delivery_note_id, created_at)`;
@@ -210,7 +212,7 @@ const Payments = () => {
                     .order('created_at', { ascending: false }),
                 (supabase as any)
                     .from('courier_payment_notes')
-                    .select(`*, courier:users!courier_payment_notes_courier_id_fkey(id, name, avatar_url), line_items:courier_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, courier:users!courier_payment_notes_courier_id_fkey(id, name, avatar_url, avatar_config), line_items:courier_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false }),
             ]);
@@ -237,6 +239,7 @@ const Payments = () => {
                         target_name: order.courier?.name || 'Unknown courier',
                         logo_url: null,
                         avatar_url: order.courier?.avatar_url || null,
+                        avatar_config: (order.courier as any)?.avatar_config ?? null,
                         orders: [],
                         total_amount: 0,
                         total_shipping: 0,
@@ -460,17 +463,20 @@ const Payments = () => {
         kind,
         logoUrl,
         avatarUrl,
+        avatarConfig,
         name,
         size = 'md',
     }: {
         kind: 'company' | 'courier';
         logoUrl?: string | null;
         avatarUrl?: string | null;
+        avatarConfig?: unknown;
         name: string;
         size?: 'sm' | 'md' | 'lg';
     }) => {
         const sizeClasses = { sm: 'w-10 h-10 rounded-xl', md: 'w-14 h-14 rounded-2xl', lg: 'w-20 h-20 rounded-3xl' };
         const textSize = { sm: 'text-xs', md: 'text-sm', lg: 'text-xl' };
+        const hasAvatarConfig = !!avatarConfig && typeof avatarConfig === 'object' && Object.keys(avatarConfig as object).length > 0;
         if (kind === 'company' && logoUrl) {
             return (
                 <div className={cn(sizeClasses[size], "bg-ant-line-soft border border-slate-100 p-1.5 flex items-center justify-center overflow-hidden shadow-inner")}>
@@ -478,10 +484,10 @@ const Payments = () => {
                 </div>
             );
         }
-        if (kind === 'courier' && avatarUrl) {
+        if (kind === 'courier' && (avatarUrl || hasAvatarConfig)) {
             return (
                 <div className={cn(sizeClasses[size], "overflow-hidden border border-slate-100 shadow-inner")}>
-                    <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                    <UserAvatar url={avatarUrl} config={avatarConfig} name={name} className="w-full h-full" />
                 </div>
             );
         }
@@ -823,7 +829,7 @@ const Payments = () => {
                                 <CardContent className="p-0">
                                     <div className="p-5 md:px-6 md:py-5 flex flex-col md:flex-row md:items-center justify-between gap-5">
                                         <div className="flex items-start gap-4 flex-1 min-w-0">
-                                            <EntityLogo kind={note.kind} logoUrl={resolveProviderLogo(note.provider)} avatarUrl={note.courier?.avatar_url || null} name={targetName} size="md" />
+                                            <EntityLogo kind={note.kind} logoUrl={resolveProviderLogo(note.provider)} avatarUrl={note.courier?.avatar_url || null} avatarConfig={(note.courier as any)?.avatar_config} name={targetName} size="md" />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <h3 className="font-display text-[16px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
@@ -1054,7 +1060,7 @@ const Payments = () => {
                                         )}
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <EntityLogo kind={g.kind} logoUrl={g.logo_url} avatarUrl={g.avatar_url} name={g.target_name} size="md" />
+                                            <EntityLogo kind={g.kind} logoUrl={g.logo_url} avatarUrl={g.avatar_url} avatarConfig={g.avatar_config} name={g.target_name} size="md" />
                                             <div className="min-w-0">
                                                 <h4 className="font-display text-[15px] font-semibold text-ant-ink truncate tracking-[-0.01em]">
                                                     {g.target_name}
@@ -1127,7 +1133,7 @@ const Payments = () => {
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3 p-3 bg-ant-light border border-ant-line rounded-xl flex-1 min-w-0">
-                                            <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="md" />
+                                            <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} avatarConfig={selectedGroup.avatar_config} name={selectedGroup.target_name} size="md" />
                                             <div className="min-w-0">
                                                 <p className="font-display text-[14px] font-semibold text-ant-ink truncate tracking-[-0.01em]">
                                                     {selectedGroup.target_name}
@@ -1275,7 +1281,7 @@ const Payments = () => {
                             return (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 p-4 bg-ant-light border border-ant-line rounded-xl">
-                                        <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="md" />
+                                        <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} avatarConfig={selectedGroup.avatar_config} name={selectedGroup.target_name} size="md" />
                                         <div className="min-w-0">
                                             <p className="font-display text-[15px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
                                                 {selectedGroup.target_name}
@@ -1379,6 +1385,7 @@ const Payments = () => {
                                         kind={selectedNote.kind}
                                         logoUrl={resolveProviderLogo(selectedNote.provider)}
                                         avatarUrl={selectedNote.courier?.avatar_url || null}
+                                        avatarConfig={(selectedNote.courier as any)?.avatar_config}
                                         name={(selectedNote.kind === 'courier' ? selectedNote.courier?.name : selectedNote.provider?.name) || '??'}
                                         size="lg"
                                     />

@@ -43,7 +43,7 @@ interface ReturnOrder {
     parcels: { tracking_code: string | null; provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null }[];
     courier_parcels: { tracking_code: string | null }[];
     company: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
-    courier: { id: string; name: string; avatar_url: string | null } | null;
+    courier: { id: string; name: string; avatar_url: string | null; avatar_config?: unknown } | null;
     items: { quantity: number; unit_price: number; product: { name: string } | null }[];
 }
 
@@ -53,6 +53,7 @@ interface TargetGroup {
     target_name: string;
     logo_url: string | null;
     avatar_url: string | null;
+    avatar_config?: unknown;
     orders: ReturnOrder[];
     total_amount: number;
     total_shipping: number;
@@ -66,7 +67,7 @@ interface ReturnNote {
     received_at: string | null; note: string | null; created_at: string;
     created_by?: string | null;
     provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
-    courier?: { id: string; name: string; avatar_url: string | null } | null;
+    courier?: { id: string; name: string; avatar_url: string | null; avatar_config?: unknown } | null;
     creator?: { name: string; avatar_url: string | null; avatar_config?: unknown; role: string } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
@@ -118,7 +119,7 @@ const ReturnNote = () => {
                 .from('orders')
                 .select(`*,
                     company:providers(id, name, provider_type, logo_url),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                     items:order_items(quantity, unit_price, product:products(name)),
                     parcels:company_parcels(tracking_code, provider:providers(id, name, provider_type, logo_url), company_delivery_note_id, created_at),
                     courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
@@ -146,7 +147,7 @@ const ReturnNote = () => {
                     .order('created_at', { ascending: false }),
                 (supabase as any)
                     .from('courier_return_notes')
-                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url, avatar_config), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false }),
             ]);
@@ -214,6 +215,7 @@ const ReturnNote = () => {
                         target_name: order.courier?.name || 'Unknown courier',
                         logo_url: null,
                         avatar_url: order.courier?.avatar_url || null,
+                        avatar_config: (order.courier as any)?.avatar_config ?? null,
                         orders: [],
                         total_amount: 0,
                         total_shipping: 0,
@@ -621,17 +623,20 @@ const ReturnNote = () => {
         kind,
         logoUrl,
         avatarUrl,
+        avatarConfig,
         name,
         size = 'md',
     }: {
         kind: 'company' | 'courier';
         logoUrl?: string | null;
         avatarUrl?: string | null;
+        avatarConfig?: unknown;
         name: string;
         size?: 'sm' | 'md' | 'lg';
     }) => {
         const sizeClasses = { sm: 'w-10 h-10 rounded-xl', md: 'w-14 h-14 rounded-2xl', lg: 'w-20 h-20 rounded-3xl' };
         const textSize = { sm: 'text-xs', md: 'text-sm', lg: 'text-xl' };
+        const hasAvatarConfig = !!avatarConfig && typeof avatarConfig === 'object' && Object.keys(avatarConfig as object).length > 0;
         if (kind === 'company' && logoUrl) {
             return (
                 <div className={cn(sizeClasses[size], "bg-ant-line-soft border border-slate-100 p-1.5 flex items-center justify-center overflow-hidden shadow-inner")}>
@@ -639,10 +644,10 @@ const ReturnNote = () => {
                 </div>
             );
         }
-        if (kind === 'courier' && avatarUrl) {
+        if (kind === 'courier' && (avatarUrl || hasAvatarConfig)) {
             return (
                 <div className={cn(sizeClasses[size], "overflow-hidden border border-slate-100 shadow-inner")}>
-                    <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                    <UserAvatar url={avatarUrl} config={avatarConfig} name={name} className="w-full h-full" />
                 </div>
             );
         }
@@ -986,6 +991,7 @@ const ReturnNote = () => {
                                                 kind={note.kind}
                                                 logoUrl={resolveProviderLogo(note.provider)}
                                                 avatarUrl={note.courier?.avatar_url || null}
+                                                avatarConfig={(note.courier as any)?.avatar_config}
                                                 name={note.kind === 'courier' ? (note.courier?.name || '??') : (note.provider?.name || '??')}
                                                 size="md"
                                             />
@@ -1242,7 +1248,7 @@ const ReturnNote = () => {
                                         )}
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <EntityLogo kind={g.kind} logoUrl={g.logo_url} avatarUrl={g.avatar_url} name={g.target_name} size="md" />
+                                            <EntityLogo kind={g.kind} logoUrl={g.logo_url} avatarUrl={g.avatar_url} avatarConfig={g.avatar_config} name={g.target_name} size="md" />
                                             <div className="min-w-0">
                                                 <h4 className="font-display text-[15px] font-semibold text-ant-ink truncate tracking-[-0.01em]">
                                                     {g.target_name}
@@ -1319,7 +1325,7 @@ const ReturnNote = () => {
                             return (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 p-4 bg-ant-light border border-ant-line rounded-xl">
-                                        <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="md" />
+                                        <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} avatarConfig={selectedGroup.avatar_config} name={selectedGroup.target_name} size="md" />
                                         <div className="min-w-0 flex-1">
                                             <p className="font-display text-[15px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
                                                 {selectedGroup.target_name}
@@ -1479,7 +1485,7 @@ const ReturnNote = () => {
                         {wizardStep === 2 && filteredGroup && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3 p-4 bg-ant-light border border-ant-line rounded-xl">
-                                    <EntityLogo kind={filteredGroup.kind} logoUrl={filteredGroup.logo_url} avatarUrl={filteredGroup.avatar_url} name={filteredGroup.target_name} size="md" />
+                                    <EntityLogo kind={filteredGroup.kind} logoUrl={filteredGroup.logo_url} avatarUrl={filteredGroup.avatar_url} avatarConfig={filteredGroup.avatar_config} name={filteredGroup.target_name} size="md" />
                                     <div className="min-w-0">
                                         <p className="font-display text-[15px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
                                             {filteredGroup.target_name}
@@ -1578,6 +1584,7 @@ const ReturnNote = () => {
                                         kind={selectedNote.kind}
                                         logoUrl={resolveProviderLogo(selectedNote.provider)}
                                         avatarUrl={selectedNote.courier?.avatar_url || null}
+                                        avatarConfig={(selectedNote.courier as any)?.avatar_config}
                                         name={selectedNote.kind === 'courier' ? (selectedNote.courier?.name || '??') : (selectedNote.provider?.name || '??')}
                                         size="lg"
                                     />

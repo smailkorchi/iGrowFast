@@ -72,12 +72,26 @@ type CourierFeeRow = {
 type PaymentNote = {
     id: string;
     courier_id: string;
+    reference: string | null;
     status: string;
     total_amount: number | string;
     total_shipping_fees: number | string;
     net_amount: number | string;
     order_count: number;
     paid_at: string | null;
+    created_at: string;
+};
+
+type ReturnNote = {
+    id: string;
+    courier_id: string;
+    reference: string | null;
+    status: string;
+    total_amount: number | string;
+    total_shipping_fees: number | string;
+    net_amount: number | string;
+    order_count: number;
+    received_at: string | null;
     created_at: string;
 };
 
@@ -267,12 +281,28 @@ const Couriers = () => {
             if (!activeBusinessId || courierIds.length === 0) return [];
             const { data, error } = await (supabase as any)
                 .from('courier_payment_notes')
-                .select('id, courier_id, status, total_amount, total_shipping_fees, net_amount, order_count, paid_at, created_at')
+                .select('id, courier_id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, paid_at, created_at')
                 .eq('DigiCom Business', activeBusinessId)
                 .in('courier_id', courierIds)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data || []) as PaymentNote[];
+        },
+        enabled: !!activeBusinessId && courierIds.length > 0,
+    });
+
+    const { data: returnNotes = [] } = useQuery<ReturnNote[]>({
+        queryKey: ['couriers-return-notes', activeBusinessId, courierIds.slice().sort().join(',')],
+        queryFn: async () => {
+            if (!activeBusinessId || courierIds.length === 0) return [];
+            const { data, error } = await (supabase as any)
+                .from('courier_return_notes')
+                .select('id, courier_id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, received_at, created_at')
+                .eq('DigiCom Business', activeBusinessId)
+                .in('courier_id', courierIds)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return (data || []) as ReturnNote[];
         },
         enabled: !!activeBusinessId && courierIds.length > 0,
     });
@@ -560,6 +590,7 @@ const Couriers = () => {
     const CourierDetailModal = ({ courier, onClose }: { courier: Courier; onClose: () => void }) => {
         const s = stats.get(courier.id);
         const notes = paymentNotes.filter((n) => n.courier_id === courier.id);
+        const courierReturnNotes = returnNotes.filter((n) => n.courier_id === courier.id);
         const totalFees = s?.totalShippingFees || 0;
         const paidFees = s?.totalPaid || 0;
         const pendingFees = s?.totalUnpaid || 0;
@@ -823,7 +854,57 @@ const Couriers = () => {
                                                     : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
                                                 return (
                                                     <tr key={n.id} className="border-t border-ant-line/60 hover:bg-ant-light/40 transition-colors tabular-nums">
-                                                        <td className="px-4 py-3.5 text-[12px] font-semibold text-ant-ink whitespace-nowrap font-mono">#{n.id.slice(0, 8)}</td>
+                                                        <td className="px-4 py-3.5 text-[12px] font-semibold text-ant-ink whitespace-nowrap font-mono">{n.reference || `#${n.id.slice(0, 8)}`}</td>
+                                                        <td className="px-4 py-3.5 text-[12px] text-ant-mid whitespace-nowrap">{new Date(n.created_at).toLocaleDateString()}</td>
+                                                        <td className="px-4 py-3.5 text-[13px] text-ant-ink font-semibold">{n.order_count}</td>
+                                                        <td className="px-4 py-3.5 text-right text-[13px] font-semibold text-ant-ink" title={fmtCurFull(Number(n.total_shipping_fees || 0))}>
+                                                            {fmtNum(Number(n.total_shipping_fees || 0))} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                        </td>
+                                                        <td className="px-4 py-3.5">
+                                                            <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize', statusMeta.bg, statusMeta.text)}>
+                                                                <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
+                                                                {n.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        )}
+
+                        {/* Return notes history */}
+                        {courierReturnNotes.length > 0 && (
+                            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                <div className="px-5 py-3.5 border-b border-ant-line flex items-center justify-between">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                        <RotateCcw className="w-3 h-3" />
+                                        Return notes
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-ant-mid tabular-nums">{courierReturnNotes.length} notes</span>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-ant-line">
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Reference</th>
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Date</th>
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Parcels</th>
+                                                <th className="px-4 py-3.5 text-right text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Return fees</th>
+                                                <th className="px-4 py-3.5 text-left text-[10px] uppercase tracking-[0.22em] font-semibold text-ant-mid/80">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {courierReturnNotes.map((n) => {
+                                                const done = n.status === 'received' || !!n.received_at;
+                                                const statusMeta = done
+                                                    ? { bg: 'bg-ant-green/10', text: 'text-ant-green', dot: 'bg-ant-green' }
+                                                    : { bg: 'bg-ant-orange/10', text: 'text-ant-orange', dot: 'bg-ant-orange' };
+                                                return (
+                                                    <tr key={n.id} className="border-t border-ant-line/60 hover:bg-ant-light/40 transition-colors tabular-nums">
+                                                        <td className="px-4 py-3.5 text-[12px] font-semibold text-ant-ink whitespace-nowrap font-mono">{n.reference || `#${n.id.slice(0, 8)}`}</td>
                                                         <td className="px-4 py-3.5 text-[12px] text-ant-mid whitespace-nowrap">{new Date(n.created_at).toLocaleDateString()}</td>
                                                         <td className="px-4 py-3.5 text-[13px] text-ant-ink font-semibold">{n.order_count}</td>
                                                         <td className="px-4 py-3.5 text-right text-[13px] font-semibold text-ant-ink" title={fmtCurFull(Number(n.total_shipping_fees || 0))}>
