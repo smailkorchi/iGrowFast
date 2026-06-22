@@ -662,7 +662,7 @@ function CourierOrderSheet({
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
                 className="
-                    p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden
+                    p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col
                     shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]
                     sm:max-w-[560px] sm:rounded-2xl sm:max-h-[90vh]
                     max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0
@@ -673,7 +673,7 @@ function CourierOrderSheet({
                     [&>button.absolute]:hidden
                 "
             >
-                <div className="flex flex-col h-full max-h-full">
+                <div className="flex flex-col flex-1 min-h-0">
                     {/* Drag handle on mobile */}
                     <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
                         <div className="h-1 w-10 rounded-full bg-ant-line" />
@@ -711,7 +711,7 @@ function CourierOrderSheet({
                     </DialogHeader>
 
                     {/* Scrollable body */}
-                    <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
                         {/* Status + amount ink card */}
                         <div className="rounded-2xl bg-ant-ink text-ant-light p-4 space-y-3">
                             <div className="flex items-center justify-between gap-3">
@@ -757,7 +757,7 @@ function CourierOrderSheet({
                                         </span>
                                     </div>
                                 </div>
-                                <div className="p-2 grid grid-cols-1 gap-1 max-h-[40vh] overflow-y-auto">
+                                <div className="p-2 grid grid-cols-1 gap-1">
                                     {packageStatuses
                                         .filter((s) => s.label && (s.category || '') !== 'other')
                                         .map((s) => {
