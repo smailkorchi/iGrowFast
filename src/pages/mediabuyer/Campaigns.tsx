@@ -552,7 +552,14 @@ const Campaigns = () => {
             queryClient.invalidateQueries({ queryKey: ['campaigns', activeBusinessId] });
             toast({ title: next === 'active' ? 'Campaign activated' : 'Campaign paused' });
         },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+        onError: (err: any) => {
+            const isLock = String(err?.message || '').includes('source_taken');
+            toast({
+                title: isLock ? 'Source indisponible' : 'Error',
+                description: isLock ? (err?.details || 'Cette source est déjà gérée par un autre media buyer.') : err.message,
+                variant: 'destructive',
+            });
+        },
     });
 
     const deleteMutation = useMutation({

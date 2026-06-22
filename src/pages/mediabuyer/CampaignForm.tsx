@@ -53,6 +53,7 @@ import {
     DEFAULT_CTA_LABELS,
     getPlatformIcon,
     getPlatformColor,
+    getPlatformSource,
     isVideoType,
     type CampaignMedia,
     type CampaignType,
@@ -147,6 +148,50 @@ const CampaignForm: React.FC = () => {
         enabled: isEdit,
     });
 
+    // Source-ownership locks: one ad source per media buyer per business. Realtime so the
+    // platform picker live-reflects what other MBs currently hold.
+    const { data: sourceLocks = [] } = useQuery({
+        queryKey: ['campaign-source-locks', activeBusinessId],
+        enabled: !!activeBusinessId,
+        queryFn: async () => {
+            const { data } = await (supabase as any)
+                .from('campaign_source_locks')
+                .select('source, mediabuyer_id, owner:users!campaign_source_locks_mb_fk(name)')
+                .eq('DigiCom Business', activeBusinessId);
+            return (data || []) as Array<{ source: string; mediabuyer_id: string; owner: { name: string } | null }>;
+        },
+    });
+    // Only media buyers are subject to the source lock — admins create campaigns with no
+    // commission, so they see every source and never lock one.
+    const { data: myRole } = useQuery({
+        queryKey: ['my-role', currentUserId],
+        enabled: !!currentUserId,
+        queryFn: async () => {
+            const { data } = await (supabase as any).from('users').select('role').eq('id', currentUserId).maybeSingle();
+            return (data?.role as string) || null;
+        },
+    });
+    const isMediaBuyer = myRole === 'mediabuyer';
+    useEffect(() => {
+        if (!activeBusinessId) return;
+        const channel = supabase
+            .channel(`campaign-source-locks-${activeBusinessId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'campaign_source_locks' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['campaign-source-locks', activeBusinessId] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [activeBusinessId, queryClient]);
+    // source -> owner name, only for sources held by ANOTHER media buyer (mine never blocks me).
+    const lockedSources = useMemo(() => {
+        const m = new Map<string, string>();
+        if (!isMediaBuyer) return m; // admins/non-MBs aren't subject to the lock
+        for (const l of sourceLocks) {
+            if (l.mediabuyer_id && l.mediabuyer_id !== currentUserId) m.set(l.source, l.owner?.name || 'un autre media buyer');
+        }
+        return m;
+    }, [sourceLocks, currentUserId, isMediaBuyer]);
+
     const form = useForm<CampaignFormValues>({
         resolver: zodResolver(campaignSchema),
         defaultValues: {
@@ -175,6 +220,16 @@ const CampaignForm: React.FC = () => {
             audience_interests: '',
         },
     });
+
+    // Create flow: never leave a source another MB holds selected — jump to the first free one.
+    useEffect(() => {
+        if (isEdit) return;
+        const cur = form.getValues('platform');
+        if (cur && lockedSources.has(getPlatformSource(cur))) {
+            const free = CAMPAIGN_PLATFORMS.find((p) => !lockedSources.has(getPlatformSource(p)));
+            if (free) form.setValue('platform', free);
+        }
+    }, [lockedSources, isEdit, form]);
 
     useEffect(() => {
         if (!isEdit || !existing || !currentUserId) return;
@@ -354,7 +409,14 @@ const CampaignForm: React.FC = () => {
             toast({ title: isEdit ? 'Campaign updated' : 'Campaign created' });
             navigate(basePath);
         },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+        onError: (err: any) => {
+            const isLock = String(err?.message || '').includes('source_taken');
+            toast({
+                title: isLock ? 'Source indisponible' : 'Error',
+                description: isLock ? (err?.details || 'Cette source est déjà gérée par un autre media buyer. Choisissez-en une autre.') : err.message,
+                variant: 'destructive',
+            });
+        },
     });
 
     if (loadingCampaign) {
@@ -474,16 +536,25 @@ const CampaignForm: React.FC = () => {
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-xl border-ant-line">
-                                                            {CAMPAIGN_PLATFORMS.map((p) => (
-                                                                <SelectItem key={p} value={p} className="text-[12px] capitalize">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span style={{ color: getPlatformColor(p) }}>{getPlatformIcon(p)}</span>
-                                                                        {p}
-                                                                    </div>
-                                                                </SelectItem>
-                                                            ))}
+                                                            {CAMPAIGN_PLATFORMS
+                                                                .filter((p) => !lockedSources.has(getPlatformSource(p)) || p === field.value)
+                                                                .map((p) => {
+                                                                    const takenEdge = lockedSources.has(getPlatformSource(p)); // only the currently-selected one, edge case
+                                                                    return (
+                                                                        <SelectItem key={p} value={p} disabled={takenEdge} className="text-[12px] capitalize">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span style={{ color: getPlatformColor(p) }}>{getPlatformIcon(p)}</span>
+                                                                                {p}
+                                                                                {takenEdge ? <span className="ml-auto pl-3 text-[10px] normal-case italic text-ant-mid">· indisponible</span> : null}
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    );
+                                                                })}
                                                         </SelectContent>
                                                     </Select>
+                                                    {lockedSources.size > 0 ? (
+                                                        <p className="text-[10.5px] italic text-ant-mid">Les sources gérées par un autre media buyer sont masquées — mises à jour en temps réel.</p>
+                                                    ) : null}
                                                     <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
