@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { logAction } from '@/lib/auditLog';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 interface ProtectedRouteProps {
@@ -13,7 +12,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     const [loading, setLoading] = useState(true);
     const [authenticated, setAuthenticated] = useState(false);
     const navigate = useNavigate();
-    const location = useLocation();
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -41,10 +39,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
             // Block disabled accounts: sign them out immediately
             if (userProfile.active === false) {
-                void logAction({
-                    action: 'forbidden',
-                    metadata: { reason: 'account_disabled', path: location.pathname },
-                });
                 await supabase.auth.signOut();
                 localStorage.removeItem('activeBusinessId');
                 navigate('/auth');
@@ -54,15 +48,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
             if (allowedRoles && allowedRoles.length > 0) {
                 if (!allowedRoles.includes(userProfile.role)) {
-                    void logAction({
-                        action: 'access_denied',
-                        metadata: {
-                            reason: 'role_mismatch',
-                            path: location.pathname,
-                            required_roles: allowedRoles,
-                            actor_role: userProfile.role,
-                        },
-                    });
                     if (userProfile.role === 'commercial') {
                         navigate('/seller/dashboard');
                     } else if (userProfile.role === 'owner') {
@@ -86,7 +71,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
-                void logAction({ action: 'logout' });
                 navigate('/auth');
             } else if (session) {
                 // We might want to re-check role here if session changes, but for now basic auth check

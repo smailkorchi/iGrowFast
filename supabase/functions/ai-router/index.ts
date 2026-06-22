@@ -1485,10 +1485,6 @@ async function recordAndAudit(supabase: any, msg: any, brain: any, brainProvId: 
 }
 
 async function auditLog(supabase: any, businessId: string, waMessageId: string|null, decisionId: string, costUsd: number, intent?: string, confidence?: number, latencyMs?: number, outcome: string = "sent") {
-  await supabase.from("audit_logs").insert({
-    scope: "business", business_id: businessId,
-    actor_id: null, actor_role: null, actor_name: "AI brain",
-    action: `ai.${outcome}`, entity_table: "wa_messages", entity_id: waMessageId,
-    metadata: { decision_id: decisionId, cost_usd: costUsd, intent, confidence, latency_ms: latencyMs, brain_model: BRAIN_MODEL_ID, tongue_model: TONGUE_MODEL_ID },
-  });
+  /* audit_logs feature removed — AI decisions are still recorded via recordDecision/ai_decisions */
+  void supabase; void businessId; void waMessageId; void decisionId; void costUsd; void intent; void confidence; void latencyMs; void outcome;
 }

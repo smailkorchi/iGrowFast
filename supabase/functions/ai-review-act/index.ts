@@ -265,19 +265,7 @@ Deno.serve(async (req) => {
     try { await service.rpc("ai_reject_pending_actions_for_decision", { p_decision_id: decisionId }); } catch {}
   }
 
-  // Audit
-  await service.from("audit_logs").insert({
-    scope: "business",
-    business_id: dec.business_id,
-    actor_id: uid,
-    actor_role: profile.role,
-    actor_name: null,
-    action: `ai.review.${action}`,
-    entity_table: "ai_decisions",
-    entity_id: decisionId,
-    metadata: { outcome: finalOutcome, sent_wa_message_id: sentWaMsgId, send_error: sendError, applied_actions: applyResults, media_sends: mediaSendResults, catalog_pickers: catalogPickerResults, bundle_offers: bundleOfferResults, review_requests: reviewRequestResults, delivery_notes: deliveryNoteResults },
-  });
-
+  /* audit_logs feature removed — AI review outcome already persisted via ai_decisions */
   return json(200, {
     ok: !sendError && (action === "reject" || !!sentWaMsgId),
     outcome: finalOutcome,

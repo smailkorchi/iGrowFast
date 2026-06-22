@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { logAction } from '@/lib/auditLog';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, AtSign, Lock, Check, KeyRound, Fingerprint } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -55,7 +54,6 @@ const Auth = () => {
     const [settingUpPasskey, setSettingUpPasskey] = useState(false);
 
     const proceed = (ctx: { role: string | null; identifier: string }) => {
-        void logAction({ action: 'login', metadata: { identifier: ctx.identifier, role: ctx.role } });
         toast({ title: 'Bienvenue', description: 'Connexion réussie à iGrowFast.' });
         const r = ctx.role;
         if (r === 'commercial') navigate('/seller/dashboard');
@@ -141,10 +139,6 @@ const Auth = () => {
 
             if (profile?.active === false) {
                 await supabase.auth.signOut();
-                void logAction({
-                    action: 'forbidden',
-                    metadata: { reason: 'account_disabled', identifier: values.identifier, email },
-                });
                 throw new Error('Votre compte a été désactivé. Contactez votre administrateur.');
             }
 
@@ -164,13 +158,6 @@ const Auth = () => {
 
             await afterAuth(ctx);
         } catch (error) {
-            void logAction({
-                action: 'login_failed',
-                metadata: {
-                    identifier: values.identifier,
-                    reason: (error as Error).message,
-                },
-            });
             toast({
                 title: 'Connexion échouée',
                 description: (error as Error).message,
@@ -202,7 +189,6 @@ const Auth = () => {
         } catch (e) {
             const { cancelled, message } = describePasskeyError(e);
             if (!cancelled) {
-                void logAction({ action: 'login_failed', metadata: { reason: (e as Error).message, method: 'passkey' } });
                 toast({ title: 'Connexion échouée', description: message, variant: 'destructive' });
             }
         } finally {

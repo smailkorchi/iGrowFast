@@ -190,17 +190,6 @@ async function recoverInstance(name: string): Promise<{ ok: boolean; logout_stat
 }
 
 async function audit(supabase: any, inst: any, action: string, metadata: any) {
-  try {
-    await supabase.from("audit_logs").insert({
-      scope: "business",
-      business_id: inst.business_id,
-      actor_id: null,
-      actor_role: null,
-      actor_name: "wa-instance-watchdog",
-      action,
-      entity_table: "wa_instances",
-      entity_id: inst.id,
-      metadata: { instance_name: inst.name, ...metadata },
-    });
-  } catch { /* never block reconciliation on audit failure */ }
+  /* audit_logs feature removed — watchdog no longer writes an audit trail */
+  void supabase; void inst; void action; void metadata;
 }

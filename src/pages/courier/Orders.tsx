@@ -45,6 +45,7 @@ type PackageStatus = {
     category: string | null;
     recheck: boolean | null;
     ranking: string | number | null;
+    icon: string | null;
 };
 
 type CourierOrderRow = {
@@ -125,7 +126,7 @@ const CourierOrders = () => {
             if (!businessId) return [];
             const { data, error } = await supabase
                 .from('package_statuses')
-                .select('id, code, label, color, category, recheck, ranking')
+                .select('id, code, label, color, category, recheck, ranking, icon')
                 .order('ranking');
             if (error) throw error;
             return (data || []) as PackageStatus[];
@@ -158,7 +159,7 @@ const CourierOrders = () => {
                         city:master_cities(id, name),
                         items:order_items(quantity, product:products(name, code))
                     ),
-                    status:package_statuses(id, code, label, color, category, recheck, ranking)
+                    status:package_statuses(id, code, label, color, category, recheck, ranking, icon)
                 `)
                 .eq('courier_id', courierId)
                 .eq('DigiCom Business', businessId)
@@ -175,7 +176,7 @@ const CourierOrders = () => {
                     parcel_tracking_code: p.tracking_code,
                     parcel_created_at: p.created_at,
                     parcel_status: (p.status as PackageStatus) || (p.status_label
-                        ? { id: '', code: null, label: p.status_label, color: p.status_color || null, category: null, recheck: null, ranking: null }
+                        ? { id: '', code: null, label: p.status_label, color: p.status_color || null, category: null, recheck: null, ranking: null, icon: null }
                         : null),
                     note_id: p.note.id,
                     note_reference: p.note.reference,
@@ -496,7 +497,9 @@ const CourierOrders = () => {
                                                 className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]"
                                                 style={{ backgroundColor: `${color}14`, color }}
                                             >
-                                                <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />
+                                                {rps?.icon
+                                                    ? <DynamicIcon name={rps.icon} className="w-2.5 h-2.5 shrink-0" />
+                                                    : <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />}
                                                 {label}
                                             </span>
                                         </div>
@@ -774,7 +777,9 @@ function CourierOrderSheet({
                                                     )}
                                                 >
                                                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c }} />
+                                                        {s.icon
+                                                            ? <DynamicIcon name={s.icon} className="w-3.5 h-3.5 shrink-0" style={{ color: c }} />
+                                                            : <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c }} />}
                                                         <span className="text-[12px] font-medium text-ant-ink truncate">
                                                             {s.label}
                                                         </span>

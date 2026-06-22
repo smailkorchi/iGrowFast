@@ -40,10 +40,8 @@ import OwnerDashboard from "./pages/owner/OwnerDashboard";
 import OwnerStatus from "./pages/owner/Status";
 import OwnerCities from "./pages/owner/Cities";
 import OwnerZones from "./pages/owner/Zones";
-import OwnerActivityLog from "./pages/owner/ActivityLog";
 import GoogleAnalyticsPage from "./pages/analytics/GoogleAnalytics";
 import MetaAdsPage from "./pages/analytics/MetaAds";
-import ActivityLog from "./pages/admin/ActivityLog";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import CourierLayout from "./components/layout/CourierLayout";
 import CourierDashboard from "./pages/courier/Dashboard";
@@ -200,7 +198,6 @@ const App = () => (
                   <Route path="status" element={<OwnerStatus />} />
                   <Route path="cities" element={<OwnerCities />} />
                   <Route path="zones" element={<OwnerZones />} />
-                  <Route path="activity-log" element={<OwnerActivityLog />} />
                   <Route path="ai" element={<OwnerAIConsole />} />
                   <Route path="email-templates" element={<OwnerEmailTemplates />} />
                   <Route path="config" element={<OwnerConfig />} />
@@ -319,7 +316,6 @@ const App = () => (
                     <Route path="/bon-de-commande" element={<BonDeCommande />} />
                     <Route path="/bon-de-livraison" element={<BonDeLivraison />} />
                     <Route path="/demands" element={<AdminDemands />} />
-                    <Route path="/activity-log" element={<ActivityLog />} />
                     <Route path="/salaries" element={<AdminSalaries />} />
                     <Route path="/collaborators/sellers" element={<AdminSellers />} />
                     <Route path="/collaborators/couriers" element={<AdminCouriers />} />
