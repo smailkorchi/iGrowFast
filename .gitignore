@@ -39,3 +39,4 @@ igrowfast-*.json
 deploy_key
 deploy_key.pub
 vps.env
+scripts/dev-secrets.env
