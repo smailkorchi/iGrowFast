@@ -144,7 +144,7 @@ const SellerDemands = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setDemands(data || []);
+            setDemands((data || []) as unknown as SellerDemand[]);
         } catch (error) {
             console.error('Error fetching demands:', error);
             toast({
@@ -255,8 +255,9 @@ const SellerDemands = () => {
                     seller_id: user.id,
                     ...newDemand,
                     status: 'pending',
-                    media
-                });
+                    media,
+                    // "DigiCom Business" is populated by trg_set_seller_demand_business (BEFORE INSERT)
+                } as never);
 
             if (error) throw error;
 

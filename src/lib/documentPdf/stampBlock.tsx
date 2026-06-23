@@ -22,7 +22,7 @@ export function StampBlock({ cachet, signature }: { cachet?: string | null; sign
     <View
       style={styles.stampBlock}
       fixed
-      render={({ pageNumber, totalPages }) =>
+      render={({ pageNumber, totalPages }: { pageNumber: number; totalPages?: number }) =>
         pageNumber === totalPages ? (
           <View>
             {cachet ? <Image src={cachet} style={styles.stampImg} /> : null}

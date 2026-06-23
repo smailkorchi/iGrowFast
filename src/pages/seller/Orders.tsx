@@ -1778,9 +1778,9 @@ const Orders = () => {
 
         let fee = 0;
         if (selectedCourierId) {
-            fee = courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
+            fee = (courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee as number) || 0;
         } else if (selectedCompanyId) {
-            fee = companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
+            fee = (companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee as number) || 0;
         }
         form.setValue('shipping_cost', Number(fee));
     };

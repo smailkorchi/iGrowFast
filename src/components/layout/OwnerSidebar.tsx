@@ -90,19 +90,19 @@ const OwnerSidebar = () => {
     return (
         <aside
             className={cn(
-                'ant-surface relative flex-none transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group/sidebar',
+                'ant-surface relative flex-none transition-all duration-700 ease-smooth group/sidebar',
                 isPinned ? 'w-[232px]' : 'w-[72px] hover:w-[232px]',
             )}
         >
             <div
                 className={cn(
-                    'fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none',
+                    'fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-smooth pointer-events-none',
                     isPinned ? 'w-[232px]' : 'w-[72px] group-hover/sidebar:w-[232px]',
                 )}
             >
                 <div
                     className={cn(
-                        'flex flex-col ml-3 h-[calc(100vh-1.5rem)] bg-ant-ink rounded-[20px] text-ant-light transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden border border-white/[0.06] pointer-events-auto shadow-[0_24px_60px_-24px_rgba(20,20,19,0.55)]',
+                        'flex flex-col ml-3 h-[calc(100vh-1.5rem)] bg-ant-ink rounded-[20px] text-ant-light transition-all duration-700 ease-smooth overflow-hidden border border-white/[0.06] pointer-events-auto shadow-[0_24px_60px_-24px_rgba(20,20,19,0.55)]',
                         isPinned
                             ? 'w-[216px] group/sidebar-inner'
                             : 'w-[60px] group-hover/sidebar:w-[216px] group/sidebar-inner',

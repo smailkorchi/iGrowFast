@@ -219,7 +219,7 @@ const Status = () => {
             if (editingStatus) {
                 const { data, error } = await supabase
                     .from(table)
-                    .update(payload)
+                    .update(payload as never)
                     .eq('id', editingStatus.id)
                     .select()
                     .single();
@@ -228,7 +228,7 @@ const Status = () => {
             } else {
                 const { data, error } = await supabase
                     .from(table)
-                    .insert(payload)
+                    .insert(payload as never)
                     .select()
                     .single();
                 if (error) throw error;

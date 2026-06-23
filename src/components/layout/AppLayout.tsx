@@ -11,7 +11,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <div className="min-h-screen bg-ant-light flex overflow-x-hidden">
             <Sidebar />
 
-            <main className="flex-1 min-w-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
+            <main className="flex-1 min-w-0 transition-all duration-700 ease-smooth">
                 <div className="p-4 md:p-6">
                     <div className="w-full">
                         {children}

@@ -58,7 +58,7 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
     return (
         <div className="ant-surface min-h-screen flex overflow-x-hidden">
             <SellerSidebar />
-            <main className="flex-1 min-w-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
+            <main className="flex-1 min-w-0 transition-all duration-700 ease-smooth">
                 {children}
             </main>
             {isSuspended && businessId && (

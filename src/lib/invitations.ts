@@ -197,7 +197,6 @@ export function invitationReason(reason?: string): string {
         case 'email_mismatch': return 'This code was sent to a different email. Restart the step.';
         // Send-invitation (email the link)
         case 'send_failed': return 'The email could not be sent. Try again or copy the link instead.';
-        case 'not_found': return 'This invitation no longer exists.';
         case 'forbidden': return 'You can’t send this invitation.';
         default: return 'Something went wrong. Please try again.';
     }

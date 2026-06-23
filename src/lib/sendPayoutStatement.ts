@@ -14,7 +14,7 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
-import { buildSellerPayoutPdfBase64, type SellerPayoutPdfInput } from '@/lib/sellerPayoutPdf';
+import { buildSellerPayoutPdfBase64, type SellerPayoutPdfInput, type SellerPayoutPdfOrder } from '@/lib/sellerPayoutPdf';
 import { buildMediaBuyerPayoutPdfBase64, type MediaBuyerPayoutPdfInput } from '@/lib/mediabuyerPayoutPdf';
 import { buildCourierPayoutPdfBase64, type CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
 import { buildCourierReturnPdfBase64, type CourierReturnPdfInput } from '@/lib/courierReturnPdf';
@@ -173,7 +173,7 @@ export async function sendSellerPayoutEmail(params: {
     processing_orders: processingOrders,
     report_portion: slice.reportPortion,
     remaining_orders: remainingOrders,
-    orders: slice.orders,
+    orders: slice.orders as SellerPayoutPdfOrder[],
     business: branding,
     seller: { name: seller?.name || 'Commercial', avatar_url: seller?.avatar_url ?? null },
   };
@@ -281,7 +281,7 @@ export async function sendMediaBuyerPayoutEmail(params: {
   }
   type TreeGroup = { date: string; source: string | null; spend: number; revenue: number; orders: Array<{ order_id: string; client: string | null; phone: string | null; tracking: string | null; units: number; paidPortion: number; partial: boolean }> };
   const groupMap = new Map<string, TreeGroup>();
-  for (const o of mbSlice.orders as Array<Record<string, unknown>>) {
+  for (const o of mbSlice.orders as unknown as Array<Record<string, unknown>>) {
     const srcRaw = String(o.source || '');
     const k = `${String(o.bucket_date)}|${srcRaw.toLowerCase()}`;
     let g = groupMap.get(k);

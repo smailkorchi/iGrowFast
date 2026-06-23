@@ -235,7 +235,7 @@ const SellerProfile = () => {
                 }
 
                 // Fetch Product-specific stats
-                const productIds = seller.products || [];
+                const productIds: string[] = Array.isArray(seller.products) ? (seller.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0) : [];
                 if (productIds.length > 0) {
                     const { data: productsData } = await supabase
                         .from('products')
@@ -243,7 +243,7 @@ const SellerProfile = () => {
                         .eq('active', true)
                         .in('id', productIds);
 
-                    const orderItemsData = await fetchAllRows('order_items', 'order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label))', {
+                    const orderItemsData = await fetchAllRows<{ order_id: string; product_id: string; orders: any }>('order_items', 'order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label))', {
                         filters: [{ column: 'orders.seller_id', op: 'eq', value: session.user.id }],
                     });
 

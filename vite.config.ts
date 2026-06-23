@@ -24,4 +24,28 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     include: ["buffer"],
   },
+  build: {
+    // The status-icon picker (renderReactIcon) loads whole react-icons packs (~5.5 MB) and routes
+    // are not yet lazy-split (~4.3 MB app chunk). Both are pre-existing; genuinely shrinking them is a
+    // separate optimization (curated icon set / React.lazy routes). Raise the advisory threshold to
+    // match today's reality rather than mask it with a risky reactive refactor.
+    chunkSizeWarningLimit: 6000,
+    rollupOptions: {
+      output: {
+        // Split heavy, dependency-leaf vendor libs into their own chunks. Shrinks the main
+        // bundle under the 500 kB warning and gives react-icons its own chunk (resolving the
+        // dynamic+static import warning). React/react-dom intentionally left to default chunking.
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("react-icons")) return "react-icons";
+          if (id.includes("@react-pdf")) return "react-pdf";
+          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("framer-motion")) return "framer-motion";
+          if (id.includes("node_modules/three") || id.includes("postprocessing")) return "three";
+          if (id.includes("@supabase")) return "supabase";
+          if (id.includes("xlsx")) return "xlsx";
+        },
+      },
+    },
+  },
 }));

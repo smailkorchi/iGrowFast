@@ -21,7 +21,8 @@ import {
     MapPin,
     Coins,
     Check,
-    RotateCcw
+    RotateCcw,
+    type LucideIcon
 } from 'lucide-react';
 import {
     Card,
@@ -111,7 +112,7 @@ async function saveFeeRowByMasterCity(
         .from(table as typeof COMPANY_FEES_TABLE)
         .select('id')
         .match(match)
-        .maybeSingle();
+        .maybeSingle<{ id: string }>();
     if (findErr) throw findErr;
     const updated_at = new Date().toISOString();
     if (existing?.id) {
@@ -282,7 +283,7 @@ type FieldMeta = {
     label: string;
     placeholder: string;
     type?: 'text' | 'password' | 'url';
-    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+    icon: LucideIcon;
     fullWidth?: boolean;
 };
 
@@ -2352,7 +2353,7 @@ function ProviderPermissionsModal({
                 .eq('DigiCom Business', activeBusinessId!)
                 .single();
             if (error) throw error;
-            return data as Record<string, unknown>;
+            return data as unknown as Record<string, unknown>;
         },
         enabled: !!company?.id && !!activeBusinessId && isOpen && !!providerSlug,
     });

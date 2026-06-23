@@ -27,7 +27,9 @@ type CourierParcelRow = {
  * recognise into the financial document.
  */
 export function pickShippedCompanyTrackingCode(order: {
-    parcels?: TrackableCompanyParcelRow[] | null;
+    // Only the fields this function reads — accepts any company-parcel shape; callers' rows
+    // need not carry `id` (unused here). getLatestTrackableCompanyParcel keeps the strict row type.
+    parcels?: Array<{ company_delivery_note_id?: string | null; tracking_code?: string | null; created_at?: string | null }> | null;
     tracking_number?: string | null;
 } | null | undefined): string | null {
     const shipped = (order?.parcels || [])

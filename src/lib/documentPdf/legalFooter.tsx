@@ -76,7 +76,7 @@ export function LegalFooter({ business }: { business: LegalFooterBusiness }) {
     <View
       style={styles.footer}
       fixed
-      render={({ pageNumber, totalPages }) =>
+      render={({ pageNumber, totalPages }: { pageNumber: number; totalPages?: number }) =>
         pageNumber === totalPages ? (
           <View>
             <View style={styles.divider} />

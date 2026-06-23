@@ -48,7 +48,7 @@ export function useWebhookHealth(activeBusinessId: string | null): WebhookHealth
         queryKey: ['webhook-health-stats', activeBusinessId],
         queryFn: async () => {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-            return await fetchAllRows('webhook_logs', 'id, processed, created_at', {
+            return await fetchAllRows<{ id: string; processed: boolean; created_at: string | null }>('webhook_logs', 'id, processed, created_at', {
                 filters: [
                     { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
                     { column: 'created_at', op: 'gte', value: oneHourAgo },
