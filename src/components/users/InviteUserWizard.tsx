@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { FaWhatsapp } from 'react-icons/fa';
 import {
     Crown, Shield, Headphones, Bike, Target, ArrowRight, ArrowLeft, Loader2, Copy, Check,
     Link as LinkIcon, Search, SlidersHorizontal, UserPlus, Package, Wallet, Sparkles,
@@ -63,8 +62,6 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
     const [salaryAmount, setSalaryAmount] = useState(0);
     const [productIds, setProductIds] = useState<string[]>([]);
     const [productSearch, setProductSearch] = useState('');
-    const [waMode, setWaMode] = useState<'none' | 'all' | 'specific'>('none');
-    const [waInstanceIds, setWaInstanceIds] = useState<string[]>([]);
     // Media-buyer integration scoping (which GA properties / Meta ad accounts they may see).
     const [gaMode, setGaMode] = useState<'none' | 'all' | 'specific'>('none');
     const [gaIds, setGaIds] = useState<string[]>([]);
@@ -93,7 +90,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
     const reset = () => {
         setStep(0); setRole(null); setPages({}); setCommissionPrice(0); setCommissionBasis('per_order');
         setPaymentType('commission'); setSalaryAmount(0); setProductIds([]); setProductSearch('');
-        setWaMode('none'); setWaInstanceIds([]); setParcelFragile(false); setParcelOpen(false);
+        setParcelFragile(false); setParcelOpen(false);
         setParcelTryOn(false); setPhone(''); setLink(null); setToken(null); setCopied(false); setGenerating(false);
         setGaMode('none'); setGaIds([]); setMetaMode('none'); setMetaIds([]);
         setInviteEmail(''); setEmailCheck({ status: 'idle' }); setSending(false); setSentTo(null); setSendError(null); setCreatedEmail(null);
@@ -109,18 +106,6 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
             if (!activeBusinessId) return [];
             const { data } = await supabase.from('products').select('id, name, code')
                 .eq('active', true).eq('DigiCom Business', activeBusinessId).order('name');
-            return data ?? [];
-        },
-        enabled: isOpen && role === 'commercial' && !!activeBusinessId,
-    });
-
-    const { data: waInstances } = useQuery({
-        queryKey: ['invite-wa-instances', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data } = await (supabase as any).from('whatsapp_instances')
-                .select('id, instance_name, phone_number, status')
-                .eq('business_id', activeBusinessId).eq('status', 'open').order('created_at');
             return data ?? [];
         },
         enabled: isOpen && role === 'commercial' && !!activeBusinessId,
@@ -159,7 +144,6 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         if (role === 'commercial') return {
             ...base, commission_price: commissionPrice, commission_basis: commissionBasis,
             payment_type: paymentType, salary_amount: salaryAmount, assignment: 0, products: productIds,
-            whatsapp_access: { mode: waMode, instance_ids: waMode === 'specific' ? waInstanceIds : [] },
         };
         if (role === 'courier') return {
             ...base, courier_parcel_fragile: parcelFragile, courier_parcel_open: parcelOpen,
@@ -450,38 +434,6 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
 
                             {role === 'commercial' && (
                                 <>
-                                    <div className="rounded-2xl border border-ant-line p-4 space-y-3">
-                                        <SectionHeader icon={FaWhatsapp as unknown as LucideIcon} title="WhatsApp inbox" hint="Which inboxes this commercial can use." />
-                                        <div className="flex items-center gap-2">
-                                            {(['none', 'all', 'specific'] as const).map((m) => (
-                                                <button key={m} onClick={() => setWaMode(m)} className={pillBtn(waMode === m)}>
-                                                    {m === 'none' ? 'None' : m === 'all' ? 'All instances' : 'Specific'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        {waMode === 'specific' && (
-                                            <div className="grid grid-cols-1 gap-1.5 pt-1">
-                                                {(waInstances ?? []).map((i: any) => {
-                                                    const on = waInstanceIds.includes(i.id);
-                                                    return (
-                                                        <button key={i.id} onClick={() => toggle(waInstanceIds, setWaInstanceIds, i.id)}
-                                                            className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer',
-                                                                on ? 'border-ant-green bg-ant-green/5' : 'border-ant-line hover:border-ant-ink/20')}>
-                                                            <span className={cn('w-4 h-4 rounded-md flex items-center justify-center shrink-0 border',
-                                                                on ? 'bg-ant-green border-ant-green text-white' : 'border-ant-line')}>
-                                                                {on && <Check className="w-3 h-3" />}
-                                                            </span>
-                                                            <span className="text-[12px] text-ant-ink">{i.instance_name || i.phone_number || i.id}</span>
-                                                        </button>
-                                                    );
-                                                })}
-                                                {(!waInstances || waInstances.length === 0) && (
-                                                    <p className="text-[11px] text-ant-mid">No connected WhatsApp instances.</p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-
                                     <div className="rounded-2xl border border-ant-line p-4 space-y-3">
                                         <div className="flex items-center justify-between gap-2">
                                             <SectionHeader icon={Package} title={`Assigned products · ${productIds.length}`} hint="Products this commercial can sell." />

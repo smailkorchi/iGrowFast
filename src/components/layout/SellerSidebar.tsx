@@ -18,8 +18,6 @@ import {
     HelpCircle,
     type LucideIcon,
 } from 'lucide-react';
-import { FaWhatsapp } from 'react-icons/fa';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
@@ -87,35 +85,12 @@ const SellerSidebar = () => {
         },
     });
 
-    const { data: hasWhatsAppAccess } = useQuery({
-        queryKey: ['seller-wa-access', profile?.id],
-        queryFn: async () => {
-            if (!profile?.id) return false;
-            const { count } = await (supabase as unknown as SupabaseClient)
-                .from('whatsapp_user_instances')
-                .select('id', { count: 'exact', head: true })
-                .eq('user_id', profile.id);
-            return (count || 0) > 0;
-        },
-        enabled: !!profile?.id,
-    });
-
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/auth');
     };
 
-    const visibleNavigation: NavItem[] = React.useMemo(() => {
-        if (!hasWhatsAppAccess) return baseNavigation;
-        const ordersIdx = baseNavigation.findIndex((n) => n.path === '/seller/orders');
-        const waItem: NavItem = { icon: FaWhatsapp as SidebarIcon, label: 'WhatsApp', path: '/seller/whatsapp/inbox' };
-        if (ordersIdx === -1) return [...baseNavigation, waItem];
-        return [
-            ...baseNavigation.slice(0, ordersIdx + 1),
-            waItem,
-            ...baseNavigation.slice(ordersIdx + 1),
-        ];
-    }, [hasWhatsAppAccess]);
+    const visibleNavigation: NavItem[] = baseNavigation;
 
     const allPaths = React.useMemo(
         () => [...visibleNavigation.map((i) => i.path), ...footerNavigation.map((i) => i.path), '/seller/profile'],

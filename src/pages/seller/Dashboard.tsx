@@ -17,7 +17,6 @@ import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { AnalyticsDateFilter, type DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { SellerSelfPerformanceSection } from '@/components/dashboard/SellerSelfPerformanceSection';
-import { SellerWhatsAppUnreadCard } from '@/components/dashboard/SellerWhatsAppUnreadCard';
 
 interface UserProfile {
     id: string;
@@ -494,9 +493,6 @@ const SellerDashboard = () => {
                         </div>
                     </div>
                 </section>
-
-                {/* WhatsApp */}
-                <SellerWhatsAppUnreadCard businessId={userProfile?.['DigiCom Business'] || ''} />
 
                 {/* Performance */}
                 {userProfile?.id ? (

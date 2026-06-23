@@ -104,7 +104,6 @@ import * as z from 'zod';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { FaWhatsapp } from 'react-icons/fa';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -130,10 +129,6 @@ const userSchema = z.object({
     active: z.boolean().default(true),
     permissions: z.record(z.any()).default({}),
     avatar_url: z.string().optional().nullable(),
-    whatsapp_access: z.object({
-        mode: z.enum(['none', 'all', 'specific']).default('none'),
-        instance_ids: z.array(z.string()).default([]),
-    }).default({ mode: 'none', instance_ids: [] }),
     // Mediabuyer integration scoping — which GA properties / Meta ad accounts they may see.
     ga_access: z.object({
         mode: z.enum(['none', 'all', 'specific']).default('none'),
@@ -410,20 +405,6 @@ const Users = () => {
         },
     });
 
-    const { data: usersWithWhatsApp } = useQuery({
-        queryKey: ['users-wa-access', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return new Set<string>();
-            const { data, error } = await (supabase as any)
-                .from('whatsapp_user_instances')
-                .select('user_id')
-                .eq('business_id', activeBusinessId);
-            if (error) return new Set<string>();
-            return new Set<string>((data || []).map((r: any) => r.user_id));
-        },
-        enabled: !!activeBusinessId,
-    });
-
     const addUserMutation = useMutation({
         mutationFn: async (values: UserFormValues) => {
             const { data, error } = await supabase.functions.invoke('manage-users', {
@@ -432,9 +413,6 @@ const Users = () => {
                     userData: {
                         ...values,
                         'DigiCom Business': activeBusinessId,
-                        whatsapp_access: values.role === 'commercial'
-                            ? { ...values.whatsapp_access, business_id: activeBusinessId }
-                            : { mode: 'none' },
                         ga_access: values.role === 'mediabuyer'
                             ? { ...values.ga_access, business_id: activeBusinessId }
                             : { mode: 'none' },
@@ -452,7 +430,6 @@ const Users = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
-            queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
             setIsAddModalOpen(false);
             toast({ title: "User created", description: "The user has been successfully created in Auth and Database." });
         },
@@ -475,9 +452,6 @@ const Users = () => {
                 salary_amount: values.salary_amount,
                 products: values.products,
                 permissions: values.permissions,
-                whatsapp_access: values.role === 'commercial'
-                    ? { ...values.whatsapp_access, business_id: activeBusinessId }
-                    : { mode: 'none' },
                 ga_access: values.role === 'mediabuyer'
                     ? { ...values.ga_access, business_id: activeBusinessId }
                     : { mode: 'none' },
@@ -496,7 +470,6 @@ const Users = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
-            queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
             setEditingUser(null);
             toast({ title: "User updated", description: "The user has been successfully updated." });
         },
@@ -514,7 +487,6 @@ const Users = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
-            queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
             setUserToDelete(null);
             toast({ title: "User deleted", description: "The user has been successfully removed from Auth and Database." });
         },
@@ -749,7 +721,6 @@ const Users = () => {
                                             key={user.id}
                                             user={user}
                                             meta={group.meta}
-                                            hasWhatsApp={usersWithWhatsApp?.has(user.id) || false}
                                             onEdit={() => setEditingUser(user)}
                                             onDelete={() => setUserToDelete(user)}
                                             onToggleActive={() => { setStatusReason(''); setStatusTarget({ user, active: !user.active }); }}
@@ -878,7 +849,6 @@ const Users = () => {
 const UserCard = ({
     user,
     meta,
-    hasWhatsApp,
     onEdit,
     onDelete,
     onToggleActive,
@@ -886,7 +856,6 @@ const UserCard = ({
 }: {
     user: any;
     meta: typeof ROLE_META[string];
-    hasWhatsApp?: boolean;
     onEdit: () => void;
     onDelete: () => void;
     onToggleActive: () => void;
@@ -913,12 +882,6 @@ const UserCard = ({
                             <span className={cn('h-1.5 w-1.5 rounded-full', meta.pill.dot)} />
                             {meta.label}
                         </span>
-                        {hasWhatsApp && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-ant-green/25 bg-ant-green/10 px-1.5 py-0.5 text-[9px] font-semibold text-ant-green">
-                                <FaWhatsapp className="w-2.5 h-2.5" />
-                                WA
-                            </span>
-                        )}
                     </div>
                     <div className="flex items-center gap-3 flex-wrap text-[11px]">
                         <span className="text-ant-mid tabular-nums">@{user.username}</span>
@@ -1018,48 +981,12 @@ const UserModal = ({
             products: [],
             active: true,
             permissions: {},
-            whatsapp_access: { mode: 'none', instance_ids: [] },
             ga_access: { mode: 'none', ids: [] },
             meta_access: { mode: 'none', ids: [] },
         }
     });
 
-    const { data: waInstances } = useQuery({
-        queryKey: ['whatsapp-instances-user-modal', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('whatsapp_instances')
-                .select('id, instance_name, phone_number, profile_pic, status')
-                .eq('business_id', activeBusinessId)
-                .eq('status', 'open')
-                .order('created_at', { ascending: true });
-            if (error) throw error;
-            return data ?? [];
-        },
-        enabled: !!activeBusinessId && isOpen,
-    });
-
     const editingUserId = (initialData as any)?.id;
-    const { data: existingAccess } = useQuery({
-        queryKey: ['whatsapp-user-access', editingUserId],
-        queryFn: async () => {
-            if (!editingUserId) return null;
-            const { data, error } = await (supabase as any)
-                .from('whatsapp_user_instances')
-                .select('instance_id, scope')
-                .eq('user_id', editingUserId);
-            if (error) throw error;
-            const rows = data || [];
-            if (rows.length === 0) return { mode: 'none' as const, instance_ids: [] };
-            if (rows.some((r: any) => r.scope === 'all')) return { mode: 'all' as const, instance_ids: [] };
-            return {
-                mode: 'specific' as const,
-                instance_ids: rows.map((r: any) => r.instance_id).filter(Boolean),
-            };
-        },
-        enabled: !!editingUserId && isOpen,
-    });
 
     // Mediabuyer GA / Meta current grants (round-trip) + the business's connectable properties/accounts.
     const { data: existingGaAccess } = useQuery({
@@ -1129,7 +1056,7 @@ const UserModal = ({
         p.code.toLowerCase().includes(productSearch.toLowerCase())
     );
 
-    const [activeTab, setActiveTab] = useState<'permissions' | 'performance' | 'whatsapp' | 'payment' | 'integrations'>('permissions');
+    const [activeTab, setActiveTab] = useState<'permissions' | 'performance' | 'payment' | 'integrations'>('permissions');
     useEffect(() => { if (isOpen) setActiveTab(firstConfigTab((initialData as any)?.role)); }, [isOpen, initialData]);
 
     useEffect(() => {
@@ -1147,7 +1074,6 @@ const UserModal = ({
                     commission_basis: normalizeCommissionBasis(initialData.commission_basis),
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
-                    whatsapp_access: existingAccess || { mode: 'none', instance_ids: [] },
                     ga_access: existingGaAccess || { mode: 'none', ids: [] },
                     meta_access: existingMetaAccess || { mode: 'none', ids: [] },
                 });
@@ -1168,14 +1094,13 @@ const UserModal = ({
                     products: [],
                     active: true,
                     permissions: {},
-                    whatsapp_access: { mode: 'none', instance_ids: [] },
                     ga_access: { mode: 'none', ids: [] },
                     meta_access: { mode: 'none', ids: [] },
                 });
                 setAvatarPreview(null);
             }
         }
-    }, [initialData, form, isOpen, existingAccess, existingGaAccess, existingMetaAccess]);
+    }, [initialData, form, isOpen, existingGaAccess, existingMetaAccess]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -1282,10 +1207,6 @@ const UserModal = ({
                                             <TabsTrigger value="performance" className={tabClass}>
                                                 <BarChart2 className="w-3 h-3" />
                                                 Performance
-                                            </TabsTrigger>
-                                            <TabsTrigger value="whatsapp" className={tabClass}>
-                                                <FaWhatsapp className="w-3 h-3 text-[#25D366]" />
-                                                WhatsApp
                                             </TabsTrigger>
                                         </>
                                     )}
@@ -1486,126 +1407,6 @@ const UserModal = ({
                                             )}
                                         </div>
                                     </div>
-                                </TabsContent>
-
-                                {/* WHATSAPP (commercial) */}
-                                <TabsContent value="whatsapp" className="m-0 outline-none">
-                                    <FormField
-                                        control={form.control}
-                                        name="whatsapp_access"
-                                        render={({ field }) => {
-                                            const access = field.value || { mode: 'none' as const, instance_ids: [] };
-                                            const enabled = access.mode !== 'none';
-                                            const setMode = (mode: 'none' | 'all' | 'specific') => {
-                                                field.onChange({ ...access, mode, instance_ids: mode === 'specific' ? access.instance_ids : [] });
-                                            };
-                                            const toggleInstance = (id: string) => {
-                                                const current = access.instance_ids || [];
-                                                const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-                                                field.onChange({ ...access, mode: 'specific', instance_ids: next });
-                                            };
-                                            return (
-                                                <FormItem className="space-y-4">
-                                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-ant-line bg-ant-paper p-5">
-                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                            <div className="w-11 h-11 rounded-2xl bg-ant-green/10 border border-ant-green/25 flex items-center justify-center shrink-0">
-                                                                <FaWhatsapp className="w-5 h-5 text-ant-green" />
-                                                            </div>
-                                                            <div className="space-y-0.5 min-w-0">
-                                                                <FormLabel className="font-display text-[14px] font-semibold text-ant-ink block">Enable inbox access</FormLabel>
-                                                                <p className="font-serif italic text-[12px] text-ant-mid leading-snug">
-                                                                    Let this commercial open the WhatsApp inbox for selected devices.
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <Switch
-                                                            checked={enabled}
-                                                            onCheckedChange={(v) => setMode(v ? 'all' : 'none')}
-                                                            className="data-[state=checked]:bg-ant-green"
-                                                        />
-                                                    </div>
-
-                                                    {enabled && (
-                                                        <>
-                                                            <RadioGroup
-                                                                value={access.mode}
-                                                                onValueChange={(v) => setMode(v as 'all' | 'specific')}
-                                                                className="grid grid-cols-2 gap-3"
-                                                            >
-                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
-                                                                    <RadioGroupItem value="all" id="wa-all-tab" className="mt-0.5" />
-                                                                    <div className="space-y-0.5">
-                                                                        <span className="font-display text-[13px] font-semibold text-ant-ink block">All devices</span>
-                                                                        <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Includes future devices automatically</p>
-                                                                    </div>
-                                                                </label>
-                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
-                                                                    <RadioGroupItem value="specific" id="wa-specific-tab" className="mt-0.5" />
-                                                                    <div className="space-y-0.5">
-                                                                        <span className="font-display text-[13px] font-semibold text-ant-ink block">Specific</span>
-                                                                        <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Pick the devices below</p>
-                                                                    </div>
-                                                                </label>
-                                                            </RadioGroup>
-
-                                                            {access.mode === 'specific' && (
-                                                                <div className="space-y-2">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <FormLabel className={labelCls}>Connected devices</FormLabel>
-                                                                        <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
-                                                                            {(access.instance_ids || []).length} / {waInstances?.length || 0}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[260px] overflow-y-auto pr-1 ant-scroll">
-                                                                        {!waInstances?.length ? (
-                                                                            <p className="col-span-full font-serif italic text-[12px] text-ant-mid text-center py-8">
-                                                                                No connected WhatsApp devices for this business yet.
-                                                                            </p>
-                                                                        ) : (
-                                                                            waInstances.map((inst: any) => {
-                                                                                const checked = (access.instance_ids || []).includes(inst.id);
-                                                                                return (
-                                                                                    <div
-                                                                                        key={inst.id}
-                                                                                        onClick={() => toggleInstance(inst.id)}
-                                                                                        className={cn(
-                                                                                            'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
-                                                                                            checked
-                                                                                                ? 'bg-ant-orange/10 border-ant-orange/30'
-                                                                                                : 'bg-ant-paper border-ant-line hover:border-ant-ink/30'
-                                                                                        )}
-                                                                                    >
-                                                                                        <Avatar className="h-9 w-9 rounded-full border border-ant-line shrink-0">
-                                                                                            <AvatarImage src={inst.profile_pic || ''} className="object-cover" />
-                                                                                            <AvatarFallback className="text-[10px] font-semibold bg-ant-ink/5 text-ant-ink">
-                                                                                                {inst.instance_name.substring(0, 2).toUpperCase()}
-                                                                                            </AvatarFallback>
-                                                                                        </Avatar>
-                                                                                        <div className="flex-1 min-w-0">
-                                                                                            <p className="text-[12px] font-semibold text-ant-ink truncate">{inst.instance_name}</p>
-                                                                                            {inst.phone_number && (
-                                                                                                <p className="text-[11px] text-ant-mid truncate tabular-nums">+{inst.phone_number}</p>
-                                                                                            )}
-                                                                                        </div>
-                                                                                        <div className={cn(
-                                                                                            'w-5 h-5 rounded-full flex items-center justify-center border transition-all shrink-0',
-                                                                                            checked ? 'bg-ant-orange border-ant-orange text-white' : 'border-ant-line text-transparent'
-                                                                                        )}>
-                                                                                            <Check className="w-3 h-3" />
-                                                                                        </div>
-                                                                                    </div>
-                                                                                );
-                                                                            })
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </FormItem>
-                                            );
-                                        }}
-                                    />
                                 </TabsContent>
 
                                 {/* INTEGRATIONS (mediabuyer) — which GA properties / Meta ad accounts they may see */}

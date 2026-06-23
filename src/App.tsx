@@ -81,20 +81,13 @@ import SellerDeliveryNote from "./pages/seller/DeliveryNote";
 import SellerReturnNote from "./pages/seller/ReturnNote";
 import SellerProducts from "./pages/seller/Products";
 import SellerAccessories from "./pages/seller/Accessories";
-import SellerWhatsAppInbox from "./pages/seller/WhatsAppInbox";
 import SellerHelp from "./pages/seller/Help";
-import { WhatsAppNotificationsProvider } from "./components/notifications/WhatsAppNotificationsProvider";
 import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { MediaBuyerIntegrationGuard } from "./components/auth/MediaBuyerIntegrationGuard";
 import { Navigate } from "react-router-dom";
 
-// WhatsApp Imports
-import WhatsAppManager from "./pages/admin/business/WhatsAppManager";
-import WhatsAppInbox from "./pages/admin/business/WhatsAppInbox";
-import AIBrainConsole from "./pages/admin/business/AIBrainConsole";
-import OwnerAIConsole from "./pages/owner/OwnerAIConsole";
 import OwnerConfig from "./pages/owner/Config";
 import OwnerEmailTemplates from "./pages/owner/EmailTemplates";
 import OwnerProfile from "./pages/owner/Profile";
@@ -178,7 +171,6 @@ const App = () => (
       <Toaster />
       <Sonner duration={500} />
       <BrowserRouter>
-        <WhatsAppNotificationsProvider>
         <Routes>
           <Route path="/auth" element={<Auth />} />
           {/* Public self-registration via a single-use admin invite link */}
@@ -198,7 +190,6 @@ const App = () => (
                   <Route path="status" element={<OwnerStatus />} />
                   <Route path="cities" element={<OwnerCities />} />
                   <Route path="zones" element={<OwnerZones />} />
-                  <Route path="ai" element={<OwnerAIConsole />} />
                   <Route path="email-templates" element={<OwnerEmailTemplates />} />
                   <Route path="config" element={<OwnerConfig />} />
                   <Route path="profile" element={<OwnerProfile />} />
@@ -264,7 +255,6 @@ const App = () => (
                   <Route path="demands" element={<SellerDemands />} />
                   <Route path="delivery-note" element={<SellerDeliveryNote />} />
                   <Route path="return-note" element={<SellerReturnNote />} />
-                  <Route path="whatsapp/inbox" element={<SellerWhatsAppInbox />} />
                   <Route path="help" element={<SellerHelp />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
@@ -324,9 +314,6 @@ const App = () => (
                     <Route path="/sellers" element={<AdminSellers />} />
                     <Route path="/business" element={<AdminBusinessOverview />} />
                     <Route path="/business/payments" element={<AdminBusinessPayments />} />
-                    <Route path="/business/whatsapp/manager" element={<WhatsAppManager />} />
-                    <Route path="/business/whatsapp/inbox" element={<WhatsAppInbox />} />
-                    <Route path="/business/ai-brain" element={<AIBrainConsole />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
@@ -335,7 +322,6 @@ const App = () => (
             </ProtectedRoute>
           } />
         </Routes>
-        </WhatsAppNotificationsProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

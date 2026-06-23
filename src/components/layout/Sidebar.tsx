@@ -37,8 +37,6 @@ import {
     Receipt,
     ClipboardList,
     PackageCheck,
-    Smartphone,
-    BrainCircuit,
     Plug,
     Cable,
     LineChart,
@@ -49,7 +47,6 @@ import {
     Trash2,
     type LucideIcon,
 } from 'lucide-react';
-import { FaWhatsapp } from 'react-icons/fa';
 import { SiMeta } from 'react-icons/si';
 import { FaGoogle } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
@@ -78,17 +75,6 @@ const navigation: NavSection[] = [
             { icon: FaGoogle, label: 'Google Analytics', path: '/google-analytics' },
             { icon: SiMeta, label: 'Meta Ads', path: '/meta-ads', beta: true },
         ],
-    },
-    {
-        label: 'WhatsApp',
-        icon: FaWhatsapp,
-        items: [
-            { icon: Smartphone, label: 'Instances', path: '/business/whatsapp/manager' },
-            { icon: FaWhatsapp, label: 'Inbox', path: '/business/whatsapp/inbox' },
-        ],
-    },
-    {
-        items: [{ icon: BrainCircuit, label: 'AI Brain', path: '/business/ai-brain', beta: true }],
     },
     {
         items: [{ icon: ShoppingBag, label: 'Orders', path: '/orders' }],

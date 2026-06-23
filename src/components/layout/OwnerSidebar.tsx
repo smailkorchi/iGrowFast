@@ -13,7 +13,6 @@ import {
     RefreshCcw,
     MapPin,
     Map,
-    BrainCircuit,
     Mails,
     Settings,
     type LucideIcon,
@@ -38,7 +37,6 @@ const navigation: NavItem[] = [
     { icon: RefreshCcw, label: 'Status', path: '/owner/status' },
     { icon: MapPin, label: 'Cities', path: '/owner/cities' },
     { icon: Map, label: 'Zones', path: '/owner/zones' },
-    { icon: BrainCircuit, label: 'AI Platform', path: '/owner/ai' },
     { icon: Mails, label: 'Email Templates', path: '/owner/email-templates' },
     { icon: Settings, label: 'Config', path: '/owner/config' },
 ];
