@@ -53,7 +53,6 @@ type OrderForSearch = {
     order_status_id?: unknown;
     package_status_id?: unknown;
     master_city_id?: unknown;
-    city_id?: unknown;
     city?: { name?: unknown } | null;
     courier?: { name?: unknown } | null;
     assignee?: { name?: unknown } | null;
@@ -122,8 +121,7 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
         order?.company_id,
         order?.order_status_id,
         order?.package_status_id,
-        order?.master_city_id,
-        order?.city_id
+        order?.master_city_id
     );
 
     addStrings(bucket, order?.city?.name);

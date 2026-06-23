@@ -1620,11 +1620,11 @@ const Orders = () => {
 
         // 2. Providers that have a fee for this city (even if no zone)
         const feeCouriers = couriers?.filter((c: any) =>
-            courierFees?.some((f: any) => f.courier_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
+            courierFees?.some((f: any) => f.courier_id === c.id && (f.master_city_id === selectedCityId))
         ) || [];
 
         const feeCompanies = companies?.filter((c: any) =>
-            companyFees?.some((f: any) => f.company_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
+            companyFees?.some((f: any) => f.company_id === c.id && (f.master_city_id === selectedCityId))
         ) || [];
 
         // 3. Companies that have a provider_cities mapping for this city
@@ -1677,7 +1677,7 @@ const Orders = () => {
         if (!aggregateOrders?.length) return [] as { id: string; name: string }[];
         const byId = new Map<string, { id: string; name: string }>();
         for (const o of aggregateOrders as any[]) {
-            const cid = o.master_city_id || o.city_id;
+            const cid = o.master_city_id;
             if (!cid) continue;
             const embedded = o.city as { id?: string; name?: string } | null | undefined;
             const name = embedded?.name || (cities as any[])?.find((c: any) => c.id === cid)?.name;
@@ -1728,10 +1728,10 @@ const Orders = () => {
         // Helper to find fee for a provider + city
         const findProviderFee = (p: any): number => {
             if (p.type === 'courier') {
-                const f = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId));
+                const f = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === selectedCityId));
                 if (f) return Number(f.fee);
             } else {
-                const f = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId));
+                const f = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === selectedCityId));
                 if (f) return Number(f.fee);
                 // Fallback to provider_cities fees
                 if (p.provider_type && providerCities?.length) {
@@ -1778,9 +1778,9 @@ const Orders = () => {
 
         let fee = 0;
         if (selectedCourierId) {
-            fee = (courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee as number) || 0;
+            fee = (courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId))?.fee as number) || 0;
         } else if (selectedCompanyId) {
-            fee = (companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee as number) || 0;
+            fee = (companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId))?.fee as number) || 0;
         }
         form.setValue('shipping_cost', Number(fee));
     };
@@ -2373,7 +2373,7 @@ const Orders = () => {
         const matchesSearch = orderMatchesTopSearch(o, searchQuery);
         const matchesStatus = (filterStatus === "all" || o.order_status_id === filterStatus)
             && (pillStatusIds.size === 0 || pillStatusIds.has(o.order_status_id));
-        const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
+        const matchesCity = filterCity === "all" || o.master_city_id === filterCity;
         const matchesSource = filterSource === "all" || o.source_name === filterSource;
         const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
         let matchesDate = true;
@@ -2508,7 +2508,7 @@ const Orders = () => {
     // Apply all base filters EXCEPT the one the pill itself controls.
     const orderPassesNonStatusFilters = (o: any) => {
         if (!orderMatchesTopSearch(o, searchQuery)) return false;
-        if (filterCity !== 'all' && o.master_city_id !== filterCity && o.city_id !== filterCity) return false;
+        if (filterCity !== 'all' && o.master_city_id !== filterCity) return false;
         if (filterSource !== 'all' && o.source_name !== filterSource) return false;
         if (filterProvider !== 'all' && o.courier_id !== filterProvider && o.company_id !== filterProvider) return false;
         if (getDateRange) {
@@ -2709,7 +2709,7 @@ const Orders = () => {
         form.reset({
             name: order.name,
             phone: order.phone,
-            city_id: order.master_city_id || order.city_id,
+            city_id: order.master_city_id || '',
             address: order.address,
             source_name: order.source_name,
             shipping_cost: Number(order.shipping_cost),
@@ -4182,12 +4182,12 @@ const Orders = () => {
                                                                     if (provider?.type === 'courier') {
                                                                         form.setValue('courier_id', val);
                                                                         form.setValue('company_id', null);
-                                                                        const fee = courierFees?.find((f: any) => f.courier_id === val && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee;
+                                                                        const fee = courierFees?.find((f: any) => f.courier_id === val && (f.master_city_id === selectedCityId))?.fee;
                                                                         form.setValue('shipping_cost', fee ? Number(fee) : 0);
                                                                     } else {
                                                                         form.setValue('company_id', val);
                                                                         form.setValue('courier_id', null);
-                                                                        const fee = companyFees?.find((f: any) => f.company_id === val && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee;
+                                                                        const fee = companyFees?.find((f: any) => f.company_id === val && (f.master_city_id === selectedCityId))?.fee;
                                                                         form.setValue('shipping_cost', fee ? Number(fee) : 0);
                                                                     }
                                                                 }}

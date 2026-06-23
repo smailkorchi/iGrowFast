@@ -1898,7 +1898,7 @@ function FeesModal({ isOpen, onClose, courier, mode = 'delivery' }: any) {
             );
             const feeMap: Record<string, string> = {};
             data.forEach((f: any) => {
-                const k = f.master_city_id || f.city_id;
+                const k = f.master_city_id;
                 if (k) feeMap[k] = (f[feeColumn] ?? 0).toString();
             });
             setFees(feeMap);
@@ -2786,7 +2786,7 @@ function CompanyFeesModal({ isOpen, onClose, company, mode = 'delivery' }: any) 
             );
             const feeMap: Record<string, string> = {};
             data.forEach((f: any) => {
-                const k = f.master_city_id || f.city_id;
+                const k = f.master_city_id;
                 if (k) feeMap[k] = (f[feeColumn] ?? 0).toString();
             });
             setFees(feeMap);
@@ -2853,9 +2853,7 @@ function CompanyFeesModal({ isOpen, onClose, company, mode = 'delivery' }: any) 
         if (!q) return list;
         return list.filter(
             (c: any) =>
-                (c.name || '').toLowerCase().includes(q) ||
-                (c.name_ar || '').toLowerCase().includes(q) ||
-                (c.region || '').toLowerCase().includes(q)
+                (c.name || '').toLowerCase().includes(q)
         );
     }, [cities, citySearch]);
 

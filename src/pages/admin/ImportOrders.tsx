@@ -165,7 +165,7 @@ const ImportOrders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('courier_fees')
-                .select('id, courier_id, master_city_id, city_id, fee')
+                .select('id, courier_id, master_city_id, fee')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -176,7 +176,7 @@ const ImportOrders = () => {
         queryKey: ['company-fees-all', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            return await fetchAllRows('company_fees', 'id, company_id, master_city_id, city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
+            return await fetchAllRows('company_fees', 'id, company_id, master_city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
         }
     });
 

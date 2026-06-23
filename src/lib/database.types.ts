@@ -71,7 +71,6 @@ export type Database = {
           id: string
           method: string
           product_id: string | null
-          results: number
           start_date: string
           updated_at: string | null
         }
@@ -84,7 +83,6 @@ export type Database = {
           id?: string
           method: string
           product_id?: string | null
-          results?: number
           start_date: string
           updated_at?: string | null
         }
@@ -97,7 +95,6 @@ export type Database = {
           id?: string
           method?: string
           product_id?: string | null
-          results?: number
           start_date?: string
           updated_at?: string | null
         }
@@ -124,72 +121,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ameex_cities: {
-        Row: {
-          ameex_city_id: string
-          created_at: string | null
-          d_fees: number | null
-          friday: boolean | null
-          id: string
-          lat: string | null
-          lng: string | null
-          monday: boolean | null
-          name: string
-          r_fees: number | null
-          ref: string | null
-          relaunch_zone: string | null
-          saturday: boolean | null
-          sunday: boolean | null
-          thursday: boolean | null
-          tuesday: boolean | null
-          updated_at: string | null
-          wednesday: boolean | null
-          zone: string | null
-        }
-        Insert: {
-          ameex_city_id: string
-          created_at?: string | null
-          d_fees?: number | null
-          friday?: boolean | null
-          id?: string
-          lat?: string | null
-          lng?: string | null
-          monday?: boolean | null
-          name: string
-          r_fees?: number | null
-          ref?: string | null
-          relaunch_zone?: string | null
-          saturday?: boolean | null
-          sunday?: boolean | null
-          thursday?: boolean | null
-          tuesday?: boolean | null
-          updated_at?: string | null
-          wednesday?: boolean | null
-          zone?: string | null
-        }
-        Update: {
-          ameex_city_id?: string
-          created_at?: string | null
-          d_fees?: number | null
-          friday?: boolean | null
-          id?: string
-          lat?: string | null
-          lng?: string | null
-          monday?: boolean | null
-          name?: string
-          r_fees?: number | null
-          ref?: string | null
-          relaunch_zone?: string | null
-          saturday?: boolean | null
-          sunday?: boolean | null
-          thursday?: boolean | null
-          tuesday?: boolean | null
-          updated_at?: string | null
-          wednesday?: boolean | null
-          zone?: string | null
-        }
-        Relationships: []
       }
       bons_commande: {
         Row: {
@@ -310,7 +241,6 @@ export type Database = {
           id: string
           license_type: string
           notes: string | null
-          paid_by: string | null
           payment_method: string
           period_end: string | null
           period_start: string
@@ -329,7 +259,6 @@ export type Database = {
           id?: string
           license_type: string
           notes?: string | null
-          paid_by?: string | null
           payment_method?: string
           period_end?: string | null
           period_start: string
@@ -348,7 +277,6 @@ export type Database = {
           id?: string
           license_type?: string
           notes?: string | null
-          paid_by?: string | null
           payment_method?: string
           period_end?: string | null
           period_start?: string
@@ -364,13 +292,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "business_payments_paid_by_fkey"
-            columns: ["paid_by"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -588,6 +509,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "campaign_source_locks_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "campaign_source_locks_mb_fk"
             columns: ["mediabuyer_id"]
             isOneToOne: false
@@ -749,122 +677,6 @@ export type Database = {
           },
         ]
       }
-      cities: {
-        Row: {
-          ameex_code: string | null
-          created_at: string | null
-          id: string
-          name: string
-          zone_id: string | null
-        }
-        Insert: {
-          ameex_code?: string | null
-          created_at?: string | null
-          id?: string
-          name: string
-          zone_id?: string | null
-        }
-        Update: {
-          ameex_code?: string | null
-          created_at?: string | null
-          id?: string
-          name?: string
-          zone_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cities_zone_id_fkey"
-            columns: ["zone_id"]
-            isOneToOne: false
-            referencedRelation: "zones"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      coliaty_cities: {
-        Row: {
-          category_name: string | null
-          category_ref: string | null
-          city_active: boolean | null
-          city_code: string | null
-          city_name: string
-          coliaty_city_id: number
-          created_at: string | null
-          custom_pricing_delivered: number | null
-          custom_pricing_refused: number | null
-          custom_pricing_returned: number | null
-          custom_pricing_type: string | null
-          fee_delivered: number | null
-          fee_refused: number | null
-          fee_returned: number | null
-          friday: boolean | null
-          hub_id: number | null
-          hub_name: string | null
-          id: string
-          monday: boolean | null
-          saturday: boolean | null
-          sunday: boolean | null
-          thursday: boolean | null
-          tuesday: boolean | null
-          updated_at: string | null
-          wednesday: boolean | null
-        }
-        Insert: {
-          category_name?: string | null
-          category_ref?: string | null
-          city_active?: boolean | null
-          city_code?: string | null
-          city_name: string
-          coliaty_city_id: number
-          created_at?: string | null
-          custom_pricing_delivered?: number | null
-          custom_pricing_refused?: number | null
-          custom_pricing_returned?: number | null
-          custom_pricing_type?: string | null
-          fee_delivered?: number | null
-          fee_refused?: number | null
-          fee_returned?: number | null
-          friday?: boolean | null
-          hub_id?: number | null
-          hub_name?: string | null
-          id?: string
-          monday?: boolean | null
-          saturday?: boolean | null
-          sunday?: boolean | null
-          thursday?: boolean | null
-          tuesday?: boolean | null
-          updated_at?: string | null
-          wednesday?: boolean | null
-        }
-        Update: {
-          category_name?: string | null
-          category_ref?: string | null
-          city_active?: boolean | null
-          city_code?: string | null
-          city_name?: string
-          coliaty_city_id?: number
-          created_at?: string | null
-          custom_pricing_delivered?: number | null
-          custom_pricing_refused?: number | null
-          custom_pricing_returned?: number | null
-          custom_pricing_type?: string | null
-          fee_delivered?: number | null
-          fee_refused?: number | null
-          fee_returned?: number | null
-          friday?: boolean | null
-          hub_id?: number | null
-          hub_name?: string | null
-          id?: string
-          monday?: boolean | null
-          saturday?: boolean | null
-          sunday?: boolean | null
-          thursday?: boolean | null
-          tuesday?: boolean | null
-          updated_at?: string | null
-          wednesday?: boolean | null
-        }
-        Relationships: []
-      }
       company_delivery_notes: {
         Row: {
           created_at: string | null
@@ -876,7 +688,6 @@ export type Database = {
           parcel_count: number | null
           provider_id: string | null
           reference: string | null
-          status_id: string | null
           updated_at: string | null
           zone_id: string | null
         }
@@ -890,7 +701,6 @@ export type Database = {
           parcel_count?: number | null
           provider_id?: string | null
           reference?: string | null
-          status_id?: string | null
           updated_at?: string | null
           zone_id?: string | null
         }
@@ -904,7 +714,6 @@ export type Database = {
           parcel_count?: number | null
           provider_id?: string | null
           reference?: string | null
-          status_id?: string | null
           updated_at?: string | null
           zone_id?: string | null
         }
@@ -931,13 +740,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "company_delivery_notes_status_id_fkey"
-            columns: ["status_id"]
-            isOneToOne: false
-            referencedRelation: "package_statuses"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "company_delivery_notes_zone_id_fkey"
             columns: ["zone_id"]
             isOneToOne: false
@@ -948,7 +750,6 @@ export type Database = {
       }
       company_fees: {
         Row: {
-          city_id: string | null
           company_id: string
           created_at: string | null
           "DigiCom Business": string | null
@@ -959,7 +760,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          city_id?: string | null
           company_id: string
           created_at?: string | null
           "DigiCom Business"?: string | null
@@ -970,7 +770,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          city_id?: string | null
           company_id?: string
           created_at?: string | null
           "DigiCom Business"?: string | null
@@ -981,13 +780,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "company_fees_city_id_fkey"
-            columns: ["city_id"]
-            isOneToOne: false
-            referencedRelation: "cities"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "company_fees_company_id_fkey"
             columns: ["company_id"]
@@ -1496,7 +1288,6 @@ export type Database = {
       }
       courier_fees: {
         Row: {
-          city_id: string | null
           courier_id: string
           created_at: string | null
           "DigiCom Business": string | null
@@ -1507,7 +1298,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          city_id?: string | null
           courier_id: string
           created_at?: string | null
           "DigiCom Business"?: string | null
@@ -1518,7 +1308,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          city_id?: string | null
           courier_id?: string
           created_at?: string | null
           "DigiCom Business"?: string | null
@@ -1529,13 +1318,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "courier_fees_city_id_fkey"
-            columns: ["city_id"]
-            isOneToOne: false
-            referencedRelation: "cities"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "courier_fees_courier_id_fkey"
             columns: ["courier_id"]
@@ -2647,72 +2429,33 @@ export type Database = {
       }
       master_cities: {
         Row: {
-          ameex_city_id: string | null
-          coliaty_city_id: string | null
           created_at: string | null
           id: string
-          is_active: boolean | null
           lat: number | null
           lng: number | null
           name: string
-          name_ar: string | null
-          ozon_city_id: string | null
-          region: string | null
           updated_at: string | null
           zone_id: string | null
         }
         Insert: {
-          ameex_city_id?: string | null
-          coliaty_city_id?: string | null
           created_at?: string | null
           id?: string
-          is_active?: boolean | null
           lat?: number | null
           lng?: number | null
           name: string
-          name_ar?: string | null
-          ozon_city_id?: string | null
-          region?: string | null
           updated_at?: string | null
           zone_id?: string | null
         }
         Update: {
-          ameex_city_id?: string | null
-          coliaty_city_id?: string | null
           created_at?: string | null
           id?: string
-          is_active?: boolean | null
           lat?: number | null
           lng?: number | null
           name?: string
-          name_ar?: string | null
-          ozon_city_id?: string | null
-          region?: string | null
           updated_at?: string | null
           zone_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "master_cities_ameex_city_id_fkey"
-            columns: ["ameex_city_id"]
-            isOneToOne: false
-            referencedRelation: "ameex_cities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "master_cities_coliaty_city_id_fkey"
-            columns: ["coliaty_city_id"]
-            isOneToOne: false
-            referencedRelation: "coliaty_cities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "master_cities_ozon_city_id_fkey"
-            columns: ["ozon_city_id"]
-            isOneToOne: false
-            referencedRelation: "ozonexpress_cities"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "master_cities_zone_id_fkey"
             columns: ["zone_id"]
@@ -3296,7 +3039,6 @@ export type Database = {
           assign_id: string | null
           assignment_date: string | null
           canceled_by_id: string | null
-          city_id: string | null
           coliaty_old_tracking: string | null
           company_id: string | null
           confirmation_date: string | null
@@ -3360,7 +3102,6 @@ export type Database = {
           assign_id?: string | null
           assignment_date?: string | null
           canceled_by_id?: string | null
-          city_id?: string | null
           coliaty_old_tracking?: string | null
           company_id?: string | null
           confirmation_date?: string | null
@@ -3424,7 +3165,6 @@ export type Database = {
           assign_id?: string | null
           assignment_date?: string | null
           canceled_by_id?: string | null
-          city_id?: string | null
           coliaty_old_tracking?: string | null
           company_id?: string | null
           confirmation_date?: string | null
@@ -3487,13 +3227,6 @@ export type Database = {
             columns: ["assign_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_city_id_fkey"
-            columns: ["city_id"]
-            isOneToOne: false
-            referencedRelation: "cities"
             referencedColumns: ["id"]
           },
           {
@@ -3588,42 +3321,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ozonexpress_cities: {
-        Row: {
-          created_at: string
-          delivered_price: number | null
-          id: string
-          name: string | null
-          ozon_city_id: number
-          ref: string | null
-          refused_price: number | null
-          returned_price: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string
-          delivered_price?: number | null
-          id?: string
-          name?: string | null
-          ozon_city_id: number
-          ref?: string | null
-          refused_price?: number | null
-          returned_price?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string
-          delivered_price?: number | null
-          id?: string
-          name?: string | null
-          ozon_city_id?: number
-          ref?: string | null
-          refused_price?: number | null
-          returned_price?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
       }
       package_statuses: {
         Row: {

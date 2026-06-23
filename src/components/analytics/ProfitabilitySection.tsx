@@ -61,7 +61,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, package_status_label, tracking_number, courier_id, company_id, master_city_id, city_id, order_statuses(code), package_statuses(label, category), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, package_status_label, tracking_number, courier_id, company_id, master_city_id, order_statuses(code), package_statuses(label, category), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -169,18 +169,16 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         enabled: !!businessId,
     });
 
-    // Return fees — lookup table keyed by (courier_id|city_id) and (company_id|city_id).
-    // Prefer master_city_id; fallback to city_id.
+    // Return fees — lookup table keyed by (courier_id|master_city_id) and (company_id|master_city_id).
     const { data: courierFees } = useQuery({
         queryKey: ['analytics-courier-fees', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('courier_fees')
-                .select('courier_id, city_id, master_city_id, return_fee')
+                .select('courier_id, master_city_id, return_fee')
                 .eq('DigiCom Business', businessId);
             return (data || []) as Array<{
                 courier_id: string;
-                city_id: string | null;
                 master_city_id: string | null;
                 return_fee: number | string | null;
             }>;
@@ -196,11 +194,10 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             // return-fee lookup map and undercounted return fees in the P&L.
             return (await fetchAllRows(
                 'company_fees',
-                'company_id, city_id, master_city_id, return_fee',
+                'company_id, master_city_id, return_fee',
                 { filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }] },
             )) as Array<{
                 company_id: string;
-                city_id: string | null;
                 master_city_id: string | null;
                 return_fee: number | string | null;
             }>;
@@ -228,14 +225,14 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
 
         const returnFeeByCourierCity = new Map<string, number>();
         (courierFees || []).forEach(r => {
-            const city = r.master_city_id || r.city_id;
+            const city = r.master_city_id;
             if (r.courier_id && city) {
                 returnFeeByCourierCity.set(`${r.courier_id}|${city}`, Number(r.return_fee || 0));
             }
         });
         const returnFeeByCompanyCity = new Map<string, number>();
         (companyFees || []).forEach(r => {
-            const city = r.master_city_id || r.city_id;
+            const city = r.master_city_id;
             if (r.company_id && city) {
                 returnFeeByCompanyCity.set(`${r.company_id}|${city}`, Number(r.return_fee || 0));
             }

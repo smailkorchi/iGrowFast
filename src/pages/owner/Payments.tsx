@@ -168,18 +168,26 @@ const OwnerPayments = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
+            // The license window this payment activates — one computation feeds both the
+            // payment's covered period (period_start/period_end) and the business's license
+            // dates, so they always agree. period_start was stamped at submission time; on
+            // approval it is realigned to the actual license start.
+            const licenseType = payment.business?.plan?.license_type || payment.business?.license_type || 'monthly';
+            const now = new Date();
+            const nowIso = now.toISOString();
+            const licenseEnd = computeLicenseEnd(licenseType, now);
+
             const { error: payErr } = await supabase
                 .from('business_payments')
                 .update({
                     status: 'approved',
                     reviewed_by: user.id,
-                    reviewed_at: new Date().toISOString(),
+                    reviewed_at: nowIso,
+                    period_start: nowIso,
+                    period_end: licenseEnd,
                 })
                 .eq('id', payment.id);
             if (payErr) throw payErr;
-
-            const licenseType = payment.business?.plan?.license_type || payment.business?.license_type || 'monthly';
-            const now = new Date();
 
             const { error: bizErr } = await supabase
                 .from('businesses')
@@ -187,9 +195,9 @@ const OwnerPayments = () => {
                     status: 'active',
                     active: true,
                     paid: true,
-                    license_start: now.toISOString(),
-                    license_end: computeLicenseEnd(licenseType, now),
-                    updated_at: now.toISOString(),
+                    license_start: nowIso,
+                    license_end: licenseEnd,
+                    updated_at: nowIso,
                 })
                 .eq('id', payment.business_id);
             if (bizErr) throw bizErr;

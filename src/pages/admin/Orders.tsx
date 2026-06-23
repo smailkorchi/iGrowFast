@@ -2703,7 +2703,7 @@ const Orders = () => {
                 : filterStatusIds && filterStatusIds.length > 0
                     ? !!o.order_status_id && filterStatusIds.includes(o.order_status_id)
                     : true;
-        const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
+        const matchesCity = filterCity === "all" || o.master_city_id === filterCity;
         const matchesSource = filterSource === "all" || o.source_name === filterSource;
         const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
         let matchesDate = true;
@@ -2806,7 +2806,7 @@ const Orders = () => {
         form.reset({
             name: order.name,
             phone: order.phone,
-            city_id: order.master_city_id || order.city_id,
+            city_id: order.master_city_id || '',
             address: order.address,
             source_name: order.source_name,
             shipping_cost: Number(order.shipping_cost),

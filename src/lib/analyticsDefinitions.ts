@@ -102,7 +102,6 @@ export type AnalyticsOrder = {
     courier_id?: string | null;
     company_id?: string | null;
     master_city_id?: string | null;
-    city_id?: string | null;
 };
 
 // ─── Number helpers ───────────────────────────────────────────────────────
@@ -421,7 +420,7 @@ export function returnFeeForOrder(
     returnFeeByCourierCity: Map<string, number>,
     returnFeeByCompanyCity: Map<string, number>,
 ): number {
-    const cityId = order.master_city_id || order.city_id;
+    const cityId = order.master_city_id;
     if (!cityId) return 0;
     if (order.courier_id) {
         const k = `${order.courier_id}|${cityId}`;

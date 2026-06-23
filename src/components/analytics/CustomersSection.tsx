@@ -51,7 +51,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, phone, name, price, date, order_status_id, package_status_id, master_city_id, master_cities(name, region)',
+                'id, phone, name, price, date, order_status_id, package_status_id, master_city_id, master_cities(name)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -66,7 +66,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
 
     const metrics = useMemo(() => {
         if (!orders) return null;
-        const ordersTyped = orders as unknown as (AnalyticsOrder & { phone?: string | null; name?: string | null; master_cities?: { name?: string; region?: string } | null })[];
+        const ordersTyped = orders as unknown as (AnalyticsOrder & { phone?: string | null; name?: string | null; master_cities?: { name?: string } | null })[];
 
         const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
         const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
@@ -120,7 +120,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
         // so the chart never has a blank/empty label.
         const regionCounts: Record<string, number> = {};
         filtered.forEach(o => {
-            const raw = (o.master_cities?.name || o.master_cities?.region || '').trim();
+            const raw = (o.master_cities?.name || '').trim();
             const region = raw || 'Unknown city';
             regionCounts[region] = (regionCounts[region] || 0) + 1;
         });

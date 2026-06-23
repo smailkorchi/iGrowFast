@@ -46,7 +46,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, price, date, order_status_id, package_status_id, package_status_label, tracking_number, city_id, master_city_id, source_name, shipping_cost, cities(name), master_cities(name), package_statuses(label, category), order_items(quantity, unit_price)',
+                'id, price, date, order_status_id, package_status_id, package_status_label, tracking_number, master_city_id, source_name, shipping_cost, master_cities(name), package_statuses(label, category), order_items(quantity, unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -61,7 +61,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
 
     const metrics = useMemo(() => {
         if (!orders) return null;
-        const ordersTyped = orders as unknown as (AnalyticsOrder & { master_cities?: { name?: string } | null; cities?: { name?: string } | null })[];
+        const ordersTyped = orders as unknown as (AnalyticsOrder & { master_cities?: { name?: string } | null })[];
 
         const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
         const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
@@ -135,7 +135,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         // Geography — group by master_city canonical (§13).
         const cityCounts: Record<string, number> = {};
         filtered.forEach(o => {
-            const city = o.master_cities?.name || o.cities?.name;
+            const city = o.master_cities?.name;
             if (!city) return;
             cityCounts[city] = (cityCounts[city] || 0) + 1;
         });

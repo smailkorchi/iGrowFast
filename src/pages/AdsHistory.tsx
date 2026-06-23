@@ -624,7 +624,6 @@ const AdsHistory = () => {
                 product_id: values.product_id,
                 method: values.method,
                 amount: values.amount,
-                results: 0,
                 'DigiCom Business': activeBusinessId,
                 start_date: format(values.start_date, 'yyyy-MM-dd'),
                 end_date: format(values.end_date, 'yyyy-MM-dd'),
