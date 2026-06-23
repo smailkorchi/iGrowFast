@@ -38,3 +38,4 @@ igrowfast-*.json
 # GitHub Actions deploy keypair (local only)
 deploy_key
 deploy_key.pub
+vps.env
