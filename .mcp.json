@@ -1,8 +1,30 @@
 {
   "mcpServers": {
-    "supabase-igrowfast": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp"
+    "supabase-igrowfast-prod": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "-p", "@supabase/mcp-server-supabase@latest",
+        "-p", "zod",
+        "mcp-server-supabase",
+        "--project-ref=zjkqprrfbibjoslvlmxf"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    },
+    "supabase-igrowfast-dev": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "-p", "@supabase/mcp-server-supabase@latest",
+        "-p", "zod",
+        "mcp-server-supabase",
+        "--project-ref=pcgvfwqkzyozzxktfogi"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
     },
     "supabase-whatsappmancer": {
       "type": "http",
