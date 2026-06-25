@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
+import { AnnouncementGate } from '@/components/announcements/AnnouncementGate';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -85,5 +86,10 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
         return <FullscreenLoader sublabel="Nous vérifions vos autorisations." />;
     }
 
-    return authenticated ? <>{children}</> : null;
+    return authenticated ? (
+        <>
+            {children}
+            <AnnouncementGate />
+        </>
+    ) : null;
 };

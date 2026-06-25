@@ -10,6 +10,7 @@ import { AuthBackground } from '@/components/auth/AuthBackground';
 import { requestPasswordReset } from '@/lib/credentialChange';
 import { describePasskeyError, listOwnPasskeys, registerOwnPasskey } from '@/lib/selfSecurity';
 import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
+import { ACTIVE_ANNOUNCEMENT } from '@/components/announcements/activeAnnouncement';
 
 const loginSchema = z.object({
     identifier: z.string().min(3, 'Identifiant ou email requis'),
@@ -53,7 +54,14 @@ const Auth = () => {
     const [passkeyPromptCtx, setPasskeyPromptCtx] = useState<{ role: string | null; identifier: string } | null>(null);
     const [settingUpPasskey, setSettingUpPasskey] = useState(false);
 
+    // Final funnel for EVERY login path (password, 2FA, passkey login, passkey setup, skip).
+    // When an announcement is live, arm a one-shot flag here; the authenticated app shell
+    // (ProtectedRoute → AnnouncementGate) consumes it and renders the overlay ON the dashboard
+    // after redirect — i.e. after the passkey nudge, which lives on this page.
     const proceed = (ctx: { role: string | null; identifier: string }) => {
+        if (ACTIVE_ANNOUNCEMENT?.active) {
+            try { sessionStorage.setItem('igf_pending_announcement', ACTIVE_ANNOUNCEMENT.id); } catch { /* storage unavailable */ }
+        }
         toast({ title: 'Bienvenue', description: 'Connexion réussie à iGrowFast.' });
         const r = ctx.role;
         if (r === 'commercial') navigate('/seller/dashboard');
