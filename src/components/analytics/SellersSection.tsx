@@ -52,7 +52,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             // Paginated so we never truncate at the 1000-row default cap.
             return await fetchAllRows(
                 'orders',
-                'id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                'id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

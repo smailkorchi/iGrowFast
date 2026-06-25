@@ -228,8 +228,8 @@ function arrangeExchangePairs(list: any[]): any[] {
   return out;
 }
 
-const LOCKED_ORDER_CATEGORIES = ['paid', 'unpaid'];
-const isOrderLocked = (order: any): boolean => LOCKED_ORDER_CATEGORIES.includes(order?.status?.category);
+// Locked = the order is at a payment-terminal status (paid or unpaid), by master flag.
+const isOrderLocked = (order: any): boolean => !!(order?.status?.is_paid || order?.status?.is_unpaid);
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -494,22 +494,21 @@ function SearchableFilter<T>({
 /**
  * For courier (internal) orders the package status lives on the latest
  * courier_parcels row, not on orders.package_status_id. Picks the most recent
- * parcel that has a status_label and returns it in the same shape the badge
- * renderer expects.
+ * parcel that has a master status and returns it in the same shape the badge
+ * renderer expects. Reads the label/color off the embedded package_statuses row.
  */
 function getCourierPackageStatus(order: any): { label: string; color: string | null } | null {
     const courierParcels = (order?.courier_parcels || []) as Array<{
-        status_label?: string | null;
-        status_color?: string | null;
+        status?: { label?: string | null; color?: string | null } | null;
         created_at?: string | null;
     }>;
     if (!courierParcels.length) return null;
     const sorted = [...courierParcels].sort(
         (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
     );
-    const latest = sorted.find((p) => p.status_label && String(p.status_label).trim());
+    const latest = sorted.find((p) => p.status?.label && String(p.status.label).trim());
     if (!latest) return null;
-    return { label: String(latest.status_label).trim(), color: latest.status_color || null };
+    return { label: String(latest.status!.label).trim(), color: latest.status!.color || null };
 }
 
 const Orders = () => {
@@ -794,7 +793,7 @@ const Orders = () => {
                 // Fallback: courier parcel (internal — no edge function call).
                 const { data: courierParcel } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('*, courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url, avatar_config)')
+                    .select('*, status:package_statuses(label, color), courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url, avatar_config)')
                     .eq('order_id', selectedOrder.id)
                     .order('created_at', { ascending: false })
                     .limit(1)
@@ -815,16 +814,18 @@ const Orders = () => {
                     if (courierParcel.tracking_code) {
                         const courierName = courierParcel.courier?.name || 'Coursier';
                         const courierPhone = courierParcel.courier?.phone || '';
+                        const cpLabel = courierParcel.status?.label || 'Nouveau';
+                        const cpColor = courierParcel.status?.color || '#3b82f6';
                         setTrackingHistory({
-                            statusLabel: courierParcel.status_label || 'Nouveau',
-                            statusColor: courierParcel.status_color || '#3b82f6',
+                            statusLabel: cpLabel,
+                            statusColor: cpColor,
                             history: [
                                 {
-                                    status: courierParcel.status_label || 'Nouveau',
-                                    statusLabel: courierParcel.status_label || 'Nouveau',
+                                    status: cpLabel,
+                                    statusLabel: cpLabel,
                                     date: courierParcel.created_at || null,
                                     comment: 'Colis créé en interne et confié à ' + courierName,
-                                    color: courierParcel.status_color || '#3b82f6',
+                                    color: cpColor,
                                     user: courierName,
                                     phone: courierPhone,
                                 },
@@ -852,23 +853,25 @@ const Orders = () => {
             try {
                 const { data: fresh } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('id, tracking_code, status_label, status_color, status_id, created_at, courier:users!courier_parcels_courier_id_fkey(id, name, phone)')
+                    .select('id, tracking_code, status_id, created_at, status:package_statuses(label, color), courier:users!courier_parcels_courier_id_fkey(id, name, phone)')
                     .eq('id', parcel.id)
                     .maybeSingle();
 
                 const courierName = fresh?.courier?.name || parcel.courier?.name || 'Coursier';
                 const courierPhone = fresh?.courier?.phone || parcel.courier?.phone || '';
+                const cpLabel = fresh?.status?.label || parcel.status?.label || 'Nouveau';
+                const cpColor = fresh?.status?.color || parcel.status?.color || '#3b82f6';
 
                 setTrackingHistory({
-                    statusLabel: fresh?.status_label || parcel.status_label || 'Nouveau',
-                    statusColor: fresh?.status_color || parcel.status_color || '#3b82f6',
+                    statusLabel: cpLabel,
+                    statusColor: cpColor,
                     history: [
                         {
-                            status: fresh?.status_label || parcel.status_label || 'Nouveau',
-                            statusLabel: fresh?.status_label || parcel.status_label || 'Nouveau',
+                            status: cpLabel,
+                            statusLabel: cpLabel,
                             date: fresh?.created_at || parcel.created_at || null,
                             comment: 'Colis créé en interne et confié à ' + courierName,
-                            color: fresh?.status_color || parcel.status_color || '#3b82f6',
+                            color: cpColor,
                             user: courierName,
                             phone: courierPhone,
                         },
@@ -944,18 +947,17 @@ const Orders = () => {
                 setTrackingHistory(result.data);
 
                 const providerStatus = result.data?.statusLabel || result.data?.status || result.data?.current_status;
-                const providerColor = result.data?.statusColor || result.data?.color;
 
                 if (providerStatus) {
                     const matched = await matchPackageStatus(supabase, providerStatus);
-                    await supabase
-                        .from('company_parcels')
-                        .update({
-                            status_id: matched?.id ?? null,
-                            status_label: matched?.label ?? providerStatus,
-                            status_color: matched?.color ?? providerColor ?? null,
-                        })
-                        .eq('id', parcel.id);
+                    // status_id is the only persisted parcel status; skip when unmatched
+                    // rather than wiping the existing status.
+                    if (matched?.id) {
+                        await supabase
+                            .from('company_parcels')
+                            .update({ status_id: matched.id })
+                            .eq('id', parcel.id);
+                    }
                 }
 
                 queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
@@ -1005,8 +1007,8 @@ const Orders = () => {
                     company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
-                    courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
+                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_id, created_at, company_delivery_note_id, status:package_statuses(label, color), provider:providers(id, name, logo_url)),
+                    courier_parcels(id, tracking_code, status_id, created_at, courier_delivery_note_id, status:package_statuses(label, color))
                 `,
                 {
                     filters: [
@@ -1092,7 +1094,7 @@ const Orders = () => {
         return fallback;
     };
     // Shared resolver — master status label+color+icon, raw only as fallback.
-    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
+    const { resolve: resolvePkgStatus, resolveById } = usePackageStatusResolver();
 
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown', activeBusinessId],
@@ -1479,8 +1481,8 @@ const Orders = () => {
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                         history:order_status_history(*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)),
-                        parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, company_delivery_note_id, provider:providers(id, name, logo_url)),
-                        courier_parcels(id, tracking_code, status_label, status_color, created_at, courier_delivery_note_id)
+                        parcels:company_parcels(id, tracking_code, external_id, provider_id, status_id, created_at, company_delivery_note_id, status:package_statuses(label, color), provider:providers(id, name, logo_url)),
+                        courier_parcels(id, tracking_code, status_id, created_at, courier_delivery_note_id, status:package_statuses(label, color))
                     `)
                     .eq('id', requestedId)
                     .is('date_deleted', null)
@@ -3869,9 +3871,9 @@ const Orders = () => {
                                                     </span>
                                                     {(() => {
                                                         const courierPkg = getCourierPackageStatus(order);
-                                                        const rawPkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
+                                                        const rawPkgLabel = order.package_status?.label || courierPkg?.label;
                                                         const rawPkgColor = order.package_status?.color || courierPkg?.color || null;
-                                                        const rPkg = rawPkgLabel ? resolvePkgStatus(rawPkgLabel, order.package_status?.label, rawPkgColor) : null;
+                                                        const rPkg = resolveById(order.package_status_id) ?? (rawPkgLabel ? resolvePkgStatus(rawPkgLabel, order.package_status?.label, rawPkgColor) : null);
                                                         const pkgLabel = rPkg?.label ?? rawPkgLabel;
                                                         const pkgColor = rPkg?.color ?? rawPkgColor;
                                                         const pkgIcon = rPkg?.icon ?? order.package_status?.icon ?? null;
@@ -5486,9 +5488,9 @@ const Orders = () => {
                                         </div>
                                         {(() => {
                                             const courierPkg = getCourierPackageStatus(selectedOrder);
-                                            const rawPkgLabel = selectedOrder.package_status?.label || selectedOrder.package_status_label || courierPkg?.label;
+                                            const rawPkgLabel = selectedOrder.package_status?.label || courierPkg?.label;
                                             const rawPkgColor = selectedOrder.package_status?.color || courierPkg?.color || null;
-                                            const rPkg = rawPkgLabel ? resolvePkgStatus(rawPkgLabel, selectedOrder.package_status?.label, rawPkgColor) : null;
+                                            const rPkg = resolveById(selectedOrder.package_status_id) ?? (rawPkgLabel ? resolvePkgStatus(rawPkgLabel, selectedOrder.package_status?.label, rawPkgColor) : null);
                                             const pkgLabel = rPkg?.label ?? rawPkgLabel;
                                             const pkgColor = rPkg?.color ?? rawPkgColor;
                                             const pkgIcon = rPkg?.icon ?? selectedOrder.package_status?.icon ?? null;
@@ -5855,11 +5857,12 @@ const Orders = () => {
                                             <p className="text-sm font-bold text-ant-muted">Aucun colis créé pour cette commande.</p>
                                         </div>
                                     ) : (() => {
-                                        // Master status label + color + icon; raw only as fallback.
-                                        const rPkg = resolvePkgStatus(orderParcel.status_label, orderParcel.status_label, orderParcel.status_color);
-                                        const pColor = rPkg?.color || '#94a3b8';
+                                        // Master status (by id) first; embedded master row as fallback.
+                                        const rPkg = resolveById(orderParcel.status_id);
+                                        const embed = orderParcel.status as { label?: string | null; color?: string | null } | undefined;
+                                        const pColor = rPkg?.color || embed?.color || '#94a3b8';
                                         const pIcon = rPkg?.icon || null;
-                                        const pLabel = rPkg?.label || orderParcel.status_label || 'En attente';
+                                        const pLabel = rPkg?.label || embed?.label || 'En attente';
                                         return (
                                         <div className="flex items-center justify-between p-4 bg-ant-line-soft rounded-2xl border border-ant-line">
                                             <div className="flex items-center gap-3 min-w-0">

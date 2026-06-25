@@ -158,7 +158,7 @@ const SellerDashboard = () => {
             if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
             const ordersData = await fetchAllRows<any>(
                 'orders',
-                'id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
+                'id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
                 { filters: ordersFilters },
             );
 
@@ -167,7 +167,7 @@ const SellerDashboard = () => {
                 order_status_id: (o as any).order_status_id,
                 package_status_id: (o as any).package_status_id,
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
-                packageStatus: ((o as any).package_status_label || '').toLowerCase()
+                packageStatus: ((o as any).package_statuses?.label || '').toLowerCase()
             }));
 
             const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);

@@ -331,8 +331,6 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                             reference: trackingCode,
                             tracking_code: trackingCode,
                             status_id: newPkgStatus?.id || null,
-                            status_label: newPkgStatus?.label || 'Nouveau',
-                            status_color: newPkgStatus?.color || '#3b82f6',
                             external_id: null,
                             provider_response: null,
                             is_fragile: isFragile,

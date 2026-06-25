@@ -30,7 +30,7 @@ interface Props {
  */
 export function OrderStatusNotifications({ role, targetPath }: Props) {
     const navigate = useNavigate();
-    const { resolve } = usePackageStatusResolver();
+    const { resolve, resolveById } = usePackageStatusResolver();
     const [scope, setScope] = useState<{ businessId: string | null; userId: string | null }>({
         businessId: null,
         userId: null,
@@ -104,8 +104,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                     if (newRow.date_deleted) return;
 
                     const statusChanged =
-                        (newRow.package_status_id || null) !== (oldRow.package_status_id || null) ||
-                        (newRow.package_status_label || null) !== (oldRow.package_status_label || null);
+                        (newRow.package_status_id || null) !== (oldRow.package_status_id || null);
                     if (!statusChanged) return;
 
                     // Seller-side ownership filter. RLS may already enforce this, but the
@@ -119,7 +118,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                     }
 
                     // Suppress duplicate (orderId + statusId) pings within 4s.
-                    const dedupeKey = `${newRow.id}:${newRow.package_status_id || newRow.package_status_label || ''}`;
+                    const dedupeKey = `${newRow.id}:${newRow.package_status_id || ''}`;
                     const now = Date.now();
                     const last = recentRef.current.get(dedupeKey);
                     if (last && now - last < 4000) return;
@@ -149,7 +148,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
 
                     // Always resolve to the master status (label + color + icon); the raw
                     // realtime columns are a fallback only when no master matches.
-                    const resolved = resolve(newRow.package_status_label, null, newRow.package_status_color);
+                    const resolved = resolveById(newRow.package_status_id);
 
                     showOrderStatusToast(
                         {
@@ -158,8 +157,8 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                             trackingCode,
                             providerLogo: resolveProviderLogo(provider),
                             providerName: provider?.name || null,
-                            statusLabel: resolved?.label ?? newRow.package_status_label ?? null,
-                            statusColor: resolved?.color ?? newRow.package_status_color ?? null,
+                            statusLabel: resolved?.label ?? null,
+                            statusColor: resolved?.color ?? null,
                             statusIcon: resolved?.icon ?? null,
                         },
                         () => {

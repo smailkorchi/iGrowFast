@@ -61,8 +61,7 @@ type MBOrderRow = {
     shipping_cost: number | null;
     include_delivery_in_total: boolean | null;
     package_status_id: string | null;
-    package_status_label: string | null;
-    package_statuses: { label?: string | null; category?: string | null } | null;
+    package_statuses: { label?: string | null } | null;
     order_items: MBOrderItem[] | null;
 };
 
@@ -124,7 +123,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
         queryFn: async () => {
             return await fetchAllRows<MBOrderRow>(
                 'orders',
-                'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
+                'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

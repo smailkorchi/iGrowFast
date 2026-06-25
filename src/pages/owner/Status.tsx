@@ -17,6 +17,8 @@ import {
     List,
     EyeOff,
     AlertTriangle,
+    SlidersHorizontal,
+    Check,
 } from 'lucide-react';
 import { IconPicker } from '@/components/ui/IconPicker';
 import { DynamicIcon } from '@/lib/renderReactIcon';
@@ -93,7 +95,6 @@ type StatusRow = {
     icon: string | null;
     recheck: boolean | null;
     active: boolean | null;
-    category: string | null;
     created_at: string | null;
     updated_at: string | null;
     show_in_order?: boolean;
@@ -125,7 +126,7 @@ function HiddenInOrdersBadge({ className }: { className?: string }) {
 }
 
 const Status = () => {
-    const [activeTab, setActiveTab] = useState<"orders" | "packages">("orders");
+    const [activeTab, setActiveTab] = useState<"orders" | "packages" | "behaviors">("orders");
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [editingStatus, setEditingStatus] = useState<StatusRow | null>(null);
@@ -166,6 +167,7 @@ const Status = () => {
             if (error) throw error;
             return (data || []) as unknown as StatusRow[];
         },
+        enabled: activeTab !== 'behaviors',
     });
 
     const form = useForm<StatusFormValues>({
@@ -381,7 +383,7 @@ const Status = () => {
                         <StatusCard
                             key={status.id}
                             status={status}
-                            activeTab={activeTab}
+                            activeTab={activeTab as 'orders' | 'packages'}
                             isOwner={isOwner}
                             onEdit={() => openUpsert(status)}
                             onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
@@ -400,7 +402,7 @@ const Status = () => {
                         <StatusListRow
                             key={status.id}
                             status={status}
-                            activeTab={activeTab}
+                            activeTab={activeTab as 'orders' | 'packages'}
                             isOwner={isOwner}
                             onEdit={() => openUpsert(status)}
                             onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
@@ -431,7 +433,7 @@ const Status = () => {
                             Define the lifecycle for orders and packages — visibility, ranking, and recheck rules.
                         </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className={cn('flex flex-wrap items-center gap-2', activeTab === 'behaviors' && 'hidden')}>
                         <div className="relative flex-1 lg:flex-initial min-w-[200px]">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                             <input
@@ -466,12 +468,14 @@ const Status = () => {
             </header>
 
             {/* KPI hairline strip */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
-                <KpiTile label="Total" value={stats.total} accent="bg-ant-ink" />
-                <KpiTile label="Active" value={stats.active} accent="bg-ant-green" />
-                <KpiTile label="Inactive" value={stats.inactive} accent="bg-ant-mid" />
-                <KpiTile label="Recheck" value={stats.recheck} accent="bg-ant-orange" />
-            </div>
+            {activeTab !== 'behaviors' && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                    <KpiTile label="Total" value={stats.total} accent="bg-ant-ink" />
+                    <KpiTile label="Active" value={stats.active} accent="bg-ant-green" />
+                    <KpiTile label="Inactive" value={stats.inactive} accent="bg-ant-mid" />
+                    <KpiTile label="Recheck" value={stats.recheck} accent="bg-ant-orange" />
+                </div>
+            )}
 
             {/* Tabs + view switch */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -479,6 +483,7 @@ const Status = () => {
                     {([
                         { key: 'orders' as const, label: 'Order statuses', icon: ClipboardCheck },
                         { key: 'packages' as const, label: 'Package statuses', icon: Truck },
+                        { key: 'behaviors' as const, label: 'Comportements', icon: SlidersHorizontal },
                     ]).map((t) => {
                         const isActive = activeTab === t.key;
                         const Icon = t.icon;
@@ -498,33 +503,35 @@ const Status = () => {
                         );
                     })}
                 </div>
-                <div className="sm:ml-auto inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper">
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('list')}
-                        className={cn(
-                            'h-8 w-8 rounded-full flex items-center justify-center transition-all',
-                            viewMode === 'list' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
-                        )}
-                        aria-label="List view"
-                    >
-                        <List className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('grid')}
-                        className={cn(
-                            'h-8 w-8 rounded-full flex items-center justify-center transition-all',
-                            viewMode === 'grid' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
-                        )}
-                        aria-label="Grid view"
-                    >
-                        <LayoutGrid className="w-3.5 h-3.5" />
-                    </button>
-                </div>
+                {activeTab !== 'behaviors' && (
+                    <div className="sm:ml-auto inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                                viewMode === 'list' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                            )}
+                            aria-label="List view"
+                        >
+                            <List className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                                viewMode === 'grid' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                            )}
+                            aria-label="Grid view"
+                        >
+                            <LayoutGrid className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {renderStatusSection()}
+            {activeTab === 'behaviors' ? <BehaviorsConfig isOwner={isOwner} /> : renderStatusSection()}
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
@@ -1310,6 +1317,225 @@ const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: St
                     )}
                 </div>
             </div>
+        </div>
+    );
+};
+
+// ── Behaviors (semantic flags) config ───────────────────────────────────
+// Owner-governable source of truth for "which status means what". Each section
+// is one boolean flag on the master row; clicking a pill toggles that status'
+// membership. The useStatusCategories hub reads these flags directly, so a
+// toggle here re-routes every downstream rate / payout / analytics decision.
+
+type BehaviorRow = {
+    id: string;
+    code: string;
+    label: string;
+    color: string | null;
+    ranking: number | null;
+    [flag: string]: string | number | boolean | null;
+};
+
+type BehaviorDef = { flag: string; title: string; desc: string; accent: string };
+
+const ORDER_BEHAVIORS: BehaviorDef[] = [
+    { flag: 'is_new', accent: 'bg-ant-mid', title: 'Nouvelle commande', desc: "Commandes neuves jamais appelées — exclues du dénominateur du taux de confirmation." },
+    { flag: 'is_confirmed', accent: 'bg-ant-green', title: 'Confirmée', desc: "Compte comme confirmée (numérateur du taux de confirmation). Inclut payé / impayé / traité." },
+    { flag: 'deducts_stock', accent: 'bg-ant-green', title: 'Déduit le stock', desc: "Passer une commande à ce statut valide et déduit le stock (l'ancienne catégorie « confirmée » exacte). Garde le stock réservé." },
+    { flag: 'is_paid', accent: 'bg-ant-green', title: 'Payée', desc: "Commande encaissée." },
+    { flag: 'is_unpaid', accent: 'bg-ant-ink', title: 'Impayée', desc: "Livrée mais non encaissée." },
+    { flag: 'is_cancelled', accent: 'bg-ant-rose', title: 'Annulée', desc: "Annulée / fausse / double / blacklist — sortie du flux de livraison." },
+    { flag: 'is_fake', accent: 'bg-ant-rose', title: 'Fausse commande', desc: "Classée fausse — comptée à part dans les statistiques (sous-ensemble d'annulée)." },
+    { flag: 'is_double', accent: 'bg-ant-rose', title: 'Commande double', desc: "Doublon — compté à part dans les statistiques (sous-ensemble d'annulée)." },
+    { flag: 'is_blacklisted', accent: 'bg-ant-rose', title: 'Blacklist', desc: "Client blacklisté — sous-ensemble d'annulée." },
+    { flag: 'is_callback', accent: 'bg-ant-orange', title: 'Rappel / injoignable', desc: "Tentative d'appel sans réponse — exclue des deux côtés du taux de confirmation." },
+    { flag: 'is_postponed', accent: 'bg-ant-orange', title: 'Reportée', desc: "Commande reportée — utilisée pour l'affichage et l'historique." },
+    { flag: 'is_relaunch', accent: 'bg-ant-mid', title: 'Relance', desc: "Relance d'une nouvelle commande — garde le stock réservé comme une confirmée." },
+    { flag: 'is_return', accent: 'bg-ant-rose', title: 'Retour produit', desc: "Demande de retour — bloque le passage auto en impayé et déclenche la réintégration du stock à réception." },
+    { flag: 'excluded_from_delivery_rate', accent: 'bg-ant-rose', title: 'Exclue du taux de livraison', desc: "Annulation vendeur/admin avant livraison — retirée du dénominateur du taux de livraison." },
+];
+
+const PKG_BEHAVIORS: BehaviorDef[] = [
+    { flag: 'is_new', accent: 'bg-ant-mid', title: 'Nouveau colis', desc: "Colis pas encore expédié." },
+    { flag: 'is_shipped', accent: 'bg-ant-ink', title: 'Expédié / en transit', desc: "Pris en charge, en transit, ou en distribution." },
+    { flag: 'is_delivered', accent: 'bg-ant-green', title: 'Livré', desc: "Colis livré — numérateur du taux de livraison et déclencheur des paiements." },
+    { flag: 'is_returned', accent: 'bg-ant-rose', title: 'Retourné', desc: "Retour, préparation retour, ou refusé." },
+    { flag: 'is_refused', accent: 'bg-ant-rose', title: 'Refusé', desc: "Colis refusé par le client (sous-ensemble de retourné)." },
+    { flag: 'is_cancelled', accent: 'bg-ant-rose', title: 'Annulé (colis)', desc: "Colis annulé." },
+    { flag: 'is_postponed', accent: 'bg-ant-orange', title: 'Reporté (colis)', desc: "Livraison reportée." },
+    { flag: 'is_recheck', accent: 'bg-ant-orange', title: 'À revérifier', desc: "Statut à revérifier." },
+    { flag: 'is_terminal', accent: 'bg-ant-ink', title: 'Statut final (verrou)', desc: "Statut terminal (livré / retourné / refusé / annulé) — verrouille toute transition ultérieure poussée par le webhook fournisseur." },
+    { flag: 'excluded_from_delivery_rate', accent: 'bg-ant-rose', title: 'Exclu du taux de livraison', desc: "Hors-zone / annulé côté courrier — retiré du dénominateur du taux de livraison." },
+];
+
+const StatusFlagPill = ({ row, on, disabled, onClick }: { row: BehaviorRow; on: boolean; disabled: boolean; onClick: () => void }) => {
+    const color = row.color || '#D97706';
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            title={row.label}
+            className={cn(
+                'inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[11px] font-medium border transition-all',
+                disabled ? 'cursor-default' : 'hover:shadow-[0_4px_12px_-8px_rgba(20,20,19,0.45)]',
+                on ? 'text-ant-ink' : 'text-ant-mid border-dashed opacity-70 hover:opacity-100',
+            )}
+            style={on ? { backgroundColor: `${color}18`, borderColor: `${color}66` } : { borderColor: `${color}40` }}
+        >
+            <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={on ? { backgroundColor: color } : { border: `1.5px solid ${color}` }}
+            />
+            <span className="truncate max-w-[150px]">{row.label}</span>
+            {on && <Check className="w-3 h-3 shrink-0" style={{ color }} />}
+        </button>
+    );
+};
+
+const BehaviorSection = ({
+    def, rows, table, index, isOwner, savingKey, onToggle,
+}: {
+    def: BehaviorDef;
+    rows: BehaviorRow[];
+    table: 'order_statuses' | 'package_statuses';
+    index: number;
+    isOwner: boolean;
+    savingKey: string | null;
+    onToggle: (v: { table: 'order_statuses' | 'package_statuses'; id: string; flag: string; value: boolean }) => void;
+}) => {
+    const activeCount = rows.filter((r) => !!r[def.flag]).length;
+    return (
+        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+            <div className={cn('h-[3px] w-full', def.accent)} />
+            <div className="px-4 py-3 border-b border-ant-line flex items-start justify-between gap-3">
+                <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className="font-display text-[10px] text-ant-orange">{String(index + 1).padStart(2, '0')}</span>
+                        <span className="font-display text-[13px] tracking-[-0.01em] text-ant-ink">{def.title}</span>
+                        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ant-mid/70">{def.flag}</span>
+                    </div>
+                    <p className="font-serif italic text-[11px] text-ant-mid leading-snug">{def.desc}</p>
+                </div>
+                <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-light border border-ant-line text-ant-mid tabular-nums">
+                    {activeCount} / {rows.length}
+                </span>
+            </div>
+            <div className="p-3 flex flex-wrap gap-1.5">
+                {rows.map((r) => {
+                    const on = !!r[def.flag];
+                    return (
+                        <StatusFlagPill
+                            key={r.id}
+                            row={r}
+                            on={on}
+                            disabled={!isOwner || savingKey === `${r.id}:${def.flag}`}
+                            onClick={() => onToggle({ table, id: r.id, flag: def.flag, value: !on })}
+                        />
+                    );
+                })}
+            </div>
+        </section>
+    );
+};
+
+const BehaviorsConfig = ({ isOwner }: { isOwner: boolean }) => {
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const [savingKey, setSavingKey] = useState<string | null>(null);
+
+    const { data: orderRows = [], isLoading: loadingOrders } = useQuery({
+        queryKey: ['behaviors', 'order_statuses'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('order_statuses')
+                .select('id, code, label, color, ranking, is_new, is_confirmed, deducts_stock, is_paid, is_unpaid, is_cancelled, is_fake, is_double, is_blacklisted, is_callback, is_postponed, is_relaunch, is_return, excluded_from_delivery_rate')
+                .order('ranking', { ascending: true });
+            if (error) throw error;
+            return (data || []) as unknown as BehaviorRow[];
+        },
+    });
+
+    const { data: pkgRows = [], isLoading: loadingPkg } = useQuery({
+        queryKey: ['behaviors', 'package_statuses'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('package_statuses')
+                .select('id, code, label, color, ranking, is_new, is_shipped, is_delivered, is_returned, is_refused, is_cancelled, is_postponed, is_recheck, is_terminal, excluded_from_delivery_rate')
+                .order('ranking', { ascending: true });
+            if (error) throw error;
+            return (data || []) as unknown as BehaviorRow[];
+        },
+    });
+
+    const toggle = useMutation({
+        mutationFn: async ({ table, id, flag, value }: { table: 'order_statuses' | 'package_statuses'; id: string; flag: string; value: boolean }) => {
+            const { error } = await supabase.from(table).update({ [flag]: value } as never).eq('id', id);
+            if (error) throw error;
+        },
+        onMutate: (v) => setSavingKey(`${v.id}:${v.flag}`),
+        onSettled: () => setSavingKey(null),
+        onSuccess: (_d, v) => {
+            queryClient.invalidateQueries({ queryKey: ['behaviors', v.table] });
+            // Re-route every downstream decision: the useStatusCategories hub is
+            // cached for 5min, so force it to re-read the flags now.
+            queryClient.invalidateQueries({ queryKey: ['order_statuses_cat'] });
+            queryClient.invalidateQueries({ queryKey: ['package_statuses_cat'] });
+        },
+        onError: (e) => toast({ title: 'Error', description: errorMessage(e), variant: 'destructive' }),
+    });
+
+    const Group = ({ title, icon: Icon, defs, rows, table, loading }: {
+        title: string;
+        icon: typeof ClipboardCheck;
+        defs: BehaviorDef[];
+        rows: BehaviorRow[];
+        table: 'order_statuses' | 'package_statuses';
+        loading: boolean;
+    }) => (
+        <div className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+                <Icon className="w-3.5 h-3.5 text-ant-ink" />
+                <span className="font-display text-[11px] uppercase tracking-[0.22em] text-ant-ink">{title}</span>
+                <span className="font-serif italic text-[11px] text-ant-mid">· {rows.length} statuts</span>
+            </div>
+            {loading ? (
+                <div className="space-y-3">
+                    {Array.from({ length: defs.length }).map((_, i) => (
+                        <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+                    ))}
+                </div>
+            ) : (
+                defs.map((def, i) => (
+                    <BehaviorSection
+                        key={def.flag}
+                        def={def}
+                        rows={rows}
+                        table={table}
+                        index={i}
+                        isOwner={isOwner}
+                        savingKey={savingKey}
+                        onToggle={toggle.mutate}
+                    />
+                ))
+            )}
+        </div>
+    );
+
+    return (
+        <div className="space-y-6">
+            <div className="rounded-2xl border border-ant-line bg-ant-light/40 px-4 py-3 flex items-start gap-3">
+                <SlidersHorizontal className="w-4 h-4 text-ant-orange shrink-0 mt-0.5" />
+                <p className="font-serif italic text-[12px] text-ant-mid leading-relaxed">
+                    Chaque section est une règle métier. Allumez un statut pour qu'il porte ce comportement —
+                    cela pilote directement les taux de confirmation / livraison, les paiements et les analytics.
+                    Un statut peut porter plusieurs comportements.
+                    {!isOwner && <span className="not-italic font-medium text-ant-rose"> Lecture seule (réservé au propriétaire).</span>}
+                </p>
+            </div>
+
+            <Group title="Commandes" icon={ClipboardCheck} defs={ORDER_BEHAVIORS} rows={orderRows} table="order_statuses" loading={loadingOrders} />
+            <Group title="Colis" icon={Truck} defs={PKG_BEHAVIORS} rows={pkgRows} table="package_statuses" loading={loadingPkg} />
         </div>
     );
 };

@@ -139,7 +139,7 @@ const SellerStatistics = () => {
             if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
             const ordersData = await fetchAllRows<any>(
                 'orders',
-                'id, order_status_id, package_status_id, package_status_label, tracking_number, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
+                'id, order_status_id, package_status_id, tracking_number, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
                 { filters: ordersFilters },
             );
 
@@ -148,7 +148,7 @@ const SellerStatistics = () => {
                 order_status_id: (o as any).order_status_id,
                 package_status_id: (o as any).package_status_id,
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
-                packageStatus: ((o as any).package_status_label || '').toLowerCase(),
+                packageStatus: ((o as any).package_statuses?.label || '').toLowerCase(),
                 cityData: (o.master_cities as any)
             }));
 

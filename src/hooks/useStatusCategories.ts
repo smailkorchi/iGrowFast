@@ -1,33 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useMemo } from 'react';
-import {
-  type OrderCategory,
-  type PkgCategory,
-  CONFIRMED_ORDER_CATS,
-  CANCELLED_ORDER_CATS,
-  CALLBACK_ORDER_CATS,
-  UNREACHED_ORDER_CATS,
-  ADMIN_PULLBACK_ORDER_CATS,
-  ADMIN_PULLBACK_PACKAGE_CODES,
-  SHIPPED_PKG_CATS,
-  DELIVERED_PKG_CATS,
-  RETURNED_PKG_CATS,
-  ORDER_CATEGORY_COLORS,
-  PKG_CATEGORY_COLORS,
-} from '@/lib/status-categories';
 
-const CONFIRMED_ORDER_CAT_SET: Set<string> = new Set(CONFIRMED_ORDER_CATS);
-const CANCELLED_ORDER_CAT_SET: Set<string> = new Set(CANCELLED_ORDER_CATS);
-const DELIVERED_PKG_CAT_SET: Set<string> = new Set(DELIVERED_PKG_CATS);
-const RETURNED_PKG_CAT_SET: Set<string> = new Set(RETURNED_PKG_CATS);
+/**
+ * Status classification is now 100% driven by owner-governable boolean flags on the
+ * master rows (package_statuses / order_statuses). The legacy free-text `category`
+ * column has been removed; the category-string helpers below are a thin compatibility
+ * facade that resolves each historical category name to its flag predicate, so existing
+ * call-sites keep working without a hidden, hardcoded business-rule contract.
+ */
 
 export interface OrderStatus {
   id: string;
   code: string;
   label: string;
   color: string | null;
-  category: OrderCategory;
   ranking: number | null;
   recheck: boolean | null;
   active: boolean | null;
@@ -36,12 +23,22 @@ export interface OrderStatus {
   show_in_seller_suivi: boolean;
   perf_breakdown: boolean;
   perf_breakdown_phase: string | null;
-  /**
-   * Source of truth for "pending confirmation". Set per row in the DB; do NOT
-   * derive from category — only a subset of callback statuses (the RAPPEL retry
-   * queue) count as pending while the rest (Boitevocale, Pas de réponse,
-   * Mauvais numéro, …) are treated as confirmed for the rate.
-   */
+  // Semantic behavior flags — owner-governable source of truth.
+  is_new: boolean;
+  is_confirmed: boolean;
+  is_paid: boolean;
+  is_unpaid: boolean;
+  is_cancelled: boolean;
+  is_callback: boolean;
+  is_fake: boolean;
+  is_double: boolean;
+  is_blacklisted: boolean;
+  is_postponed: boolean;
+  is_relaunch: boolean;
+  is_return: boolean;
+  deducts_stock: boolean;
+  excluded_from_delivery_rate: boolean;
+  /** Source of truth for "pending confirmation" (RAPPEL retry queue + NEW + REPORTER). */
   pending_confirmation: boolean;
 }
 
@@ -50,7 +47,6 @@ export interface PackageStatus {
   code: string;
   label: string;
   color: string | null;
-  category: PkgCategory;
   ranking: number | null;
   delivery_service_statuses: unknown;
   show_in_courier: boolean;
@@ -58,7 +54,58 @@ export interface PackageStatus {
   show_in_seller_confirmation: boolean;
   perf_breakdown: boolean;
   perf_breakdown_phase: string | null;
+  // Semantic behavior flags — owner-governable source of truth.
+  is_delivered: boolean;
+  is_shipped: boolean;
+  is_returned: boolean;
+  is_refused: boolean;
+  is_new: boolean;
+  is_cancelled: boolean;
+  is_postponed: boolean;
+  is_recheck: boolean;
+  is_terminal: boolean;
+  flow_rank: number | null;
+  excluded_from_delivery_rate: boolean;
 }
+
+/**
+ * Legacy category-name → flag-predicate facade. Each name resolves EXACTLY to the rows
+ * the old `category` value covered (verified by parity when the flags were seeded).
+ * 'processed' and 'cancelled' are derived (no dedicated flag) to stay exact.
+ */
+const ORDER_CAT_PRED: Record<string, (s: OrderStatus) => boolean> = {
+  new: s => s.is_new,
+  confirmed: s => s.deducts_stock,
+  processed: s => s.is_confirmed && !s.deducts_stock && !s.is_paid && !s.is_unpaid,
+  paid: s => s.is_paid,
+  unpaid: s => s.is_unpaid,
+  cancelled: s => s.is_cancelled && !s.is_fake && !s.is_double && !s.is_blacklisted,
+  fake: s => s.is_fake,
+  double: s => s.is_double,
+  blacklisted: s => s.is_blacklisted,
+  callback: s => s.is_callback,
+  relaunch_new: s => s.is_relaunch,
+  return: s => s.is_return,
+  postponed: s => s.is_postponed,
+};
+
+const PKG_CAT_PRED: Record<string, (s: PackageStatus) => boolean> = {
+  delivered: s => s.is_delivered,
+  new: s => s.is_new,
+  recheck: s => s.is_recheck,
+  refused: s => s.is_refused,
+  returned: s => s.is_returned,
+  cancelled: s => s.is_cancelled,
+  postponed: s => s.is_postponed,
+  // Forward "shipped" progression — only ever queried as a group.
+  in_transit: s => s.is_shipped,
+  out_for_delivery: s => s.is_shipped,
+  picked_up: s => s.is_shipped,
+  pickup_pending: s => s.is_shipped,
+};
+
+const orderPred = (cat: string) => ORDER_CAT_PRED[cat] ?? (() => false);
+const pkgPred = (cat: string) => PKG_CAT_PRED[cat] ?? (() => false);
 
 export function useStatusCategories() {
   const activeBusinessId = localStorage.getItem('activeBusinessId');
@@ -69,7 +116,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('order_statuses')
-        .select('id, code, label, color, category, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase, pending_confirmation')
+        .select('id, code, label, color, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase, pending_confirmation, is_new, is_confirmed, is_paid, is_unpaid, is_cancelled, is_callback, is_fake, is_double, is_blacklisted, is_postponed, is_relaunch, is_return, deducts_stock, excluded_from_delivery_rate')
         .order('ranking');
       return (data || []) as OrderStatus[];
     },
@@ -82,7 +129,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('package_statuses')
-        .select('id, code, label, color, category, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase')
+        .select('id, code, label, color, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase, is_delivered, is_shipped, is_returned, is_refused, is_new, is_cancelled, is_postponed, is_recheck, is_terminal, flow_rank, excluded_from_delivery_rate')
         .order('ranking');
       return (data || []) as PackageStatus[];
     },
@@ -90,57 +137,30 @@ export function useStatusCategories() {
   });
 
   return useMemo(() => {
-    const orderCatMap = new Map<string, OrderStatus[]>();
     const orderIdMap = new Map<string, OrderStatus>();
-    for (const s of orderStatuses) {
-      orderIdMap.set(s.id, s);
-      const arr = orderCatMap.get(s.category) || [];
-      arr.push(s);
-      orderCatMap.set(s.category, arr);
-    }
+    for (const s of orderStatuses) orderIdMap.set(s.id, s);
 
-    const pkgCatMap = new Map<string, PackageStatus[]>();
     const pkgIdMap = new Map<string, PackageStatus>();
-    for (const s of packageStatuses) {
-      pkgIdMap.set(s.id, s);
-      const arr = pkgCatMap.get(s.category) || [];
-      arr.push(s);
-      pkgCatMap.set(s.category, arr);
-    }
+    for (const s of packageStatuses) pkgIdMap.set(s.id, s);
 
-    const collectIds = (cats: string[], map: Map<string, { id: string }[]>) =>
-      new Set(cats.flatMap(c => (map.get(c) || []).map(s => s.id)));
+    const idsWhere = <T extends { id: string }>(rows: T[], pred: (r: T) => boolean) =>
+      new Set(rows.filter(pred).map(r => r.id));
 
-    const confirmedIds = collectIds(CONFIRMED_ORDER_CATS, orderCatMap);
-    const paidOrderIds = collectIds(['paid'], orderCatMap);
-    const unpaidOrderIds = collectIds(['unpaid'], orderCatMap);
-    const cancelledIds = collectIds(CANCELLED_ORDER_CATS, orderCatMap);
-    const callbackIds = collectIds(CALLBACK_ORDER_CATS, orderCatMap);
-    // Pending confirmation is now data-driven: each order_status row has a
-    // `pending_confirmation` boolean. We no longer derive it from the category,
-    // because only the RAPPEL retry slots count as pending — other callback
-    // variants (Boitevocale, Pas de réponse, Mauvais numéro) are resolved.
-    const pendingIds = new Set(
-      orderStatuses.filter((s) => s.pending_confirmation).map((s) => s.id),
-    );
-    // "Brand new uncalled" denominator exclusion — the single `new` category.
-    const newOrderIds = collectIds(['new'], orderCatMap);
-    // Confirmation-rate helper set: tried to call, customer never answered.
-    // Excluded from BOTH sides of the rate.
-    const unreachedOrderIds = collectIds(UNREACHED_ORDER_CATS, orderCatMap);
+    const confirmedIds = idsWhere(orderStatuses, s => s.is_confirmed);
+    const paidOrderIds = idsWhere(orderStatuses, s => s.is_paid);
+    const unpaidOrderIds = idsWhere(orderStatuses, s => s.is_unpaid);
+    const cancelledIds = idsWhere(orderStatuses, s => s.is_cancelled);
+    const callbackIds = idsWhere(orderStatuses, s => s.is_callback);
+    const pendingIds = idsWhere(orderStatuses, s => s.pending_confirmation);
+    const newOrderIds = idsWhere(orderStatuses, s => s.is_new);
+    const unreachedOrderIds = idsWhere(orderStatuses, s => s.is_callback);
 
-    // Delivery-rate "Annulés vendeur/coliaty" helper sets.
-    const adminPullbackOrderIds = collectIds(ADMIN_PULLBACK_ORDER_CATS, orderCatMap);
-    const adminPullbackPackageIds = new Set(
-      packageStatuses
-        .filter(s => ADMIN_PULLBACK_PACKAGE_CODES.includes(s.code))
-        .map(s => s.id),
-    );
-    const deliveredPkgIds = collectIds(DELIVERED_PKG_CATS, pkgCatMap);
-    const shippedPkgIds = collectIds(SHIPPED_PKG_CATS, pkgCatMap);
-    const returnedPkgIds = collectIds(RETURNED_PKG_CATS, pkgCatMap);
+    const adminPullbackOrderIds = idsWhere(orderStatuses, s => s.excluded_from_delivery_rate);
+    const adminPullbackPackageIds = idsWhere(packageStatuses, s => s.excluded_from_delivery_rate);
+    const deliveredPkgIds = idsWhere(packageStatuses, s => s.is_delivered);
+    const shippedPkgIds = idsWhere(packageStatuses, s => s.is_shipped);
+    const returnedPkgIds = idsWhere(packageStatuses, s => s.is_returned);
 
-    // Performance breakdown sets
     const preConfBreakdownIds = new Set(
       orderStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'before_confirmation').map(s => s.id)
     );
@@ -153,48 +173,47 @@ export function useStatusCategories() {
     const getPostConfBreakdownStatuses = () =>
       packageStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'after_confirmation');
 
-    // Live-queue variants: drop any perf-flagged status whose category already represents a
-    // terminal stage (confirmed/cancelled for pre-conf, delivered/returned for post-conf).
-    // Guards against owner misconfiguration and keeps pills meaning "still stuck here".
     const liveBeforeConfStatuses: OrderStatus[] = orderStatuses.filter(s =>
       s.perf_breakdown &&
       s.perf_breakdown_phase === 'before_confirmation' &&
-      !CONFIRMED_ORDER_CAT_SET.has(s.category) &&
-      !CANCELLED_ORDER_CAT_SET.has(s.category),
+      !s.is_confirmed &&
+      !s.is_cancelled,
     );
     const liveAfterConfStatuses: PackageStatus[] = packageStatuses.filter(s =>
       s.perf_breakdown &&
       s.perf_breakdown_phase === 'after_confirmation' &&
-      !DELIVERED_PKG_CAT_SET.has(s.category) &&
-      !RETURNED_PKG_CAT_SET.has(s.category),
+      !s.is_delivered &&
+      !s.is_returned,
     );
 
     return {
       orderStatuses,
       packageStatuses,
 
-      getOrderByCategory: (cat: OrderCategory) => orderCatMap.get(cat)?.[0],
-      getOrdersByCategories: (cats: OrderCategory[]) =>
-        cats.flatMap(c => orderCatMap.get(c) || []),
-      getPkgByCategory: (cat: PkgCategory) => pkgCatMap.get(cat)?.[0],
-      getPkgsByCategories: (cats: PkgCategory[]) =>
-        cats.flatMap(c => pkgCatMap.get(c) || []),
+      // Category-name facade (resolves to flag predicates; no `category` column).
+      getOrderByCategory: (cat: string) => orderStatuses.find(orderPred(cat)),
+      getOrdersByCategories: (cats: string[]) =>
+        orderStatuses.filter(s => cats.some(c => orderPred(c)(s))),
+      getPkgByCategory: (cat: string) => packageStatuses.find(pkgPred(cat)),
+      getPkgsByCategories: (cats: string[]) =>
+        packageStatuses.filter(s => cats.some(c => pkgPred(c)(s))),
 
-      isOrderCategory: (statusId: string, cat: OrderCategory) =>
-        orderIdMap.get(statusId)?.category === cat,
-      isOrderInCategories: (statusId: string, cats: OrderCategory[]) => {
+      isOrderCategory: (statusId: string, cat: string) => {
         const s = orderIdMap.get(statusId);
-        return s ? (cats as string[]).includes(s.category) : false;
+        return s ? orderPred(cat)(s) : false;
       },
-      isPkgCategory: (statusId: string, cat: PkgCategory) =>
-        pkgIdMap.get(statusId)?.category === cat,
-      isPkgInCategories: (statusId: string, cats: PkgCategory[]) => {
+      isOrderInCategories: (statusId: string, cats: string[]) => {
+        const s = orderIdMap.get(statusId);
+        return s ? cats.some(c => orderPred(c)(s)) : false;
+      },
+      isPkgCategory: (statusId: string, cat: string) => {
         const s = pkgIdMap.get(statusId);
-        return s ? (cats as string[]).includes(s.category) : false;
+        return s ? pkgPred(cat)(s) : false;
       },
-
-      getOrderCategory: (statusId: string) => orderIdMap.get(statusId)?.category,
-      getPkgCategory: (statusId: string) => pkgIdMap.get(statusId)?.category,
+      isPkgInCategories: (statusId: string, cats: string[]) => {
+        const s = pkgIdMap.get(statusId);
+        return s ? cats.some(c => pkgPred(c)(s)) : false;
+      },
 
       confirmedIds,
       paidOrderIds,
@@ -217,16 +236,8 @@ export function useStatusCategories() {
       liveBeforeConfStatuses,
       liveAfterConfStatuses,
 
-      getCategoryColor: (cat: string) =>
-        ORDER_CATEGORY_COLORS[cat] || PKG_CATEGORY_COLORS[cat] || '#6b7280',
-      getOrderStatusColor: (statusId: string) => {
-        const s = orderIdMap.get(statusId);
-        return s?.color || ORDER_CATEGORY_COLORS[s?.category || ''] || '#6b7280';
-      },
-      getPkgStatusColor: (statusId: string) => {
-        const s = pkgIdMap.get(statusId);
-        return s?.color || PKG_CATEGORY_COLORS[s?.category || ''] || '#6b7280';
-      },
+      getOrderStatusColor: (statusId: string) => orderIdMap.get(statusId)?.color || '#6b7280',
+      getPkgStatusColor: (statusId: string) => pkgIdMap.get(statusId)?.color || '#6b7280',
     };
   }, [orderStatuses, packageStatuses]);
 }

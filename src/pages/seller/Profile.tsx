@@ -154,7 +154,7 @@ const SellerProfile = () => {
                 try {
                     ordersData = await fetchAllRows<any>(
                         'orders',
-                        'id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label)',
+                        'id, order_status_id, package_status_id, tracking_number, order_statuses(code), package_statuses(label)',
                         {
                             filters: [
                                 { column: 'seller_id', op: 'eq', value: session.user.id },
@@ -243,7 +243,7 @@ const SellerProfile = () => {
                         .eq('active', true)
                         .in('id', productIds);
 
-                    const orderItemsData = await fetchAllRows<{ order_id: string; product_id: string; orders: any }>('order_items', 'order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, package_status_label, tracking_number, order_statuses(code), package_statuses(label))', {
+                    const orderItemsData = await fetchAllRows<{ order_id: string; product_id: string; orders: any }>('order_items', 'order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, tracking_number, order_statuses(code), package_statuses(label))', {
                         filters: [{ column: 'orders.seller_id', op: 'eq', value: session.user.id }],
                     });
 

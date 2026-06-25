@@ -129,7 +129,7 @@ export async function sendSellerPayoutEmail(params: {
   // Orders still in transit (processing) for this seller.
   let processingOrders = 0;
   const { data: transitPkgs } = await (supabase as any)
-    .from('package_statuses').select('id').eq('category', 'in_transit');
+    .from('package_statuses').select('id').eq('is_shipped', true);
   const transitIds = ((transitPkgs || []) as Array<{ id: string }>).map((p) => p.id);
   if (transitIds.length) {
     const { count } = await (supabase as any)

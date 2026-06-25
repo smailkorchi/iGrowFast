@@ -42,10 +42,14 @@ type PackageStatus = {
     code: string | null;
     label: string | null;
     color: string | null;
-    category: string | null;
     recheck: boolean | null;
     ranking: string | number | null;
     icon: string | null;
+    is_new: boolean;
+    is_postponed: boolean;
+    is_delivered: boolean;
+    is_returned: boolean;
+    show_in_courier: boolean;
 };
 
 type CourierOrderRow = {
@@ -82,18 +86,18 @@ const TABS: Array<{
     match: (status: PackageStatus | null) => boolean;
 }> = [
     { key: 'all', label: 'Tout', icon: Layers, match: () => true },
-    { key: 'nouveau', label: 'Nouveau', icon: Package, match: (s) => (s?.category || '') === 'new' },
-    { key: 'suivi', label: 'Suivi', icon: AlertCircle, match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed' && (s?.category || '') !== 'delivered' },
-    { key: 'reported', label: 'Reporté', icon: Clock, match: (s) => (s?.category || '') === 'postponed' },
-    { key: 'livre', label: 'Livré', icon: CheckCircle2, match: (s) => (s?.category || '') === 'delivered' },
-    { key: 'retour', label: 'Retour', icon: RotateCcw, match: (s) => (s?.category || '') === 'returned' },
+    { key: 'nouveau', label: 'Nouveau', icon: Package, match: (s) => !!s?.is_new },
+    { key: 'suivi', label: 'Suivi', icon: AlertCircle, match: (s) => !!s?.recheck && !s?.is_postponed && !s?.is_delivered },
+    { key: 'reported', label: 'Reporté', icon: Clock, match: (s) => !!s?.is_postponed },
+    { key: 'livre', label: 'Livré', icon: CheckCircle2, match: (s) => !!s?.is_delivered },
+    { key: 'retour', label: 'Retour', icon: RotateCcw, match: (s) => !!s?.is_returned },
 ];
 
 const fmtMAD = (n: number) => new Intl.NumberFormat('fr-FR').format(n || 0);
 
 const CourierOrders = () => {
     const { toast } = useToast();
-    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
+    const { resolve: resolvePkgStatus, resolveById } = usePackageStatusResolver();
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState<TabKey>('all');
@@ -126,7 +130,7 @@ const CourierOrders = () => {
             if (!businessId) return [];
             const { data, error } = await supabase
                 .from('package_statuses')
-                .select('id, code, label, color, category, recheck, ranking, icon')
+                .select('id, code, label, color, recheck, ranking, icon, is_new, is_postponed, is_delivered, is_returned, show_in_courier')
                 .order('ranking');
             if (error) throw error;
             return (data || []) as PackageStatus[];
@@ -147,8 +151,6 @@ const CourierOrders = () => {
                     reference,
                     tracking_code,
                     status_id,
-                    status_label,
-                    status_color,
                     created_at,
                     courier_delivery_note_id,
                     note:courier_delivery_notes!inner(
@@ -159,7 +161,7 @@ const CourierOrders = () => {
                         city:master_cities(id, name),
                         items:order_items(quantity, product:products(name, code))
                     ),
-                    status:package_statuses(id, code, label, color, category, recheck, ranking, icon)
+                    status:package_statuses(id, code, label, color, recheck, ranking, icon, is_new, is_postponed, is_delivered, is_returned)
                 `)
                 .eq('courier_id', courierId)
                 .eq('DigiCom Business', businessId)
@@ -175,9 +177,7 @@ const CourierOrders = () => {
                     parcel_reference: p.reference,
                     parcel_tracking_code: p.tracking_code,
                     parcel_created_at: p.created_at,
-                    parcel_status: (p.status as PackageStatus) || (p.status_label
-                        ? { id: '', code: null, label: p.status_label, color: p.status_color || null, category: null, recheck: null, ranking: null, icon: null }
-                        : null),
+                    parcel_status: (p.status as PackageStatus) || null,
                     note_id: p.note.id,
                     note_reference: p.note.reference,
                     note_finalized_at: p.note.updated_at,
@@ -306,11 +306,7 @@ const CourierOrders = () => {
         }) => {
             const { error } = await (supabase as any)
                 .from('courier_parcels')
-                .update({
-                    status_id: status.id,
-                    status_label: status.label,
-                    status_color: status.color,
-                })
+                .update({ status_id: status.id })
                 .eq('id', parcelId);
             if (error) throw error;
         },
@@ -472,7 +468,7 @@ const CourierOrders = () => {
                     <div className="md:hidden space-y-2">
                         {filteredRows.map((row) => {
                             const { order, parcel_status, parcel_tracking_code } = row;
-                            const rps = parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null;
+                            const rps = resolveById(parcel_status?.id) ?? (parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null);
                             const color = rps?.color || parcel_status?.color || '#b0aea5';
                             const label = rps?.label || parcel_status?.label || 'Nouveau';
                             return (
@@ -550,7 +546,7 @@ const CourierOrders = () => {
                             <tbody>
                                 {filteredRows.map((row) => {
                                     const { order, parcel_status, parcel_tracking_code } = row;
-                                    const rps = parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null;
+                                    const rps = resolveById(parcel_status?.id) ?? (parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null);
                                     const color = rps?.color || parcel_status?.color || '#b0aea5';
                                     const label = rps?.label || parcel_status?.label || 'Nouveau';
                                     return (
@@ -643,7 +639,7 @@ function CourierOrderSheet({
 }) {
     const isOpen = !!row;
     const [pickerOpen, setPickerOpen] = useState(false);
-    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
+    const { resolve: resolvePkgStatus, resolveById } = usePackageStatusResolver();
 
     useEffect(() => {
         if (!isOpen) setPickerOpen(false);
@@ -653,7 +649,7 @@ function CourierOrderSheet({
 
     const { order, parcel_status, parcel_tracking_code, parcel_reference, note_reference } = row;
     // Always resolve to the master status; raw synthetic value only as fallback.
-    const rps = parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null;
+    const rps = resolveById(parcel_status?.id) ?? (parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null);
     const color = rps?.color || parcel_status?.color || '#b0aea5';
     const masterStatusLabel = rps?.label || parcel_status?.label || 'Non défini';
     const masterStatusIcon = rps?.icon ?? null;
@@ -759,7 +755,7 @@ function CourierOrderSheet({
                                 </div>
                                 <div className="p-2 grid grid-cols-1 gap-1">
                                     {packageStatuses
-                                        .filter((s) => s.label && (s.category || '') !== 'other')
+                                        .filter((s) => s.label && s.show_in_courier)
                                         .map((s) => {
                                             const isCurrent = parcel_status?.id === s.id;
                                             const c = s.color || '#b0aea5';

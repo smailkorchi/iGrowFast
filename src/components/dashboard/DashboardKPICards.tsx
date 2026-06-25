@@ -62,7 +62,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, order_status_id, package_status_id, package_status_label, tracking_number, package_statuses(label, category)',
+                'id, date, order_status_id, package_status_id, tracking_number, package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

@@ -42,7 +42,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, master_city_id, master_cities(name), order_status_id, package_statuses(label)',
+                'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, master_city_id, master_cities(name), order_status_id, package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -77,7 +77,6 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             date?: string | null;
             master_cities?: { name?: string | null } | null;
             package_status_id?: string | null;
-            package_status_label?: string | null;
             package_statuses?: { label?: string | null } | null;
             order_status_id?: string | null;
             price?: number | string | null;

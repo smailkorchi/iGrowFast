@@ -655,12 +655,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                     // Map provider status to our internal package_statuses (containment → RPC → ilike fallback)
                     const providerStatus = result.data?.status || result.data?.label || result.data?.statusLabel || 'Nouveau';
-                    const providerColor = result.data?.statusColor || result.data?.color;
                     const matched = await matchPackageStatus(supabase, providerStatus);
                     const mappedStatusId = matched?.id ?? null;
-                    // Prefer master label+color when mapping succeeded; keep raw otherwise.
-                    const finalStatusLabel = matched?.label ?? providerStatus;
-                    const finalStatusColor = matched?.color ?? providerColor ?? null;
 
                     // Sweep prior orphan parcels for this (provider, order) pair before inserting.
                     // An orphan = no company_delivery_note_id. Left behind by a previous attempt
@@ -680,8 +676,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             order_id: order.id,
                             reference: result.data?.tracking_code || result.data?.reference || result.data?.bar_code || 'N/A',
                             tracking_code: result.data?.tracking_code || result.data?.reference || result.data?.bar_code,
-                            status_label: finalStatusLabel,
-                            status_color: finalStatusColor,
                             external_id: result.data?.id || String(result.data?.external_id || ''),
                             provider_response: result.data,
                             status_id: mappedStatusId,

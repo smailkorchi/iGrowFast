@@ -19,7 +19,7 @@ type HistoryRecord = {
     created_at: string | null;
     comment: string | null;
     status_id: string | null;
-    status?: { id: string; label: string | null; color: string | null; category?: string | null } | null;
+    status?: { id: string; label: string | null; color: string | null; is_postponed?: boolean | null } | null;
     user?: { name: string | null; avatar_url: string | null; avatar_config?: unknown } | null;
 };
 
@@ -97,7 +97,7 @@ export function OrderStatusHistoryDialog({
 
     const isPostponed = (record: HistoryRecord): boolean => {
         if (isOrderInCategory) return isOrderInCategory(record.status_id, 'postponed');
-        return (record.status?.category || '').toLowerCase() === 'postponed';
+        return !!record.status?.is_postponed;
     };
 
     return (

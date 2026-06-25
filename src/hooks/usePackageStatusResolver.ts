@@ -41,8 +41,25 @@ export function usePackageStatusResolver() {
         staleTime: 5 * 60 * 1000,
     });
 
+    // Full master set (NO active/show_in_courier filter) for id-authoritative resolution:
+    // an order/parcel can reference an inactive or non-courier status by id. Separate query
+    // key so the shared ['package-statuses-icons'] cache (used by other consumers) is untouched.
+    const { data: allRows } = useQuery({
+        queryKey: ['package-statuses-byid'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('package_statuses')
+                .select('id, code, label, color, icon');
+            return (data || []) as ResolvedPackageStatus[];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
     return useMemo(() => {
         const list = rows ?? [];
+
+        const byId = new Map<string, ResolvedPackageStatus>();
+        for (const r of allRows ?? []) byId.set(r.id, r);
 
         const byDss = new Map<string, PkgStatusRow>();
         const byLabel = new Map<string, PkgStatusRow>();
@@ -86,6 +103,15 @@ export function usePackageStatusResolver() {
             return { label: raw, color: rawColor ?? null, icon: null };
         };
 
-        return { rows: list, match, resolve, isReady: list.length > 0 };
-    }, [rows]);
+        /** Id-authoritative resolution: master label+color+icon by package_status_id. */
+        const resolveById = (
+            statusId?: string | null,
+        ): { label: string; color: string | null; icon: string | null } | null => {
+            if (!statusId) return null;
+            const m = byId.get(statusId);
+            return m ? { label: m.label, color: m.color, icon: m.icon } : null;
+        };
+
+        return { rows: list, byId, match, resolve, resolveById, isReady: list.length > 0 };
+    }, [rows, allRows]);
 }

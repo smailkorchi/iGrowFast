@@ -382,7 +382,7 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({ products, value, onCh
 };
 
 const AdsHistory = () => {
-    const { cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, getOrderCategory } = useStatusCategories();
+    const { cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, isOrderInCategories } = useStatusCategories();
     const activeBusinessIdForTracking = typeof localStorage !== 'undefined' ? localStorage.getItem('activeBusinessId') : null;
     const { trackedOrderIds } = useTrackedOrders(activeBusinessIdForTracking);
     const location = useLocation();
@@ -469,7 +469,7 @@ const AdsHistory = () => {
             // Paginated so we never truncate at the 1000-row default cap.
             return await fetchAllRows(
                 'orders',
-                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)',
+                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
@@ -529,7 +529,6 @@ const AdsHistory = () => {
 
             matchedOrders.forEach((o: any) => {
                 const isDelivered = isDeliveredForCommission(o, deliveredPkgIds);
-                const orderCat = getOrderCategory(o.order_status_id);
                 const sid = o.order_status_id;
                 // `orders.tracking_number` is never populated; the authoritative
                 // tracking source is company_parcels/courier_parcels, which
@@ -541,7 +540,7 @@ const AdsHistory = () => {
                     grossRevenue += Number(o.price) || 0;
                     shippingCosts += Number(o.shipping_cost) || 0;
                 } else if (sid && cancelledIds.has(sid)) {
-                    if (orderCat === 'fake' || orderCat === 'double') {
+                    if (isOrderInCategories(sid, ['fake', 'double'])) {
                         fakeOrders++;
                     } else {
                         cancelledOrders++;
@@ -601,7 +600,7 @@ const AdsHistory = () => {
                 qualityScore: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
             };
         };
-    }, [allOrders, productCosts, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
+    }, [allOrders, productCosts, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, isOrderInCategories]);
 
     const form = useForm<AdsHistoryValues>({
         resolver: zodResolver(adsHistorySchema),

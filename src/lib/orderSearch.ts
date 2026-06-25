@@ -40,7 +40,6 @@ type OrderForSearch = {
     delivery_note?: unknown;
     source_name?: unknown;
     delivery_type?: unknown;
-    package_status_label?: unknown;
     raw_price?: unknown;
     shipping_cost?: unknown;
     total_price?: unknown;
@@ -67,10 +66,9 @@ type OrderForSearch = {
     parcels?: Array<{
         id?: unknown;
         tracking_code?: unknown;
-        status_label?: unknown;
         provider?: { name?: unknown } | null;
     }> | null;
-    courier_parcels?: Array<{ id?: unknown; tracking_code?: unknown; status_label?: unknown }> | null;
+    courier_parcels?: Array<{ id?: unknown; tracking_code?: unknown }> | null;
     history?: Array<{
         comment?: unknown;
         user?: { name?: unknown } | null;
@@ -109,7 +107,6 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
         order?.delivery_note,
         order?.source_name,
         order?.delivery_type,
-        order?.package_status_label,
         order?.raw_price,
         order?.shipping_cost,
         order?.total_price,
@@ -140,10 +137,10 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
     }
 
     for (const p of order?.parcels || []) {
-        addStrings(bucket, p?.id, p?.tracking_code, p?.status_label, p?.provider?.name);
+        addStrings(bucket, p?.id, p?.tracking_code, p?.provider?.name);
     }
     for (const p of order?.courier_parcels || []) {
-        addStrings(bucket, p?.id, p?.tracking_code, p?.status_label);
+        addStrings(bucket, p?.id, p?.tracking_code);
     }
 
     for (const h of order?.history || []) {

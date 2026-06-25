@@ -24,7 +24,8 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const TERMINAL_CATEGORIES = ['delivered', 'returned', 'returning', 'refused', 'cancelled'];
+// "Terminal for polling" = master flags is_terminal (delivered/returned/refused/cancelled)
+// OR is_returned (adds the in-flight 'returning' state). No category strings.
 const CONCURRENCY = 4;
 
 Deno.serve(async (req) => {
@@ -126,10 +127,11 @@ Deno.serve(async (req) => {
 
             const { data: parcels, error: pErr } = await supabase
                 .from('company_parcels')
-                .select('id, tracking_code, external_id, status_id, status_label, order_id, package_statuses!inner(category)')
+                .select('id, tracking_code, external_id, status_id, order_id, package_statuses!inner(label)')
                 .eq('provider_id', providerId)
                 .eq('DigiCom Business', businessId)
-                .not('package_statuses.category', 'in', `(${TERMINAL_CATEGORIES.join(',')})`)
+                .eq('package_statuses.is_terminal', false)
+                .eq('package_statuses.is_returned', false)
                 .order('created_at', { ascending: false });
 
             if (pErr) {
@@ -137,7 +139,7 @@ Deno.serve(async (req) => {
                 // Fallback: get all parcels and filter client-side.
                 const { data: allParcels } = await supabase
                     .from('company_parcels')
-                    .select('id, tracking_code, external_id, status_id, status_label, order_id')
+                    .select('id, tracking_code, external_id, status_id, order_id, package_statuses(label)')
                     .eq('provider_id', providerId)
                     .eq('DigiCom Business', businessId);
 
@@ -146,7 +148,7 @@ Deno.serve(async (req) => {
                 const { data: terminalStatuses } = await supabase
                     .from('package_statuses')
                     .select('id')
-                    .in('category', TERMINAL_CATEGORIES);
+                    .or('is_terminal.eq.true,is_returned.eq.true');
 
                 const terminalIds = new Set((terminalStatuses || []).map(s => s.id));
                 activeParcels = allParcels.filter(p => !p.status_id || !terminalIds.has(p.status_id));
@@ -207,7 +209,7 @@ Deno.serve(async (req) => {
                         }
 
                         // Compare with current DB status — skip if unchanged.
-                        const currentLabel = parcel.status_label || '';
+                        const currentLabel = parcel.package_statuses?.label || '';
                         if (ozonStatus === currentLabel) continue;
 
                         console.log(`[sync-tracking] CHANGE detected: ${parcel.tracking_code} "${currentLabel}" → "${ozonStatus}"`);

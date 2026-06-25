@@ -30,7 +30,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, order_status_id, package_status_id, package_status_label, company_id, courier_id',
+                'id, date, order_status_id, package_status_id, package_statuses(label), company_id, courier_id',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -80,7 +80,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             courier_id: string | null;
             order_status_id: string | null;
             package_status_id: string | null;
-            package_status_label: string | null;
+            package_statuses?: { label?: string | null } | null;
         };
         type SPProvider = { id: string; name: string; provider_type: string | null; logo_url: string | null };
         type SPCourier = { id: string; name: string; avatar_url: string | null };
@@ -124,7 +124,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         shipped.forEach((o) => {
             const statusId = o.package_status_id;
             if (!statusId) return;
-            const label = o.package_status_label || statusId;
+            const label = o.package_statuses?.label || statusId;
             if (!statusDist[statusId]) statusDist[statusId] = { label, count: 0 };
             statusDist[statusId].count += 1;
         });

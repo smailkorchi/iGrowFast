@@ -176,16 +176,18 @@ const DeliveryNote = () => {
 
         const isCourierParcel = !parcel.provider_id && !selectedNote?.provider_id;
         if (isCourierParcel) {
+            const cpLabel = parcel.status?.label || 'Nouveau';
+            const cpColor = parcel.status?.color || '#3b82f6';
             setTrackingHistory({
-                statusLabel: parcel.status_label || 'Nouveau',
-                statusColor: parcel.status_color || '#3b82f6',
+                statusLabel: cpLabel,
+                statusColor: cpColor,
                 history: [
                     {
-                        status: parcel.status_label || 'Nouveau',
-                        statusLabel: parcel.status_label || 'Nouveau',
+                        status: cpLabel,
+                        statusLabel: cpLabel,
                         date: parcel.created_at || selectedNote?.created_at || null,
                         comment: 'Colis créé en interne',
-                        color: parcel.status_color || '#3b82f6',
+                        color: cpColor,
                     },
                 ],
             });
@@ -233,7 +235,6 @@ const DeliveryNote = () => {
 
                 // Persist status change to DB if available
                 const providerStatus = result.data?.statusLabel || result.data?.status || result.data?.current_status;
-                const providerColor = result.data?.statusColor || result.data?.color;
 
                 if (providerStatus) {
                     // Map to the master package_statuses. The track/history endpoint's latest
@@ -243,31 +244,23 @@ const DeliveryNote = () => {
                     // "ghost" status that isn't in package_statuses and flips back on reload.
                     const matched = await matchPackageStatus(supabase, providerStatus);
                     if (matched) {
-                        const finalColor = matched.color ?? providerColor ?? null;
                         await supabase
                             .from('company_parcels')
-                            .update({
-                                status_id: matched.id,
-                                status_label: matched.label,
-                                status_color: finalColor,
-                            })
+                            .update({ status_id: matched.id })
                             .eq('id', parcel.id);
 
-                        // Local state — use the MAPPED label/color so the preview row stays
+                        // Local state — set the embedded master row so the preview stays
                         // consistent with the resolved master status (no ghost flash).
+                        const fullMaster = pkgStatuses?.find((ps) => ps.id === matched.id) ?? null;
+                        const masterEmbed = fullMaster
+                            ? { label: fullMaster.label, color: fullMaster.color, icon: fullMaster.icon }
+                            : { label: matched.label, color: matched.color, icon: null };
                         if (noteDetails?.parcels) {
                             setNoteDetails({
                                 ...noteDetails,
                                 parcels: noteDetails.parcels.map((p: any) =>
                                     p.id === parcel.id
-                                        ? {
-                                            ...p,
-                                            status_id: matched.id,
-                                            status_label: matched.label,
-                                            status_color: finalColor,
-                                            real_time_status_label: matched.label,
-                                            real_time_status_color: finalColor
-                                        }
+                                        ? { ...p, status_id: matched.id, status: masterEmbed }
                                         : p
                                 )
                             });
@@ -891,13 +884,13 @@ const DeliveryNote = () => {
             if (isCompanyNote) {
                 const { data } = await supabase
                     .from('company_parcels')
-                    .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id, order:orders(name, phone)')
+                    .select('id, reference, order_id, status_id, tracking_code, external_id, provider_id, status:package_statuses(label, color, icon), order:orders(name, phone)')
                     .eq('company_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             } else {
                 const { data } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('id, reference, order_id, status_id, status_label, status_color, tracking_code, courier_id, created_at, order:orders(name, phone)')
+                    .select('id, reference, order_id, status_id, tracking_code, courier_id, created_at, status:package_statuses(label, color, icon), order:orders(name, phone)')
                     .eq('courier_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             }
@@ -937,17 +930,17 @@ const DeliveryNote = () => {
                                     // Map provider status to internal package_statuses (containment → RPC → ilike fallback)
                                     const matched = await matchPackageStatus(supabase, providerStatus);
                                     const mappedStatusId = matched?.id ?? parcel.status_id ?? null;
-                                    const finalLabel = matched?.label ?? providerStatus;
-                                    const finalColor = matched?.color ?? providerColor ?? null;
+                                    // Full master row (carries icon) for the embedded display object.
+                                    const fullMaster = mappedStatusId
+                                        ? (pkgStatuses?.find((ps) => ps.id === mappedStatusId) ?? null)
+                                        : null;
 
-                                    // Persist to database if status or color changed
-                                    if (mappedStatusId !== parcel.status_id || finalLabel !== parcel.status_label || finalColor !== parcel.status_color) {
+                                    // Persist only the master id when it changed (label/color derive from master).
+                                    if (mappedStatusId && mappedStatusId !== parcel.status_id) {
                                         await supabase
                                             .from('company_parcels')
                                             .update({
                                                 status_id: mappedStatusId,
-                                                status_label: finalLabel,
-                                                status_color: finalColor,
                                                 provider_response: result.data // Update with latest info
                                             })
                                             .eq('id', parcel.id);
@@ -956,8 +949,9 @@ const DeliveryNote = () => {
                                     return {
                                         ...parcel,
                                         status_id: mappedStatusId,
-                                        status_label: providerStatus,
-                                        status_color: providerColor,
+                                        status: fullMaster
+                                            ? { label: fullMaster.label, color: fullMaster.color, icon: fullMaster.icon }
+                                            : (matched ? { label: matched.label, color: matched.color, icon: parcel.status?.icon ?? null } : parcel.status),
                                         real_time_status: result.data.status,
                                         real_time_status_label: providerStatus,
                                         real_time_status_color: providerColor || result.data.statusColor
@@ -1594,16 +1588,12 @@ const DeliveryNote = () => {
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
                                                     {(() => {
-                                                        // Resolve to the master package_statuses (name + color + icon),
-                                                        // same mapping as the tracking timeline / ParcelTrackingDialog —
-                                                        // instead of the raw provider label/color.
-                                                        const matched = matchPkgStatus(
-                                                            parcel.real_time_status_label || parcel.status_label,
-                                                            parcel.status_label
-                                                        );
-                                                        const label = matched?.label || parcel.real_time_status_label || parcel.status_label || 'Nouveau';
-                                                        const color = matched?.color || parcel.real_time_status_color || parcel.status_color || '#10b981';
-                                                        const icon = matched?.icon;
+                                                        // Master status (label + color + icon) off the embedded
+                                                        // package_statuses row (joined by status_id).
+                                                        const m = parcel.status as { label?: string | null; color?: string | null; icon?: string | null } | null;
+                                                        const label = m?.label || 'Nouveau';
+                                                        const color = m?.color || '#10b981';
+                                                        const icon = m?.icon || null;
                                                         return (
                                                             <Badge
                                                                 className="border-none text-[9px] font-semibold px-1.5 py-0.5 rounded shadow-none inline-flex items-center gap-1 max-w-[130px] whitespace-nowrap align-middle"

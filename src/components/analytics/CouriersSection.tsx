@@ -38,9 +38,8 @@ type OrderRow = {
     courier_id: string | null;
     order_status_id: string | null;
     package_status_id: string | null;
-    package_status_label: string | null;
     tracking_number: string | null;
-    package_statuses: { label?: string | null; category?: string | null } | null;
+    package_statuses: { label?: string | null } | null;
 };
 
 type CourierPaymentNote = {
@@ -71,7 +70,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         queryFn: async () => {
             return (await fetchAllRows(
                 'orders',
-                'id, date, courier_id, order_status_id, package_status_id, package_status_label, tracking_number, package_statuses(label, category)',
+                'id, date, courier_id, order_status_id, package_status_id, tracking_number, package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

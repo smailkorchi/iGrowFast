@@ -165,7 +165,8 @@ const Sellers = () => {
         pendingIds,
         adminPullbackOrderIds,
         adminPullbackPackageIds,
-        getOrderCategory,
+        isOrderCategory,
+        isOrderInCategories,
     } = useStatusCategories();
     const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
     const [sellers, setSellers] = useState<EnrichedSeller[]>([]);
@@ -183,7 +184,7 @@ const Sellers = () => {
 
     useEffect(() => {
         fetchSellers();
-    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, getOrderCategory]);
+    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, isOrderCategory, isOrderInCategories]);
 
     const fetchSellers = async () => {
         setLoading(true);
@@ -209,7 +210,7 @@ const Sellers = () => {
             // revenue and live-commission figures.
             const orders = await fetchAllRows<any>(
                 'orders',
-                'id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)',
+                'id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)',
                 {
                     filters: [
                         { column: 'seller_id', op: 'in', value: sellerIds },
@@ -270,18 +271,18 @@ const Sellers = () => {
                     fake = 0;
 
                 sellerOrders.forEach((o) => {
-                    const orderCat = getOrderCategory(o.order_status_id);
+                    const sid = o.order_status_id;
                     const isDeliveredPkg = isDeliveredForCommission(o, deliveredPkgIds);
 
                     if (isDeliveredPkg) {
                         delivered++;
-                    } else if (orderCat === 'processed') {
+                    } else if (isOrderCategory(sid, 'processed')) {
                         shipped++;
                     } else if (confirmedIds.has(o.order_status_id)) {
                         confirmed++;
-                    } else if (orderCat === 'cancelled') {
+                    } else if (isOrderCategory(sid, 'cancelled')) {
                         cancelled++;
-                    } else if (orderCat === 'fake' || orderCat === 'double') {
+                    } else if (isOrderInCategories(sid, ['fake', 'double'])) {
                         fake++;
                     } else if (pendingIds.has(o.order_status_id)) {
                         pending++;

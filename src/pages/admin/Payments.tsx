@@ -63,7 +63,7 @@ interface PaymentNote {
 }
 
 const Payments = () => {
-    const { getOrderByCategory, getPkgByCategory, getPkgCategory } = useStatusCategories();
+    const { getOrderByCategory, getPkgByCategory, isPkgInCategories } = useStatusCategories();
     const unpaidStatusId = getOrderByCategory('unpaid')?.id;
     const deliveredPkgId = getPkgByCategory('delivered')?.id;
 
@@ -133,8 +133,8 @@ const Payments = () => {
                 const hasTracking = !!(o.parcels?.[0]?.tracking_code)
                     || (o.courier_parcels || []).some((p: any) => p?.tracking_code);
                 if (!hasTracking) return false;                                  // must have shipped
-                const cat = getPkgCategory(o.package_status_id);                 // carrier completed the trip
-                return cat === 'delivered' || cat === 'returned';
+                // carrier completed the trip (delivered or any return-leg)
+                return isPkgInCategories(o.package_status_id, ['delivered', 'returned']);
             });
             const byId = new Map<string, any>();
             for (const o of [...(normal as any[]), ...swap]) byId.set(o.id, o);

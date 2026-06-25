@@ -88,7 +88,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 if (!parcel?.tracking_code || !String(parcel.tracking_code).trim() || !parcel.provider_id) {
                     const { data: courierParcel, error: courierErr } = await (supabase as any)
                         .from('courier_parcels')
-                        .select('id, tracking_code, status_label, status_color, status_id, created_at, courier_id, courier:users!courier_parcels_courier_id_fkey(id, name, phone)')
+                        .select('id, tracking_code, status_id, created_at, courier_id, status:package_statuses(label, color), courier:users!courier_parcels_courier_id_fkey(id, name, phone)')
                         .eq('order_id', orderId)
                         .order('created_at', { ascending: false })
                         .limit(1)
@@ -105,15 +105,17 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     setTrackingCode(String(courierParcel.tracking_code).trim());
                     const courierName = courierParcel.courier?.name || 'Coursier';
                     const courierPhone = courierParcel.courier?.phone || '';
+                    const cpLabel = courierParcel.status?.label || 'Nouveau';
+                    const cpColor = courierParcel.status?.color || '#3b82f6';
                     setTrackingHistory({
-                        statusLabel: courierParcel.status_label || 'Nouveau',
-                        statusColor: courierParcel.status_color || '#3b82f6',
+                        statusLabel: cpLabel,
+                        statusColor: cpColor,
                         history: [{
-                            status: courierParcel.status_label || 'Nouveau',
-                            statusLabel: courierParcel.status_label || 'Nouveau',
+                            status: cpLabel,
+                            statusLabel: cpLabel,
                             date: courierParcel.created_at || null,
                             comment: 'Colis créé en interne et confié à ' + courierName,
-                            color: courierParcel.status_color || '#3b82f6',
+                            color: cpColor,
                             user: courierName,
                             phone: courierPhone,
                         }],
@@ -135,18 +137,17 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 setTrackingHistory(data);
 
                 const providerStatus = (data.statusLabel || data.status || data.current_status) as string | undefined;
-                const providerColor = (data.statusColor || data.color) as string | undefined;
 
                 if (providerStatus) {
                     const matched = await matchPackageStatus(supabase, providerStatus);
-                    await supabase
-                        .from('company_parcels')
-                        .update({
-                            status_id: matched?.id ?? null,
-                            status_label: matched?.label ?? providerStatus,
-                            status_color: matched?.color ?? providerColor ?? null,
-                        })
-                        .eq('id', parcel.id);
+                    // status_id is the only persisted parcel status; skip when unmatched
+                    // rather than wiping the existing status.
+                    if (matched?.id) {
+                        await supabase
+                            .from('company_parcels')
+                            .update({ status_id: matched.id })
+                            .eq('id', parcel.id);
+                    }
                 }
                 queryClient.invalidateQueries({ queryKey: ['orders'] });
             } catch (e: unknown) {

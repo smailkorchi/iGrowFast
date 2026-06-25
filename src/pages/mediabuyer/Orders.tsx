@@ -17,7 +17,6 @@ import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { getPlatformSource, getPlatformIcon, getPlatformColor, type CampaignDailyEntry } from '@/lib/campaignConstants';
-import { DELIVERED_PKG_CATS, CANCELLED_ORDER_CATS, RETURNED_PKG_CATS } from '@/lib/status-categories';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -45,8 +44,8 @@ type OrderRow = {
     note: string | null;
     order_status_id: string | null;
     package_status_id: string | null;
-    status: { id: string; label: string | null; color: string | null; category: string | null } | null;
-    package_status: { id: string; label: string | null; color: string | null; category: string | null; icon: string | null } | null;
+    status: { id: string; label: string | null; color: string | null } | null;
+    package_status: { id: string; label: string | null; color: string | null; icon: string | null } | null;
     city: { id: string; name: string | null } | null;
     items: Array<{
         id: string;
@@ -63,7 +62,7 @@ const fmtMAD = (n: number) => new Intl.NumberFormat('fr-MA').format(n || 0);
 const MediaBuyerOrders = () => {
     const currentUserId = useCurrentUserId();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const { isOrderCategory } = useStatusCategories();
+    const { isOrderCategory, deliveredPkgIds, returnedPkgIds, cancelledIds } = useStatusCategories();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [platformFilter, setPlatformFilter] = useState<string>('all');
@@ -127,8 +126,8 @@ const MediaBuyerOrders = () => {
                 `
                     id, name, phone, address, price, date, created_at, source_name, delivery_note, note,
                     order_status_id, package_status_id,
-                    status:order_statuses(id, label, color, category),
-                    package_status:package_statuses(id, label, color, category, icon),
+                    status:order_statuses(id, label, color),
+                    package_status:package_statuses(id, label, color, icon),
                     city:master_cities(id, name),
                     items:order_items(id, quantity, unit_price, product:products(id, name, code, image_url))
                 `,
@@ -179,10 +178,9 @@ const MediaBuyerOrders = () => {
     }, [orders, platformFilter, searchQuery]);
 
     const orderTab = (o: OrderRow): Exclude<TabKey, 'all'> => {
-        const pkgCat = o.package_status?.category || '';
-        const ordCat = o.status?.category || '';
-        if (DELIVERED_PKG_CATS.includes(pkgCat as never)) return 'delivered';
-        if (CANCELLED_ORDER_CATS.includes(ordCat as never) || RETURNED_PKG_CATS.includes(pkgCat as never)) return 'cancelled';
+        if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) return 'delivered';
+        if ((o.order_status_id && cancelledIds.has(o.order_status_id))
+            || (o.package_status_id && returnedPkgIds.has(o.package_status_id))) return 'cancelled';
         return 'inProgress';
     };
 
@@ -190,20 +188,20 @@ const MediaBuyerOrders = () => {
         const counts = { all: filteredOrders.length, delivered: 0, inProgress: 0, cancelled: 0 };
         for (const o of filteredOrders) counts[orderTab(o)] += 1;
         return counts;
-    }, [filteredOrders]);
+    }, [filteredOrders, deliveredPkgIds, returnedPkgIds, cancelledIds]);
 
     const tabbedOrders = useMemo(
         () => (tab === 'all' ? filteredOrders : filteredOrders.filter((o) => orderTab(o) === tab)),
-        [filteredOrders, tab],
+        [filteredOrders, tab, deliveredPkgIds, returnedPkgIds, cancelledIds],
     );
 
     const summaryStats = useMemo(() => {
         const totalRevenue = filteredOrders.reduce((sum, o) => sum + Number(o.price || 0), 0);
         const delivered = filteredOrders.filter((o) =>
-            (o.status?.category || '') === 'delivered' || (o.package_status?.category || '') === 'delivered'
+            !!o.package_status_id && deliveredPkgIds.has(o.package_status_id)
         ).length;
         const confirmed = filteredOrders.filter((o) =>
-            ['confirmed', 'delivered'].includes(o.status?.category || '')
+            isOrderCategory(o.order_status_id, 'confirmed')
         ).length;
         return {
             total: filteredOrders.length,
@@ -211,7 +209,7 @@ const MediaBuyerOrders = () => {
             delivered,
             confirmed,
         };
-    }, [filteredOrders]);
+    }, [filteredOrders, deliveredPkgIds, isOrderCategory]);
 
     const isLoading = loadingEntries || loadingOrders;
     const hasNoCampaignHistory = !loadingEntries && entries.length === 0;

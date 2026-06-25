@@ -1282,10 +1282,10 @@ class QuickLivraisonAdapter {
 
     async resolveMasterStatus(rawStatus, supabase) {
         if (!rawStatus || !supabase) return null;
-        // 1) JSONB containment match (fast exact match)
+        // 1) JSONB containment match (fast exact match) — must carry the master id.
         const { data: exact } = await supabase
             .from('package_statuses')
-            .select('code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
             .limit(1)
             .maybeSingle();
@@ -1306,14 +1306,13 @@ class QuickLivraisonAdapter {
         const statusLabel = master?.label || rawStatus;
         const statusColor = master?.color || null;
 
-        // Helper: resolve a milestone raw code to its master row (label + color + id + category)
+        // Helper: resolve a milestone raw code to its master row (label + color + id).
         const resolveEvent = async (rawCode) => {
             const m = await this.resolveMasterStatus(rawCode, supabase);
             return {
                 label: m?.label || rawCode,
                 color: m?.color || null,
                 statusId: m?.id || null,
-                category: m?.category || null,
             };
         };
 
@@ -1327,7 +1326,6 @@ class QuickLivraisonAdapter {
                 statusLabel: r.label,
                 statusColor: r.color,
                 statusId: r.statusId,
-                category: r.category,
                 color: r.color, // UI-compatible alias used elsewhere (AMEEX shape)
                 date,
                 comment: ''
@@ -1350,7 +1348,6 @@ class QuickLivraisonAdapter {
                 statusLabel,
                 statusColor,
                 statusId: master?.id || null,
-                category: master?.category || null,
                 color: statusColor,
                 date: modDate,
                 comment: '',
@@ -1363,7 +1360,6 @@ class QuickLivraisonAdapter {
             statusLabel,
             statusColor,
             status_code: master?.code || null,
-            status_category: master?.category || null,
             history,
             _original: data
         };
@@ -1831,7 +1827,7 @@ class VitexAdapter {
         if (!rawStatus || !supabase) return null;
         const { data: exact } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
             .limit(1)
             .maybeSingle();
@@ -1854,7 +1850,6 @@ class VitexAdapter {
                 statusLabel: m?.label || ev.statut_name || raw,
                 statusColor: m?.color || null,
                 statusId: m?.id || null,
-                category: m?.category || null,
                 color: m?.color || null,
                 date: ev.created_at || '',
                 comment: '',
@@ -1867,7 +1862,6 @@ class VitexAdapter {
             statusLabel: last?.statusLabel || null,
             statusColor: last?.statusColor || null,
             status_code: null,
-            status_category: last?.category || null,
             history,
             _original: events,
         };
@@ -2287,7 +2281,7 @@ class ForcelogAdapter {
         if (!rawStatus || !supabase) return null;
         const { data: exact } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
             .limit(1)
             .maybeSingle();
@@ -2545,7 +2539,6 @@ class ForcelogAdapter {
             statusLabel: e.label,
             statusColor: e.color || null,
             statusId: null,
-            category: null,
             color: e.color || null,
             date: e.date,
             comment: e.comment,
@@ -2556,7 +2549,6 @@ class ForcelogAdapter {
             statusLabel: master?.label || latest.label,
             statusColor: master?.color || latest.color || null,
             status_code: null,
-            status_category: master?.category || null,
             history,
         };
     }
@@ -2816,7 +2808,7 @@ class SenditAdapter {
         } catch (_) { /* RPC optional */ }
         const { data: exact } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
             .limit(1)
             .maybeSingle();
@@ -2911,7 +2903,6 @@ class SenditAdapter {
                 statusLabel: entryMaster?.label || s,
                 statusColor: entryMaster?.color || null,
                 statusId: entryMaster?.id || null,
-                category: entryMaster?.category || null,
                 color: entryMaster?.color || null,
                 date: a?.created_at || '',
                 comment: a?.event || '',
@@ -2924,7 +2915,6 @@ class SenditAdapter {
                 statusLabel: master?.label || rawStatus,
                 statusColor: master?.color || null,
                 statusId: master?.id || null,
-                category: master?.category || null,
                 color: master?.color || null,
                 date: d.last_action_at || '',
                 comment: '',
@@ -2936,7 +2926,6 @@ class SenditAdapter {
             statusLabel: master?.label || rawStatus,
             statusColor: master?.color || null,
             status_code: null,
-            status_category: master?.category || null,
             history,
         };
     }
@@ -3135,7 +3124,7 @@ class DigylogAdapter {
         } catch (_) { /* RPC optional */ }
         const { data: exact } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
             .limit(1)
             .maybeSingle();
@@ -3248,7 +3237,6 @@ class DigylogAdapter {
                 statusLabel: entryMaster?.label || s,
                 statusColor: entryMaster?.color || null,
                 statusId: entryMaster?.id || null,
-                category: entryMaster?.category || null,
                 color: entryMaster?.color || null,
                 date: a?.date || '',
                 comment: a?.type || '',
@@ -3262,7 +3250,6 @@ class DigylogAdapter {
             statusLabel: latest?.statusLabel || latest?.status || '',
             statusColor: latest?.statusColor || null,
             status_code: null,
-            status_category: latest?.category || null,
             history,
         };
     }
@@ -3585,7 +3572,7 @@ class DelvoExpressAdapter {
         } catch (_) { /* RPC optional */ }
         const { data } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([rawStatus]))
             .limit(1)
             .maybeSingle();
@@ -3682,7 +3669,6 @@ class DelvoExpressAdapter {
                     statusLabel: master?.label || s,
                     statusColor: master?.color || null,
                     statusId: master?.id || null,
-                    category: master?.category || null,
                     color: master?.color || null,
                     date: a?.Date_Evenement ? new Date(Number(a.Date_Evenement) * 1000).toISOString() : '',
                     comment: '',
@@ -3695,7 +3681,6 @@ class DelvoExpressAdapter {
                 statusLabel: latest?.statusLabel || latest?.status || '',
                 statusColor: latest?.statusColor || null,
                 status_code: null,
-                status_category: latest?.category || null,
                 history,
             };
         }
@@ -3712,7 +3697,6 @@ class DelvoExpressAdapter {
             statusLabel: master?.label || colis.status.name,
             statusColor: master?.color || colis.status.color || null,
             statusId: master?.id || null,
-            category: master?.category || null,
             color: master?.color || colis.status.color || null,
             date: eventDate,
             comment: '',
@@ -3724,7 +3708,6 @@ class DelvoExpressAdapter {
             statusLabel: latest.statusLabel,
             statusColor: latest.statusColor || null,
             status_code: null,
-            status_category: latest.category || null,
             history,
         };
     }

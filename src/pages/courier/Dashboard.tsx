@@ -36,15 +36,32 @@ type PkgStatus = {
     recheck: boolean | null;
 };
 
+/** Chart bucket derived from the master semantic flags + flow_rank (replaces category). */
+function pkgChartGroup(s: any): string {
+    if (!s) return 'other';
+    if (s.is_delivered) return 'delivered';
+    if (s.is_refused) return 'refused';
+    if (s.is_returned) return 'returned';
+    if (s.is_cancelled) return 'cancelled';
+    if (s.is_postponed || s.is_recheck) return 'postponed';
+    if (s.flow_rank === 4) return 'out_for_delivery';
+    if (s.flow_rank != null && s.flow_rank >= 1) return 'in_transit';
+    if (s.flow_rank === 0) return 'new';
+    return 'other';
+}
+
 type CourierParcel = {
     id: string;
     tracking_code: string | null;
     created_at: string | null;
     updated_at: string | null;
     delivered_at: string | null;
+    status_id: string | null;
     status_label: string | null;
     status_color: string | null;
-    status_category: string | null;
+    is_delivered: boolean;
+    is_terminal: boolean;
+    chart_group: string;
     recheck: boolean | null;
     order_name: string | null;
     order_city: string | null;
@@ -79,7 +96,7 @@ const isSameDay = (a: Date, b: Date) =>
 const CourierDashboard = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
-    const { resolve: resolvePkgStatus } = usePackageStatusResolver();
+    const { resolve: resolvePkgStatus, resolveById } = usePackageStatusResolver();
     const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     const { data: me } = useQuery({
@@ -107,9 +124,9 @@ const CourierDashboard = () => {
             const { data, error } = await (supabase as any)
                 .from('courier_parcels')
                 .select(`
-                    id, tracking_code, created_at, updated_at, delivered_at, status_label, status_color,
+                    id, tracking_code, created_at, updated_at, delivered_at, status_id,
                     note:courier_delivery_notes!inner(id, is_finalized),
-                    status:package_statuses(id, label, color, category, recheck),
+                    status:package_statuses(id, label, color, recheck, is_delivered, is_returned, is_refused, is_cancelled, is_postponed, is_recheck, is_terminal, flow_rank),
                     order:orders!courier_parcels_order_id_fkey(
                         id, name, price, shipping_cost,
                         city:master_cities(id, name)
@@ -129,9 +146,12 @@ const CourierDashboard = () => {
                         created_at: p.created_at,
                         updated_at: p.updated_at,
                         delivered_at: p.delivered_at,
-                        status_label: s?.label || p.status_label,
-                        status_color: s?.color || p.status_color,
-                        status_category: s?.category || null,
+                        status_id: p.status_id ?? s?.id ?? null,
+                        status_label: s?.label || null,
+                        status_color: s?.color || null,
+                        is_delivered: !!(s as any)?.is_delivered,
+                        is_terminal: !!(s as any)?.is_terminal,
+                        chart_group: pkgChartGroup(s),
                         recheck: s?.recheck || null,
                         order_name: p.order?.name || null,
                         order_city: p.order?.city?.name || null,
@@ -170,14 +190,14 @@ const CourierDashboard = () => {
         const byCategory = new Map<string, number>();
 
         for (const p of parcels) {
-            const cat = p.status_category || 'other';
-            byCategory.set(cat, (byCategory.get(cat) || 0) + 1);
+            byCategory.set(p.chart_group, (byCategory.get(p.chart_group) || 0) + 1);
 
-            if (cat === 'delivered') {
+            if (p.is_delivered) {
                 deliveredTotal++;
                 pendingEarningsGross += p.order_shipping;
                 if (p.delivered_at && isSameDay(new Date(p.delivered_at), today)) deliveredToday++;
-            } else if (cat !== 'returned' && cat !== 'cancelled' && cat !== 'refused') {
+            } else if (!p.is_terminal) {
+                // Not delivered and not terminal (returned/refused/cancelled) → still active.
                 activeCount++;
             }
         }
@@ -229,19 +249,9 @@ const CourierDashboard = () => {
             refused: { name: 'Refusé', value: 0, color: '#c93942' },
             other: { name: 'Autre', value: 0, color: '#b0aea5' },
         };
-        const collapse: Record<string, string> = {
-            pickup_pending: 'in_transit',
-            picked_up: 'in_transit',
-            returning: 'returned',
-            recheck: 'postponed',
-            scheduled: 'postponed',
-            callback: 'new',
-            interested: 'new',
-            relaunch: 'new',
-        };
-        for (const [cat, n] of stats.byCategory.entries()) {
-            const target = map[cat] ? cat : (collapse[cat] && map[collapse[cat]] ? collapse[cat] : 'other');
-            map[target].value += n;
+        // chart_group is already a final, collapsed bucket (derived from flags + flow_rank).
+        for (const [g, n] of stats.byCategory.entries()) {
+            (map[g] || map.other).value += n;
         }
         return Object.values(map).filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
     }, [stats.byCategory]);
@@ -473,7 +483,7 @@ const CourierDashboard = () => {
                 ) : (
                     <div className="divide-y divide-ant-line">
                         {recent.map((p) => {
-                          const rs = resolvePkgStatus(p.status_label, null, p.status_color);
+                          const rs = resolveById(p.status_id) ?? resolvePkgStatus(p.status_label, null, p.status_color);
                           const sLabel = rs?.label ?? p.status_label;
                           const sColor = rs?.color ?? p.status_color;
                           const sIcon = rs?.icon ?? null;

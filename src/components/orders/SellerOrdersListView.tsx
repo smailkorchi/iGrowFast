@@ -50,7 +50,7 @@ export default function SellerOrdersListView({
   getCourierPackageStatus,
   reportedStatusId,
 }: SellerOrdersListViewProps) {
-  const { resolve } = usePackageStatusResolver();
+  const { resolve, resolveById } = usePackageStatusResolver();
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-ant-line overflow-hidden mb-20 animate-in fade-in duration-300">
       <div className="w-full">
@@ -79,10 +79,11 @@ export default function SellerOrdersListView({
               const canTrack = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
 
               const courierPkg = getCourierPackageStatus(order);
-              const rawPkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
+              const rawPkgLabel = order.package_status?.label || courierPkg?.label;
               const rawPkgColor = order.package_status?.color || courierPkg?.color || null;
               // Always resolve to the master status (label + color + icon); raw only as fallback.
-              const resolvedPkg = rawPkgLabel ? resolve(rawPkgLabel, order.package_status?.label, rawPkgColor) : null;
+              const resolvedPkg = resolveById(order.package_status_id)
+                ?? (rawPkgLabel ? resolve(rawPkgLabel, order.package_status?.label, rawPkgColor) : null);
               const pkgLabel = resolvedPkg?.label ?? rawPkgLabel;
               const pkgColor = resolvedPkg?.color ?? rawPkgColor;
               const pkgIcon = resolvedPkg?.icon ?? order.package_status?.icon ?? null;

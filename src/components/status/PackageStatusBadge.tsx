@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
 type Props = {
+    /** Master package_statuses id — resolved FIRST (authoritative, id-keyed). */
+    statusId?: string | null;
     /** Raw provider status / real_time label. */
     rawStatus?: string | null;
     /** Preferred label candidate (e.g. parcel.status_label). Tried before rawStatus. */
@@ -22,6 +24,7 @@ type Props = {
  * label/color are used ONLY as a fallback when `package_statuses` has no match.
  */
 export function PackageStatusBadge({
+    statusId,
     rawStatus,
     fallbackLabel,
     rawColor,
@@ -29,8 +32,9 @@ export function PackageStatusBadge({
     className,
     iconClassName,
 }: Props) {
-    const { resolve } = usePackageStatusResolver();
-    const r = resolve(rawStatus, fallbackLabel, rawColor);
+    const { resolve, resolveById } = usePackageStatusResolver();
+    // Id-authoritative first; fall back to text resolution for legacy call sites / unmapped rows.
+    const r = (statusId ? resolveById(statusId) : null) ?? resolve(rawStatus, fallbackLabel, rawColor);
 
     const label = r?.label ?? emptyLabel;
     const color = r?.color ?? '#94a3b8';

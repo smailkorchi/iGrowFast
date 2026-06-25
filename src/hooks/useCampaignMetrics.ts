@@ -183,7 +183,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         // Index orders by YYYY-MM-DD in business timezone.
         // "Confirmed" = order_status NOT in pendingIds (new + postponed). Empty-set guard:
         // skip until pendingIds is populated, otherwise every order slips through.
-        // "Delivered" = package_status.category = 'delivered'.
+        // "Delivered" = package_status.is_delivered flag (resolved via package_status_id).
         // For each delivered order we also accumulate the admin gross revenue
         // (product-only, shipping stripped) via the canonical helper.
         const statusMapsReady = pendingIds.size > 0;

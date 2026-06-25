@@ -815,9 +815,7 @@ export type Database = {
           provider_id: string | null
           provider_response: Json | null
           reference: string | null
-          status_color: string | null
           status_id: string | null
-          status_label: string | null
           tracking_code: string | null
           updated_at: string | null
         }
@@ -832,9 +830,7 @@ export type Database = {
           provider_id?: string | null
           provider_response?: Json | null
           reference?: string | null
-          status_color?: string | null
           status_id?: string | null
-          status_label?: string | null
           tracking_code?: string | null
           updated_at?: string | null
         }
@@ -849,9 +845,7 @@ export type Database = {
           provider_id?: string | null
           provider_response?: Json | null
           reference?: string | null
-          status_color?: string | null
           status_id?: string | null
-          status_label?: string | null
           tracking_code?: string | null
           updated_at?: string | null
         }
@@ -1411,9 +1405,7 @@ export type Database = {
           order_id: string | null
           provider_response: Json | null
           reference: string | null
-          status_color: string | null
           status_id: string | null
-          status_label: string | null
           tracking_code: string | null
           updated_at: string | null
         }
@@ -1432,9 +1424,7 @@ export type Database = {
           order_id?: string | null
           provider_response?: Json | null
           reference?: string | null
-          status_color?: string | null
           status_id?: string | null
-          status_label?: string | null
           tracking_code?: string | null
           updated_at?: string | null
         }
@@ -1453,9 +1443,7 @@ export type Database = {
           order_id?: string | null
           provider_response?: Json | null
           reference?: string | null
-          status_color?: string | null
           status_id?: string | null
-          status_label?: string | null
           tracking_code?: string | null
           updated_at?: string | null
         }
@@ -2971,12 +2959,25 @@ export type Database = {
       order_statuses: {
         Row: {
           active: boolean | null
-          category: string | null
           code: string
           color: string | null
           created_at: string | null
+          excluded_from_delivery_rate: boolean
           icon: string | null
           id: string
+          is_callback: boolean
+          is_cancelled: boolean
+          is_confirmed: boolean
+          is_new: boolean
+          is_paid: boolean
+          is_unpaid: boolean
+          deducts_stock: boolean
+          is_blacklisted: boolean
+          is_double: boolean
+          is_fake: boolean
+          is_postponed: boolean
+          is_relaunch: boolean
+          is_return: boolean
           label: string
           pending_confirmation: boolean
           perf_breakdown: boolean
@@ -2991,12 +2992,25 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
-          category?: string | null
           code: string
           color?: string | null
           created_at?: string | null
+          excluded_from_delivery_rate?: boolean
           icon?: string | null
           id?: string
+          is_callback?: boolean
+          is_cancelled?: boolean
+          is_confirmed?: boolean
+          is_new?: boolean
+          is_paid?: boolean
+          is_unpaid?: boolean
+          deducts_stock?: boolean
+          is_blacklisted?: boolean
+          is_double?: boolean
+          is_fake?: boolean
+          is_postponed?: boolean
+          is_relaunch?: boolean
+          is_return?: boolean
           label: string
           pending_confirmation?: boolean
           perf_breakdown?: boolean
@@ -3011,12 +3025,25 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
-          category?: string | null
           code?: string
           color?: string | null
           created_at?: string | null
+          excluded_from_delivery_rate?: boolean
           icon?: string | null
           id?: string
+          is_callback?: boolean
+          is_cancelled?: boolean
+          is_confirmed?: boolean
+          is_new?: boolean
+          is_paid?: boolean
+          is_unpaid?: boolean
+          deducts_stock?: boolean
+          is_blacklisted?: boolean
+          is_double?: boolean
+          is_fake?: boolean
+          is_postponed?: boolean
+          is_relaunch?: boolean
+          is_return?: boolean
           label?: string
           pending_confirmation?: boolean
           perf_breakdown?: boolean
@@ -3071,9 +3098,7 @@ export type Database = {
           note: string | null
           old_client_id: string | null
           order_status_id: string | null
-          package_status_color: string | null
           package_status_id: string | null
-          package_status_label: string | null
           payed: boolean | null
           payment_delivery_id: string | null
           phone: string | null
@@ -3134,9 +3159,7 @@ export type Database = {
           note?: string | null
           old_client_id?: string | null
           order_status_id?: string | null
-          package_status_color?: string | null
           package_status_id?: string | null
-          package_status_label?: string | null
           payed?: boolean | null
           payment_delivery_id?: string | null
           phone?: string | null
@@ -3197,9 +3220,7 @@ export type Database = {
           note?: string | null
           old_client_id?: string | null
           order_status_id?: string | null
-          package_status_color?: string | null
           package_status_id?: string | null
-          package_status_label?: string | null
           payed?: boolean | null
           payment_delivery_id?: string | null
           phone?: string | null
@@ -3325,13 +3346,23 @@ export type Database = {
       package_statuses: {
         Row: {
           active: boolean | null
-          category: string | null
           code: string
           color: string | null
           created_at: string | null
           delivery_service_statuses: Json | null
+          excluded_from_delivery_rate: boolean
           icon: string | null
           id: string
+          is_delivered: boolean
+          is_returned: boolean
+          is_shipped: boolean
+          is_refused: boolean
+          is_new: boolean
+          is_cancelled: boolean
+          is_postponed: boolean
+          is_recheck: boolean
+          is_terminal: boolean
+          flow_rank: number | null
           label: string
           perf_breakdown: boolean
           perf_breakdown_phase: string | null
@@ -3344,13 +3375,23 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
-          category?: string | null
           code: string
           color?: string | null
           created_at?: string | null
           delivery_service_statuses?: Json | null
+          excluded_from_delivery_rate?: boolean
           icon?: string | null
           id?: string
+          is_delivered?: boolean
+          is_returned?: boolean
+          is_shipped?: boolean
+          is_refused?: boolean
+          is_new?: boolean
+          is_cancelled?: boolean
+          is_postponed?: boolean
+          is_recheck?: boolean
+          is_terminal?: boolean
+          flow_rank?: number | null
           label: string
           perf_breakdown?: boolean
           perf_breakdown_phase?: string | null
@@ -3363,13 +3404,23 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
-          category?: string | null
           code?: string
           color?: string | null
           created_at?: string | null
           delivery_service_statuses?: Json | null
+          excluded_from_delivery_rate?: boolean
           icon?: string | null
           id?: string
+          is_delivered?: boolean
+          is_returned?: boolean
+          is_shipped?: boolean
+          is_refused?: boolean
+          is_new?: boolean
+          is_cancelled?: boolean
+          is_postponed?: boolean
+          is_recheck?: boolean
+          is_terminal?: boolean
+          flow_rank?: number | null
           label?: string
           perf_breakdown?: boolean
           perf_breakdown_phase?: string | null
@@ -5213,7 +5264,6 @@ export type Database = {
       match_package_status: {
         Args: { p_status_value: string }
         Returns: {
-          category: string
           code: string
           color: string
           id: string

@@ -52,7 +52,6 @@ type SCCOrder = {
     shipping_cost: number | null;
     include_delivery_in_total: boolean | null;
     package_status_id: string | null;
-    package_status_label: string | null;
     package_statuses: { label?: string | null } | null;
 };
 
@@ -70,7 +69,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_status_label, package_statuses(label)',
+                'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

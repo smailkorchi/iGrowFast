@@ -60,11 +60,28 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 
-function formatStatusCategoryLabel(category: string) {
-    return category
-        .split(/[_\s]+/)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        .join(' ');
+/** Group label derived from the master semantic flags (replaces the old free-text category). */
+function orderStatusGroup(s: { is_new: boolean; is_paid: boolean; is_unpaid: boolean; is_confirmed: boolean; is_cancelled: boolean; is_callback: boolean; is_return: boolean; is_postponed: boolean; is_relaunch: boolean }) {
+    if (s.is_new) return 'Nouveau';
+    if (s.is_paid) return 'Payé';
+    if (s.is_unpaid) return 'Impayé';
+    if (s.is_confirmed) return 'Confirmé';
+    if (s.is_cancelled) return 'Annulé';
+    if (s.is_callback) return 'Rappel';
+    if (s.is_return) return 'Retour';
+    if (s.is_postponed) return 'Reporté';
+    if (s.is_relaunch) return 'Relance';
+    return 'Autre';
+}
+function pkgStatusGroup(s: { is_delivered: boolean; is_returned: boolean; is_shipped: boolean; is_cancelled: boolean; is_postponed: boolean; is_recheck: boolean; is_new: boolean }) {
+    if (s.is_delivered) return 'Livré';
+    if (s.is_returned) return 'Retour';
+    if (s.is_shipped) return 'En livraison';
+    if (s.is_cancelled) return 'Annulé';
+    if (s.is_postponed) return 'Reporté';
+    if (s.is_recheck) return 'Recheck';
+    if (s.is_new) return 'Nouveau';
+    return 'Autre';
 }
 
 // --- Types ---
@@ -76,7 +93,6 @@ interface Order {
     shipping_cost: number;
     order_status_id: string;
     package_status_id: string | null;
-    package_status_label?: string | null;
     package_statuses?: { label?: string | null } | null;
     status: {
         label: string;
@@ -181,21 +197,21 @@ const Customers = () => {
 
     const orderStatusGroups = useMemo(() => {
         const list = statusCats.orderStatuses.filter((s) => s.active !== false);
-        const catOrder = [...new Set(list.map((s) => s.category))];
-        return catOrder.map((cat) => ({
-            category: cat,
-            heading: formatStatusCategoryLabel(cat),
-            items: list.filter((s) => s.category === cat).sort((a, b) => (a.ranking ?? 0) - (b.ranking ?? 0)),
+        const groups = [...new Set(list.map(orderStatusGroup))];
+        return groups.map((g) => ({
+            category: g,
+            heading: g,
+            items: list.filter((s) => orderStatusGroup(s) === g).sort((a, b) => (a.ranking ?? 0) - (b.ranking ?? 0)),
         }));
     }, [statusCats.orderStatuses]);
 
     const packageStatusGroups = useMemo(() => {
         const list = statusCats.packageStatuses;
-        const catOrder = [...new Set(list.map((s) => s.category))];
-        return catOrder.map((cat) => ({
-            category: cat,
-            heading: formatStatusCategoryLabel(cat),
-            items: list.filter((s) => s.category === cat).sort((a, b) => (a.ranking ?? 0) - (b.ranking ?? 0)),
+        const groups = [...new Set(list.map(pkgStatusGroup))];
+        return groups.map((g) => ({
+            category: g,
+            heading: g,
+            items: list.filter((s) => pkgStatusGroup(s) === g).sort((a, b) => (a.ranking ?? 0) - (b.ranking ?? 0)),
         }));
     }, [statusCats.packageStatuses]);
 
@@ -229,7 +245,6 @@ const Customers = () => {
                     created_at,
                     order_status_id,
                     package_status_id,
-                    package_status_label,
                     city:master_cities(name),
                     status:order_statuses(label, color),
                     package_statuses(label)
@@ -263,7 +278,6 @@ const Customers = () => {
                     shipping_cost: Number(order.shipping_cost) || 0,
                     order_status_id: order.order_status_id || '',
                     package_status_id: order.package_status_id || null,
-                    package_status_label: order.package_status_label ?? null,
                     package_statuses: (order as any).package_statuses ?? null,
                     status: { label: statusLabel, color: statusColor },
                     city_name: cityName,
@@ -330,7 +344,7 @@ const Customers = () => {
         const packageMatchesFilter = (o: Order) => {
             if (packageStatusFilterIds.length === 0) return true;
             if (o.package_status_id && pkgSel.has(o.package_status_id)) return true;
-            const label = (o.package_status_label || o.package_statuses?.label || '').trim();
+            const label = (o.package_statuses?.label || '').trim();
             if (!label) return false;
             return pkgList.some((ps) => pkgSel.has(ps.id) && ps.label === label);
         };

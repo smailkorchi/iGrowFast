@@ -79,7 +79,6 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         raw_price,
                         order_status_id,
                         package_status_id,
-                        package_status_label,
                         status:order_statuses(code, label, color),
                         package_status:package_statuses(code, label)
                     `,
@@ -102,7 +101,6 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                     raw_price: number | null;
                     order_status_id: string | null;
                     package_status_id: string | null;
-                    package_status_label: string | null;
                     status: { code: string; label: string; color: string | null } | null;
                     package_status: { code: string; label: string } | null;
                 };

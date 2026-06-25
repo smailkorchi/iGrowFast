@@ -5,7 +5,6 @@ export type MatchedPackageStatus = {
     code: string | null;
     label: string | null;
     color: string | null;
-    category: string | null;
 };
 
 /**
@@ -31,7 +30,7 @@ export async function matchPackageStatus(
     try {
         const { data: exact } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .contains('delivery_service_statuses', JSON.stringify([value]))
             .limit(1)
             .maybeSingle();
@@ -49,7 +48,7 @@ export async function matchPackageStatus(
     try {
         const { data: byLabel } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category')
+            .select('id, code, label, color')
             .ilike('label', value)
             .limit(1)
             .maybeSingle();

@@ -3,13 +3,8 @@ import { getLatestTrackableCompanyParcel, type TrackableCompanyParcelRow } from 
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
-const TERMINAL_PKG_CATEGORIES = new Set([
-    'delivered',
-    'returned',
-    'returning',
-    'refused',
-    'cancelled',
-]);
+// "Terminal for tracking" is decided by master flags: is_terminal
+// (delivered/returned/refused/cancelled) OR is_returned (adds the in-flight 'returning').
 
 export type TrackableParcel = {
     id: string;
@@ -24,7 +19,6 @@ type PackageStatusRow = {
     code: string | null;
     label: string | null;
     color: string | null;
-    category: string | null;
     delivery_service_statuses: string[] | null;
 };
 
@@ -38,7 +32,7 @@ async function getPackageStatuses(force = false): Promise<PackageStatusRow[]> {
     statusCachePromise = (async () => {
         const { data, error } = await supabase
             .from('package_statuses')
-            .select('id, code, label, color, category, delivery_service_statuses');
+            .select('id, code, label, color, delivery_service_statuses');
         if (error) throw error;
         statusCache = (data || []) as PackageStatusRow[];
         statusCachePromise = null;
@@ -232,7 +226,7 @@ export async function syncParcelTracking(
         return { updated: false, status_id: null, status_label: null };
     }
 
-    const { matched, rawLabel, rawColor } = pickStatusFromResponse(data, rows);
+    const { matched, rawLabel } = pickStatusFromResponse(data, rows);
 
     // Nothing usable in the response.
     if (!matched && !rawLabel) {
@@ -241,20 +235,21 @@ export async function syncParcelTracking(
 
     const newStatusId = matched?.id ?? null;
     const newLabel = matched?.label || rawLabel || null;
-    const newColor = matched?.color || rawColor || null;
+
+    // Unmapped provider status: status_id is the only persisted status now, so an
+    // unmatched response cannot be represented — leave the parcel's status untouched.
+    if (!newStatusId) {
+        return { updated: false, status_id: null, status_label: rawLabel };
+    }
 
     // Skip the write when nothing changed (cuts realtime noise + DB churn).
-    if (parcel.current_status_id && newStatusId && parcel.current_status_id === newStatusId) {
+    if (parcel.current_status_id && parcel.current_status_id === newStatusId) {
         return { updated: false, status_id: newStatusId, status_label: newLabel };
     }
 
     const { error: updateError } = await supabase
         .from('company_parcels')
-        .update({
-            status_id: newStatusId,
-            status_label: newLabel,
-            status_color: newColor,
-        })
+        .update({ status_id: newStatusId })
         .eq('id', parcel.id);
 
     if (updateError) throw updateError;
@@ -264,7 +259,7 @@ export async function syncParcelTracking(
 
 type OrderForSync = {
     id: string;
-    package_status?: { id?: string | null; category?: string | null } | null;
+    package_status?: { id?: string | null; is_terminal?: boolean | null; is_returned?: boolean | null } | null;
     package_status_id?: string | null;
     parcels?: TrackableCompanyParcelRow[] | null;
 };
@@ -291,8 +286,8 @@ export async function syncOrdersTracking(
     let skipped = 0;
 
     for (const order of orders || []) {
-        const cat = order?.package_status?.category ?? null;
-        if (cat && TERMINAL_PKG_CATEGORIES.has(cat)) {
+        const ps = order?.package_status;
+        if (ps && (ps.is_terminal || ps.is_returned)) {
             skipped++;
             continue;
         }

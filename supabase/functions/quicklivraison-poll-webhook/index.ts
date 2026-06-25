@@ -1,12 +1,13 @@
 // @ts-nocheck - Deno runtime types not recognized by VSCode
 // Polls Quick Livraison (no native webhook) — mirrors ozon-poll-webhook.
 // Every 15 min: for each active QL provider_webhook, walk non-terminal company_parcels,
-// call provider-integration track_parcel, diff status_label, self-POST changes into provider-webhook.
+// call provider-integration track_parcel, diff against the master label (via status_id join), self-POST changes into provider-webhook.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const CONCURRENCY = 4;
-const TERMINAL_CATEGORIES = ['delivered', 'returned', 'returning', 'refused', 'cancelled'];
+// "Terminal for polling" = master flags is_terminal (delivered/returned/refused/cancelled)
+// OR is_returned (adds the in-flight 'returning' state). No category strings.
 
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
@@ -57,10 +58,11 @@ Deno.serve(async (req: Request) => {
 
             const { data: parcels, error: pErr } = await supabase
                 .from('company_parcels')
-                .select('id, tracking_code, external_id, status_id, status_label, order_id, package_statuses!inner(category)')
+                .select('id, tracking_code, external_id, status_id, order_id, package_statuses!inner(label)')
                 .eq('provider_id', providerId)
                 .eq('DigiCom Business', businessId)
-                .not('package_statuses.category', 'in', `(${TERMINAL_CATEGORIES.join(',')})`)
+                .eq('package_statuses.is_terminal', false)
+                .eq('package_statuses.is_returned', false)
                 .order('created_at', { ascending: false });
 
             if (pErr) {
@@ -68,7 +70,7 @@ Deno.serve(async (req: Request) => {
                 // Fallback: fetch all and filter client-side (same as ozon)
                 const { data: allParcels } = await supabase
                     .from('company_parcels')
-                    .select('id, tracking_code, external_id, status_id, status_label, order_id')
+                    .select('id, tracking_code, external_id, status_id, order_id, package_statuses(label)')
                     .eq('provider_id', providerId)
                     .eq('DigiCom Business', businessId);
 
@@ -80,7 +82,7 @@ Deno.serve(async (req: Request) => {
                 const { data: terminalStatuses } = await supabase
                     .from('package_statuses')
                     .select('id')
-                    .in('category', TERMINAL_CATEGORIES);
+                    .or('is_terminal.eq.true,is_returned.eq.true');
 
                 const terminalIds = new Set((terminalStatuses || []).map(s => s.id));
                 const activeParcels = allParcels.filter(p => !p.status_id || !terminalIds.has(p.status_id));
@@ -184,7 +186,7 @@ async function processParcels(
 
                 // Skip unchanged — compare against our stored label (French).
                 // If statusLabel matches, it's the same mapped state already.
-                const currentLabel = parcel.status_label || '';
+                const currentLabel = parcel.package_statuses?.label || '';
                 const newLabel = trackData?.statusLabel || qlStatus;
                 if (newLabel === currentLabel) {
                     skipped++;

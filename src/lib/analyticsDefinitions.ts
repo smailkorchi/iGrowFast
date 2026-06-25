@@ -25,13 +25,6 @@ import {
     max as maxDate,
     min as minDate,
 } from 'date-fns';
-import {
-    CONFIRMED_ORDER_CATS,
-    CANCELLED_ORDER_CATS,
-    DELIVERED_PKG_CATS,
-    RETURNED_PKG_CATS,
-    SHIPPED_PKG_CATS,
-} from '@/lib/status-categories';
 import { PLATFORM_SOURCE_MAP } from '@/lib/campaignConstants';
 
 // ─── Constants ────────────────────────────────────────────────────────────
@@ -92,7 +85,6 @@ export type AnalyticsOrder = {
     include_delivery_in_total?: boolean | null;
     order_status_id?: string | null;
     package_status_id?: string | null;
-    package_status_label?: string | null;
     package_statuses?: { label?: string | null; category?: string | null } | null;
     order_statuses?: { code?: string | null; label?: string | null; category?: string | null } | null;
     tracking_number?: string | null;
@@ -223,7 +215,7 @@ export function isRateConfirmed(
  * refusal. Excluded from the delivery-rate denominator per Coliaty's own rule.
  *
  * Matched at two levels:
- *  - order_status.category ∈ adminPullbackOrderIds (seller-side flags: fake,
+ *  - order_status_id ∈ adminPullbackOrderIds (seller-side flags: fake,
  *    double, blacklisted, cancelled)
  *  - package_status.code ∈ adminPullbackPackageIds (Coliaty-side: Hors-zone,
  *    generic Annulé with tracking)
@@ -584,11 +576,4 @@ export function pickChartGrain(windowStart: Date, windowEnd: Date): ChartGrain {
 
 // ─── Re-exports (so callers only need this file) ──────────────────────────
 
-export {
-    CONFIRMED_ORDER_CATS,
-    CANCELLED_ORDER_CATS,
-    DELIVERED_PKG_CATS,
-    RETURNED_PKG_CATS,
-    SHIPPED_PKG_CATS,
-    PLATFORM_SOURCE_MAP,
-};
+export { PLATFORM_SOURCE_MAP };

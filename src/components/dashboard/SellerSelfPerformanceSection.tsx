@@ -38,13 +38,12 @@ type SSPOrder = {
     price: number | null;
     order_status_id: string | null;
     package_status_id: string | null;
-    package_status_label: string | null;
     tracking_number: string | null;
     seller_id: string | null;
     source_name: string | null;
     order_items: SSPOrderItem[] | null;
-    order_statuses: { code: string; label: string; category: string } | null;
-    package_statuses: { label: string; category: string } | null;
+    order_statuses: { code: string; label: string } | null;
+    package_statuses: { label: string } | null;
 };
 
 export function SellerSelfPerformanceSection({
@@ -93,7 +92,7 @@ export function SellerSelfPerformanceSection({
             ];
             return await fetchAllRows(
                 'orders',
-                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, package_status_label, tracking_number, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label, category), package_statuses(label, category)',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, tracking_number, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label), package_statuses(label)',
                 { filters },
             );
         },

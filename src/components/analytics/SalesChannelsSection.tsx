@@ -89,7 +89,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, source_name, source_id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
+                'id, source_name, source_id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
