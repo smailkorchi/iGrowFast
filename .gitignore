@@ -26,6 +26,10 @@ dist-ssr
 # Secrets / infrastructure docs with credentials
 .env
 .env.*
+# Exception: prod build env holds ONLY the publishable VITE_ values (URL + anon key),
+# which are baked into the browser bundle anyway. Needed so the CI `vite build` has prod config.
+# Secrets (DB POOLER password etc.) live in the still-ignored .env.development / scripts/dev-secrets.env.
+!.env.production
 .ssh.env
 docs/infrastructure-secrets.md
 
