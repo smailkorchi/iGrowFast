@@ -1,0 +1,14 @@
+-- Drop the vestigial `note` free-text column on company_payment_notes.
+--
+-- It was 0/56 rows populated on prod (0/50 on dev), never written (the payment-note
+-- generation insert payload in src/pages/admin/Payments.tsx omits it) and never read (it
+-- surfaced in the frontend PaymentNote type only because the fetch uses select('*')). The
+-- column had no FK / index / constraint / default and no function, trigger, RLS policy, or
+-- view/matview dependency (DROP without CASCADE succeeded on both DBs, proving zero catalog
+-- dependents). It carried dead row width for no query benefit.
+--
+-- The only reader uses select('*'), so no frontend redeploy was required ahead of this drop
+-- (nothing ever named the column in an explicit PostgREST .select('col')). The dead `note`
+-- field was removed from the PaymentNote interface + database.types.ts in the same change.
+-- Rollback = re-add a nullable text column; no data is lost (every row's value was NULL).
+ALTER TABLE public.company_payment_notes DROP COLUMN IF EXISTS note;

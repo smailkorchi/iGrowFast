@@ -56,7 +56,7 @@ interface PaymentNote {
     kind: 'company' | 'courier';
     id: string; reference: string; status: string; total_amount: number;
     total_shipping_fees: number; net_amount: number; order_count: number;
-    paid_at: string | null; note: string | null; created_at: string;
+    paid_at: string | null; created_at: string;
     provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
     courier?: { id: string; name: string; avatar_url: string | null; avatar_config?: unknown } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
