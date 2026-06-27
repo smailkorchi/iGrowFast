@@ -64,7 +64,7 @@ interface ReturnNote {
     kind: 'company' | 'courier';
     id: string; reference: string; status: string; total_amount: number;
     total_shipping_fees: number; net_amount: number; order_count: number;
-    received_at: string | null; note: string | null; created_at: string;
+    received_at: string | null; created_at: string;
     created_by?: string | null;
     provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null;
     courier?: { id: string; name: string; avatar_url: string | null; avatar_config?: unknown } | null;

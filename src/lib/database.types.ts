@@ -1046,67 +1046,51 @@ export type Database = {
       }
       company_return_notes: {
         Row: {
-          company_delivery_note_id: string | null
           created_at: string | null
           created_by: string | null
           "DigiCom Business": string | null
           id: string
           net_amount: number | null
-          note: string | null
           order_count: number | null
           provider_id: string | null
           received_at: string | null
           reference: string | null
           status: string
-          status_id: string | null
           total_amount: number | null
           total_shipping_fees: number | null
           updated_at: string | null
         }
         Insert: {
-          company_delivery_note_id?: string | null
           created_at?: string | null
           created_by?: string | null
           "DigiCom Business"?: string | null
           id?: string
           net_amount?: number | null
-          note?: string | null
           order_count?: number | null
           provider_id?: string | null
           received_at?: string | null
           reference?: string | null
           status?: string
-          status_id?: string | null
           total_amount?: number | null
           total_shipping_fees?: number | null
           updated_at?: string | null
         }
         Update: {
-          company_delivery_note_id?: string | null
           created_at?: string | null
           created_by?: string | null
           "DigiCom Business"?: string | null
           id?: string
           net_amount?: number | null
-          note?: string | null
           order_count?: number | null
           provider_id?: string | null
           received_at?: string | null
           reference?: string | null
           status?: string
-          status_id?: string | null
           total_amount?: number | null
           total_shipping_fees?: number | null
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "company_return_notes_company_delivery_note_id_fkey"
-            columns: ["company_delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "company_delivery_notes"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "company_return_notes_created_by_fkey"
             columns: ["created_by"]
@@ -1126,13 +1110,6 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "providers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "company_return_notes_status_id_fkey"
-            columns: ["status_id"]
-            isOneToOne: false
-            referencedRelation: "package_statuses"
             referencedColumns: ["id"]
           },
         ]
