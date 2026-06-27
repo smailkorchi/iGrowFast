@@ -11,7 +11,6 @@ export type BonLivraisonSource = 'manual' | 'order' | 'company_delivery_note';
 export type BonLivraisonParcelSnapshot = {
   id?: string | null;
   tracking_code: string | null;
-  reference: string | null;
   status_label?: string | null;
   recipient_name?: string | null;
   recipient_phone?: string | null;

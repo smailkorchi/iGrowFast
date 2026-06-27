@@ -674,7 +674,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         .insert({
                             provider_id: providerId,
                             order_id: order.id,
-                            reference: result.data?.tracking_code || result.data?.reference || result.data?.bar_code || 'N/A',
                             tracking_code: result.data?.tracking_code || result.data?.reference || result.data?.bar_code,
                             external_id: result.data?.id || String(result.data?.external_id || ''),
                             provider_response: result.data,

@@ -112,14 +112,13 @@ export async function hydrateBonLivraisonFromOrder(
 
   const { data: parcelRows } = await supabase
     .from('company_parcels')
-    .select('id, tracking_code, reference, status:package_statuses(label)')
+    .select('id, tracking_code, status:package_statuses(label)')
     .eq('order_id', orderId)
     .eq('DigiCom Business', businessId);
 
   const parcels: BonLivraisonParcelSnapshot[] = (parcelRows || []).map((p: Record<string, unknown>) => ({
     id: p.id as string,
     tracking_code: p.tracking_code ? String(p.tracking_code) : null,
-    reference: p.reference ? String(p.reference) : null,
     status_label: masterLabel(p),
     recipient_name: o.name ? String(o.name) : null,
     recipient_phone: o.phone ? String(o.phone) : null,
@@ -166,7 +165,7 @@ export async function hydrateBonLivraisonFromCompanyNote(
 
   const { data: parcelRows, error: pErr } = await supabase
     .from('company_parcels')
-    .select('id, tracking_code, reference, status:package_statuses(label), order_id')
+    .select('id, tracking_code, status:package_statuses(label), order_id')
     .eq('company_delivery_note_id', noteId)
     .eq('DigiCom Business', businessId);
 
@@ -218,7 +217,6 @@ export async function hydrateBonLivraisonFromCompanyNote(
     parcels.push({
       id: pr.id as string,
       tracking_code: pr.tracking_code ? String(pr.tracking_code) : null,
-      reference: pr.reference ? String(pr.reference) : null,
       status_label: masterLabel(pr),
       recipient_name: ord?.name ? String(ord.name) : null,
       recipient_phone: ord?.phone ? String(ord.phone) : null,
@@ -267,7 +265,7 @@ export async function hydrateBonLivraisonFromCourierNote(
 
   const { data: parcelRows, error: pErr } = await (supabase as any)
     .from('courier_parcels')
-    .select('id, tracking_code, reference, status:package_statuses(label), order_id')
+    .select('id, tracking_code, status:package_statuses(label), order_id')
     .eq('courier_delivery_note_id', noteId)
     .eq('DigiCom Business', businessId);
 
@@ -319,7 +317,6 @@ export async function hydrateBonLivraisonFromCourierNote(
     parcels.push({
       id: pr.id as string,
       tracking_code: pr.tracking_code ? String(pr.tracking_code) : null,
-      reference: pr.reference ? String(pr.reference) : null,
       status_label: masterLabel(pr),
       recipient_name: ord?.name ? String(ord.name) : null,
       recipient_phone: ord?.phone ? String(ord.phone) : null,

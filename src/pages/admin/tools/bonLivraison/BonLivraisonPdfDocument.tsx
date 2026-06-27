@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     fontFamily: FONT_BOLD, fontWeight: 'bold' as const, fontSize: 7, color: '#666',
   },
   ptr: { flexDirection: 'row', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
-  pc1: { width: '28%' }, pc2: { width: '24%' }, pc3: { width: '22%' }, pc4: { width: '26%' },
+  pc1: { width: '38%' }, pc3: { width: '28%' }, pc4: { width: '34%' },
   totals: { alignSelf: 'flex-end', width: 200, marginTop: 8 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   totalStrong: { fontFamily: FONT_BOLD, fontWeight: 'bold' as const, fontSize: 10 },
@@ -170,12 +170,12 @@ export function BonLivraisonPdfDocument({ snapshot, blNumber, issuedAtIso }: Pro
           <View wrap={false}>
             <Text style={{ ...styles.blockTitle, marginTop: 10 }}>Colis</Text>
             <View style={styles.parcelTh}>
-              <Text style={styles.pc1}>Suivi</Text><Text style={styles.pc2}>Réf.</Text>
+              <Text style={styles.pc1}>Suivi</Text>
               <Text style={styles.pc3}>Statut</Text><Text style={styles.pc4}>Destinataire</Text>
             </View>
             {parcels.map((p, i) => (
               <View key={i} style={styles.ptr} wrap={false}>
-                <Text style={styles.pc1}>{p.tracking_code || '—'}</Text><Text style={styles.pc2}>{p.reference || '—'}</Text>
+                <Text style={styles.pc1}>{p.tracking_code || '—'}</Text>
                 <Text style={styles.pc3}>{p.status_label || '—'}</Text>
                 <Text style={styles.pc4}>{[p.recipient_name, p.recipient_phone].filter(Boolean).join(' · ') || '—'}</Text>
               </View>

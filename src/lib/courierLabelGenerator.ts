@@ -14,7 +14,6 @@ import QRCode from 'qrcode';
 type CourierParcelRow = {
     id: string;
     courier_id: string;
-    reference: string | null;
     tracking_code: string | null;
     order_id: string | null;
     is_fragile: boolean | null;
@@ -157,7 +156,7 @@ async function loadNoteBundle(noteId: string) {
     const [parcelsRes, businessRes, courierRes] = await Promise.all([
         (supabase as any)
             .from('courier_parcels')
-            .select('id, courier_id, reference, tracking_code, order_id, is_fragile, is_open, is_try_on, created_at')
+            .select('id, courier_id, tracking_code, order_id, is_fragile, is_open, is_try_on, created_at')
             .eq('courier_delivery_note_id', noteId),
         (supabase as any)
             .from('businesses')
@@ -242,7 +241,7 @@ function renderSticker(opts: {
     qrDataUrl: string;
 }): string {
     const { parcel, order, business, note, qrDataUrl } = opts;
-    const tracking = parcel.tracking_code || parcel.reference || '—';
+    const tracking = parcel.tracking_code || '—';
     const zoneName = order?.zone?.name || '';
     const hubLetter = zoneHubLetter(zoneName);
     const zCode = zoneCode(zoneName);
@@ -354,7 +353,7 @@ function renderDeliveryNote(opts: {
               <tr>
                 <td class="c">${idx + 1}</td>
                 <td>${qrUrl ? `<img class="row-qr" src="${qrUrl}" alt="" />` : ''}</td>
-                <td><strong>${escapeHtml(p.tracking_code || p.reference || '')}</strong></td>
+                <td><strong>${escapeHtml(p.tracking_code || '')}</strong></td>
                 <td>${escapeHtml(o?.name || '—')}</td>
                 <td>${escapeHtml(o?.phone || '')}</td>
                 <td>${escapeHtml(o?.city?.name || '')}</td>
@@ -676,7 +675,7 @@ export async function printCourierDeliveryNote(noteId: string, format: CourierPr
         // scannability on low quality prints). No sensitive data is encoded.
         const qrEntries = await Promise.all(
             parcels.map(async (p) => {
-                const code = p.tracking_code || p.reference || '';
+                const code = p.tracking_code || '';
                 const dataUrl = code ? await buildQrDataUrl(code, format === 'sticker' ? 320 : 160) : '';
                 return [p.id, dataUrl] as const;
             }),

@@ -884,13 +884,13 @@ const DeliveryNote = () => {
             if (isCompanyNote) {
                 const { data } = await supabase
                     .from('company_parcels')
-                    .select('id, reference, order_id, status_id, tracking_code, external_id, provider_id, status:package_statuses(label, color, icon), order:orders(name, phone)')
+                    .select('id, order_id, status_id, tracking_code, external_id, provider_id, status:package_statuses(label, color, icon), order:orders(name, phone)')
                     .eq('company_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             } else {
                 const { data } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('id, reference, order_id, status_id, tracking_code, courier_id, created_at, status:package_statuses(label, color, icon), order:orders(name, phone)')
+                    .select('id, order_id, status_id, tracking_code, courier_id, created_at, status:package_statuses(label, color, icon), order:orders(name, phone)')
                     .eq('courier_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             }
@@ -1577,7 +1577,7 @@ const DeliveryNote = () => {
                                     ) : (
                                         noteDetails.parcels.map((parcel: any) => (
                                             <tr key={parcel.id} className="hover:bg-ant-light transition-colors">
-                                                <td className="px-3 py-2 text-[11px] text-ant-ink/80 tabular-nums font-medium whitespace-nowrap">{parcel.tracking_code || parcel.reference}</td>
+                                                <td className="px-3 py-2 text-[11px] text-ant-ink/80 tabular-nums font-medium whitespace-nowrap">{parcel.tracking_code}</td>
                                                 <td className="px-3 py-2">
                                                     <div className="max-w-[130px] truncate text-[11px] font-semibold text-ant-ink/80" title={parcel.order?.name || ''}>{parcel.order?.name || '—'}</div>
                                                 </td>

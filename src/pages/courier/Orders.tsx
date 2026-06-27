@@ -54,7 +54,6 @@ type PackageStatus = {
 
 type CourierOrderRow = {
     parcel_id: string;
-    parcel_reference: string | null;
     parcel_tracking_code: string | null;
     parcel_created_at: string | null;
     parcel_status: PackageStatus | null;
@@ -148,7 +147,6 @@ const CourierOrders = () => {
                 .from('courier_parcels')
                 .select(`
                     id,
-                    reference,
                     tracking_code,
                     status_id,
                     created_at,
@@ -174,7 +172,6 @@ const CourierOrders = () => {
                 .filter((p) => p?.note && p?.order)
                 .map((p) => ({
                     parcel_id: p.id,
-                    parcel_reference: p.reference,
                     parcel_tracking_code: p.tracking_code,
                     parcel_created_at: p.created_at,
                     parcel_status: (p.status as PackageStatus) || null,
@@ -228,7 +225,6 @@ const CourierOrders = () => {
             const items = r.order.items || [];
             const parts: Array<string | number | null | undefined> = [
                 r.parcel_id,
-                r.parcel_reference,
                 r.parcel_tracking_code,
                 r.parcel_status?.label,
                 r.parcel_status?.code,
@@ -647,7 +643,7 @@ function CourierOrderSheet({
 
     if (!row) return null;
 
-    const { order, parcel_status, parcel_tracking_code, parcel_reference, note_reference } = row;
+    const { order, parcel_status, parcel_tracking_code, note_reference } = row;
     // Always resolve to the master status; raw synthetic value only as fallback.
     const rps = resolveById(parcel_status?.id) ?? (parcel_status ? resolvePkgStatus(parcel_status.label, parcel_status.label, parcel_status.color) : null);
     const color = rps?.color || parcel_status?.color || '#b0aea5';
@@ -821,7 +817,7 @@ function CourierOrderSheet({
                                     }
                                     multiline
                                 />
-                                <InfoRow icon={Truck} label="Tracking" value={parcel_tracking_code || parcel_reference || '—'} mono />
+                                <InfoRow icon={Truck} label="Tracking" value={parcel_tracking_code || '—'} mono />
                                 <InfoRow icon={History} label="Bon de livraison" value={note_reference || '—'} mono />
                                 {order.delivery_note && (
                                     <InfoRow icon={MessageCircle} label="Note pour le livreur" value={order.delivery_note} multiline />

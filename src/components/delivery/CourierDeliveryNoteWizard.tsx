@@ -328,7 +328,6 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                         .insert({
                             courier_id: courierId,
                             order_id: order.id,
-                            reference: trackingCode,
                             tracking_code: trackingCode,
                             status_id: newPkgStatus?.id || null,
                             external_id: null,
