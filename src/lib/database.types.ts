@@ -806,7 +806,6 @@ export type Database = {
       company_parcels: {
         Row: {
           company_delivery_note_id: string | null
-          company_return_note_id: string | null
           created_at: string | null
           "DigiCom Business": string | null
           external_id: string | null
@@ -821,7 +820,6 @@ export type Database = {
         }
         Insert: {
           company_delivery_note_id?: string | null
-          company_return_note_id?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
           external_id?: string | null
@@ -836,7 +834,6 @@ export type Database = {
         }
         Update: {
           company_delivery_note_id?: string | null
-          company_return_note_id?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
           external_id?: string | null
@@ -855,13 +852,6 @@ export type Database = {
             columns: ["company_delivery_note_id"]
             isOneToOne: false
             referencedRelation: "company_delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "company_parcels_company_return_note_id_fkey"
-            columns: ["company_return_note_id"]
-            isOneToOne: false
-            referencedRelation: "company_return_notes"
             referencedColumns: ["id"]
           },
           {
@@ -1393,7 +1383,6 @@ export type Database = {
         Row: {
           courier_delivery_note_id: string | null
           courier_id: string | null
-          courier_return_note_id: string | null
           created_at: string | null
           delivered_at: string | null
           "DigiCom Business": string | null
@@ -1412,7 +1401,6 @@ export type Database = {
         Insert: {
           courier_delivery_note_id?: string | null
           courier_id?: string | null
-          courier_return_note_id?: string | null
           created_at?: string | null
           delivered_at?: string | null
           "DigiCom Business"?: string | null
@@ -1431,7 +1419,6 @@ export type Database = {
         Update: {
           courier_delivery_note_id?: string | null
           courier_id?: string | null
-          courier_return_note_id?: string | null
           created_at?: string | null
           delivered_at?: string | null
           "DigiCom Business"?: string | null
@@ -1460,13 +1447,6 @@ export type Database = {
             columns: ["courier_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "courier_parcels_courier_return_note_id_fkey"
-            columns: ["courier_return_note_id"]
-            isOneToOne: false
-            referencedRelation: "courier_return_notes"
             referencedColumns: ["id"]
           },
           {
