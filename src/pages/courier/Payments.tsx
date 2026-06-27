@@ -60,7 +60,6 @@ type ReturnNote = {
     order_count: number;
     received_at: string | null;
     created_at: string;
-    note: string | null;
     line_items: Array<{
         id: string;
         order_id: string;
@@ -170,7 +169,7 @@ const CourierPayments = () => {
             const { data, error } = await (supabase as any)
                 .from('courier_return_notes')
                 .select(
-                    `id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, received_at, created_at, note,
+                    `id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, received_at, created_at,
                     line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`
                 )
                 .eq('courier_id', courierId)

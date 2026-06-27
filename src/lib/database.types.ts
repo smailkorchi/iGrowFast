@@ -1613,67 +1613,51 @@ export type Database = {
       }
       courier_return_notes: {
         Row: {
-          courier_delivery_note_id: string | null
           courier_id: string | null
           created_at: string | null
           created_by: string | null
           "DigiCom Business": string | null
           id: string
           net_amount: number | null
-          note: string | null
           order_count: number | null
           received_at: string | null
           reference: string | null
           status: string
-          status_id: string | null
           total_amount: number | null
           total_shipping_fees: number | null
           updated_at: string | null
         }
         Insert: {
-          courier_delivery_note_id?: string | null
           courier_id?: string | null
           created_at?: string | null
           created_by?: string | null
           "DigiCom Business"?: string | null
           id?: string
           net_amount?: number | null
-          note?: string | null
           order_count?: number | null
           received_at?: string | null
           reference?: string | null
           status?: string
-          status_id?: string | null
           total_amount?: number | null
           total_shipping_fees?: number | null
           updated_at?: string | null
         }
         Update: {
-          courier_delivery_note_id?: string | null
           courier_id?: string | null
           created_at?: string | null
           created_by?: string | null
           "DigiCom Business"?: string | null
           id?: string
           net_amount?: number | null
-          note?: string | null
           order_count?: number | null
           received_at?: string | null
           reference?: string | null
           status?: string
-          status_id?: string | null
           total_amount?: number | null
           total_shipping_fees?: number | null
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "courier_return_notes_courier_delivery_note_id_fkey"
-            columns: ["courier_delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "courier_delivery_notes"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "courier_return_notes_courier_id_fkey"
             columns: ["courier_id"]
@@ -1693,13 +1677,6 @@ export type Database = {
             columns: ["DigiCom Business"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "courier_return_notes_status_id_fkey"
-            columns: ["status_id"]
-            isOneToOne: false
-            referencedRelation: "package_statuses"
             referencedColumns: ["id"]
           },
         ]
