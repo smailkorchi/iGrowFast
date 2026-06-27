@@ -1,0 +1,16 @@
+-- Drop the dead public.order_statuses.is_unreached flag.
+--
+-- Added by 20260623190001_status_phaseA_semantic_flags_additive.sql (seeded `is_unreached = (category='callback')`,
+-- comment "replaces UNREACHED_ORDER_CATS") but its consumers were never built. Confirmed DEAD 2026-06-27:
+--   * Referenced in ZERO files: not in src/, not in supabase/functions/, not in src/lib/database.types.ts,
+--     and NOT in the useStatusCategories hub select list (which pulls every OTHER order_statuses flag).
+--   * No DB function/trigger/view/index/constraint references it (DROP without CASCADE proves zero dependents).
+--   * It is byte-identical to the LIVE is_callback flag (both 13/31 true, 0 mismatch) — both were seeded from the
+--     old category='callback'. is_callback is the wired survivor; is_unreached is an abandoned duplicate, so the
+--     drop loses no classification information.
+-- It was a prod-only column (dev never had it) — this migration is a no-op on dev (IF EXISTS) and reconciles prod toward dev.
+--
+-- Rollback:
+--   ALTER TABLE public.order_statuses ADD COLUMN is_unreached boolean NOT NULL DEFAULT false;
+--   UPDATE public.order_statuses SET is_unreached = is_callback;  -- exact reseed (identical to original category='callback' seed)
+ALTER TABLE public.order_statuses DROP COLUMN IF EXISTS is_unreached;
