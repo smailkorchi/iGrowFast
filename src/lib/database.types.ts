@@ -813,7 +813,6 @@ export type Database = {
           order_id: string | null
           provider_id: string | null
           provider_response: Json | null
-          reference: string | null
           status_id: string | null
           tracking_code: string | null
           updated_at: string | null
@@ -827,7 +826,6 @@ export type Database = {
           order_id?: string | null
           provider_id?: string | null
           provider_response?: Json | null
-          reference?: string | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -841,7 +839,6 @@ export type Database = {
           order_id?: string | null
           provider_id?: string | null
           provider_response?: Json | null
-          reference?: string | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -1393,7 +1390,6 @@ export type Database = {
           is_try_on: boolean | null
           order_id: string | null
           provider_response: Json | null
-          reference: string | null
           status_id: string | null
           tracking_code: string | null
           updated_at: string | null
@@ -1411,7 +1407,6 @@ export type Database = {
           is_try_on?: boolean | null
           order_id?: string | null
           provider_response?: Json | null
-          reference?: string | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -1429,7 +1424,6 @@ export type Database = {
           is_try_on?: boolean | null
           order_id?: string | null
           provider_response?: Json | null
-          reference?: string | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
