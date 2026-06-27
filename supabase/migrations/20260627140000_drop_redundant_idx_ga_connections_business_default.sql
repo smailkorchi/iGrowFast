@@ -1,0 +1,18 @@
+-- Drop the redundant index idx_ga_connections_business_default on public.google_analytics_connections.
+--
+-- Definition: btree ("DigiCom Business", is_default) WHERE (is_default = true).
+-- Inside the partial predicate is_default is constant true, so the second key column is a constant and the
+-- composite collapses to a (DigiCom Business)-keyed index over the is_default=true subset -- structurally identical
+-- to the leading column of the UNIQUE partial index:
+--   uniq_ga_connections_default_per_business  UNIQUE ("DigiCom Business") WHERE (is_default = true)
+-- which already serves every "find the default connection for business X" read AND enforces the
+-- one-default-per-business invariant. The non-unique partial provides no additional access path; it is pure
+-- write-amplification overhead.
+--
+-- Independently confirmed unused by Supabase's performance advisor (unused_index lint, 2026-06-27).
+-- The UNIQUE partial is intentionally kept (it carries the invariant). No column is touched; no frontend/type change.
+--
+-- Rollback:
+--   CREATE INDEX idx_ga_connections_business_default ON public.google_analytics_connections
+--     USING btree ("DigiCom Business", is_default) WHERE (is_default = true);
+DROP INDEX IF EXISTS public.idx_ga_connections_business_default;
