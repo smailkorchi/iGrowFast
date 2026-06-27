@@ -1,0 +1,12 @@
+-- Drop the vestigial `failed_attempts` column on credential_change_requests.
+--
+-- The OTP-gated credential-change state machine tracks attempts via `otp_attempts` (referenced by
+-- 6 edge functions); `failed_attempts` was a parallel counter from the table's initial design that
+-- was never wired: 0/3 rows non-zero on prod (0/3 dev), and not referenced by ANY of the 7
+-- credential edge functions (request/confirm/self-credential-otp/confirm, check-token,
+-- request-password-reset), no DB function, no src code — it appeared only in the generated
+-- database.types.ts. The frontend never queries this table directly (edge-function-only), so no
+-- redeploy is needed and the drop is read/write-safe. NOT NULL default 0, no FK/constraint/index on
+-- it. user_invitations.failed_attempts is a DIFFERENT table and is untouched.
+-- Rollback = re-add `failed_attempts smallint NOT NULL DEFAULT 0`.
+ALTER TABLE public.credential_change_requests DROP COLUMN IF EXISTS failed_attempts;

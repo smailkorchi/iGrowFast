@@ -1732,7 +1732,6 @@ export type Database = {
           consumed_at: string | null
           created_at: string
           expires_at: string
-          failed_attempts: number
           id: string
           otp_attempts: number
           otp_expires_at: string | null
@@ -1745,7 +1744,6 @@ export type Database = {
           consumed_at?: string | null
           created_at?: string
           expires_at?: string
-          failed_attempts?: number
           id?: string
           otp_attempts?: number
           otp_expires_at?: string | null
@@ -1758,7 +1756,6 @@ export type Database = {
           consumed_at?: string | null
           created_at?: string
           expires_at?: string
-          failed_attempts?: number
           id?: string
           otp_attempts?: number
           otp_expires_at?: string | null
