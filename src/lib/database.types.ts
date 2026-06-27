@@ -1494,7 +1494,6 @@ export type Database = {
           "DigiCom Business": string | null
           id: string
           net_amount: number
-          note: string | null
           order_count: number
           paid_at: string | null
           reference: string
@@ -1510,7 +1509,6 @@ export type Database = {
           "DigiCom Business"?: string | null
           id?: string
           net_amount?: number
-          note?: string | null
           order_count?: number
           paid_at?: string | null
           reference: string
@@ -1526,7 +1524,6 @@ export type Database = {
           "DigiCom Business"?: string | null
           id?: string
           net_amount?: number
-          note?: string | null
           order_count?: number
           paid_at?: string | null
           reference?: string

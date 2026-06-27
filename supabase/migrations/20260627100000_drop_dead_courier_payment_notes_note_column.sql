@@ -1,0 +1,12 @@
+-- Drop the vestigial `note` free-text column on courier_payment_notes (twin of the
+-- company_payment_notes.note drop in 20260627060000).
+--
+-- 0/11 rows populated on prod (0/11 on dev), never written (the courier payment-note generation
+-- insert in Payments.tsx omits it) and effectively never read: it was explicitly selected only in
+-- courier/Payments.tsx and declared on that page's PaymentNote type, but its value was never
+-- accessed. Both the select and the type field were removed and DEPLOYED before this migration
+-- (two-phase — unlike the company twin, the courier note WAS named in an explicit .select(), so a
+-- bare drop would have 400'd the courier Payments page). No FK / index / constraint / default, no
+-- function / trigger / RLS / view dependency. courier_return_notes.note is a DIFFERENT table (next
+-- in the cleanup) and is untouched. Rollback = re-add nullable text column (no data lost; all NULL).
+ALTER TABLE public.courier_payment_notes DROP COLUMN IF EXISTS note;
