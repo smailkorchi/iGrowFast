@@ -1,0 +1,17 @@
+-- Drop the redundant partial index idx_expenses_recurring_id (recurring_id) WHERE recurring_id IS NOT NULL.
+--
+-- It is left-prefix-redundant with the UNIQUE composite ux_expenses_recurring_occurrence(recurring_id, occurrence_date),
+-- which already serves every recurring_id access path:
+--   * RecurringCharges.tsx `.not('recurring_id','is',null)` scan,
+--   * tg_recurring_charges_sync()  DELETE FROM expenses WHERE recurring_id = NEW.id,
+--   * the ON DELETE SET NULL FK maintenance from recurring_charges -> expenses.
+-- The composite is UNIQUE and mandatory (it is the ON CONFLICT (recurring_id, occurrence_date) arbiter in
+-- generate_recurring_charges), so it cannot be dropped. The partial index added nothing the composite's leading
+-- column does not already provide; it was pure write-amplification overhead that grows with the table.
+--
+-- Verified empirically on prod inside a rolled-back transaction (EXPLAIN): with the partial dropped, the
+-- equality probe (recurring_id = X) and the IS NOT NULL scan both fall back to ux_expenses_recurring_occurrence
+-- with no correctness loss and negligible perf delta. No column is touched. No frontend / type change.
+--
+-- Rollback: CREATE INDEX idx_expenses_recurring_id ON public.expenses USING btree (recurring_id) WHERE recurring_id IS NOT NULL;
+DROP INDEX IF EXISTS public.idx_expenses_recurring_id;
