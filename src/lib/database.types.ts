@@ -2557,13 +2557,6 @@ export type Database = {
             foreignKeyName: "mediabuyer_payment_txns_mediabuyer_payment_id_fkey"
             columns: ["mediabuyer_payment_id"]
             isOneToOne: false
-            referencedRelation: "mediabuyer_ledger"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mediabuyer_payment_txns_mediabuyer_payment_id_fkey"
-            columns: ["mediabuyer_payment_id"]
-            isOneToOne: false
             referencedRelation: "mediabuyer_payments"
             referencedColumns: ["id"]
           },
@@ -4846,96 +4839,6 @@ export type Database = {
       }
     }
     Views: {
-      mediabuyer_ledger: {
-        Row: {
-          campaigns_count: number | null
-          carried_in: number | null
-          carried_out: number | null
-          closed_at: string | null
-          commission_earned: number | null
-          created_at: string | null
-          delivered_orders: number | null
-          "DigiCom Business": string | null
-          earned_frozen: boolean | null
-          id: string | null
-          mediabuyer_id: string | null
-          month_earned: number | null
-          paid_amount: number | null
-          paid_at: string | null
-          payment_type: string | null
-          payout_month: string | null
-          period_state: string | null
-          remaining: number | null
-          salary_earned: number | null
-          status: string | null
-          total_amount: number | null
-          total_spend: number | null
-        }
-        Insert: {
-          campaigns_count?: number | null
-          carried_in?: number | null
-          carried_out?: number | null
-          closed_at?: string | null
-          commission_earned?: number | null
-          created_at?: string | null
-          delivered_orders?: number | null
-          "DigiCom Business"?: string | null
-          earned_frozen?: boolean | null
-          id?: string | null
-          mediabuyer_id?: string | null
-          month_earned?: number | null
-          paid_amount?: number | null
-          paid_at?: string | null
-          payment_type?: string | null
-          payout_month?: string | null
-          period_state?: string | null
-          remaining?: never
-          salary_earned?: number | null
-          status?: string | null
-          total_amount?: number | null
-          total_spend?: number | null
-        }
-        Update: {
-          campaigns_count?: number | null
-          carried_in?: number | null
-          carried_out?: number | null
-          closed_at?: string | null
-          commission_earned?: number | null
-          created_at?: string | null
-          delivered_orders?: number | null
-          "DigiCom Business"?: string | null
-          earned_frozen?: boolean | null
-          id?: string | null
-          mediabuyer_id?: string | null
-          month_earned?: number | null
-          paid_amount?: number | null
-          paid_at?: string | null
-          payment_type?: string | null
-          payout_month?: string | null
-          period_state?: string | null
-          remaining?: never
-          salary_earned?: number | null
-          status?: string | null
-          total_amount?: number | null
-          total_spend?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mediabuyer_payments_DigiCom Business_fkey"
-            columns: ["DigiCom Business"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mediabuyer_payments_mediabuyer_id_fkey"
-            columns: ["mediabuyer_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       seller_daily_earnings: {
         Row: {
           commission_earned: number | null

@@ -1,0 +1,28 @@
+-- Drop the dead public.mediabuyer_ledger view.
+--
+-- It was a thin passthrough over public.mediabuyer_payments (all columns) plus one computed
+-- column: remaining = COALESCE(total_amount,0) - COALESCE(paid_amount,0). It was created
+-- symmetrically with the LIVE seller_ledger view but never adopted on the media-buyer side.
+--
+-- Confirmed dead via a full multi-surface sweep (2026-06-27):
+--   * Repo: only 2 references, both in auto-generated src/lib/database.types.ts. No .from()/.rpc/
+--     edge fn/migration; every dynamically-built table name resolves to a closed set excluding it.
+--   * Asymmetry: MB payout/earnings code reads base table mediabuyer_payments directly and computes
+--     `remaining` itself everywhere; the view's only added column is unused.
+--   * DB (prod+dev, byte-identical defs): zero functions/views/matviews depend on it (pg_depend empty),
+--     not in any realtime publication, security_invoker=true.
+--   * Runtime: pg_stat_statements over a 148-day window shows 0 application calls (only Supabase
+--     dashboard browsing); seller_ledger=510, mediabuyer_payments=3920 over the same window.
+--   * DROP VIEW without CASCADE succeeded on dev, proving zero catalog dependents.
+--
+-- No frontend change required (no consumer). database.types.ts loses 2 auto-generated entries.
+--
+-- Rollback:
+--   CREATE VIEW public.mediabuyer_ledger WITH (security_invoker=true) AS
+--   SELECT id, mediabuyer_id, payout_month, period_state, carried_in, month_earned, total_amount,
+--          paid_amount, carried_out, earned_frozen, closed_at, delivered_orders, status, paid_at,
+--          created_at, "DigiCom Business", payment_type, commission_earned, salary_earned,
+--          total_spend, campaigns_count,
+--          COALESCE(total_amount, 0::numeric) - COALESCE(paid_amount, 0::numeric) AS remaining
+--   FROM public.mediabuyer_payments;
+DROP VIEW IF EXISTS public.mediabuyer_ledger;
