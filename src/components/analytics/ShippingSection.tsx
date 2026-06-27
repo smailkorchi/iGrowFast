@@ -51,7 +51,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, updated_at, shipping_cost, delivery_type, company_id, courier_id, order_status_id, package_status_id, date_livraison, tracking_number, master_city_id, master_cities(name, lat, lng), package_statuses(label)',
+                'id, date, updated_at, shipping_cost, delivery_type, company_id, courier_id, order_status_id, package_status_id, date_livraison, tracking_number, master_city_id, master_cities(name), package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

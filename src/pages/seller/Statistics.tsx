@@ -51,8 +51,6 @@ interface StatusDistribution {
 interface RegionalData {
     city: string;
     delivered: number;
-    lat: number;
-    lng: number;
 }
 
 interface ProductPerformance {
@@ -139,7 +137,7 @@ const SellerStatistics = () => {
             if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
             const ordersData = await fetchAllRows<any>(
                 'orders',
-                'id, order_status_id, package_status_id, tracking_number, replace, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
+                'id, order_status_id, package_status_id, tracking_number, replace, master_cities(name), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
                 { filters: ordersFilters },
             );
 
@@ -202,19 +200,16 @@ const SellerStatistics = () => {
             })).sort((a, b) => b.value - a.value);
             setOrderDistribution(formattedDist);
 
-            const cityMap: Record<string, { count: number; lat: number | null; lng: number | null }> = {};
+            const cityMap: Record<string, { count: number }> = {};
             orders?.filter(o => isDelivered(o)).forEach(o => {
                 const cityData = (o.master_cities as any);
                 const cityName = cityData?.name || 'Unknown';
-                const lat = cityData?.lat != null ? parseFloat(cityData.lat) : null;
-                const lng = cityData?.lng != null ? parseFloat(cityData.lng) : null;
-                if (!cityMap[cityName]) cityMap[cityName] = { count: 0, lat, lng };
+                if (!cityMap[cityName]) cityMap[cityName] = { count: 0 };
                 cityMap[cityName].count++;
             });
 
             const formattedRegional = Object.entries(cityMap)
-                .filter(([, data]) => data.lat != null && data.lng != null && !isNaN(data.lat) && !isNaN(data.lng))
-                .map(([city, data]) => ({ city, delivered: data.count, lat: data.lat as number, lng: data.lng as number }))
+                .map(([city, data]) => ({ city, delivered: data.count }))
                 .sort((a, b) => b.delivered - a.delivered);
             setRegionalData(formattedRegional);
 
