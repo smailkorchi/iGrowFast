@@ -1166,7 +1166,6 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           "DigiCom Business": string | null
-          external_id: string | null
           id: string
           is_finalized: boolean | null
           parcel_count: number | null
@@ -1180,7 +1179,6 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           "DigiCom Business"?: string | null
-          external_id?: string | null
           id?: string
           is_finalized?: boolean | null
           parcel_count?: number | null
@@ -1194,7 +1192,6 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           "DigiCom Business"?: string | null
-          external_id?: string | null
           id?: string
           is_finalized?: boolean | null
           parcel_count?: number | null

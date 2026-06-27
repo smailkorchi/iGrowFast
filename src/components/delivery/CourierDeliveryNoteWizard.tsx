@@ -408,7 +408,6 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                         courier_id: courierId,
                         zone_id: firstZoneId,
                         reference: deliveryNoteRef,
-                        external_id: null,
                         parcel_count: 0,
                         is_finalized: false,
                         status_id: newPkgStatus?.id || null,
