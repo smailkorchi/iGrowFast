@@ -330,8 +330,6 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                             order_id: order.id,
                             tracking_code: trackingCode,
                             status_id: newPkgStatus?.id || null,
-                            external_id: null,
-                            provider_response: null,
                             is_fragile: isFragile,
                             is_open: isOpen,
                             is_try_on: isTryOn,

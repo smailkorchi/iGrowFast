@@ -1354,13 +1354,11 @@ export type Database = {
           created_at: string | null
           delivered_at: string | null
           "DigiCom Business": string | null
-          external_id: string | null
           id: string
           is_fragile: boolean | null
           is_open: boolean | null
           is_try_on: boolean | null
           order_id: string | null
-          provider_response: Json | null
           status_id: string | null
           tracking_code: string | null
           updated_at: string | null
@@ -1371,13 +1369,11 @@ export type Database = {
           created_at?: string | null
           delivered_at?: string | null
           "DigiCom Business"?: string | null
-          external_id?: string | null
           id?: string
           is_fragile?: boolean | null
           is_open?: boolean | null
           is_try_on?: boolean | null
           order_id?: string | null
-          provider_response?: Json | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -1388,13 +1384,11 @@ export type Database = {
           created_at?: string | null
           delivered_at?: string | null
           "DigiCom Business"?: string | null
-          external_id?: string | null
           id?: string
           is_fragile?: boolean | null
           is_open?: boolean | null
           is_try_on?: boolean | null
           order_id?: string | null
-          provider_response?: Json | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
