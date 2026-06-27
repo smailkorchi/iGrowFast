@@ -125,7 +125,7 @@ const MediaBuyerOrders = () => {
                 'orders',
                 `
                     id, name, phone, address, price, date, created_at, source_name, delivery_note, note,
-                    order_status_id, package_status_id,
+                    order_status_id, package_status_id, replace,
                     status:order_statuses(id, label, color),
                     package_status:package_statuses(id, label, color, icon),
                     city:master_cities(id, name),
@@ -144,6 +144,9 @@ const MediaBuyerOrders = () => {
             );
             return (data as OrderRow[])
                 .filter((o) => {
+                    // Exchange swap/return legs (replace=true) are not sales — exclude
+                    // them from the MB's attributed orders (revenue / livré / counts).
+                    if ((o as { replace?: boolean | null }).replace === true) return false;
                     if (!o.date || !o.source_name) return false;
                     const key = `${o.date.slice(0, 10)}|${o.source_name.toLowerCase()}`;
                     return attributionSet.has(key);

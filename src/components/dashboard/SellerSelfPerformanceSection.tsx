@@ -90,11 +90,14 @@ export function SellerSelfPerformanceSection({
                 { column: 'date_deleted', op: 'is', value: null },
                 { column: 'source_review_status', op: 'neq', value: 'pending' },
             ];
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, tracking_number, seller_id, source_name, order_items(product_id, quantity), order_statuses(code, label), package_statuses(label)',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, tracking_number, seller_id, source_name, replace, order_items(product_id, quantity), order_statuses(code, label), package_statuses(label)',
                 { filters },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate the seller's own delivered/attributed/revenue counts.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!sellerId,
         // Always refetch on mount so the seller and admin dashboards can't drift

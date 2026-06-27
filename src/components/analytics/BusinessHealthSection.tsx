@@ -50,7 +50,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_statuses(label), tracking_number, confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, replace, package_statuses(label), tracking_number, confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -108,7 +108,9 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         const deliveryRate = deliveryDenom > 0 ? (delivered.length / deliveryDenom) * 100 : 0;
 
         // Revenue (pure, paid+delivered) for trend only — not a health metric, but shown as context.
-        const revenueOrders = filtered.filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
+        // Exclude exchange swap/return legs (replace=true): rates keep them (real
+        // parcels) but a swap is not a sale, so revenue must match the P&L.
+        const revenueOrders = filtered.filter(o => o.replace !== true && isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
         const totalRevenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
 
         const withConfDate = filtered.filter(o => o.date && o.confirmation_date);
@@ -188,7 +190,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             );
             const bDeliveryDenom = bTracked.length - bPullback.length;
             const bRevenue = bucketOrders
-                .filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds))
+                .filter(o => o.replace !== true && isRevenueOrder(o, deliveredPkgIds, paidOrderIds))
                 .reduce((s, o) => s + pureRevenueForOrder(o), 0);
 
             return {

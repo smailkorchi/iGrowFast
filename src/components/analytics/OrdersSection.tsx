@@ -44,9 +44,9 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-full-v2', businessId],
         queryFn: async () => {
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, price, date, order_status_id, package_status_id, tracking_number, master_city_id, source_name, shipping_cost, master_cities(name), package_statuses(label), order_items(quantity, unit_price)',
+                'id, price, date, order_status_id, package_status_id, tracking_number, master_city_id, source_name, shipping_cost, replace, master_cities(name), package_statuses(label), order_items(quantity, unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -55,6 +55,9 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not organic orders,
+            // so they must not inflate order volume / value / delivered counts.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

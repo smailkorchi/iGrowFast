@@ -59,9 +59,9 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const { data: orders, isLoading: ordersLoading } = useQuery({
         queryKey: ['analytics-orders-profit', businessId],
         queryFn: async () => {
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, tracking_number, courier_id, company_id, master_city_id, order_statuses(code), package_statuses(label), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, tracking_number, courier_id, company_id, master_city_id, replace, order_statuses(code), package_statuses(label), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -70,6 +70,10 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                     ],
                 },
             );
+            // Exchange swap/return legs (replace=true) are physical parcels, not
+            // sales — drop them so revenue/profit/ROAS aren't inflated by an
+            // exchange. Carrier fee reconciliation (Payments) keeps them.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

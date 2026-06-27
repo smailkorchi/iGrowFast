@@ -67,9 +67,9 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
     const { data: orders } = useQuery({
         queryKey: ['sales-comparatif-orders', businessId],
         queryFn: async () => {
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, package_statuses(label)',
+                'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, replace, package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -78,6 +78,9 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate the orders/revenue comparison lines.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

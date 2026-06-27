@@ -245,6 +245,7 @@ const Customers = () => {
                     created_at,
                     order_status_id,
                     package_status_id,
+                    replace,
                     city:master_cities(name),
                     status:order_statuses(label, color),
                     package_statuses(label)
@@ -260,7 +261,9 @@ const Customers = () => {
 
             const customerMap = new Map<string, Customer>();
 
-            orders?.forEach((order: any) => {
+            // Exclude exchange swap/return legs (replace=true) — a swap is not a
+            // customer purchase, so it must not inflate per-customer spent/order counts.
+            orders?.filter((o: any) => o.replace !== true).forEach((order: any) => {
                 const phone = order.phone?.replace(/[^0-9]/g, '');
                 if (!phone) return;
 

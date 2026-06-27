@@ -42,6 +42,7 @@ type OrderRow = {
     source_name: string | null;
     order_status_id: string | null;
     package_status_id: string | null;
+    replace: boolean | null;
 };
 
 const emptyTotals = (): Totals => ({
@@ -147,7 +148,7 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             // local hour (whose UTC day is the previous calendar date) is fetched.
             // Client-side bucketing below re-attributes each order by business-TZ date.
             // Paginated so we never truncate at the 1000-row default cap.
-            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, order_status_id, package_status_id', {
+            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, order_status_id, package_status_id, replace', {
                 filters: [
                     { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
                     { column: 'date', op: 'gte', value: shiftYmd(range.from, -1) },
@@ -157,8 +158,11 @@ export function useMediaBuyerStats(range: StatsDateRange) {
                 ],
             });
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate MB delivered counts / revenue / ROAS. Matches the
+            // server-side mb_month_earned guard (swap_only=false).
             return data.filter((o) =>
-                o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false
+                o.replace !== true && (o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false)
             );
         },
         enabled: !!activeBusinessId && sourceList.length > 0,

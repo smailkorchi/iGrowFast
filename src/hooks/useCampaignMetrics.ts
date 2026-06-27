@@ -88,6 +88,7 @@ type OrderRow = {
     raw_price: number | string | null;
     shipping_cost: number | string | null;
     include_delivery_in_total: boolean | null;
+    replace: boolean | null;
     order_items: AnalyticsOrderItem[] | null;
 };
 
@@ -159,7 +160,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
             // Paginated so we never truncate at the 1000-row default cap.
             return await fetchAllRows<OrderRow>(
                 'orders',
-                'id, date, source_name, order_status_id, package_status_id, price, raw_price, shipping_cost, include_delivery_in_total, order_items(product_id, quantity, unit_price, total_price)',
+                'id, date, source_name, order_status_id, package_status_id, price, raw_price, shipping_cost, include_delivery_in_total, replace, order_items(product_id, quantity, unit_price, total_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
@@ -193,6 +194,10 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         >();
         for (const o of orders) {
             if (!o.date) continue;
+            // Exchange swap/return legs (replace=true) are not sales — skip them so
+            // campaign delivered / admin gross revenue / MB commission / ROAS aren't
+            // inflated by an exchange parcel attributed to this campaign's source.
+            if (o.replace === true) continue;
             const d = toBusinessDate(o.date);
             const bucket = ordersByDate.get(d) || { confirmed: 0, delivered: 0, adminGrossRevenue: 0 };
             const isConfirmed = statusMapsReady

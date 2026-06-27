@@ -50,9 +50,9 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         queryKey: ['analytics-orders-sellers-v3', businessId],
         queryFn: async () => {
             // Paginated so we never truncate at the 1000-row default cap.
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                'id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, replace, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -61,6 +61,10 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate seller revenue/delivered counts. Commission already
+            // comes from the guarded seller_daily_earnings view.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

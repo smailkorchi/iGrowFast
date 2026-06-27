@@ -87,9 +87,9 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-channels-v2', businessId],
         queryFn: async () => {
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, source_name, source_id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
+                'id, source_name, source_id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, replace, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -98,6 +98,9 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate per-channel revenue/order counts.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

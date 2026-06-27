@@ -177,9 +177,9 @@ export const DashboardProductsPerformance = ({
     const { data: orders } = useQuery({
         queryKey: ['dashboard-products-performance-orders', businessId],
         queryFn: async () => {
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, date, shipping_cost, order_status_id, package_status_id, tracking_number, source_name, seller_id, order_statuses(code, label), package_statuses(label)',
+                'id, date, shipping_cost, order_status_id, package_status_id, tracking_number, source_name, seller_id, replace, order_statuses(code, label), package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -188,6 +188,11 @@ export const DashboardProductsPerformance = ({
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — a swap holds the
+            // returned SKU, not a sale; dropping these orders drops their items from
+            // the cohort (cohortItems is gated on this order set), so product
+            // units-sold / revenue / commission aren't inflated.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

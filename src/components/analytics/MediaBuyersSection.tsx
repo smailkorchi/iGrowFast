@@ -61,6 +61,7 @@ type MBOrderRow = {
     shipping_cost: number | null;
     include_delivery_in_total: boolean | null;
     package_status_id: string | null;
+    replace: boolean | null;
     package_statuses: { label?: string | null } | null;
     order_items: MBOrderItem[] | null;
 };
@@ -121,9 +122,9 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
     const { data: orders, isLoading: loadingOrders } = useQuery({
         queryKey: ['analytics-mb-orders', businessId],
         queryFn: async () => {
-            return await fetchAllRows<MBOrderRow>(
+            const rows = await fetchAllRows<MBOrderRow>(
                 'orders',
-                'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
+                'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, replace, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -132,6 +133,9 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate MB delivered counts / attributed revenue / ROAS.
+            return rows.filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

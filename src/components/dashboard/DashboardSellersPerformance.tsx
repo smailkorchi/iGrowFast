@@ -131,9 +131,9 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         queryKey: ['dashboard-sellers-performance-orders', businessId],
         queryFn: async () => {
             // Paginated so we never truncate at the 1000-row default cap.
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, tracking_number, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label), package_statuses(label)',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, tracking_number, seller_id, company_id, source_name, replace, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label), package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -142,6 +142,9 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate seller revenue/commission/delivered on the dashboard.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
         // Always refetch on mount so the seller and admin dashboards can't drift

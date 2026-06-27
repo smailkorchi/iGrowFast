@@ -42,7 +42,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, master_city_id, master_cities(name), order_status_id, package_statuses(label)',
+                'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, master_city_id, replace, master_cities(name), order_status_id, package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -82,6 +82,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             price?: number | string | null;
             shipping_cost?: number | string | null;
             include_delivery_in_total?: boolean | null;
+            replace?: boolean | null;
         };
         const filtered = orders.filter((o: CityOrderRow) => isInRange(o.date));
 
@@ -133,9 +134,14 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             const delivered = !!o.package_status_id && deliveredPkgIds.has(o.package_status_id);
             if (delivered) {
                 cityMap[cityName].delivered += 1;
-                cityMap[cityName].revenue += productRevenue(o);
                 totalDelivered += 1;
-                totalRevenue += productRevenue(o);
+                // Swap/return legs (replace=true) are real deliveries (kept in the
+                // operational delivered count + rate) but are NOT sales — exclude
+                // them from per-city revenue so it matches the P&L / analytics.
+                if (o.replace !== true) {
+                    cityMap[cityName].revenue += productRevenue(o);
+                    totalRevenue += productRevenue(o);
+                }
             }
         });
 

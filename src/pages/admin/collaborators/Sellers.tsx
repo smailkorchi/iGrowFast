@@ -208,9 +208,9 @@ const Sellers = () => {
             // Paginated (fetchAllRows) so we never truncate at PostgREST's 1000-row
             // default — that cap was undercounting high-volume sellers' delivered,
             // revenue and live-commission figures.
-            const orders = await fetchAllRows<any>(
+            const ordersRaw = await fetchAllRows<any>(
                 'orders',
-                'id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)',
+                'id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, replace, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)',
                 {
                     filters: [
                         { column: 'seller_id', op: 'in', value: sellerIds },
@@ -219,6 +219,10 @@ const Sellers = () => {
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate per-seller delivered / revenue / live unpaid commission
+            // on the leaderboard. Commission totals still read seller_daily_earnings.
+            const orders = ordersRaw.filter((o: any) => o.replace !== true);
 
             const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
                 filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],

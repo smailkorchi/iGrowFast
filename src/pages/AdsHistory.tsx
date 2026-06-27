@@ -469,7 +469,7 @@ const AdsHistory = () => {
             // Paginated so we never truncate at the 1000-row default cap.
             return await fetchAllRows(
                 'orders',
-                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)',
+                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
@@ -505,6 +505,9 @@ const AdsHistory = () => {
             endDate.setHours(23, 59, 59, 999);
 
             const matchedOrders = allOrders.filter((o: any) => {
+                // Exchange swap/return legs (replace=true) are not sales — exclude
+                // them so per-ad delivered / revenue / ROAS aren't inflated.
+                if (o.replace === true) return false;
                 const orderDate = new Date(o.date);
                 const inDateRange = orderDate >= startDate && orderDate <= endDate;
                 const matchesSource = sourceName && (o.source_name || '').toLowerCase() === sourceName;

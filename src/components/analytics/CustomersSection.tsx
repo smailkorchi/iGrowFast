@@ -49,9 +49,9 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-customers', businessId],
         queryFn: async () => {
-            return await fetchAllRows(
+            const rows = await fetchAllRows(
                 'orders',
-                'id, phone, name, price, date, order_status_id, package_status_id, master_city_id, master_cities(name)',
+                'id, phone, name, price, date, order_status_id, package_status_id, master_city_id, replace, master_cities(name)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -60,6 +60,9 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
                     ],
                 },
             );
+            // Exclude exchange swap/return legs (replace=true) — a swap is not a new
+            // purchase, so it must not inflate customer order counts / revenue / LTV.
+            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

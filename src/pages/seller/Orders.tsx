@@ -2650,7 +2650,10 @@ const Orders = () => {
         };
         if (!aggregateOrders?.length || !userId) return empty;
 
-        const allOrders = aggregateOrders;
+        // Exclude exchange swap/return legs (replace=true) from the KPI math — not
+        // sales, so they must not inflate delivered / unpaid commission. The order
+        // LIST below still shows exchange legs (this filter is local to the KPIs).
+        const allOrders = aggregateOrders.filter((o: any) => o.replace !== true);
 
         const delivered = allOrders.filter((o: any) =>
             isDeliveredForCommission(o, statusCats.deliveredPkgIds),

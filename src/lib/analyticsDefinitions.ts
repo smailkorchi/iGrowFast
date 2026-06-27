@@ -94,6 +94,8 @@ export type AnalyticsOrder = {
     courier_id?: string | null;
     company_id?: string | null;
     master_city_id?: string | null;
+    /** Exchange swap/return leg marker — true = not a sale (excluded from revenue). */
+    replace?: boolean | null;
 };
 
 // ─── Number helpers ───────────────────────────────────────────────────────

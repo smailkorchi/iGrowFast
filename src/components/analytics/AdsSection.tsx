@@ -106,6 +106,7 @@ type AdsOrderForMatching = {
     price: number | null;
     package_status_id: string | null;
     order_status_id: string | null;
+    replace: boolean | null;
     order_items: AdsOrderItem[] | null;
 };
 
@@ -155,9 +156,9 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
     const { data: allOrders } = useQuery<AdsOrderForMatching[]>({
         queryKey: ['analytics-orders-for-ads-v3', businessId],
         queryFn: async () => {
-            return (await fetchAllRows(
+            const rows = (await fetchAllRows(
                 'orders',
-                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, order_items(product_id, unit_price, quantity)',
+                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, replace, order_items(product_id, unit_price, quantity)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -166,6 +167,9 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                     ],
                 },
             )) as unknown as AdsOrderForMatching[];
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate per-ad attributed revenue / ROAS.
+            return rows.filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });

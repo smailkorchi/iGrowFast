@@ -154,7 +154,7 @@ const SellerProfile = () => {
                 try {
                     ordersData = await fetchAllRows<any>(
                         'orders',
-                        'id, order_status_id, package_status_id, tracking_number, order_statuses(code), package_statuses(label)',
+                        'id, order_status_id, package_status_id, tracking_number, replace, order_statuses(code), package_statuses(label)',
                         {
                             filters: [
                                 { column: 'seller_id', op: 'eq', value: session.user.id },
@@ -191,7 +191,10 @@ const SellerProfile = () => {
                 }
 
                 if (ordersData) {
-                    const ordersList = ordersData;
+                    // Exclude exchange swap/return legs (replace=true) — not sales, so
+                    // the seller's delivered/confirmed stats stay consistent with their
+                    // commission (seller_daily_earnings excludes swaps).
+                    const ordersList = ordersData.filter((o: any) => o.replace !== true);
                     const total = ordersList.length;
                     const delivered = ordersList.filter(o => isDeliveredForCommission(o, statusCats.deliveredPkgIds)).length;
 

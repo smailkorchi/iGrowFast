@@ -110,6 +110,7 @@ type OrderRow = {
     date: string;
     source_name: string | null;
     package_status_id: string | null;
+    replace: boolean | null;
 };
 
 type PaymentRow = {
@@ -188,7 +189,7 @@ export function useMediaBuyerEarnings(month: string) {
         queryFn: async () => {
             if (!activeBusinessId || sourceList.length === 0) return [];
             // Paginated so we never truncate at the 1000-row default cap.
-            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, package_status_id', {
+            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, package_status_id, replace', {
                 filters: [
                     { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
                     { column: 'date', op: 'gte', value: shiftYmd(from, -1) },
@@ -198,8 +199,11 @@ export function useMediaBuyerEarnings(month: string) {
                 ],
             });
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate MB delivered → commission in the bulk payout preview.
+            // Matches the server-side mb_month_earned guard (swap_only=false).
             return data.filter((o) =>
-                o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false
+                o.replace !== true && (o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false)
             );
         },
         enabled: !!activeBusinessId && sourceList.length > 0,

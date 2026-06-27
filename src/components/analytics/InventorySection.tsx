@@ -50,7 +50,7 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         accessory_id: string | null;
         accessory_quantity: number | null;
         order_id: string;
-        orders: { date: string | null; order_status_id: string | null; package_status_id: string | null } | null;
+        orders: { date: string | null; order_status_id: string | null; package_status_id: string | null; replace: boolean | null } | null;
     };
 
     const { data: orderItems } = useQuery<InvOrderItemRow[]>({
@@ -58,7 +58,7 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         queryFn: async () => {
             return (await fetchAllRows(
                 'order_items',
-                'id, product_id, quantity, unit_price, product_unit_cost_snapshot, accessory_id, accessory_quantity, order_id, orders(date, order_status_id, package_status_id)',
+                'id, product_id, quantity, unit_price, product_unit_cost_snapshot, accessory_id, accessory_quantity, order_id, orders(date, order_status_id, package_status_id, replace)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -119,6 +119,10 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         (orderItems || []).forEach(item => {
             const joined = item.orders;
             if (!isInRange(joined?.date ?? null)) return;
+            // Skip exchange swap/return legs (replace=true): the original order
+            // already counts the sale, so counting the swap leg would double-count
+            // the same unit as "sold" (a returned/reshipped SKU is not a 2nd sale).
+            if (joined?.replace === true) return;
             const pkgId = joined?.package_status_id;
             if (!pkgId || !deliveredPkgIds.has(pkgId)) return;
             const pid = item.product_id;

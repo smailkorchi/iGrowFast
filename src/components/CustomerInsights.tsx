@@ -79,6 +79,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         raw_price,
                         order_status_id,
                         package_status_id,
+                        replace,
                         status:order_statuses(code, label, color),
                         package_status:package_statuses(code, label)
                     `,
@@ -101,10 +102,15 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                     raw_price: number | null;
                     order_status_id: string | null;
                     package_status_id: string | null;
+                    replace: boolean | null;
                     status: { code: string; label: string; color: string | null } | null;
                     package_status: { code: string; label: string } | null;
                 };
-                const mapped: OrderRecord[] = ((data || []) as unknown as FetchedOrderRow[]).map((o) => ({
+                // Exclude exchange swap/return legs (replace=true) — a swap is not a
+                // customer purchase, so it must not inflate spent / order counts / risk.
+                const mapped: OrderRecord[] = ((data || []) as unknown as FetchedOrderRow[])
+                    .filter((o) => o.replace !== true)
+                    .map((o) => ({
                     id: o.id,
                     date: o.date || o.created_at || '',
                     created_at: o.created_at || '',

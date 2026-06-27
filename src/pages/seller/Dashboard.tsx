@@ -158,11 +158,13 @@ const SellerDashboard = () => {
             if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
             const ordersData = await fetchAllRows<any>(
                 'orders',
-                'id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
+                'id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
                 { filters: ordersFilters },
             );
 
-            const orders = (ordersData || []).map(o => ({
+            // Exclude exchange swap/return legs (replace=true) — not sales, so they
+            // must not inflate this seller's delivered/commission/revenue tiles.
+            const orders = (ordersData || []).filter((o: any) => o.replace !== true).map(o => ({
                 ...o,
                 order_status_id: (o as any).order_status_id,
                 package_status_id: (o as any).package_status_id,
