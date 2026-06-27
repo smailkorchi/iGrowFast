@@ -2959,9 +2959,14 @@ const Orders = () => {
     };
 
     // KPIs derive from the FULL filtered aggregate (independent of page size).
-    const totalRevenue = filteredAggregate.reduce((acc, o) => acc + (Number(o.price) || 0), 0);
+    // MONEY excludes exchange/swap legs (replace=true) — they are return+reship
+    // logistics, not sales — so "Total sales" matches the dashboard/P&L revenue.
+    // COUNTS keep them (Active orders stays the operational total; exchanges are
+    // also surfaced separately in their own KPI).
+    const salesAggregate = filteredAggregate.filter((o) => o.replace !== true);
+    const totalRevenue = salesAggregate.reduce((acc, o) => acc + (Number(o.price) || 0), 0);
     const exchangeCount = filteredAggregate.filter((o) => o.replace).length;
-    const avgOrderValue = filteredAggregate.length > 0 ? Math.round(totalRevenue / filteredAggregate.length) : 0;
+    const avgOrderValue = salesAggregate.length > 0 ? Math.round(totalRevenue / salesAggregate.length) : 0;
     const filteredAggregateCount = filteredAggregate.length;
 
     return (

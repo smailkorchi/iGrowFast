@@ -52,6 +52,7 @@ type SCCOrder = {
     shipping_cost: number | null;
     include_delivery_in_total: boolean | null;
     package_status_id: string | null;
+    replace: boolean | null;            // exchange/swap leg marker (excluded from revenue)
     package_statuses: { label?: string | null } | null;
 };
 
@@ -67,7 +68,11 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
     const { data: orders } = useQuery({
         queryKey: ['sales-comparatif-orders', businessId],
         queryFn: async () => {
-            const rows = await fetchAllRows(
+            // Keep ALL orders (incl exchange legs) — the Orders count line is
+            // operational volume and must match the dashboard's Total-orders card +
+            // the Orders page. Exchange legs are dropped only from the REVENUE line
+            // (see isRevenue below), not from the order count.
+            return await fetchAllRows(
                 'orders',
                 'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, replace, package_statuses(label)',
                 {
@@ -78,9 +83,6 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                     ],
                 },
             );
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate the orders/revenue comparison lines.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
         },
         enabled: !!businessId,
     });
@@ -135,7 +137,10 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         // shipping unconditionally, understating revenue by the collected delivery
         // and diverging from the Orders page "Total sales".
         const productRevenue = (o: SCCOrder) => pureRevenueForOrder(o as unknown as AnalyticsOrder);
-        const isRevenue = (o: SCCOrder) => isDeliveredForCommission(o, deliveredPkgIds);
+        // Revenue excludes exchange/swap legs (replace=true) — they are not sales.
+        // The Orders count line keeps them (operational volume), so the count
+        // matches the Total-orders card while revenue matches the P&L.
+        const isRevenue = (o: SCCOrder) => o.replace !== true && isDeliveredForCommission(o, deliveredPkgIds);
 
         const parse = (s: string | null | undefined) => (s ? new Date(s) : null);
         // Revenue is attributed to when the money was realized — the delivery
