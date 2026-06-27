@@ -1,0 +1,21 @@
+-- Drop master_cities.lat / master_cities.lng (phase 2 of a two-phase column drop).
+--
+-- No delivery-map feature was ever built. The columns held sparse geocoding (412/1131 cities) that
+-- nothing rendered:
+--   * src/components/analytics/ShippingSection.tsx embedded master_cities(name, lat, lng) but never read
+--     the coordinates.
+--   * src/pages/seller/Statistics.tsx used lat/lng ONLY as a presence-filter that silently dropped the
+--     ~63% of cities lacking coordinates from the "Villes dominantes" panel (a latent bug).
+-- Phase 1 (commit 307175b, deployed to Hostinger BEFORE this migration) removed both embedded-select
+-- coordinate lists and the Statistics filter, so the deployed frontend no longer requests these columns
+-- and PostgREST cannot 400 on a missing embedded column.
+--
+-- DB ground truth (verified via pg_proc/pg_depend/pg_index/pg_constraint): NO function, view, matview,
+-- index, or constraint references master_cities.lat/lng; they are not generated columns. The dev drop
+-- succeeded without CASCADE, proving zero catalog dependents.
+--
+-- SCOPE GUARD: public.provider_cities ALSO has lat/lng columns. Those belong to a DIFFERENT table and
+-- feature and are intentionally NOT touched.
+--
+-- Rollback: ALTER TABLE public.master_cities ADD COLUMN lat numeric, ADD COLUMN lng numeric;
+ALTER TABLE public.master_cities DROP COLUMN IF EXISTS lat, DROP COLUMN IF EXISTS lng;
