@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
     User, Mail, Phone, AtSign, Lock, Building2,
-    Camera, Loader2, CheckCircle2, AlertCircle, Pen, ChevronRight, KeyRound, X,
+    Camera, Loader2, CheckCircle2, Pen, X,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';

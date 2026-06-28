@@ -8,7 +8,6 @@ import { format } from 'date-fns';
 import { useDropzone } from 'react-dropzone';
 import {
     ArrowLeft,
-    Save,
     Loader2,
     Upload,
     X,

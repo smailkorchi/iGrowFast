@@ -309,7 +309,7 @@ export async function showLocalNotification(opts: ShowNotificationOptions): Prom
             return true;
         }
         // Fallback: plain Notification constructor
-        // eslint-disable-next-line no-new
+         
         new Notification(opts.title, options);
         return true;
     } catch (err) {

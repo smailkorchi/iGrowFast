@@ -8,7 +8,6 @@ import {
     Edit2,
     Trash2,
     Loader2,
-    Filter,
     Repeat,
     CalendarClock,
     Layers,

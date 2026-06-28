@@ -44,7 +44,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { useDropzone } from 'react-dropzone';
 import { Switch } from '@/components/ui/switch';

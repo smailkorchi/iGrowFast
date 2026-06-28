@@ -2,10 +2,9 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
-    Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
+    Plus, Search, Loader2, Package, Eye, FileText,
     CheckCircle2, Clock, Building2, AlertTriangle, Truck,
-    ChevronDown, ChevronRight, Printer, ArrowRight, SearchX,
-    RotateCcw, PackageCheck, User, Hash, Unlock, X, Pencil,
+    ChevronDown, ChevronRight, Printer, ArrowRight, SearchX, PackageCheck, Hash, Unlock, X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,10 +15,9 @@ import {
     AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
     AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { OrderTrackingImport } from '@/components/orders/OrderTrackingImport';

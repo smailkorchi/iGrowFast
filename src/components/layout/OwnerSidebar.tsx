@@ -8,7 +8,6 @@ import {
     Receipt,
     LogOut,
     PanelLeftClose,
-    User as UserIcon,
     Loader2,
     RefreshCcw,
     MapPin,

@@ -8,7 +8,6 @@ import {
     MoreVertical,
     Edit2,
     Trash2,
-    Globe,
     User,
     Mail,
     Lock,
@@ -28,8 +27,7 @@ import {
     Card,
     CardContent,
     CardHeader,
-    CardTitle,
-    CardDescription
+    CardTitle
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,20 +56,14 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+
+
 import {
     Tabs,
     TabsContent,
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";
-import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';

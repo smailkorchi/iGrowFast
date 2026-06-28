@@ -8,7 +8,7 @@ import { SecuritySection } from '@/components/profile/SecuritySection';
 import { saveOwnBasicInfo } from '@/lib/profile';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, AtSign, Phone, Pen, Check, X, Loader2, LogOut } from 'lucide-react';
+import { Mail, Pen, Check, X, Loader2, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid';

@@ -6,7 +6,6 @@ import {
     Wallet,
     LogOut,
     PanelLeftClose,
-    User as UserIcon,
     Loader2,
     type LucideIcon,
 } from 'lucide-react';

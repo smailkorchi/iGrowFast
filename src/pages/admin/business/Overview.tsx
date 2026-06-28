@@ -16,7 +16,6 @@ import {
     Calendar,
     Globe,
     Mail,
-    Phone,
     MapPin,
     Info,
     Hash,

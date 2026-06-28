@@ -17,7 +17,6 @@ import {
     ShoppingCart,
     CheckCircle2,
     BadgeCheck,
-    XCircle,
     Clock,
     DollarSign,
     PlusCircle,
@@ -40,10 +39,7 @@ import {
     ShieldCheck,
     BarChart3,
     Puzzle,
-    SearchX,
     AlertTriangle,
-    CalendarClock,
-    Info,
     FileSpreadsheet,
 } from 'lucide-react';
 import {
@@ -64,7 +60,6 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -73,8 +68,7 @@ import {
     FormField,
     FormItem,
     FormLabel,
-    FormMessage,
-    FormDescription
+    FormMessage
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';

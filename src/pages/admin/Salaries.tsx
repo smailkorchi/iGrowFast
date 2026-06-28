@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import {
-    Plus,
     Search,
     Loader2,
     Sparkles,
@@ -17,7 +16,6 @@ import {
     Layers,
     Headphones,
     Target,
-    DollarSign,
     History,
     Eye,
     ArrowDownRight,
@@ -255,7 +253,7 @@ const SellerPayoutsList: React.FC = () => {
         const q = search.toLowerCase().trim();
         if (q) out = out.filter((r) => r.seller.name.toLowerCase().includes(q) || r.seller.email.toLowerCase().includes(q));
         return out;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [allRows, statusFilter, search]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));

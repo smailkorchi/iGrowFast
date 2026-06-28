@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
@@ -17,12 +17,11 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    ShoppingBag, CheckCircle, Truck, XCircle, Receipt,
-    TrendingUp, Clock, BarChart3, MapPin,
+    ShoppingBag, MapPin,
 } from 'lucide-react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, BarChart, Bar, Cell,
+    ResponsiveContainer,
 } from 'recharts';
 import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, eachDayOfInterval, subDays } from 'date-fns';
 

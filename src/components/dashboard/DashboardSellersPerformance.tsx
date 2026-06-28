@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Users, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Users, ChevronDown } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -17,12 +17,8 @@ import {
     type CommissionBasis,
 } from '@/lib/commercialCommission';
 import { isAdminPullback, pureRevenueForOrder, type AnalyticsOrder } from '@/lib/analyticsDefinitions';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+
+
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { SourcePills, type SourceStat } from './performance/SourcePills';

@@ -5,7 +5,6 @@ import { Loader2, Trash2, Plus, Wallet, ArrowRight, ArrowLeft, Landmark } from '
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     Dialog,

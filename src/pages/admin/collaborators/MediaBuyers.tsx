@@ -13,18 +13,15 @@ import {
     PackageCheck,
     Target,
     Coins,
-    TrendingUp,
     Sparkles,
     ArrowUpRight,
     CreditCard,
     ShieldCheck,
     MapPin,
-    User as UserIcon,
     Users as UsersIcon,
     Hash,
     Crown,
     Medal,
-    Award,
     BarChart3,
     UserCheck,
     DollarSign,
@@ -34,7 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { cn } from '@/lib/utils';
-import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
+import { fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 import { useMediaBuyerEarnings, type MediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { getPlatformIcon } from '@/lib/campaignConstants';
 

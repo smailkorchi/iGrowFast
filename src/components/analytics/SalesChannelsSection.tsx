@@ -15,8 +15,7 @@ import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    Radio, TrendingUp, ShoppingCart,
-    Award, Globe2,
+    Radio, Globe2,
 } from 'lucide-react';
 import {
     FaFacebook, FaInstagram, FaTiktok, FaGoogle,

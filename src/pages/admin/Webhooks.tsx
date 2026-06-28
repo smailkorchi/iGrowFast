@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import {
     Plus,
-    Search,
     MoreVertical,
     Edit2,
     Trash2,
@@ -14,24 +13,20 @@ import {
     Loader2,
     CheckCircle2,
     Building2,
-    ExternalLink,
     Zap,
     Clock,
     Activity,
-    Database,
     History,
     Key,
     Copy,
     Check,
-    AlertCircle,
-    ArrowRight
+    AlertCircle
 } from 'lucide-react';
 import {
     Card,
     CardContent,
     CardHeader,
-    CardTitle,
-    CardDescription
+    CardTitle
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,7 +62,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';

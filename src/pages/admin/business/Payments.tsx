@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import {
-    Wallet,
     Loader2,
     Receipt,
     ChevronRight,
@@ -16,7 +15,6 @@ import {
     Banknote,
     Globe,
     HelpCircle,
-    Sparkles,
     ExternalLink,
     type LucideIcon,
 } from 'lucide-react';

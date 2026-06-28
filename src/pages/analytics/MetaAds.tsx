@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
-    AlertCircle,
     Check,
     ChevronsUpDown,
     Loader2,
@@ -14,7 +13,6 @@ import {
 import { FaFacebook } from 'react-icons/fa';
 import { SiMeta } from 'react-icons/si';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {

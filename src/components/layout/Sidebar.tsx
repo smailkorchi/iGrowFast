@@ -25,7 +25,6 @@ import {
     Zap,
     LogOut,
     PanelLeftClose,
-    User as UserIcon,
     Loader2,
     Calculator,
     Wrench,

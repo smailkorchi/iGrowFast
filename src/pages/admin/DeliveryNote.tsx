@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
@@ -8,8 +8,6 @@ import {
     FileText,
     Plus,
     Search,
-    MoreVertical,
-    Edit2,
     Trash2,
     Eye,
     Building2,
@@ -19,17 +17,12 @@ import {
     Package,
     CheckCircle2,
     Clock,
-    XCircle,
     Download,
-    Filter,
-    ArrowRightCircle,
-    ChevronRight,
     SearchX,
     Loader2,
     LayoutGrid,
     List,
     PlusCircle,
-    User,
     Unlock,
     Phone,
     MapPin,
@@ -48,7 +41,6 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -75,11 +67,8 @@ import {
     TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
 import { CourierDeliveryNoteWizard } from '@/components/delivery/CourierDeliveryNoteWizard';
 import { printCourierDeliveryNote } from '@/lib/courierLabelGenerator';

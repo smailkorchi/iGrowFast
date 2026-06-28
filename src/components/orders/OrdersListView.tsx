@@ -4,7 +4,6 @@ import {
   Calendar, RefreshCcw, Pencil, Package as PackageIcon, AlertTriangle,
 } from 'lucide-react';
 import { DynamicIcon } from '@/lib/renderReactIcon';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import {

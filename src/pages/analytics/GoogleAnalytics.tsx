@@ -23,7 +23,6 @@ import {
     TrendingUp,
     Users as UsersIcon,
     Clock,
-    X,
     AlertCircle,
     Link2,
     ShieldCheck,
@@ -34,7 +33,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
     DialogContent,
@@ -62,9 +60,6 @@ import {
     Bar,
     BarChart,
     CartesianGrid,
-    Cell,
-    Pie,
-    PieChart,
     ResponsiveContainer,
     Tooltip,
     XAxis,

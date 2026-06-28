@@ -8,7 +8,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';

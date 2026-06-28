@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, MapPin, Plus, X } from 'lucide-react';
+import { ChevronDown, MapPin, X } from 'lucide-react';
 import { FaFacebook, FaInstagram } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';

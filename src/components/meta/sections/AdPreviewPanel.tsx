@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Image } from 'lucide-react';
 import { FaFacebook, FaInstagram } from 'react-icons/fa';
 import { cn } from '@/lib/utils';

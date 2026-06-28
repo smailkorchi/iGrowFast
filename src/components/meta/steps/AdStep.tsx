@@ -4,7 +4,6 @@ import { Image, Layers, LayoutGrid, Plus, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import {
     Select,
     SelectContent,
@@ -13,7 +12,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { AccordionSection } from '../sections/AccordionSection';
-import { FieldLabel, FieldHelper } from '../shared/FieldLabel';
+import { FieldLabel } from '../shared/FieldLabel';
 import { CTA_OPTIONS, AD_FORMATS, type AdData } from '../shared/constants';
 
 interface Props {

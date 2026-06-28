@@ -3,7 +3,6 @@ import {
   MapPin, Truck, Eye, Package, MoreVertical, Edit2, FileSpreadsheet,
   Calendar, RefreshCcw, Pencil, Package as PackageIcon, AlertTriangle,
 } from 'lucide-react';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,

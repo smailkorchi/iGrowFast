@@ -12,7 +12,7 @@ import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Radar, User } from 'lucide-react';
+import { Radar } from 'lucide-react';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { normalizeSource, pureRevenueForOrder } from '@/lib/analyticsDefinitions';
 import { differenceInCalendarDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';

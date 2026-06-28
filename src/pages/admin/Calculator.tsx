@@ -1,13 +1,10 @@
 import { useState, useMemo } from 'react';
 import {
-    Calculator as CalculatorIcon, TrendingUp, Package, DollarSign,
-    Target, Truck, Phone, Box, AlertTriangle, Sparkles,
-    ArrowUpRight, ArrowDownRight, Percent, RefreshCcw, ChevronRight,
-    BarChart3, Zap, Scale, CheckCircle, XCircle, Clock, Info,
-    Wallet, PiggyBank, Receipt, TrendingDown, Activity
+    Calculator as CalculatorIcon, DollarSign,
+    Target, Truck, Phone, AlertTriangle, Sparkles, Percent, RefreshCcw,
+    BarChart3, Zap, CheckCircle, XCircle, Clock, Info,
+    Wallet, PiggyBank, TrendingDown
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

@@ -7,7 +7,6 @@ import {
     MessageSquare,
     LogOut,
     PanelLeftClose,
-    User as UserIcon,
     Loader2,
     BarChart2,
     Truck,

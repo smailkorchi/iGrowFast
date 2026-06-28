@@ -8,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
-    Megaphone, DollarSign, Target, TrendingUp,
-    MousePointerClick, BarChart3, Zap,
+    Megaphone,
 } from 'lucide-react';
 import {
     FaFacebook, FaInstagram, FaTiktok, FaGoogle,
@@ -19,7 +18,7 @@ import {
 import { SiMessenger } from 'react-icons/si';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, BarChart, Bar, Cell, Legend, ComposedChart, Line,
+    ResponsiveContainer,
 } from 'recharts';
 import {
     differenceInDays,
