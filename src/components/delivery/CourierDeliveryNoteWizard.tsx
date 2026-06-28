@@ -59,7 +59,6 @@ type WizardOrder = {
     company_id: string | null;
     master_city_id: string | null;
     seller_id: string | null;
-    assign_id: string | null;
     name: string | null;
     phone: string | null;
     address: string | null;
@@ -77,7 +76,6 @@ type WizardOrderLight = {
     company_id: string | null;
     master_city_id: string | null;
     seller_id: string | null;
-    assign_id: string | null;
     items: { product_id: string }[] | null;
 };
 
@@ -166,7 +164,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
             const orders = await fetchAllRows(
                 'orders',
                 `
-                    id, courier_id, company_id, master_city_id, seller_id, assign_id,
+                    id, courier_id, company_id, master_city_id, seller_id,
                     items:order_items(product_id),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config, phone)
                 `,
@@ -179,7 +177,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                         { column: 'source_review_status', op: 'neq', value: 'pending' },
                     ],
                     orFilter: sellerScope
-                        ? `and(courier_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        ? `and(courier_id.not.is.null,seller_id.eq.${sellerScope.userId})`
                         : 'courier_id.not.is.null',
                 },
             );
@@ -261,7 +259,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                         { column: 'source_review_status', op: 'neq', value: 'pending' },
                     ],
                     orFilter: sellerScope
-                        ? `and(courier_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        ? `and(courier_id.not.is.null,seller_id.eq.${sellerScope.userId})`
                         : 'courier_id.not.is.null',
                 },
             );

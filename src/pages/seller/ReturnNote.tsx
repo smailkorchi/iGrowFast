@@ -28,7 +28,7 @@ const RETOURNE_PACKAGE_STATUS_ID = 'c98d2ec2-94aa-4bfd-bc27-cdf93d46f3a9';
 const RETURN_ORDER_STATUS_ID = 'dbb3ae2c-abbf-4c96-93af-ed82319c8b68';
 
 interface ReturnOrder {
-    id: string; seller_id?: string | null; assign_id?: string | null;
+    id: string; seller_id?: string | null;
     name: string; phone: string; price: number; shipping_cost: number;
     company_id: string | null; courier_id: string | null;
     master_city_id: string | null;
@@ -122,7 +122,7 @@ const ReturnNote = () => {
                 .eq('package_status_id', RETOURNE_PACKAGE_STATUS_ID)
                 .is('current_return_note_id', null)
                 .is('current_courier_return_note_id', null)
-                .or(`seller_id.eq.${uid},assign_id.eq.${uid}`)
+                .eq('seller_id', uid)
                 .is('date_deleted', null)
                 .order('created_at', { ascending: false });
             if (error) throw error;

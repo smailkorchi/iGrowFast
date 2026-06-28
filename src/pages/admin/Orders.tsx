@@ -645,7 +645,6 @@ const Orders = () => {
     const [pageSize, setPageSize] = useState<100 | 500 | 1000>(100);
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
-    const [isAttributionOpen, setIsAttributionOpen] = useState(false);
     const [orderPendingDelete, setOrderPendingDelete] = useState<{ id: string; name: string } | null>(null);
     const [parcelTrackingOpen, setParcelTrackingOpen] = useState(false);
     const [parcelTrackingOrderId, setParcelTrackingOrderId] = useState<string | null>(null);
@@ -1001,7 +1000,7 @@ const Orders = () => {
                     package_status:package_statuses(*),
                     city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                    assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
+                    assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
                     company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
@@ -1321,83 +1320,17 @@ const Orders = () => {
     });
 
     const { data: sellers } = useQuery({
-        // v2 key: schema expanded to include `assignment` (required by the attribution widget).
-        // Bumping the key ensures any cached v1 response (without assignment) is replaced.
         queryKey: ['sellers-commercial-v2', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url, avatar_config, role, assignment')
+                .select('id, name, avatar_url, avatar_config, role')
                 .eq('role', 'commercial')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
-        }
-    });
-
-    // Attribution Progress — computed from the FULL business aggregate so
-    // "today's assigned" reflects every order this business owns today, not
-    // just the rows on the current page. (The previous RPC approach had a
-    // parameter bug that silently returned []; deriving from known-good
-    // in-memory data removes that whole failure mode.)
-    const isAttributionFetching = false;
-    const refetchAttribution = () => { /* no-op: derived state updates automatically */ };
-    const attributionProgress = useMemo(() => {
-        if (!sellers || sellers.length === 0) return [];
-        const today = format(new Date(), 'yyyy-MM-dd');
-        const ordersList = (aggregateOrders || []) as Array<{ seller_id?: string | null; assignment_date?: string | null; date?: string | null }>;
-        return sellers
-            .filter((s: { assignment?: number | null }) => Number(s.assignment || 0) > 0)
-            .map((s: { id: string; name: string; avatar_url: string | null; assignment: number | null }) => {
-                const assignment = Number(s.assignment || 0);
-                const ordersToday = ordersList.filter(o => {
-                    if (o.seller_id !== s.id) return false;
-                    const raw = o.assignment_date || o.date;
-                    if (!raw) return false;
-                    return String(raw).slice(0, 10) === today;
-                }).length;
-                const pctComplete = assignment > 0 ? Math.min(100, Math.round((ordersToday / assignment) * 100 * 10) / 10) : 0;
-                return {
-                    seller_id: s.id,
-                    seller_name: s.name,
-                    assignment,
-                    orders_today: ordersToday,
-                    pct_complete: pctComplete,
-                    is_full: ordersToday >= assignment,
-                    credit: 0,
-                };
-            });
-    }, [sellers, aggregateOrders]);
-
-    // Total attribution stats — unassigned count must span every order in the
-    // business, not just the current page.
-    const attributionTotals = useMemo(() => {
-        if (!attributionProgress?.length) return { totalQuota: 0, totalAssigned: 0, totalPct: 0, unassigned: 0 };
-        const totalQuota = attributionProgress.reduce((a, s) => a + Number(s.assignment), 0);
-        const totalAssigned = attributionProgress.reduce((a, s) => a + Number(s.orders_today), 0);
-        const totalPct = totalQuota > 0 ? Math.round(totalAssigned / totalQuota * 100) : 0;
-        const unassigned = (aggregateOrders?.filter((o: any) => !o.seller_id).length) || 0;
-        return { totalQuota, totalAssigned, totalPct, unassigned };
-    }, [attributionProgress, aggregateOrders]);
-
-    // Mutation: manually trigger reattribution of unassigned orders
-    const reattributeMutation = useMutation({
-        mutationFn: async () => {
-            if (!activeBusinessId) throw new Error('No business');
-            const { data, error } = await (supabase as any)
-                .rpc('reattribute_unassigned_orders', { p_business_id: activeBusinessId });
-            if (error) throw error;
-            return data as number;
-        },
-        onSuccess: (count) => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
-            refetchAttribution();
-            toast({ title: `${count} orders attributed`, description: 'Unassigned orders have been distributed among sellers.' });
-        },
-        onError: (error: any) => {
-            toast({ title: 'Attribution Error', description: error.message, variant: 'destructive' });
         }
     });
 
@@ -1473,7 +1406,7 @@ const Orders = () => {
                         package_status:package_statuses(*),
                         city:master_cities(id, name),
                         courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                        assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
+                        assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
                         company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
@@ -2154,8 +2087,8 @@ const Orders = () => {
             // When this is an exchange (replace) AND the operator added an "Additional
             // sale", THIS order is the swap/return leg (replace=true); the sold product
             // becomes a SEPARATE normal order (replace=false) that runs the standard
-            // paid/unpaid pipeline. seller_id is copied from the swap leg so
-            // auto_attribute_order does not advance the round-robin a second time.
+            // paid/unpaid pipeline. seller_id is copied from the swap leg so the
+            // sale leg keeps the same seller as the exchange.
             if (willSplit) {
                 const addTotal = addItemsForSplit.reduce((acc, it) => acc + (it.quantity * it.unit_price), 0);
                 const { data: saleOrder, error: saleErr } = await (supabase as any)
@@ -2568,7 +2501,6 @@ const Orders = () => {
         mutationFn: async ({ orderIds: rawOrderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
             const orderIds = rawOrderIds.filter((id: string) => !lockedOrderIds.has(id));
             const updatePayload: any = {
-                assign_id: sellerId,
                 seller_id: sellerId,
                 updated_at: new Date().toISOString(),
                 assignment_date: sellerId ? new Date().toISOString() : null
@@ -2721,7 +2653,7 @@ const Orders = () => {
                     ? !!o.package_status_id && filterPackageStatusIds.includes(o.package_status_id)
                     : true;
         const matchesConfirmedBy = filterConfirmedBy === 'all' || o.confirmed_by_id === filterConfirmedBy;
-        const matchesAssignedTo = filterAssignedTo === 'all' || o.assign_id === filterAssignedTo;
+        const matchesAssignedTo = filterAssignedTo === 'all' || o.seller_id === filterAssignedTo;
         const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
         return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
     }, [searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
@@ -3030,168 +2962,6 @@ const Orders = () => {
                     icon={BarChart3}
                 />
             </div>
-
-            {/* ── Today's Attribution — seller quota tracker ── */}
-            {attributionProgress && attributionProgress.length > 0 && (
-                <div className="bg-ant-paper border border-ant-line rounded-xl overflow-hidden transition-all duration-300">
-                    {/* Collapsed bar */}
-                    <button
-                        onClick={() => setIsAttributionOpen((o) => !o)}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 group hover:bg-ant-line-soft transition-colors"
-                    >
-                        <span className="flex items-center gap-1.5 shrink-0">
-                            <span className="w-1 h-1 rounded-full bg-ant-orange" aria-hidden />
-                            <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                Today&rsquo;s attribution
-                            </span>
-                        </span>
-
-                        {/* Global progress bar */}
-                        <div className="flex-1 h-1.5 bg-ant-line rounded-full overflow-hidden min-w-[60px]">
-                            <div
-                                className="h-full rounded-full bg-ant-ink transition-all duration-700"
-                                style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
-                            />
-                        </div>
-
-                        <span className="font-display text-[13px] font-semibold text-ant-ink shrink-0 w-10 text-right tabular-nums tracking-[-0.01em]">
-                            {attributionTotals.totalPct}%
-                        </span>
-
-                        {/* Seller avatar chips */}
-                        <div className="flex items-center -space-x-1.5 shrink-0">
-                            {attributionProgress.slice(0, 5).map((seller) => {
-                                const sellerData = sellers?.find((s) => s.id === seller.seller_id);
-                                return (
-                                    <div
-                                        key={seller.seller_id}
-                                        title={`${seller.seller_name}: ${seller.orders_today}/${seller.assignment}`}
-                                        className={cn(
-                                            'w-6 h-6 rounded-full ring-2 ring-ant-paper flex items-center justify-center text-[9px] font-semibold overflow-hidden',
-                                            seller.is_full
-                                                ? 'bg-ant-green text-white'
-                                                : 'bg-ant-line-soft text-ant-ink border border-ant-line',
-                                        )}
-                                    >
-                                        <UserAvatar url={sellerData?.avatar_url} config={(sellerData as any)?.avatar_config} name={seller.seller_name} className="w-full h-full bg-transparent" />
-                                    </div>
-                                );
-                            })}
-                            {attributionProgress.length > 5 && (
-                                <div className="w-6 h-6 rounded-full ring-2 ring-ant-paper bg-ant-line-soft border border-ant-line flex items-center justify-center text-[9px] font-semibold text-ant-muted">
-                                    +{attributionProgress.length - 5}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Unassigned warning pill */}
-                        {attributionTotals.unassigned > 0 && (
-                            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-ant-orange bg-ant-orange/10 border border-ant-orange/30 px-2 py-0.5 rounded-full">
-                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
-                                {attributionTotals.unassigned} unassigned
-                            </span>
-                        )}
-
-                        {/* Chevron */}
-                        <div className={cn('shrink-0 text-ant-mid transition-transform duration-300', isAttributionOpen && 'rotate-180')}>
-                            <ChevronDown className="w-3.5 h-3.5" />
-                        </div>
-                    </button>
-
-                    {/* Expanded seller panel */}
-                    <div
-                        className={cn(
-                            'transition-all duration-300 ease-in-out overflow-hidden',
-                            isAttributionOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0',
-                        )}
-                    >
-                        {/* Summary + actions */}
-                        <div className="flex items-center gap-3 px-4 py-2.5 border-t border-ant-line bg-ant-light">
-                            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid shrink-0">Queue</span>
-                            <div className="flex-1 h-1.5 bg-ant-line rounded-full overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-ant-ink transition-all duration-700"
-                                    style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
-                                />
-                            </div>
-                            <span className="font-display text-[12px] text-ant-ink tabular-nums tracking-tight shrink-0">
-                                {attributionTotals.totalAssigned}
-                                <span className="text-ant-mid"> / {attributionTotals.totalQuota}</span>
-                            </span>
-                            <div className="flex items-center gap-1 shrink-0">
-                                {attributionTotals.unassigned > 0 && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => { e.stopPropagation(); reattributeMutation.mutate(); }}
-                                        disabled={reattributeMutation.isPending}
-                                        className="h-7 px-3 rounded-full text-[10.5px] font-medium border-ant-orange/30 bg-ant-paper text-ant-orange hover:bg-ant-orange/10 gap-1.5"
-                                    >
-                                        {reattributeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                        Assign unassigned
-                                    </Button>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); refetchAttribution(); }}
-                                    disabled={isAttributionFetching}
-                                    className="w-7 h-7 flex items-center justify-center rounded-full text-ant-mid hover:text-ant-ink hover:bg-ant-paper transition-colors"
-                                    title="Refresh"
-                                >
-                                    <RefreshCw className={cn('w-3 h-3', isAttributionFetching && 'animate-spin')} />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Per-seller rows */}
-                        <div className="divide-y divide-ant-line">
-                            {attributionProgress.map((seller) => {
-                                const pct = Math.min(Number(seller.pct_complete), 100);
-                                const isFull = seller.is_full;
-                                const sellerData = sellers?.find((s) => s.id === seller.seller_id);
-                                return (
-                                    <div
-                                        key={seller.seller_id}
-                                        className="flex items-center gap-3 px-4 py-2 hover:bg-ant-line-soft transition-colors"
-                                    >
-                                        <div
-                                            className={cn(
-                                                'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 overflow-hidden',
-                                                isFull ? 'bg-ant-green/15 text-ant-green ring-1 ring-ant-green/25' : 'bg-ant-line-soft text-ant-ink ring-1 ring-ant-line',
-                                            )}
-                                        >
-                                            <UserAvatar url={sellerData?.avatar_url} config={(sellerData as any)?.avatar_config} name={seller.seller_name} className="w-full h-full bg-transparent" />
-                                        </div>
-                                        <div className="w-[140px] shrink-0">
-                                            <p className="text-[11.5px] font-semibold text-ant-ink truncate leading-tight">{seller.seller_name}</p>
-                                            <p className="text-[9.5px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">Quota · {seller.assignment}/day</p>
-                                        </div>
-                                        <div className="flex-1 flex items-center gap-2">
-                                            <div className="flex-1 h-1 bg-ant-line rounded-full overflow-hidden">
-                                                <div
-                                                    className={cn('h-full rounded-full transition-all duration-700', isFull ? 'bg-ant-green' : 'bg-ant-ink')}
-                                                    style={{ width: `${pct}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-[10px] font-medium text-ant-mid w-8 text-right shrink-0 tabular-nums">{pct}%</span>
-                                        </div>
-                                        <div className="font-display text-right shrink-0 tabular-nums">
-                                            <span className={cn('text-[14px] font-semibold tracking-[-0.01em]', isFull ? 'text-ant-green' : 'text-ant-ink')}>
-                                                {seller.orders_today}
-                                            </span>
-                                            <span className="text-ant-mid text-[10px]"> / {seller.assignment}</span>
-                                        </div>
-                                        {isFull && (
-                                            <span className="shrink-0 text-[9.5px] font-medium text-ant-green bg-ant-green/10 px-2 py-0.5 rounded-full border border-ant-green/25 uppercase tracking-[0.18em]">
-                                                Full
-                                            </span>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Filters Toolbar */}
             <div className="space-y-3 pb-2">

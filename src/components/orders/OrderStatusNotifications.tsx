@@ -20,7 +20,7 @@ interface Props {
  * which page the user is currently on.
  *
  * - admin: every order on the active business (filtered client-side on `DigiCom Business`)
- * - seller: only orders where seller_id or assign_id matches the signed-in user
+ * - seller: only orders where seller_id matches the signed-in user
  *
  * Reacts to auth changes (sign-in/out) and cross-tab storage events (business switch)
  * so a long-lived session always reflects the current scope.
@@ -112,9 +112,7 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                     // the replication slot can't evaluate. Verifying client-side prevents
                     // cross-seller leakage.
                     if (role === 'seller') {
-                        const sellerId = newRow.seller_id || null;
-                        const assignId = newRow.assign_id || null;
-                        if (sellerId !== userId && assignId !== userId) return;
+                        if ((newRow.seller_id || null) !== userId) return;
                     }
 
                     // Suppress duplicate (orderId + statusId) pings within 4s.

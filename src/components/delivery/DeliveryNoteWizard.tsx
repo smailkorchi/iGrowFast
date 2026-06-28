@@ -129,7 +129,7 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
     return {} as Record<string, unknown>;
 }
 
-/** Seller: only orders where seller_id|assign_id matches and every line product_id is in this set. */
+/** Seller: only orders where seller_id matches and every line product_id is in this set. */
 export type DeliveryNoteSellerScope = { userId: string; productIds: string[] };
 
 // Types verified against public.{providers, orders, order_items, master_cities, company_zones, company_delivery_notes, company_parcels} via MCP
@@ -174,7 +174,6 @@ type WizardOrder = {
     company_id: string | null;
     master_city_id: string | null;
     seller_id: string | null;
-    assign_id: string | null;
     name: string | null;
     phone: string | null;
     address: string | null;
@@ -199,14 +198,12 @@ type WizardOrderLight = {
     company_id: string | null;
     master_city_id: string | null;
     seller_id: string | null;
-    assign_id: string | null;
     items: { product_id: string }[] | null;
 };
 
 /** Minimal shape required by orderMatchesSellerProducts — broad enough for all callers. */
 export type OrderForSellerProductsMatch = {
     seller_id?: string | null;
-    assign_id?: string | null;
     items?: ReadonlyArray<{ product_id?: string | null | undefined }> | null;
 };
 
@@ -247,7 +244,7 @@ type AddNoteResult = DeliveryNoteEntry & {
 };
 
 export function orderMatchesSellerProducts(order: OrderForSellerProductsMatch, userId: string, productSet: Set<string>): boolean {
-    if (order.seller_id !== userId && order.assign_id !== userId) return false;
+    if (order.seller_id !== userId) return false;
     const items = order.items;
     if (!items?.length) return false;
     return items.every((it) => it.product_id && productSet.has(it.product_id));
@@ -358,7 +355,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             const orders = await fetchAllRows(
                 'orders',
                 `
-                    id, company_id, master_city_id, seller_id, assign_id,
+                    id, company_id, master_city_id, seller_id,
                     items:order_items(product_id),
                     company:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})
                 `,
@@ -370,7 +367,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         { column: 'source_review_status', op: 'neq', value: 'pending' },
                     ],
                     orFilter: sellerScope
-                        ? `and(company_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        ? `and(company_id.not.is.null,seller_id.eq.${sellerScope.userId})`
                         : 'company_id.not.is.null',
                 },
             );
@@ -440,7 +437,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         { column: 'source_review_status', op: 'neq', value: 'pending' },
                     ],
                     orFilter: sellerScope
-                        ? `and(company_id.not.is.null,or(seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}))`
+                        ? `and(company_id.not.is.null,seller_id.eq.${sellerScope.userId})`
                         : 'company_id.not.is.null',
                 },
             );

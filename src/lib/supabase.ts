@@ -34,7 +34,7 @@ export async function fetchAllRows<T = Record<string, unknown>>(
         orderBy?: string;
         ascending?: boolean;
         filters?: { column: string; op: FetchAllFilterOp; value: unknown }[];
-        /** Raw PostgREST OR expression, e.g. `seller_id.eq.X,assign_id.eq.X`. */
+        /** Raw PostgREST filter expression, e.g. `seller_id.eq.X`. */
         orFilter?: string;
     }
 ): Promise<T[]> {

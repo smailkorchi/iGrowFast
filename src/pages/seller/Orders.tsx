@@ -1098,7 +1098,7 @@ const Orders = () => {
                     package_status:package_statuses(*),
                     city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                    assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
+                    assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
                     company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
@@ -1107,7 +1107,7 @@ const Orders = () => {
                 `,
                 {
                     orderBy: 'id',
-                    orFilter: `seller_id.eq.${userId},assign_id.eq.${userId}`,
+                    orFilter: `seller_id.eq.${userId}`,
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
                         { column: 'date_deleted', op: 'is', value: null },
@@ -1480,7 +1480,7 @@ const Orders = () => {
                         package_status:package_statuses(*),
                         city:master_cities(id, name),
                         courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                        assignee:users!orders_assign_id_fkey(id, name, avatar_url, avatar_config),
+                        assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
                         company:providers(id, name, provider_type, logo_url),
                     channel:sales_channels!orders_source_id_fkey(id, name, type),
                         items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
@@ -1845,8 +1845,7 @@ const Orders = () => {
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
                     'DigiCom Business': activeBusinessId,
-                    seller_id: userId,
-                    assign_id: userId
+                    seller_id: userId
                 })
                 .select()
                 .single();

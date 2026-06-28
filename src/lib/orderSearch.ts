@@ -43,7 +43,6 @@ type OrderForSearch = {
     total_price?: unknown;
     discount?: unknown;
     seller_id?: unknown;
-    assign_id?: unknown;
     confirmed_by_id?: unknown;
     courier_id?: unknown;
     company_id?: unknown;
@@ -108,7 +107,6 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
         order?.total_price,
         order?.discount,
         order?.seller_id,
-        order?.assign_id,
         order?.confirmed_by_id,
         order?.courier_id,
         order?.company_id,
