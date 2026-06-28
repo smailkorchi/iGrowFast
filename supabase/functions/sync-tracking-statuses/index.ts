@@ -50,46 +50,39 @@ Deno.serve(async (req) => {
         if (body && typeof body.trigger === 'string') trigger = body.trigger;
     } catch { /* no body */ }
 
-    // Insert run row (status=running).
+    // Run logging is deferred to finalizeRun and SKIPPED for idle cron/startup runs (total=0, no error),
+    // so the every-15-min poll no longer grows tracking_sync_runs unbounded when there's nothing to sync.
+    // A run is logged only when it did real work (total>0), errored, or was triggered manually (so the
+    // "Sync now" button still gets a row + UI feedback). runId here is a local correlation id for logs.
     const startedAt = new Date();
-    const { data: runRow, error: runErr } = await supabase
-        .from('tracking_sync_runs')
-        .insert({
-            started_at: startedAt.toISOString(),
-            status: 'running',
-            trigger: ['cron', 'manual', 'startup'].includes(trigger) ? trigger : 'cron',
-            total: 0,
-            changed: 0,
-            failed: 0,
-        })
-        .select('id')
-        .single();
-    if (runErr || !runRow) {
-        console.error('Failed to insert tracking_sync_runs row:', runErr);
-        return new Response(
-            JSON.stringify({ success: false, error: runErr?.message || 'log insert failed' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-    }
-    const runId = runRow.id;
+    const runId = crypto.randomUUID();
+    const normTrigger = ['cron', 'manual', 'startup'].includes(trigger) ? trigger : 'cron';
 
     const finalizeRun = async (total, changed, failed, fatalError) => {
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();
-        await supabase
-            .from('tracking_sync_runs')
-            .update({
-                finished_at: finishedAt.toISOString(),
-                status: fatalError ? 'error' : 'success',
-                total,
-                changed,
-                failed,
-                duration_ms: durationMs,
-                error: fatalError,
-            })
-            .eq('id', runId);
+        let loggedId = null;
+        if (total > 0 || fatalError || normTrigger === 'manual') {
+            const { data: ins, error: insErr } = await supabase
+                .from('tracking_sync_runs')
+                .insert({
+                    started_at: startedAt.toISOString(),
+                    finished_at: finishedAt.toISOString(),
+                    status: fatalError ? 'error' : 'success',
+                    trigger: normTrigger,
+                    total,
+                    changed,
+                    failed,
+                    duration_ms: durationMs,
+                    error: fatalError,
+                })
+                .select('id')
+                .single();
+            if (insErr) console.error('Failed to log tracking_sync_runs row:', insErr);
+            loggedId = ins?.id ?? null;
+        }
         return new Response(
-            JSON.stringify({ success: !fatalError, run_id: runId, total, changed, failed, duration_ms: durationMs, error: fatalError }),
+            JSON.stringify({ success: !fatalError, run_id: loggedId, logged: loggedId != null, total, changed, failed, duration_ms: durationMs, error: fatalError }),
             { status: fatalError ? 500 : 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
     };
