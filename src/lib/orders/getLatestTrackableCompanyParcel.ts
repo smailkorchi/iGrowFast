@@ -19,7 +19,7 @@ type CourierParcelRow = {
 
 /**
  * Returns the tracking code of the parcel actually shipped via a delivery note,
- * preferring the most recent one. Falls back to order.tracking_number, then null.
+ * preferring the most recent shipped parcel. Returns null when none exists.
  *
  * Used by return/payment note builders. Skips orphan parcels — rows that were
  * created but never attached to a delivery note (a stale row from a failed/retried
@@ -30,7 +30,6 @@ export function pickShippedCompanyTrackingCode(order: {
     // Only the fields this function reads — accepts any company-parcel shape; callers' rows
     // need not carry `id` (unused here). getLatestTrackableCompanyParcel keeps the strict row type.
     parcels?: Array<{ company_delivery_note_id?: string | null; tracking_code?: string | null; created_at?: string | null }> | null;
-    tracking_number?: string | null;
 } | null | undefined): string | null {
     const shipped = (order?.parcels || [])
         .filter((p) => p?.company_delivery_note_id && p?.tracking_code);
@@ -40,12 +39,11 @@ export function pickShippedCompanyTrackingCode(order: {
         );
         return String(sorted[0].tracking_code).trim();
     }
-    return order?.tracking_number ? String(order.tracking_number).trim() : null;
+    return null;
 }
 
 export function pickShippedCourierTrackingCode(order: {
     courier_parcels?: CourierParcelRow[] | null;
-    tracking_number?: string | null;
 } | null | undefined): string | null {
     const shipped = (order?.courier_parcels || [])
         .filter((p) => p?.courier_delivery_note_id && p?.tracking_code);
@@ -55,7 +53,7 @@ export function pickShippedCourierTrackingCode(order: {
         );
         return String(sorted[0].tracking_code).trim();
     }
-    return order?.tracking_number ? String(order.tracking_number).trim() : null;
+    return null;
 }
 
 /** Latest company parcel that can be tracked via provider-integration (needs tracking code + provider). */

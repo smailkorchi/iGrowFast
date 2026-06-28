@@ -38,7 +38,6 @@ type SSPOrder = {
     price: number | null;
     order_status_id: string | null;
     package_status_id: string | null;
-    tracking_number: string | null;
     seller_id: string | null;
     source_name: string | null;
     order_items: SSPOrderItem[] | null;
@@ -92,7 +91,7 @@ export function SellerSelfPerformanceSection({
             ];
             const rows = await fetchAllRows(
                 'orders',
-                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, tracking_number, seller_id, source_name, replace, order_items(product_id, quantity), order_statuses(code, label), package_statuses(label)',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, seller_id, source_name, replace, order_items(product_id, quantity), order_statuses(code, label), package_statuses(label)',
                 { filters },
             );
             // Exclude exchange swap/return legs (replace=true) — not sales, so they

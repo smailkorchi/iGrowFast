@@ -43,7 +43,6 @@ type DPOrder = {
     shipping_cost: number | null;
     order_status_id: string | null;
     package_status_id: string | null;
-    tracking_number: string | null;
     source_name: string | null;
     seller_id: string | null;
     order_statuses: { code: string; label: string } | null;
@@ -179,7 +178,7 @@ export const DashboardProductsPerformance = ({
         queryFn: async () => {
             const rows = await fetchAllRows(
                 'orders',
-                'id, date, shipping_cost, order_status_id, package_status_id, tracking_number, source_name, seller_id, replace, order_statuses(code, label), package_statuses(label)',
+                'id, date, shipping_cost, order_status_id, package_status_id, source_name, seller_id, replace, order_statuses(code, label), package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

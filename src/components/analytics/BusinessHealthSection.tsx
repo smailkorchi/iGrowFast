@@ -50,7 +50,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, replace, package_statuses(label), tracking_number, confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, replace, package_statuses(label), confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

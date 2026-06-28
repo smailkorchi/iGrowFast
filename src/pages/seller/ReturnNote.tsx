@@ -30,7 +30,7 @@ const RETURN_ORDER_STATUS_ID = 'dbb3ae2c-abbf-4c96-93af-ed82319c8b68';
 interface ReturnOrder {
     id: string; seller_id?: string | null; assign_id?: string | null;
     name: string; phone: string; price: number; shipping_cost: number;
-    tracking_number: string | null; company_id: string | null; courier_id: string | null;
+    company_id: string | null; courier_id: string | null;
     master_city_id: string | null;
     current_return_note_id: string | null; current_courier_return_note_id: string | null;
     parcels: { tracking_code: string | null; provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null }[];
@@ -906,7 +906,6 @@ const ReturnNote = () => {
                                 const trackingCodes = [
                                     ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
                                     ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
-                                    o.tracking_number,
                                 ].filter(Boolean) as string[];
                                 const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
                                 const hay = [
@@ -937,7 +936,6 @@ const ReturnNote = () => {
                                         orders={selectedGroup.orders.map(o => ({
                                             id: o.id,
                                             trackingCodes: [
-                                                o.tracking_number,
                                                 ...((o.parcels || []).map(p => p.tracking_code)),
                                                 ...((o.courier_parcels || []).map(p => p.tracking_code)),
                                             ],
@@ -999,8 +997,7 @@ const ReturnNote = () => {
                                             const checked = selectedOrderIds.has(o.id);
                                             const trackingCode =
                                                 o.courier_parcels?.[0]?.tracking_code
-                                                || o.parcels?.[0]?.tracking_code
-                                                || o.tracking_number;
+                                                || o.parcels?.[0]?.tracking_code;
                                             return (
                                                 <button
                                                     key={o.id}
@@ -1084,7 +1081,7 @@ const ReturnNote = () => {
                                             <tr key={o.id} className="border-b border-ant-line last:border-0 hover:bg-ant-light transition-colors">
                                                 <td className="px-3 py-2 text-[11px] text-ant-mid tabular-nums">{i + 1}</td>
                                                 <td className="px-3 py-2 text-[11px] font-semibold text-ant-ink">{o.name}</td>
-                                                <td className="px-3 py-2 font-mono text-[11px] text-ant-ink/70">{o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A'}</td>
+                                                <td className="px-3 py-2 font-mono text-[11px] text-ant-ink/70">{o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || 'N/A'}</td>
                                                 <td className="px-3 py-2 text-right text-[11px] tabular-nums">{Number(o.price || 0).toFixed(2)}</td>
                                                 <td className="px-3 py-2 text-right text-[11px] text-ant-rose tabular-nums">-{getReturnFeeForOrder(o).toFixed(2)}</td>
                                                 <td className="px-3 py-2 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{(Number(o.price || 0) - getReturnFeeForOrder(o)).toFixed(2)}</td>

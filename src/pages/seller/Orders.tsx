@@ -454,7 +454,6 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     const needle = raw.trim().toLowerCase().replace(/\s+/g, '');
     if (!needle) return true;
     const codes: string[] = [];
-    if (order?.tracking_number) codes.push(String(order.tracking_number));
     if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
     if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
     if (order?.quicklivraison_old_tracking) codes.push(String(order.quicklivraison_old_tracking));
@@ -472,7 +471,6 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
 
 /** True if the order has any tracking identifier (column or parcel/courier codes). */
 function orderHasTrackingNumber(order: any): boolean {
-    if (order?.tracking_number && String(order.tracking_number).trim()) return true;
     for (const p of order?.parcels || []) {
         if (p?.tracking_code && String(p.tracking_code).trim()) return true;
     }

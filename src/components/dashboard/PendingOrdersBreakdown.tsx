@@ -34,7 +34,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, created_at, price, order_status_id, tracking_number',
+                'id, date, created_at, price, order_status_id',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -66,7 +66,6 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
             date: string | null;
             price: number | null;
             created_at?: string | null;
-            tracking_number?: string | null;
         };
         const isPendingStatus = (id: string | null) =>
             !!id && pendingIds.has(id);

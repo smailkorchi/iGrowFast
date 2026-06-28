@@ -23,7 +23,7 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
         queryFn: async () => {
             return await fetchAllRows(
                 'orders',
-                'id, date, order_status_id, tracking_number, order_statuses(code, label)',
+                'id, date, order_status_id, order_statuses(code, label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },
@@ -53,7 +53,6 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             id?: string | null;
             order_status_id?: string | null;
             date?: string | null;
-            tracking_number?: string | null;
             order_statuses?: { label?: string | null; code?: string | null } | null;
         };
         // Pipeline = orders whose status has `pending_confirmation=true` (NEW +

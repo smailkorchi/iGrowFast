@@ -87,7 +87,6 @@ export type AnalyticsOrder = {
     package_status_id?: string | null;
     package_statuses?: { label?: string | null; category?: string | null } | null;
     order_statuses?: { code?: string | null; label?: string | null; category?: string | null } | null;
-    tracking_number?: string | null;
     order_items?: AnalyticsOrderItem[] | null;
     source_name?: string | null;
     seller_id?: string | null;
@@ -152,7 +151,6 @@ export function hasTrackingCode(
     trackedOrderIds?: Set<string>,
 ): boolean {
     if (trackedOrderIds && order.id && trackedOrderIds.has(order.id)) return true;
-    if (order.tracking_number && order.tracking_number.trim().length > 0) return true;
     return false;
 }
 
@@ -279,10 +277,6 @@ export function isFailed(order: AnalyticsOrder, cancelledOrderIds: Set<string>):
     return !!order.order_status_id && cancelledOrderIds.has(order.order_status_id);
 }
 
-/** Shipped = order has a non-empty tracking_number. Return rate denominator. */
-export function isShipped(order: AnalyticsOrder): boolean {
-    return !!order.tracking_number && order.tracking_number.trim().length > 0;
-}
 
 /** Returned = package_status is in returned set (returned/returning/refused). */
 export function isReturned(order: AnalyticsOrder, returnedPkgIds: Set<string>): boolean {

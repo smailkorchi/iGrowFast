@@ -143,7 +143,6 @@ export function OrderStatusNotifications({ role, targetPath }: Props) {
                     const provider: any = (parcelRow as any)?.provider || null;
                     const trackingCode =
                         (parcelRow as any)?.tracking_code ||
-                        newRow.tracking_number ||
                         null;
 
                     // Always resolve to the master status (label + color + icon); the raw

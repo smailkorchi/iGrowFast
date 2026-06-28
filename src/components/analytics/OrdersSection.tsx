@@ -46,7 +46,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         queryFn: async () => {
             const rows = await fetchAllRows(
                 'orders',
-                'id, price, date, order_status_id, package_status_id, tracking_number, master_city_id, source_name, shipping_cost, replace, master_cities(name), package_statuses(label), order_items(quantity, unit_price)',
+                'id, price, date, order_status_id, package_status_id, master_city_id, source_name, shipping_cost, replace, master_cities(name), package_statuses(label), order_items(quantity, unit_price)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

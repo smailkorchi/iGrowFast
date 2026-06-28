@@ -160,19 +160,9 @@ Deno.serve(async (req: Request) => {
             .limit(1)
             .maybeSingle();
 
-        let orderId: string | null = parcel?.order_id || null;
-
-        // Fallback: orders.tracking_number (legacy/manual)
-        if (!orderId) {
-            const { data: order } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('tracking_number', trackingCode)
-                .eq('DigiCom Business', businessId)
-                .is('date_deleted', null)
-                .maybeSingle();
-            if (order) orderId = order.id;
-        }
+        // Parcel is the sole source of truth for tracking→order resolution.
+        // (The legacy orders.tracking_number fallback was removed; that column is dropped.)
+        const orderId: string | null = parcel?.order_id || null;
 
         if (!orderId) {
             console.warn(`[webhook] order not found for tracking=${trackingCode}`);

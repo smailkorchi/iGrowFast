@@ -137,7 +137,7 @@ const SellerStatistics = () => {
             if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
             const ordersData = await fetchAllRows<any>(
                 'orders',
-                'id, order_status_id, package_status_id, tracking_number, replace, master_cities(name), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
+                'id, order_status_id, package_status_id, replace, master_cities(name), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
                 { filters: ordersFilters },
             );
 

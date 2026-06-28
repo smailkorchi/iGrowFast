@@ -26,7 +26,6 @@ import { sendCourierPaymentNoteEmail } from '@/lib/sendPayoutStatement';
 
 interface UnpaidOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
-    tracking_number: string | null;
     company_id: string | null; courier_id: string | null;
     payment_delivery_id: string | null;
     current_courier_payment_note_id: string | null;
@@ -1116,7 +1115,6 @@ const Payments = () => {
                                 const trackingCodes = [
                                     ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
                                     ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
-                                    (o as { tracking_number?: string | null }).tracking_number,
                                 ].filter(Boolean) as string[];
                                 const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
                                 const hay = [
@@ -1161,7 +1159,6 @@ const Payments = () => {
                                         orders={allOrders.map((o) => ({
                                             id: o.id,
                                             trackingCodes: [
-                                                (o as { tracking_number?: string | null }).tracking_number,
                                                 ...((o.parcels || []).map(p => p.tracking_code)),
                                                 ...((o.courier_parcels || []).map(p => p.tracking_code)),
                                             ],
@@ -1202,8 +1199,8 @@ const Payments = () => {
                                         {visibleOrders.map((order) => {
                                             const isChecked = selectedOrderIds.has(order.id);
                                             const trackingCode = selectedGroup.kind === 'courier'
-                                                ? (order.courier_parcels?.[0]?.tracking_code || order.tracking_number || '')
-                                                : (order.parcels?.[0]?.tracking_code || order.tracking_number || '');
+                                                ? (order.courier_parcels?.[0]?.tracking_code || '')
+                                                : (order.parcels?.[0]?.tracking_code || '');
                                             return (
                                                 <div
                                                     key={order.id}
@@ -1307,8 +1304,8 @@ const Payments = () => {
                                             <tbody>
                                                 {filteredOrders.map((o, i) => {
                                                     const trackingCode = selectedGroup.kind === 'courier'
-                                                        ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || 'N/A')
-                                                        : (o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A');
+                                                        ? (o.courier_parcels?.[0]?.tracking_code || 'N/A')
+                                                        : (o.parcels?.[0]?.tracking_code || 'N/A');
                                                     const fee = resolveOrderFee(o, selectedGroup.kind, selectedGroup.target_id);
                                                     return (
                                                         <tr key={o.id} className="border-t border-ant-line hover:bg-ant-line-soft transition-colors">

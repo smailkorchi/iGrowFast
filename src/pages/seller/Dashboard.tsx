@@ -158,7 +158,7 @@ const SellerDashboard = () => {
             if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
             const ordersData = await fetchAllRows<any>(
                 'orders',
-                'id, price, created_at, updated_at, date_livraison, name, tracking_number, order_status_id, package_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
+                'id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
                 { filters: ordersFilters },
             );
 

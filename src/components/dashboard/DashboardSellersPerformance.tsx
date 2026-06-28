@@ -58,7 +58,6 @@ type DSOrder = {
     include_delivery_in_total: boolean;
     order_status_id: string | null;
     package_status_id: string | null;
-    tracking_number: string | null;
     seller_id: string | null;
     company_id: string | null;
     source_name: string | null;
@@ -133,7 +132,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             // Paginated so we never truncate at the 1000-row default cap.
             const rows = await fetchAllRows(
                 'orders',
-                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, tracking_number, seller_id, company_id, source_name, replace, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label), package_statuses(label)',
+                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, seller_id, company_id, source_name, replace, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label), package_statuses(label)',
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: businessId },

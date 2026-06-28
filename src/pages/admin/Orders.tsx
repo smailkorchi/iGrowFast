@@ -358,7 +358,6 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     const needle = raw.trim().toLowerCase().replace(/\s+/g, '');
     if (!needle) return true;
     const codes: string[] = [];
-    if (order?.tracking_number) codes.push(String(order.tracking_number));
     if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
     if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
     if (order?.quicklivraison_old_tracking) codes.push(String(order.quicklivraison_old_tracking));

@@ -37,7 +37,7 @@ const CONFIRMER_ORDER_STATUS_ID = '5c514555-0728-40c7-b6c5-2a006ed21d37';
 
 interface ReturnOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
-    tracking_number: string | null; company_id: string | null; courier_id: string | null;
+    company_id: string | null; courier_id: string | null;
     master_city_id: string | null;
     current_return_note_id: string | null; current_courier_return_note_id: string | null;
     parcels: { tracking_code: string | null; provider: { id: string; name: string; provider_type: string | null; logo_url: string | null } | null }[];
@@ -1307,7 +1307,6 @@ const ReturnNote = () => {
                                 const trackingCodes = [
                                     ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
                                     ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
-                                    o.tracking_number,
                                 ].filter(Boolean) as string[];
                                 const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
                                 const hay = [
@@ -1340,7 +1339,6 @@ const ReturnNote = () => {
                                         orders={selectedGroup.orders.map(o => ({
                                             id: o.id,
                                             trackingCodes: [
-                                                o.tracking_number,
                                                 ...((o.parcels || []).map(p => p.tracking_code)),
                                                 ...((o.courier_parcels || []).map(p => p.tracking_code)),
                                             ],
@@ -1404,8 +1402,7 @@ const ReturnNote = () => {
                                             const checked = selectedOrderIds.has(o.id);
                                             const trackingCode =
                                                 o.courier_parcels?.[0]?.tracking_code
-                                                || o.parcels?.[0]?.tracking_code
-                                                || o.tracking_number;
+                                                || o.parcels?.[0]?.tracking_code;
                                             const itemsLabel = (o.items || [])
                                                 .filter(i => i.quantity > 0)
                                                 .map(i => `${i.product?.name || 'Item'} ×${i.quantity}`)
@@ -1514,7 +1511,7 @@ const ReturnNote = () => {
                                                     <td className="px-3 py-2 text-ant-mid tabular-nums">{i + 1}</td>
                                                     <td className="px-3 py-2 font-medium text-ant-ink truncate">{o.name}</td>
                                                     <td className="px-3 py-2 font-mono text-[11.5px] text-ant-ink">
-                                                        {o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A'}
+                                                        {o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || 'N/A'}
                                                     </td>
                                                     <td className="px-3 py-2 text-right font-medium tabular-nums">{Number(o.price || 0).toFixed(2)}</td>
                                                     <td className="px-3 py-2 text-right text-ant-rose font-medium tabular-nums">-{getReturnFeeForOrder(o).toFixed(2)}</td>
@@ -1771,7 +1768,6 @@ const ReturnNote = () => {
                             const codes = [
                                 ...(o.parcels || []).map(p => p.tracking_code).filter(Boolean),
                                 ...(o.courier_parcels || []).map(p => p.tracking_code).filter(Boolean),
-                                o.tracking_number,
                             ].filter(Boolean) as string[];
                             const items = (o.items || []).map(i => i.product?.name || '').filter(Boolean);
                             const hay = [o.name, o.phone, ...codes, ...items, String(o.price ?? '')].join(' ').toLowerCase();
@@ -1841,7 +1837,7 @@ const ReturnNote = () => {
                                                 )}
                                                 {visible.map((o) => {
                                                     const checked = addOrdersSelection.has(o.id);
-                                                    const trackingCode = pickShippedCompanyTrackingCode(o) || pickShippedCourierTrackingCode(o) || o.tracking_number;
+                                                    const trackingCode = pickShippedCompanyTrackingCode(o) || pickShippedCourierTrackingCode(o);
                                                     const itemsLabel = (o.items || [])
                                                         .filter(i => i.quantity > 0)
                                                         .map(i => `${i.product?.name || 'Item'} ×${i.quantity}`)

@@ -3010,7 +3010,6 @@ export type Database = {
           source_review_status: string
           stock_changed: boolean | null
           swap_only: boolean
-          tracking_number: string | null
           updated_at: string | null
         }
         Insert: {
@@ -3067,7 +3066,6 @@ export type Database = {
           source_review_status?: string
           stock_changed?: boolean | null
           swap_only?: boolean
-          tracking_number?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -3124,7 +3122,6 @@ export type Database = {
           source_review_status?: string
           stock_changed?: boolean | null
           swap_only?: boolean
-          tracking_number?: string | null
           updated_at?: string | null
         }
         Relationships: [
