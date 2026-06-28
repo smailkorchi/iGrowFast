@@ -4145,7 +4145,6 @@ export type Database = {
           external_row_id: string
           fetched_at: string
           id: string
-          issues: Json | null
           mapped: Json | null
           order_id: string | null
           raw: Json
@@ -4162,7 +4161,6 @@ export type Database = {
           external_row_id: string
           fetched_at?: string
           id?: string
-          issues?: Json | null
           mapped?: Json | null
           order_id?: string | null
           raw: Json
@@ -4179,7 +4177,6 @@ export type Database = {
           external_row_id?: string
           fetched_at?: string
           id?: string
-          issues?: Json | null
           mapped?: Json | null
           order_id?: string | null
           raw?: Json
