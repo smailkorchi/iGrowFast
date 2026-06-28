@@ -4097,30 +4097,6 @@ export type Database = {
           },
         ]
       }
-      seller_payments_legacycols_bak_20260618: {
-        Row: {
-          bank_snapshot: Json | null
-          commission_earned: number | null
-          days_present: number | null
-          id: string | null
-          salary_earned: number | null
-        }
-        Insert: {
-          bank_snapshot?: Json | null
-          commission_earned?: number | null
-          days_present?: number | null
-          id?: string | null
-          salary_earned?: number | null
-        }
-        Update: {
-          bank_snapshot?: Json | null
-          commission_earned?: number | null
-          days_present?: number | null
-          id?: string | null
-          salary_earned?: number | null
-        }
-        Relationships: []
-      }
       seller_presences: {
         Row: {
           created_at: string | null
