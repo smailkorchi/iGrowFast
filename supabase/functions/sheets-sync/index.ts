@@ -35,8 +35,35 @@ const json = (b: unknown, s = 200) =>
 
 function saJson(): { client_email: string; private_key: string } {
   if (!SA_B64) throw new Error('GOOGLE_SHEETS_SA_KEY not set');
-  const txt = new TextDecoder().decode(Uint8Array.from(atob(SA_B64), (c) => c.charCodeAt(0)));
-  return JSON.parse(txt);
+  const raw = SA_B64.trim();
+  // Robust decode: the secret should be base64(service-account.json), but tolerate the secret
+  // being saved as raw JSON, URL-safe base64, or with whitespace/newlines or missing padding —
+  // these mis-encodings are what produce the opaque "Failed to decode base64" from a bare atob().
+  let txt: string;
+  if (raw.startsWith('{')) {
+    txt = raw; // already raw JSON, no base64 layer
+  } else {
+    let b64 = raw.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad) b64 += '='.repeat(4 - pad);
+    try {
+      txt = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    } catch {
+      throw new Error(
+        'GOOGLE_SHEETS_SA_KEY is set but is neither raw JSON nor valid base64-encoded JSON — re-set it to base64(service-account.json)',
+      );
+    }
+  }
+  let sa: { client_email?: string; private_key?: string };
+  try {
+    sa = JSON.parse(txt);
+  } catch (e) {
+    throw new Error(`GOOGLE_SHEETS_SA_KEY decoded but is not valid JSON: ${(e as Error)?.message ?? e}`);
+  }
+  if (!sa.client_email || !sa.private_key) {
+    throw new Error('GOOGLE_SHEETS_SA_KEY JSON is missing client_email/private_key');
+  }
+  return { client_email: sa.client_email, private_key: sa.private_key };
 }
 
 let TOKEN: { token: string; exp: number } | null = null;
