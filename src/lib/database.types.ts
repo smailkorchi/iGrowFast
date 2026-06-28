@@ -4260,12 +4260,8 @@ export type Database = {
           note: string | null
           paid_price: number | null
           phone: string | null
-          price: number | null
-          product_id: string | null
-          quantity: number | null
           status: string | null
           total_price: number | null
-          tva: number | null
           updated_at: string | null
         }
         Insert: {
@@ -4279,12 +4275,8 @@ export type Database = {
           note?: string | null
           paid_price?: number | null
           phone?: string | null
-          price?: number | null
-          product_id?: string | null
-          quantity?: number | null
           status?: string | null
           total_price?: number | null
-          tva?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -4298,12 +4290,8 @@ export type Database = {
           note?: string | null
           paid_price?: number | null
           phone?: string | null
-          price?: number | null
-          product_id?: string | null
-          quantity?: number | null
           status?: string | null
           total_price?: number | null
-          tva?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -4312,13 +4300,6 @@ export type Database = {
             columns: ["DigiCom Business"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
