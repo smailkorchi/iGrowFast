@@ -3849,15 +3849,11 @@ export type Database = {
       sales_channels: {
         Row: {
           column_map: Json | null
-          consumer_key: string | null
-          consumer_secret: string | null
           created_at: string | null
           "DigiCom Business": string | null
           has_header: boolean
           id: string
           is_active: boolean
-          last_modified_seen: string | null
-          last_sync_cursor: Json | null
           last_synced_at: string | null
           name: string
           spreadsheet_id: string | null
@@ -3868,19 +3864,14 @@ export type Database = {
           sync_status: string | null
           type: string
           updated_at: string | null
-          url: string | null
         }
         Insert: {
           column_map?: Json | null
-          consumer_key?: string | null
-          consumer_secret?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
           has_header?: boolean
           id?: string
           is_active?: boolean
-          last_modified_seen?: string | null
-          last_sync_cursor?: Json | null
           last_synced_at?: string | null
           name: string
           spreadsheet_id?: string | null
@@ -3891,19 +3882,14 @@ export type Database = {
           sync_status?: string | null
           type: string
           updated_at?: string | null
-          url?: string | null
         }
         Update: {
           column_map?: Json | null
-          consumer_key?: string | null
-          consumer_secret?: string | null
           created_at?: string | null
           "DigiCom Business"?: string | null
           has_header?: boolean
           id?: string
           is_active?: boolean
-          last_modified_seen?: string | null
-          last_sync_cursor?: Json | null
           last_synced_at?: string | null
           name?: string
           spreadsheet_id?: string | null
@@ -3914,7 +3900,6 @@ export type Database = {
           sync_status?: string | null
           type?: string
           updated_at?: string | null
-          url?: string | null
         }
         Relationships: [
           {
