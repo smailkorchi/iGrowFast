@@ -257,7 +257,6 @@ const orderSchema = z.object({
     replace: z.boolean().default(false), // "extchange" in request
     note: z.string().optional(),
     delivery_note: z.string().optional(),
-    delivery_type: z.string().optional(),
     order_status_id: z.string().uuid("Please select a status"),
     items: z.array(orderItemSchema).min(1, "At least one product is required"),
     // Exchange "additional sale": when an exchange (replace) also sells an extra product,
@@ -1417,7 +1416,6 @@ const Orders = () => {
             replace: false,
             note: '',
             delivery_note: '',
-            delivery_type: 'Home Delivery',
             order_status_id: '',
             items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
             courier_id: null,
@@ -1538,7 +1536,6 @@ const Orders = () => {
             replace: false,
             note: '',
             delivery_note: '',
-            delivery_type: 'Home Delivery',
             order_status_id: defaultNewOrderStatusId,
             items: [
                 {
@@ -2059,7 +2056,6 @@ const Orders = () => {
                     replace: values.replace,
                     note: values.note,
                     delivery_note: values.delivery_note,
-                    delivery_type: values.delivery_type,
                     order_status_id: insertStatusId,
                     courier_id: values.courier_id,
                     company_id: values.company_id,
@@ -2178,7 +2174,6 @@ const Orders = () => {
                         replace: false,
                         note: values.note,
                         delivery_note: values.delivery_note,
-                        delivery_type: values.delivery_type,
                         order_status_id: insertStatusId,
                         courier_id: values.courier_id,
                         company_id: values.company_id,
@@ -2253,7 +2248,6 @@ const Orders = () => {
                     replace: false,
                     note: '',
                     delivery_note: '',
-                    delivery_type: 'Home Delivery',
                     order_status_id: defaultNewOrderStatusId,
                     items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
                     courier_id: null,
@@ -2300,7 +2294,6 @@ const Orders = () => {
                 replace: values.replace,
                 note: values.note,
                 delivery_note: values.delivery_note,
-                delivery_type: values.delivery_type,
                 order_status_id: values.order_status_id,
                 courier_id: values.courier_id,
                 company_id: values.company_id,
@@ -2816,7 +2809,6 @@ const Orders = () => {
             replace: order.replace,
             note: order.note || '',
             delivery_note: order.delivery_note || '',
-            delivery_type: order.delivery_type || 'Home Delivery',
             order_status_id: order.order_status_id,
             courier_id: order.courier_id,
             company_id: order.company_id,
@@ -2941,7 +2933,6 @@ const Orders = () => {
             replace: false,
             note: '',
             delivery_note: '',
-            delivery_type: 'Home Delivery',
             order_status_id: defaultNewOrderStatusId,
             items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
             courier_id: null,
@@ -4218,7 +4209,6 @@ const Orders = () => {
                                 replace: false,
                                 note: '',
                                 delivery_note: '',
-                                delivery_type: 'Home Delivery',
                                 order_status_id: defaultNewOrderStatusId,
                                 items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
                                 courier_id: null,
@@ -5582,7 +5572,6 @@ const Orders = () => {
                                                 </div>
                                                 <div className="space-y-1">
                                                     <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">Shipping Configuration</p>
-                                                    <p className="text-lg font-bold text-ant-ink leading-tight">{selectedOrder.delivery_type || 'Standard Delivery'}</p>
                                                     <p className="text-sm font-bold text-ant-green uppercase tracking-widest">{selectedOrder.shipping_cost === 0 ? 'Free Shipping' : `Paid: ${selectedOrder.shipping_cost} DH`}</p>
                                                 </div>
                                             </div>

@@ -39,7 +39,6 @@ type OrderForSearch = {
     note?: unknown;
     delivery_note?: unknown;
     source_name?: unknown;
-    delivery_type?: unknown;
     raw_price?: unknown;
     shipping_cost?: unknown;
     total_price?: unknown;
@@ -106,7 +105,6 @@ export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, 
         order?.note,
         order?.delivery_note,
         order?.source_name,
-        order?.delivery_type,
         order?.raw_price,
         order?.shipping_cost,
         order?.total_price,

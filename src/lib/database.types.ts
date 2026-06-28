@@ -2978,22 +2978,18 @@ export type Database = {
           date_livraison: string | null
           deleted_by_id: string | null
           delivered: boolean | null
-          delivery_fees_id: string | null
           delivery_note: string | null
-          delivery_type: string | null
           delvoexpress_old_tracking: string | null
           "DigiCom Business": string | null
           exchange_of_order_id: string | null
           external_row_id: string | null
           external_source_key: string | null
           forcelog_old_tracking: string | null
-          free_shipping: boolean | null
           id: string
           include_delivery_in_total: boolean
           master_city_id: string | null
           name: string | null
           note: string | null
-          old_client_id: string | null
           order_status_id: string | null
           package_status_id: string | null
           payed: boolean | null
@@ -3039,22 +3035,18 @@ export type Database = {
           date_livraison?: string | null
           deleted_by_id?: string | null
           delivered?: boolean | null
-          delivery_fees_id?: string | null
           delivery_note?: string | null
-          delivery_type?: string | null
           delvoexpress_old_tracking?: string | null
           "DigiCom Business"?: string | null
           exchange_of_order_id?: string | null
           external_row_id?: string | null
           external_source_key?: string | null
           forcelog_old_tracking?: string | null
-          free_shipping?: boolean | null
           id?: string
           include_delivery_in_total?: boolean
           master_city_id?: string | null
           name?: string | null
           note?: string | null
-          old_client_id?: string | null
           order_status_id?: string | null
           package_status_id?: string | null
           payed?: boolean | null
@@ -3100,22 +3092,18 @@ export type Database = {
           date_livraison?: string | null
           deleted_by_id?: string | null
           delivered?: boolean | null
-          delivery_fees_id?: string | null
           delivery_note?: string | null
-          delivery_type?: string | null
           delvoexpress_old_tracking?: string | null
           "DigiCom Business"?: string | null
           exchange_of_order_id?: string | null
           external_row_id?: string | null
           external_source_key?: string | null
           forcelog_old_tracking?: string | null
-          free_shipping?: boolean | null
           id?: string
           include_delivery_in_total?: boolean
           master_city_id?: string | null
           name?: string | null
           note?: string | null
-          old_client_id?: string | null
           order_status_id?: string | null
           package_status_id?: string | null
           payed?: boolean | null
