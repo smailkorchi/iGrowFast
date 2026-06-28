@@ -2960,7 +2960,6 @@ export type Database = {
           address: string | null
           ameex_old_tracking: string | null
           annulation_date: string | null
-          assign_id: string | null
           assignment_date: string | null
           canceled_by_id: string | null
           coliaty_old_tracking: string | null
@@ -3016,7 +3015,6 @@ export type Database = {
           address?: string | null
           ameex_old_tracking?: string | null
           annulation_date?: string | null
-          assign_id?: string | null
           assignment_date?: string | null
           canceled_by_id?: string | null
           coliaty_old_tracking?: string | null
@@ -3072,7 +3070,6 @@ export type Database = {
           address?: string | null
           ameex_old_tracking?: string | null
           annulation_date?: string | null
-          assign_id?: string | null
           assignment_date?: string | null
           canceled_by_id?: string | null
           coliaty_old_tracking?: string | null
@@ -3125,13 +3122,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "orders_assign_id_fkey"
-            columns: ["assign_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "orders_company_id_fkey"
             columns: ["company_id"]
@@ -3944,54 +3934,6 @@ export type Database = {
             columns: ["DigiCom Business"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      seller_attribution_state: {
-        Row: {
-          business_id: string
-          created_at: string
-          credit: number
-          date: string
-          id: string
-          orders_today: number
-          seller_id: string
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          credit?: number
-          date?: string
-          id?: string
-          orders_today?: number
-          seller_id: string
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          credit?: number
-          date?: string
-          id?: string
-          orders_today?: number
-          seller_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "seller_attribution_state_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "seller_attribution_state_seller_id_fkey"
-            columns: ["seller_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -4937,7 +4879,6 @@ export type Database = {
         Returns: number
       }
       approve_sheet_order: { Args: { p_order_id: string }; Returns: Json }
-      attribute_single_order: { Args: { p_order_id: string }; Returns: string }
       business_storage_objects: {
         Args: { p_business_id: string }
         Returns: {
@@ -5006,18 +4947,6 @@ export type Database = {
       generate_recurring_charges: {
         Args: { p_id?: string; p_through?: string }
         Returns: number
-      }
-      get_daily_attribution_progress: {
-        Args: { p_business_id: string; p_date?: string }
-        Returns: {
-          assignment: number
-          credit: number
-          is_full: boolean
-          orders_today: number
-          pct_complete: number
-          seller_id: string
-          seller_name: string
-        }[]
       }
       get_email_account_secret: { Args: { p_id: string }; Returns: string }
       get_google_analytics_sa_key: { Args: never; Returns: string }
@@ -5114,10 +5043,6 @@ export type Database = {
         Returns: string
       }
       purge_soft_deleted_orders: { Args: never; Returns: undefined }
-      reattribute_unassigned_orders: {
-        Args: { p_business_id: string; p_date?: string }
-        Returns: number
-      }
       refresh_customer_from_orders: {
         Args: { p_business_id: string; p_phone_normalized: string }
         Returns: undefined
@@ -5144,10 +5069,6 @@ export type Database = {
       }
       remove_courier_parcel_from_delivery_note: {
         Args: { p_delivery_note_id: string; p_parcel_id: string }
-        Returns: undefined
-      }
-      reset_daily_attribution: {
-        Args: { p_business_id: string; p_date?: string }
         Returns: undefined
       }
       seller_month_orders: {
