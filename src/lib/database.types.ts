@@ -3490,42 +3490,30 @@ export type Database = {
           created_at: string | null
           fees: Json | null
           id: string
-          lat: number | null
-          lng: number | null
           master_city_id: string | null
-          metadata: Json | null
           provider_city_id: string | null
           provider_city_name: string
           provider_type: string
-          schedule: Json | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           fees?: Json | null
           id?: string
-          lat?: number | null
-          lng?: number | null
           master_city_id?: string | null
-          metadata?: Json | null
           provider_city_id?: string | null
           provider_city_name: string
           provider_type: string
-          schedule?: Json | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           fees?: Json | null
           id?: string
-          lat?: number | null
-          lng?: number | null
           master_city_id?: string | null
-          metadata?: Json | null
           provider_city_id?: string | null
           provider_city_name?: string
           provider_type?: string
-          schedule?: Json | null
           updated_at?: string | null
         }
         Relationships: [
