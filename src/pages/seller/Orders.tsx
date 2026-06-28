@@ -103,9 +103,8 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
+import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -130,7 +129,6 @@ import {
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { Textarea } from "@/components/ui/textarea";
 import {
