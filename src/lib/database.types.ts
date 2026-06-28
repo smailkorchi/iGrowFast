@@ -4104,7 +4104,6 @@ export type Database = {
           "DigiCom Business": string | null
           id: string
           seller_id: string | null
-          status: string | null
         }
         Insert: {
           created_at?: string | null
@@ -4112,7 +4111,6 @@ export type Database = {
           "DigiCom Business"?: string | null
           id?: string
           seller_id?: string | null
-          status?: string | null
         }
         Update: {
           created_at?: string | null
@@ -4120,7 +4118,6 @@ export type Database = {
           "DigiCom Business"?: string | null
           id?: string
           seller_id?: string | null
-          status?: string | null
         }
         Relationships: [
           {
