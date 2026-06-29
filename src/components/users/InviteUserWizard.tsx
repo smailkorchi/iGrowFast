@@ -143,7 +143,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         if (role === 'super admin') return base;
         if (role === 'commercial') return {
             ...base, commission_price: commissionPrice, commission_basis: commissionBasis,
-            payment_type: paymentType, salary_amount: salaryAmount, assignment: 0, products: productIds,
+            payment_type: paymentType, salary_amount: salaryAmount, products: productIds,
         };
         if (role === 'courier') return {
             ...base, courier_parcel_fragile: parcelFragile, courier_parcel_open: parcelOpen,

@@ -45,7 +45,6 @@ interface SellerProfile {
     email: string;
     avatar_url: string | null;
     products: string[];
-    assignment: number;
     commission_price: number;
     commission_basis?: string | null;
     created_at: string;
@@ -186,7 +185,7 @@ const Sellers = () => {
         try {
             const { data: sellersData, error: sellersErr } = await supabase
                 .from('users')
-                .select('id, name, email, avatar_url, avatar_config, products, assignment, commission_price, commission_basis, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
+                .select('id, name, email, avatar_url, avatar_config, products, commission_price, commission_basis, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
                 .eq('role', 'commercial')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: true });
@@ -384,7 +383,6 @@ const Sellers = () => {
                 return {
                     ...seller,
                     commission_price: Number(seller.commission_price) || 0,
-                    assignment: Number(seller.assignment) || 0,
                     products: sellerProductIds,
                     kpis: {
                         totalOrders: total,
@@ -703,7 +701,6 @@ const Sellers = () => {
                         {/* Contract config */}
                         <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                             <SellerKpi label="Commission" value={seller.commission_price} suffix={normalizeCommissionBasis(seller.commission_basis) === 'per_unit' ? 'DH/unit' : 'DH/order'} accent="orange" icon={Coins} />
-                            <SellerKpi label="Assignment" value={seller.assignment} suffix="orders/day" accent="ink" icon={Target} />
                             <SellerKpi label="Products" value={k.productNames.length} suffix="attributed" accent="orange" icon={Package} />
                             <SellerKpi label="Days since join" value={daysActive} suffix="days" accent="ink" icon={UserCheck} />
                         </section>
@@ -819,7 +816,6 @@ const Sellers = () => {
                                     { label: 'Days present', value: String(k.daysPresent) },
                                     { label: 'Last active', value: k.lastActive ? format(parseISO(k.lastActive), 'MMM d, yyyy') : 'Never' },
                                     { label: 'Top city', value: k.topCity || 'N/A' },
-                                    { label: 'Daily assignment', value: `${seller.assignment} orders/day` },
                                 ].map((r) => (
                                     <div key={r.label} className="flex items-center justify-between py-2 border-b border-ant-line last:border-0">
                                         <span className="text-[11px] text-ant-mid">{r.label}</span>

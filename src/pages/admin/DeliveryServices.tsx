@@ -582,7 +582,6 @@ const DeliveryServices = () => {
                 ...values,
                 role: 'courier',
                 active: true,
-                assignment: 0,
                 products: [],
                 permissions: {}, // Courier uses its own /courier/* routes
                 'DigiCom Business': activeBusinessId

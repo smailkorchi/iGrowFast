@@ -111,7 +111,6 @@ const userSchema = z.object({
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
     role: z.enum(['super admin', 'admin', 'commercial', 'courier', 'mediabuyer']),
-    assignment: z.number().default(0),
     commission_price: z.number().default(0),
     commission_basis: z.enum(['per_order', 'per_unit']).default('per_order'),
     payment_type: z.enum(['commission', 'salary']).default('commission'),
@@ -437,7 +436,6 @@ const Users = () => {
             const userData: Record<string, unknown> = {
                 role: values.role,
                 'DigiCom Business': activeBusinessId,
-                assignment: values.assignment,
                 commission_price: values.commission_price,
                 commission_basis: values.commission_basis,
                 payment_type: values.payment_type,
@@ -964,7 +962,6 @@ const UserModal = ({
             email: '',
             password: '',
             role: 'commercial',
-            assignment: 0,
             commission_price: 0,
             commission_basis: 'per_order',
             payment_type: 'commission',
@@ -1062,7 +1059,6 @@ const UserModal = ({
                     payment_type: raw.payment_type ?? 'commission',
                     salary_amount: Number(raw.salary_amount ?? 0),
                     commission_price: Number(raw.commission_price ?? 0),
-                    assignment: Number(raw.assignment ?? 0),
                     commission_basis: normalizeCommissionBasis(initialData.commission_basis),
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
@@ -1077,7 +1073,6 @@ const UserModal = ({
                     email: '',
                     password: '',
                     role: 'commercial',
-                    assignment: 0,
                     commission_price: 0,
                     commission_basis: 'per_order',
                     payment_type: 'commission',
@@ -1252,18 +1247,6 @@ const UserModal = ({
                                 {/* PERFORMANCE (commercial) */}
                                 <TabsContent value="performance" className="m-0 space-y-5 outline-none">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="assignment"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5">
-                                                    <FormLabel className={labelCls}>Order attribution</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" placeholder="0" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className={cn(inputCls, 'tabular-nums')} />
-                                                    </FormControl>
-                                                </FormItem>
-                                            )}
-                                        />
                                         <FormField
                                             control={form.control}
                                             name="commission_price"

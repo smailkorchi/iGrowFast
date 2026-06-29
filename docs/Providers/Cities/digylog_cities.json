@@ -1,1 +1,3022 @@
-[{"id":1,"name":"Agadir","nameAr":"\u0627\u0643\u0627\u062f\u064a\u0631"},{"id":2,"name":"Marrakech","nameAr":"\u0645\u0631\u0627\u0643\u0634"},{"id":3,"name":"Casablanca","nameAr":"\u0627\u0644\u062f\u0627\u0631 \u0627\u0644\u0628\u064a\u0636\u0627\u0621"},{"id":4,"name":"Rabat","nameAr":"\u0627\u0644\u0631\u0628\u0627\u0637"},{"id":5,"name":"Tanger","nameAr":"\u0637\u0646\u062c\u0629"},{"id":6,"name":"Ait melloul","nameAr":"\u0627\u064a\u062a \u0645\u0644\u0648\u0644"},{"id":7,"name":"Inezgane","nameAr":"\u0627\u0646\u0632\u0643\u0627\u0646"},{"id":8,"name":"Tiznit","nameAr":"\u062a\u0632\u0646\u064a\u062a"},{"id":9,"name":"Biougra","nameAr":"\u0628\u064a\u0648\u0643\u0631\u0649"},{"id":10,"name":"Taroudannt","nameAr":"\u062a\u0627\u0631\u0648\u062f\u0627\u0646\u062a"},{"id":12,"name":"Belfaa","nameAr":"\u0628\u0644\u0641\u0627\u0639"},{"id":13,"name":"Tit Mellil","nameAr":"\u062a\u064a\u0637 \u0645\u0644\u064a\u0644"},{"id":14,"name":"Mediouna","nameAr":"\u0645\u062f\u064a\u0648\u0646\u0629"},{"id":15,"name":"Deroua","nameAr":"\u0627\u0644\u062f\u0631\u0648\u0629"},{"id":16,"name":"Bouskoura","nameAr":"\u0628\u0648\u0633\u0643\u0648\u0631\u0629"},{"id":17,"name":"Temara","nameAr":"\u062a\u0645\u0627\u0631\u0629"},{"id":18,"name":"Sale","nameAr":"\u0633\u0644\u0627"},{"id":19,"name":"Sala Al Jadida","nameAr":"\u0633\u0644\u0627 \u0627\u0644\u062c\u062f\u064a\u062f\u0629"},{"id":20,"name":"Tetouan","nameAr":"\u062a\u0637\u0648\u0627\u0646"},{"id":21,"name":"Larache","nameAr":"\u0627\u0644\u0639\u0631\u0627\u0626\u0634"},{"id":22,"name":"Safi","nameAr":"\u0627\u0633\u0641\u064a"},{"id":24,"name":"Dakhla","nameAr":"\u0627\u0644\u062f\u0627\u062e\u0644\u0629"},{"id":25,"name":"Guelmim","nameAr":"\u0643\u0644\u0645\u064a\u0645"},{"id":26,"name":"Mdiq","nameAr":"\u0627\u0644\u0645\u0636\u064a\u0642"},{"id":27,"name":"Fnideq","nameAr":"\u0627\u0644\u0641\u0646\u064a\u062f\u0642"},{"id":28,"name":"Chefchaouen","nameAr":"\u0634\u0641\u0634\u0627\u0648\u0646"},{"id":29,"name":"A\u00efn Atig","nameAr":"\u0639\u064a\u0646 \u0639\u062a\u064a\u0642"},{"id":30,"name":"Sidi Bouknadel","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0648\u0642\u0646\u0627\u062f\u0644"},{"id":31,"name":"Tamesna","nameAr":"\u062a\u0627\u0645\u0633\u0646\u0627"},{"id":32,"name":"Fes","nameAr":"\u0641\u0627\u0633"},{"id":33,"name":"Mohammadia","nameAr":"\u0627\u0644\u0645\u062d\u0645\u062f\u064a\u0629"},{"id":35,"name":"Martil","nameAr":"\u0645\u0631\u062a\u064a\u0644"},{"id":36,"name":"Ain Harrouda","nameAr":"\u0639\u064a\u0646 \u062d\u0631\u0648\u062f\u0629"},{"id":37,"name":"Meknes","nameAr":"\u0645\u0643\u0646\u0627\u0633"},{"id":38,"name":"Laayoune","nameAr":"\u0627\u0644\u0639\u064a\u0648\u0646"},{"id":39,"name":"Kenitra","nameAr":"\u0627\u0644\u0642\u0646\u064a\u0637\u0631\u0629"},{"id":40,"name":"EL Jadida","nameAr":"\u0627\u0644\u062c\u062f\u064a\u062f\u0629"},{"id":42,"name":"Sidi Bouzid - El jadida","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0648\u0632\u064a\u062f \u2013 \u0627\u0644\u062c\u062f\u064a\u062f\u0629"},{"id":43,"name":"Moulay Abdellah Amghar","nameAr":"\u0645\u0648\u0644\u0627\u064a \u0639\u0628\u062f \u0627\u0644\u0644\u0647 \u0623\u0645\u063a\u0627\u0631"},{"id":44,"name":"Jorf Lasfar","nameAr":"\u0627\u0644\u062c\u0631\u0641 \u0627\u0644\u0623\u0635\u0641\u0631"},{"id":45,"name":"Temsia","nameAr":"\u062a\u0645\u0633\u064a\u0629"},{"id":67,"name":"Oujda","nameAr":"\u0648\u062c\u062f\u0629"},{"id":68,"name":"Oulad Teima","nameAr":"\u0623\u0648\u0644\u0627\u062f \u062a\u0627\u064a\u0645\u0629"},{"id":69,"name":"Lqli\u00e2a","nameAr":"\u0627\u0644\u0642\u0644\u064a\u0639\u0629"},{"id":70,"name":"Oulad Dahou","nameAr":"\u0623\u0648\u0644\u0627\u062f \u062f\u062d\u0648"},{"id":71,"name":"Lagfifat","nameAr":"\u0644\u0643\u0641\u064a\u0641\u0627\u062a"},{"id":76,"name":"Sidi Bibi","nameAr":"\u0633\u064a\u062f\u064a \u0628\u064a\u0628\u064a"},{"id":77,"name":"Dar bouazza","nameAr":"\u062f\u0627\u0631 \u0628\u0648\u0639\u0632\u0629"},{"id":78,"name":"Ksar El K\u00e9bir","nameAr":"\u0627\u0644\u0642\u0635\u0631 \u0627\u0644\u0643\u0628\u064a\u0631"},{"id":79,"name":"Mehdia","nameAr":"\u0627\u0644\u0645\u0647\u062f\u064a\u0629"},{"id":80,"name":"Sidi Taibi","nameAr":"\u0633\u064a\u062f\u064a \u0627\u0644\u0637\u064a\u0628\u064a"},{"id":81,"name":"Sidi Yahya El Gharb","nameAr":"\u0633\u064a\u062f\u064a \u064a\u062d\u064a\u0649 \u0627\u0644\u063a\u0631\u0628"},{"id":82,"name":"Errachidia","nameAr":"\u0627\u0644\u0631\u0634\u064a\u062f\u064a\u0629"},{"id":83,"name":"Arfoud","nameAr":"\u0623\u0631\u0641\u0648\u062f"},{"id":84,"name":"Goulmima - ouarzazate","nameAr":"\u0643\u0644\u0645\u064a\u0645\u0629 - \u0648\u0631\u0632\u0627\u0632\u0627\u062a"},{"id":85,"name":"Rissani","nameAr":"\u0627\u0644\u0631\u064a\u0635\u0627\u0646\u064a"},{"id":86,"name":"Er-Rich","nameAr":"\u0627\u0644\u0631\u064a\u0634"},{"id":87,"name":"Settat","nameAr":"\u0633\u0637\u0627\u062a"},{"id":88,"name":"Berrechid","nameAr":"\u0628\u0631\u0634\u064a\u062f"},{"id":89,"name":"Khouribga","nameAr":"\u062e\u0631\u064a\u0628\u0643\u0629"},{"id":92,"name":"B\u00e9ni Mellal","nameAr":"\u0628\u0646\u064a \u0645\u0644\u0627\u0644"},{"id":96,"name":"Taza","nameAr":"\u062a\u0627\u0632\u0629"},{"id":97,"name":"Ben Ahmed (Berchid)","nameAr":"\u0628\u0646 \u0623\u062d\u0645\u062f"},{"id":98,"name":"Aourir","nameAr":"\u0623\u0648\u0631\u064a\u0631"},{"id":99,"name":"Ait aamira","nameAr":"\u0623\u064a\u062a \u0627\u0639\u0645\u064a\u0631\u0629"},{"id":100,"name":"Taghazout","nameAr":"\u062a\u063a\u0627\u0632\u0648\u062a"},{"id":101,"name":"Berkane","nameAr":"\u0628\u0631\u0643\u0627\u0646"},{"id":102,"name":"Nador","nameAr":"\u0627\u0644\u0646\u0627\u0638\u0648\u0631"},{"id":103,"name":"Ouarzazate","nameAr":"\u0648\u0631\u0632\u0627\u0632\u0627\u062a"},{"id":104,"name":"Selouane","nameAr":"\u0633\u0644\u0648\u0627\u0646"},{"id":105,"name":"Al Aroui","nameAr":"\u0627\u0644\u0639\u0631\u0648\u064a"},{"id":106,"name":"Segangan","nameAr":"\u0632\u0627\u064a\u0648"},{"id":107,"name":"Beni ensar","nameAr":"\u0628\u0646\u064a \u0623\u0646\u0635\u0627\u0631"},{"id":108,"name":"Ain El Aouda","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u0639\u0648\u062f\u0629"},{"id":109,"name":"Kasba Tadla","nameAr":"\u0642\u0635\u0628\u0629 \u062a\u0627\u062f\u0644\u0629"},{"id":110,"name":"Fquih Ben Salah","nameAr":"\u0627\u0644\u0641\u0642\u064a\u0647 \u0628\u0646 \u0635\u0627\u0644\u062d"},{"id":111,"name":"El Ksiba","nameAr":"\u0627\u0644\u0642\u0635\u064a\u0628\u0629"},{"id":112,"name":"Souk Sebt Oulad Nemma","nameAr":"\u0633\u0648\u0642 \u0627\u0644\u0633\u0628\u062a \u0623\u0648\u0644\u0627\u062f \u0627\u0644\u0646\u0645\u0629"},{"id":113,"name":"Oulad Ayad","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0639\u064a\u0627\u062f"},{"id":114,"name":"Afourar","nameAr":"\u0623\u0641\u0648\u0631\u0627\u0631"},{"id":115,"name":"Oulad moussa (beni mellal)","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0645\u0648\u0633\u0649"},{"id":116,"name":"Bir Jdid","nameAr":"\u0628\u0626\u0631 \u062c\u062f\u064a\u062f"},{"id":117,"name":"Lakhyayeta","nameAr":"\u0627\u0644\u0644\u062d\u064a\u0627\u064a\u0637\u0627"},{"id":118,"name":"had soualem","nameAr":"\u062d\u062f \u0627\u0644\u0633\u0648\u0627\u0644\u0645"},{"id":119,"name":"Sidi Rehal","nameAr":"\u0633\u064a\u062f\u064a \u0631\u062d\u0627\u0644"},{"id":121,"name":"Ait Ourir","nameAr":"\u0622\u064a\u062a \u0623\u0648\u0631\u064a\u0631"},{"id":122,"name":"Tahanaout","nameAr":"\u062a\u062d\u0646\u0627\u0648\u062a"},{"id":123,"name":"Souihla","nameAr":"\u0633\u0648\u064a\u062d\u0644\u0629"},{"id":124,"name":"Ourika","nameAr":"\u0623\u0648\u0631\u064a\u0643\u0629"},{"id":125,"name":"BELAAGUID","nameAr":"\u0628\u0644\u0639\u0643\u064a\u062f"},{"id":126,"name":"Sidi Bou Othmane","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0648\u0639\u062b\u0645\u0627\u0646"},{"id":127,"name":"Tamansourt","nameAr":"\u062a\u0627\u0645\u0646\u0633\u0648\u0631\u062a"},{"id":128,"name":"Sidi Zouine","nameAr":"\u0633\u064a\u062f\u064a \u0627\u0644\u0632\u0648\u064a\u0646"},{"id":129,"name":"Loudaya","nameAr":"\u0644\u0648\u062f\u0627\u064a\u0629"},{"id":130,"name":"Oulad Hassoun","nameAr":"\u0623\u0648\u0644\u0627\u062f \u062d\u0633\u0648\u0646"},{"id":131,"name":"Kh\u00e9nifra","nameAr":"\u062e\u0646\u064a\u0641\u0631\u0629"},{"id":132,"name":"M\u0027rirt","nameAr":"\u0645\u0631\u064a\u0631\u062a"},{"id":133,"name":"Azilal","nameAr":"\u0623\u0632\u064a\u0644\u0627\u0644"},{"id":134,"name":"Al Hoce\u00efma","nameAr":"\u0627\u0644\u062d\u0633\u064a\u0645\u0629"},{"id":135,"name":"Imzouren","nameAr":"\u0625\u0645\u0632\u0648\u0631\u0646"},{"id":136,"name":"Azemmour","nameAr":"\u0623\u0632\u0645\u0648\u0631"},{"id":138,"name":"Oued Zem","nameAr":"\u0648\u0627\u062f\u064a \u0632\u0645"},{"id":139,"name":"Sidi Kacem","nameAr":"\u0633\u064a\u062f\u064a \u0642\u0627\u0633\u0645"},{"id":140,"name":"Sidi Slimane","nameAr":"\u0633\u064a\u062f\u064a \u0633\u0644\u064a\u0645\u0627\u0646"},{"id":141,"name":"Sebt Gezoula","nameAr":"\u0633\u0628\u062a \u062c\u0632\u0648\u0644\u0629"},{"id":142,"name":"Skoura ( ouarzazate )","nameAr":"\u0633\u0643\u0648\u0631\u0629 (\u0648\u0631\u0632\u0627\u0632\u0627\u062a)"},{"id":144,"name":"Ahfir","nameAr":"\u0623\u062d\u0641\u064a\u0631"},{"id":145,"name":"Sa\u00efdia","nameAr":"\u0627\u0644\u0633\u0639\u064a\u062f\u064a\u0629"},{"id":146,"name":"Bni Drar","nameAr":"\u0628\u0646\u064a \u062f\u0631\u0627\u0631"},{"id":147,"name":"Ras El Ma","nameAr":"\u0631\u0623\u0633 \u0627\u0644\u0645\u0627\u0621"},{"id":148,"name":"Sidi Bennour","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0646\u0648\u0631"},{"id":149,"name":"Khemis Zemamra","nameAr":"\u062e\u0645\u064a\u0633 \u0627\u0644\u0632\u0645\u0627\u0645\u0631\u0629"},{"id":150,"name":"Caf\u00e9maure","nameAr":"\u0643\u0627\u0641\u064a\u0645\u0648\u0631"},{"id":151,"name":"Oued Laou","nameAr":"\u0648\u0627\u062f\u064a \u0644\u0627\u0648"},{"id":152,"name":"Ajdir","nameAr":"\u0623\u062c\u062f\u064a\u0631"},{"id":153,"name":"Bni Bouayach","nameAr":"\u0628\u0646\u064a \u0628\u0648\u0639\u064a\u0627\u0634"},{"id":154,"name":"Sidi Sma\u00efl","nameAr":"\u0633\u064a\u062f\u064a \u0625\u0633\u0645\u0627\u0639\u064a\u0644"},{"id":155,"name":"Kh\u00e9misset","nameAr":"\u0627\u0644\u062e\u0645\u064a\u0633\u0627\u062a"},{"id":156,"name":"Ouazzane","nameAr":"\u0648\u0632\u0627\u0646"},{"id":157,"name":"Tiflet","nameAr":"\u062a\u064a\u0641\u0644\u062a"},{"id":158,"name":"El Hajeb","nameAr":"\u0627\u0644\u062d\u0627\u062c\u0628"},{"id":159,"name":"Boufakrane","nameAr":"\u0628\u0648\u0641\u0643\u0631\u0627\u0646"},{"id":160,"name":"Sabaa Aiyoun","nameAr":"\u0633\u0628\u062a \u0622\u064a\u062a \u0631\u062d\u062d\u0648"},{"id":161,"name":"Tameslouht","nameAr":"\u062a\u0627\u0645\u0633\u0644\u0648\u062d\u062a"},{"id":162,"name":"Nouasser","nameAr":"\u0627\u0644\u0646\u0648\u0627\u0635\u0631"},{"id":163,"name":"Zaou\u00efat Cheikh","nameAr":"\u0632\u0627\u0648\u064a\u0629 \u0627\u0644\u0634\u064a\u062e"},{"id":164,"name":"Youssoufia","nameAr":"\u0627\u0644\u064a\u0648\u0633\u0641\u064a\u0629"},{"id":165,"name":"Jam\u00e2at Shaim","nameAr":"\u062c\u0645\u0627\u0639\u0629 \u0627\u0644\u0634\u0639\u064a\u0628\u0627\u062a"},{"id":166,"name":"Zeghanghane","nameAr":"\u0632\u063a\u0627\u0646\u063a\u0646"},{"id":167,"name":"Targuist","nameAr":"\u062a\u0627\u0631\u062c\u064a\u0633\u062a"},{"id":168,"name":"Assilah","nameAr":"\u0623\u0635\u064a\u0644\u0629"},{"id":169,"name":"Ksar Sghir","nameAr":"\u0642\u0635\u0631 \u0635\u063a\u064a\u0631"},{"id":170,"name":"Essaouira","nameAr":"\u0627\u0644\u0635\u0648\u064a\u0631\u0629"},{"id":171,"name":"El Mansouria","nameAr":"\u0627\u0644\u0645\u0646\u0635\u0648\u0631\u064a\u0629"},{"id":172,"name":"Guercif","nameAr":"\u062c\u0631\u0633\u064a\u0641"},{"id":173,"name":"Demnate","nameAr":"\u062f\u0645\u0646\u0627\u062a"},{"id":174,"name":"Tahla","nameAr":"\u062a\u0627\u0647\u0644\u0629"},{"id":175,"name":"Oued Amlil","nameAr":"\u0648\u0627\u062f\u064a \u0623\u0645\u0644\u064a\u0644"},{"id":176,"name":"Farkhana","nameAr":"\u0641\u0631\u062e\u0627\u0646\u0629"},{"id":177,"name":"Azrou","nameAr":"\u0623\u0632\u0631\u0648"},{"id":178,"name":"Ifrane","nameAr":"\u0625\u0641\u0631\u0627\u0646"},{"id":179,"name":"Moulay Idriss Zerhoun","nameAr":"\u0645\u0648\u0644\u0627\u064a \u0625\u062f\u0631\u064a\u0633 \u0632\u0631\u0647\u0648\u0646"},{"id":180,"name":"Beja\u00e2d","nameAr":"\u0628\u062c\u0639\u062f"},{"id":181,"name":"El Marsa (Laayoune)","nameAr":"\u0627\u0644\u0645\u0631\u0633\u0649 \u2013 \u0627\u0644\u0639\u064a\u0648\u0646"},{"id":182,"name":"El Kela\u00e2 des Sraghna","nameAr":"\u0642\u0644\u0639\u0629 \u0627\u0644\u0633\u0631\u0627\u063a\u0646\u0629"},{"id":183,"name":"L\u00e2attaouia","nameAr":"\u0627\u0644\u0639\u0637\u0627\u0648\u064a\u0629"},{"id":184,"name":"Errahma","nameAr":"\u0627\u0644\u0631\u062d\u0627\u0645\u0646\u0629"},{"id":185,"name":"Echemmaia","nameAr":"\u0627\u0644\u0634\u0645\u0627\u0639\u064a\u0629"},{"id":186,"name":"Ounagha","nameAr":"\u0623\u0648\u0646\u0627\u06ad\u0629"},{"id":187,"name":"Smimou","nameAr":"\u0633\u0645\u064a\u0645\u0648"},{"id":188,"name":"Sebt El Guerdane","nameAr":"\u0633\u0628\u062a \u0627\u0644\u0643\u0631\u062f\u0627\u0646"},{"id":189,"name":"Tin Mansour","nameAr":"\u062a\u0627\u0645\u0646\u0635\u0648\u0631\u062a"},{"id":190,"name":"Tamanar","nameAr":"\u062a\u0645\u0646\u0627\u0631"},{"id":191,"name":"Talmest","nameAr":"\u062a\u0627\u0644\u0645\u0633\u062a"},{"id":192,"name":"Midelt","nameAr":"\u0645\u064a\u062f\u0644\u062a"},{"id":193,"name":"Tinghir","nameAr":"\u062a\u0646\u063a\u064a\u0631"},{"id":194,"name":"Tinejdad","nameAr":"\u062a\u0646\u062c\u062f\u0627\u062f"},{"id":195,"name":"Aoufous","nameAr":"\u0623\u0648\u0641\u0648\u0633"},{"id":196,"name":"Tan-Tan","nameAr":"\u0637\u0627\u0646\u0637\u0627\u0646"},{"id":197,"name":"Kelaat-M\u0027Gouna","nameAr":"\u0642\u0644\u0639\u0629 \u0645\u0643\u0648\u0646\u0629"},{"id":198,"name":"Boumalne-Dad\u00e8s","nameAr":"\u0628\u0648\u0645\u0627\u0644\u0646 \u062f\u0627\u062f\u0633"},{"id":199,"name":"Ain Taoujdate","nameAr":"\u0639\u064a\u0646 \u062a\u0627\u0648\u062c\u0637\u0627\u062a"},{"id":200,"name":"Harhoura","nameAr":"\u0647\u0631\u0647\u0648\u0631\u0629"},{"id":201,"name":"Bouznika","nameAr":"\u0628\u0648\u0632\u0646\u064a\u0642\u0629"},{"id":202,"name":"Benslimane","nameAr":"\u0628\u0646\u0633\u0644\u064a\u0645\u0627\u0646"},{"id":203,"name":"Aklim","nameAr":"\u0623\u0643\u0644\u064a\u0645"},{"id":204,"name":"Za\u00efo","nameAr":"\u0632\u0627\u064a\u0648"},{"id":205,"name":"Bab Taza","nameAr":"\u0628\u0627\u0628 \u062a\u0627\u0632\u0629"},{"id":206,"name":"Boumia","nameAr":"\u0628\u0648\u0645\u064a\u0629"},{"id":207,"name":"Za\u00efda","nameAr":"\u0632\u0627\u064a\u062f\u0629"},{"id":208,"name":"Bouizakarne","nameAr":"\u0628\u0648\u064a\u0632\u0643\u0627\u0631\u0646"},{"id":209,"name":"Skhinat\u00a0fes","nameAr":"\u0633\u062e\u064a\u0646\u0627\u062a \u0641\u0627\u0633"},{"id":210,"name":"Skhirate","nameAr":"\u0627\u0644\u0634\u062e\u064a\u0631\u0627\u062a"},{"id":212,"name":"Agdz","nameAr":"\u0623\u0643\u062f\u0632"},{"id":213,"name":"Tazenakht","nameAr":"\u062a\u0627\u0632\u0646\u0627\u062e\u062a"},{"id":214,"name":"Tata","nameAr":"\u0637\u0627\u0637\u0627"},{"id":215,"name":"Akka","nameAr":"\u0623\u0642\u0627"},{"id":216,"name":"Foum Zguid","nameAr":"\u0641\u0645 \u0632\u0643\u064a\u062f"},{"id":217,"name":"Foum EL Hassane","nameAr":"\u0641\u0645 \u0627\u0644\u062d\u0635\u0646"},{"id":218,"name":"Igherm","nameAr":"\u0625\u063a\u064a\u0631\u0645"},{"id":219,"name":"Isafen","nameAr":"\u0633\u0641\u0631\u0648"},{"id":220,"name":"S\u00e9frou","nameAr":"\u0628\u0647\u0627\u0644\u064a\u0644"},{"id":221,"name":"Bhalil","nameAr":"\u0628\u0647\u0644\u064a\u0644"},{"id":222,"name":"Chichaoua","nameAr":"\u0634\u064a\u0634\u0627\u0648\u0629"},{"id":223,"name":"Imouzzer Kandar","nameAr":"\u0625\u064a\u0645\u0648\u0632\u0627\u0631 \u0643\u0646\u062f\u0631"},{"id":224,"name":"A\u00efn Cheggag","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u0634\u0643\u0627\u0643"},{"id":225,"name":"El Menzel","nameAr":"\u0627\u0644\u0645\u0646\u0632\u0644"},{"id":226,"name":"Ain Beda","nameAr":"\u0639\u064a\u0646 \u0628\u064a\u062f\u0629"},{"id":227,"name":"Sidi Khiar Kandar","nameAr":"\u0633\u064a\u062f\u064a \u062e\u064a\u0627\u0631 \u0643\u0646\u062f\u0631"},{"id":228,"name":"Bab Berred","nameAr":"\u0628\u0627\u0628 \u0628\u0631\u062f"},{"id":229,"name":"Ouled Tayeb","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0627\u0644\u0637\u064a\u0628"},{"id":230,"name":"Madagh","nameAr":"\u0645\u062f\u0627\u063a"},{"id":231,"name":"Massa","nameAr":"\u0645\u0627\u0633\u0629"},{"id":232,"name":"Taourirt","nameAr":"\u062a\u0627\u0648\u0631\u064a\u0631\u062a"},{"id":233,"name":"Souk El Arbaa","nameAr":"\u0633\u0648\u0642 \u0627\u0644\u0623\u0631\u0628\u0639\u0627\u0621"},{"id":234,"name":"Bel Ksiri","nameAr":"\u0628\u0644\u0642\u0635\u064a\u0631\u064a"},{"id":235,"name":"Moulay Bousselham","nameAr":"\u0645\u0648\u0644\u0627\u064a \u0628\u0648\u0633\u0644\u0647\u0627\u0645"},{"id":236,"name":"Mechra Bel Ksiri","nameAr":"\u0645\u0634\u0631\u0639 \u0628\u0644\u0642\u0635\u064a\u0631\u064a"},{"id":237,"name":"El A\u00efoun Sidi Mellouk","nameAr":"\u0627\u0644\u0639\u064a\u0646 \u0633\u064a\u062f\u064a \u0645\u0644\u0648\u0643"},{"id":238,"name":"El Aioun Oriental","nameAr":"\u0627\u0644\u0639\u064a\u0648\u0646 \u0627\u0644\u0634\u0631\u0642\u064a\u0629"},{"id":239,"name":"Boujniba","nameAr":"\u0628\u0648\u062c\u0646\u064a\u0628\u0629"},{"id":240,"name":"Ja\u00e2dar","nameAr":"\u062c\u0639\u062f\u0627\u0631"},{"id":241,"name":"Driouch","nameAr":"\u0627\u0644\u062f\u0631\u064a\u0648\u0634"},{"id":242,"name":"Tiztoutine","nameAr":"\u062a\u0632\u0637\u0648\u0637\u064a\u0646"},{"id":243,"name":"Ben Guerir","nameAr":"\u0628\u0646 \u062c\u0631\u064a\u0631"},{"id":244,"name":"Moulay Ya\u00e2coub","nameAr":"\u0645\u0648\u0644\u0627\u064a \u064a\u0639\u0642\u0648\u0628"},{"id":245,"name":"Imintanoute","nameAr":"\u0625\u0645\u0646\u062a\u0627\u0646\u0648\u062a"},{"id":246,"name":"Sid L\u0027Mokhtar","nameAr":"\u0633\u064a\u062f\u064a \u0627\u0644\u0645\u062e\u062a\u0627\u0631"},{"id":249,"name":"Tafoughalt","nameAr":"\u062a\u0627\u0641\u0648\u063a\u0627\u0644\u062a"},{"id":250,"name":"Jerada","nameAr":"\u062c\u0631\u0627\u062f\u0629"},{"id":251,"name":"Ain Chqef","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u0634\u0642\u0641"},{"id":252,"name":"Ghazoua","nameAr":"\u063a\u0632\u0648\u0629"},{"id":253,"name":"Oualidia","nameAr":"\u0627\u0644\u0648\u0644\u064a\u062f\u064a\u0629"},{"id":254,"name":"Tnine Chtouka - El jadida","nameAr":"\u062a\u0632\u0646\u064a\u062a"},{"id":255,"name":"Sidi Abed - El jadida","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0627\u0628\u062f"},{"id":256,"name":"Sidi Jaber","nameAr":"\u0633\u064a\u062f\u064a \u062c\u0627\u0628\u0631"},{"id":257,"name":"Bradia","nameAr":"\u0628\u0631\u0627\u062f\u064a\u0629"},{"id":258,"name":"Taghzirt","nameAr":"\u062a\u0627\u063a\u0632\u064a\u0631\u062a"},{"id":259,"name":"Oulad Frej","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0641\u0631\u062c"},{"id":260,"name":"Midar","nameAr":"\u0645\u064a\u062f\u0627\u0631"},{"id":261,"name":"Ben Ta\u00efeb","nameAr":"\u0628\u0646 \u0627\u0644\u0637\u064a\u0628"},{"id":302,"name":"Kariat Arekmane","nameAr":"\u0642\u0631\u064a\u0629 \u0623\u0631\u0643\u0645\u0627\u0646"},{"id":303,"name":"Bouarg","nameAr":"\u0628\u0648\u0639\u0631\u0643"},{"id":304,"name":"A\u00efn Dorij","nameAr":"\u0639\u064a\u0646 \u062f\u0648\u0631\u064a\u0640\u062c"},{"id":305,"name":"Zoumi","nameAr":"\u0632\u0648\u0648\u0645\u064a"},{"id":306,"name":"Sidi Redouane","nameAr":"\u0633\u064a\u062f\u064a \u0631\u0636\u0648\u0627\u0646"},{"id":307,"name":"Ait Aissa oubrahim","nameAr":"\u0622\u064a\u062a \u0639\u064a\u0633\u0649 \u0623\u0648\u0628\u0631\u0627\u0647\u064a\u0645"},{"id":309,"name":"Timatraouine","nameAr":"\u062a\u064a\u0645\u0627\u062a\u0631\u0627\u0648\u064a\u0646"},{"id":310,"name":"Imider","nameAr":"\u0625\u0645\u064a\u0636\u0631"},{"id":312,"name":"Taounate","nameAr":"\u062a\u0627\u0648\u0646\u0627\u062a"},{"id":313,"name":"Tissa","nameAr":"\u062a\u064a\u0633\u0629"},{"id":314,"name":"ain aicha","nameAr":"\u0639\u064a\u0646 \u0639\u0627\u0626\u0634\u0629"},{"id":315,"name":"Missour","nameAr":"\u0645\u064a\u0633\u0648\u0631"},{"id":316,"name":"Boulemane","nameAr":"\u0628\u0648\u0644\u0645\u0627\u0646"},{"id":317,"name":"Merzouga","nameAr":"\u0645\u0631\u0632\u0648\u0643\u0629"},{"id":322,"name":"Zagora","nameAr":"\u0632\u0627\u0643\u0648\u0631\u0629"},{"id":323,"name":"Aguim","nameAr":"\u0623\u0643\u0644\u0645\u064a\u0645"},{"id":324,"name":"Figuig","nameAr":"\u0641\u062c\u064a\u062c"},{"id":325,"name":"Bouarfa","nameAr":"\u0628\u0648\u0639\u0631\u0641\u0629"},{"id":326,"name":"Tendrara","nameAr":"\u062a\u064a\u0646\u062f\u0631\u0627\u0631\u0629"},{"id":328,"name":"Tafersit","nameAr":"\u062a\u0627\u0641\u0631\u0633\u064a\u062a"},{"id":329,"name":"Kassita","nameAr":"\u0642\u0627\u0633\u064a\u0637\u0629"},{"id":330,"name":"Dar El Kebdani","nameAr":"\u062f\u0627\u0631 \u0627\u0644\u0643\u0628\u062f\u0627\u0646\u064a"},{"id":331,"name":"Boudinar","nameAr":"\u0628\u0648\u062f\u064a\u0646\u0627\u0631"},{"id":332,"name":"Krona","nameAr":"\u0643\u0631\u0648\u0646\u0629"},{"id":333,"name":"Tamsamane","nameAr":"\u062a\u0627\u0645\u0633\u0645\u0627\u0646"},{"id":334,"name":"Boujdour","nameAr":"\u0628\u0648\u062c\u0630\u0648\u0631"},{"id":335,"name":"Es-Semara","nameAr":"\u0627\u0644\u0633\u0645\u0627\u0631\u0629"},{"id":336,"name":"El Aouamra","nameAr":"\u0627\u0644\u0639\u0648\u0627\u0645\u0631\u0629"},{"id":337,"name":"Kh\u00e9mis Sahel","nameAr":"\u062e\u0645\u064a\u0633 \u0627\u0644\u0633\u0627\u062d\u0644"},{"id":339,"name":"Ouled Hammou","nameAr":"\u0623\u0648\u0644\u0627\u062f \u062d\u0645\u0648"},{"id":340,"name":"Tighassaline","nameAr":"\u062a\u064a\u063a\u0633\u0627\u0644\u064a\u0646"},{"id":341,"name":"A\u00eft Ishaq","nameAr":"\u0622\u064a\u062a \u0625\u0633\u062d\u0627\u0642"},{"id":342,"name":"Haj Kaddour","nameAr":"\u0627\u0644\u062d\u0627\u062c \u0642\u062f\u0648\u0631"},{"id":344,"name":"Bni Chiker","nameAr":"\u0628\u0646\u064a \u0634\u064a\u0643\u0631"},{"id":345,"name":"Issaguen","nameAr":"\u0625\u0633\u0627\u0643\u0646"},{"id":346,"name":"Boukidan","nameAr":"\u0628\u0648\u0643\u064a\u062f\u0627\u0646"},{"id":347,"name":"El Hanchane","nameAr":"\u0627\u0644\u062d\u0646\u0634\u0627\u0646"},{"id":348,"name":"El Ouatia (Tan-Tan)","nameAr":"\u0627\u0644\u0648\u0637\u064a\u0629 (\u0637\u0627\u0646\u0637\u0627\u0646)"},{"id":349,"name":"Boudnib","nameAr":"\u0628\u0648\u062f\u0646\u064a\u0628"},{"id":350,"name":"Outat El Haj","nameAr":"\u0623\u0648\u0637\u0627\u0637 \u0627\u0644\u062d\u0627\u062c"},{"id":351,"name":"AGHBALOU N\u0027CERDAN","nameAr":"\u0623\u063a\u0628\u0627\u0644\u0648 \u0646\u0643\u0631\u062f\u0627\u0646"},{"id":352,"name":"Itzer","nameAr":"\u0625\u064a\u062a\u0632\u0631"},{"id":353,"name":"Sidi Ifni","nameAr":"\u0633\u064a\u062f\u064a \u0625\u0641\u0646\u064a"},{"id":354,"name":"Tafraout","nameAr":"\u062a\u0627\u0641\u0631\u0627\u0648\u062a"},{"id":355,"name":"Oulad Berhil","nameAr":"\u0627\u0648\u0644\u0627\u062f \u0628\u0631\u062d\u064a\u0644"},{"id":356,"name":"Aoulouz","nameAr":"\u0623\u0648\u0644\u0648\u0632"},{"id":358,"name":"Ouled Ghanem","nameAr":"\u0623\u0648\u0644\u0627\u062f \u063a\u0627\u0646\u0645"},{"id":359,"name":"Msawar Rasso","nameAr":"\u0645\u0633\u0648\u0627\u0631 \u0631\u0627\u0633\u0648"},{"id":360,"name":"Tamallalt","nameAr":"\u062a\u0627\u0645\u0644\u0627\u0644\u062a"},{"id":361,"name":"Assahrij","nameAr":"\u0627\u0644\u0635\u0647\u0631\u064a\u062c"},{"id":362,"name":"Sidi Allal Tazi","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0644\u0627\u0644 \u0627\u0644\u062a\u0627\u0632\u064a"},{"id":363,"name":"Bouyafar","nameAr":"\u0628\u0648\u064a\u0627\u0641\u0631"},{"id":364,"name":"Assa","nameAr":"\u0622\u0633\u0627"},{"id":365,"name":"Zag","nameAr":"\u0627\u0644\u0632\u0627\u0643"},{"id":366,"name":"Skhour Rehamna","nameAr":"\u0635\u062e\u0648\u0631 \u0627\u0644\u0631\u062d\u0627\u0645\u0646\u0629"},{"id":367,"name":"A\u00efn Bni Mathar","nameAr":"\u0639\u064a\u0646 \u0628\u0646\u064a \u0645\u0637\u0647\u0631"},{"id":368,"name":"Mariouari","nameAr":"\u0645\u0627\u0631\u064a\u0648\u0627\u0631\u064a"},{"id":369,"name":"Ouled Settout","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0633\u062a\u0648\u062a"},{"id":370,"name":"Mzoudia","nameAr":"\u0645\u0632\u0648\u0636\u064a\u0629"},{"id":371,"name":"Mejjat","nameAr":"\u0645\u062c\u0627\u0637"},{"id":372,"name":"Aguelmous ( khenifra )","nameAr":"\u0623\u0643\u0644\u0645\u0648\u0633 (\u062e\u0646\u064a\u0641\u0631\u0629)"},{"id":373,"name":"Elbarj ( Khenifra )","nameAr":"\u0627\u0644\u0628\u0631\u0627\u062c (\u062e\u0646\u064a\u0641\u0631\u0629)"},{"id":374,"name":"Lahri","nameAr":"\u0644\u0647\u0631\u064a"},{"id":375,"name":"Bni Hadifa","nameAr":"\u0628\u0646\u064a \u062d\u0630\u064a\u0641\u0629"},{"id":376,"name":"Bouanane","nameAr":"\u0628\u0648\u0639\u0646\u0627\u0646"},{"id":377,"name":"A\u00efn Karma","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u0643\u0631\u0645\u0629"},{"id":378,"name":"Sidi sliman Mol kifan","nameAr":"\u0633\u064a\u062f\u064a \u0633\u0644\u064a\u0645\u0627\u0646 \u0645\u0648\u0644 \u0627\u0644\u0643\u064a\u0641\u0627\u0646"},{"id":379,"name":"Boderbala","nameAr":"\u0628\u0648\u062f\u0631\u0628\u0627\u0644\u0629"},{"id":380,"name":"Ain Arma","nameAr":"\u0639\u064a\u0646 \u0639\u0631\u0645\u0629"},{"id":382,"name":"Dar Oum Sultan","nameAr":"\u062f\u0627\u0631 \u0623\u0645 \u0627\u0644\u0633\u0644\u0637\u0627\u0646"},{"id":383,"name":"Tlat Loulad","nameAr":"\u062b\u0644\u0627\u062b \u0623\u0648\u0644\u0627\u062f"},{"id":384,"name":"Ait Qamra","nameAr":"\u0622\u064a\u062a \u0642\u0645\u0631\u0629"},{"id":385,"name":"Ajdir Igzennayen","nameAr":"\u0623\u062c\u062f\u064a\u0631 \u0625\u063a\u0632\u0646\u0627\u064a\u0646"},{"id":386,"name":"Oulad Ghadbane","nameAr":"\u0623\u0648\u0644\u0627\u062f \u063a\u0636\u0628\u0627\u0646"},{"id":387,"name":"Ouaoumana","nameAr":"\u0648\u0627\u0648\u0645\u0627\u0646\u0629"},{"id":388,"name":"El kebab","nameAr":"\u0627\u0644\u0643\u0628\u0627\u0628"},{"id":389,"name":"Had Bouhssoussen","nameAr":"\u062d\u062f \u0628\u0648\u062d\u0633\u0648\u0633\u0646"},{"id":390,"name":"Tighza","nameAr":"\u062a\u064a\u063a\u0632\u0629"},{"id":391,"name":"Moulay Bouazza","nameAr":"\u0645\u0648\u0644\u0627\u064a \u0628\u0648\u0639\u0632\u0629"},{"id":392,"name":"Kef en Nsour","nameAr":"\u0643\u0627\u0641 \u0627\u0644\u0646\u0633\u0648\u0631"},{"id":393,"name":"Sebt Ait Rahhou","nameAr":"\u0633\u0628\u062a \u0622\u064a\u062a \u0631\u062d\u0648"},{"id":394,"name":"Oued Laabid","nameAr":"\u0648\u0627\u062f\u064a \u0627\u0644\u0639\u0628\u064a\u062f"},{"id":395,"name":"Bzou","nameAr":"\u0628\u0632\u0648"},{"id":396,"name":"El Borouj","nameAr":"\u0627\u0644\u0628\u0631\u0648\u062c"},{"id":397,"name":"El Menzeh","nameAr":"\u0627\u0644\u0645\u0646\u0632\u0647"},{"id":398,"name":"Sidi Yahya Za\u00ebr","nameAr":"\u0633\u064a\u062f\u064a \u064a\u062d\u064a\u0649 \u0632\u0639\u064a\u0631"},{"id":400,"name":"Tazarine","nameAr":"\u062a\u0627\u0632\u0627\u0631\u064a\u0646"},{"id":402,"name":"Nkob","nameAr":"\u0646\u0643\u0648\u0628"},{"id":403,"name":"Tamezmoute","nameAr":"\u062a\u0627\u0645\u0632\u0645\u0648\u062a"},{"id":404,"name":"Tinzouline","nameAr":"\u062a\u0646\u0632\u0648\u0644\u064a\u0646"},{"id":405,"name":"Tamegroute","nameAr":"\u062a\u0627\u0645\u0643\u0631\u0648\u062a"},{"id":406,"name":"Tagounite","nameAr":"\u062a\u0627\u063a\u0648\u0646\u064a\u062a"},{"id":407,"name":"M\u0027Hamid El Ghizlane","nameAr":"\u0645\u062d\u0627\u0645\u064a\u062f \u0627\u0644\u063a\u0632\u0644\u0627\u0646"},{"id":408,"name":"Bni Zoli","nameAr":"\u0628\u0646\u064a \u0632\u0648\u0644\u064a"},{"id":410,"name":"Dcheira El Jihadia","nameAr":"\u0627\u0644\u062f\u0634\u064a\u0631\u0629 \u0627\u0644\u062c\u0647\u0627\u062f\u064a\u0629"},{"id":411,"name":"Drargua","nameAr":"\u0627\u0644\u062f\u0631\u0627\u0631\u0643\u0629"},{"id":412,"name":"Jorf El Melha","nameAr":"\u062c\u0631\u0641 \u0627\u0644\u0645\u0644\u062d\u0629"},{"id":413,"name":"Sidi Allal El Bahraoui","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0644\u0627\u0644 \u0627\u0644\u0628\u062d\u0631\u0627\u0648\u064a"},{"id":415,"name":"Lalla Mimouna","nameAr":"\u0644\u0627\u0644\u0629 \u0645\u064a\u0645\u0648\u0646\u0629"},{"id":416,"name":"Dlalha","nameAr":"\u062f\u0644\u0627\u0644\u0629"},{"id":417,"name":"Sebt Jahjouh","nameAr":"\u0633\u0628\u062a \u062c\u062d\u062c\u0648\u062d"},{"id":418,"name":"Sidi Ali Ban Hamdouche ( Meknes )","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0644\u064a \u0628\u0646 \u062d\u0645\u062f\u0648\u0634 (\u0645\u0643\u0646\u0627\u0633)"},{"id":419,"name":"Dkhissa","nameAr":"\u062f\u062e\u064a\u0633\u0629"},{"id":420,"name":"Sidi Hajjaj (tit mellil - Casa)","nameAr":"\u0633\u064a\u062f\u064a \u062d\u062c\u0627\u062c (\u062a\u064a\u0637 \u0645\u0644\u064a\u0644 \u2013 \u0627\u0644\u062f\u0627\u0631 \u0627\u0644\u0628\u064a\u0636\u0627\u0621)"},{"id":421,"name":"Kantina","nameAr":"\u0627\u0644\u0642\u0646\u0637\u064a\u0646\u0629"},{"id":422,"name":"Ait Yaazem","nameAr":"\u0622\u064a\u062a \u064a\u0639\u0632\u0645"},{"id":423,"name":"Sidi Moussa El Mejdoub","nameAr":"\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 \u0627\u0644\u0645\u062c\u062f\u0648\u0628"},{"id":424,"name":"Chellalate","nameAr":"\u0627\u0644\u0634\u0644\u0627\u0644\u0627\u062a"},{"id":425,"name":"Mirleft","nameAr":"\u0645\u064a\u0631\u0644\u0641\u062a"},{"id":426,"name":"Tamaris","nameAr":"\u062a\u0645\u0627\u0631\u064a\u0633"},{"id":427,"name":"Hrara","nameAr":"\u062d\u0631\u0627\u0631\u0629"},{"id":428,"name":"Bouguedra","nameAr":"\u0628\u0648\u0643\u062f\u0631\u0629"},{"id":429,"name":"Moulay Brahim","nameAr":"\u0645\u0648\u0644\u0627\u064a \u0625\u0628\u0631\u0627\u0647\u064a\u0645"},{"id":430,"name":"Asni","nameAr":"\u0623\u0633\u0646\u064a"},{"id":431,"name":"Chwiter","nameAr":"\u0634\u0648\u064a\u062a\u0640\u0631"},{"id":433,"name":"Ait Baha","nameAr":"\u0622\u064a\u062a \u0628\u0627\u0647\u0627"},{"id":434,"name":"Ait Aiaaza","nameAr":"\u0622\u064a\u062a \u0625\u0639\u064a\u0627\u0632\u0629"},{"id":435,"name":"Tamait Izder","nameAr":"\u062a\u0645\u0627\u064a\u062a \u0625\u0632\u062f\u0631"},{"id":436,"name":"Tagadirt","nameAr":"\u062a\u063a\u0627\u062f\u064a\u0631\u062a"},{"id":437,"name":"Tigmi N Bobker","nameAr":"\u062a\u064a\u063a\u0645\u064a \u0646 \u0628\u0648\u0628\u0643\u0631"},{"id":438,"name":"Issen","nameAr":"\u0625\u064a\u0633\u0646"},{"id":439,"name":"Aglou","nameAr":"\u0623\u0643\u0644\u0648"},{"id":440,"name":"El Boura","nameAr":"\u0627\u0644\u0628\u0648\u0631\u0629"},{"id":441,"name":"El Houmer","nameAr":"\u0627\u0644\u062d\u0648\u0645\u0631"},{"id":442,"name":"Oulad Yaich","nameAr":"\u0623\u0648\u0644\u0627\u062f \u064a\u0639\u064a\u0634"},{"id":443,"name":"Tikiouine","nameAr":"\u062a\u064a\u0643\u064a\u0648\u064a\u0646"},{"id":444,"name":"Bensergao","nameAr":"\u0628\u0646\u0633\u0631\u0643\u0627\u0648"},{"id":445,"name":"Azrarag","nameAr":"\u0623\u0632\u0631\u0627\u0631\u0627\u0643"},{"id":446,"name":"El Gara","nameAr":"\u0627\u0644\u0763\u0627\u0631\u0629"},{"id":447,"name":"Nouayl","nameAr":"\u0646\u0648\u0627\u064a\u0644"},{"id":448,"name":"Ouled Aissa taroudant","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0639\u064a\u0633\u0649 (\u062a\u0627\u0631\u0648\u062f\u0627\u0646\u062a)"},{"id":449,"name":"Sidi Abdallah Ghiat","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0628\u062f \u0627\u0644\u0644\u0647 \u063a\u064a\u0627\u062b"},{"id":451,"name":"Imi Imqqurn","nameAr":"\u0625\u0645\u064a \u0625\u0645\u0642\u0648\u0631\u0646"},{"id":452,"name":"Boulanouare","nameAr":"\u0628\u0648\u0644\u0646\u0648\u0627\u0631"},{"id":453,"name":"Hattane","nameAr":"\u062d\u062a\u0627\u0646"},{"id":454,"name":"Anza","nameAr":"\u0623\u0646\u0632\u0627"},{"id":455,"name":"Cabo Negro","nameAr":"\u0643\u0627\u0628\u0648 \u0646\u064a\u0643\u0631\u0648"},{"id":456,"name":"Marina Smir","nameAr":"\u0645\u0627\u0631\u064a\u0646\u0627 \u0633\u0645\u064a\u0631"},{"id":457,"name":"Bab Taliouane - T\u00e9touan","nameAr":"\u0628\u0627\u0628 \u062a\u0644\u064a\u0648\u0627\u0646 (\u062a\u0637\u0648\u0627\u0646)"},{"id":458,"name":"Dardara","nameAr":"\u062f\u0631\u062f\u0627\u0631\u0629"},{"id":459,"name":"chrafate chefchaouen","nameAr":"\u0627\u0644\u0634\u0631\u0627\u0641\u0627\u062a (\u0634\u0641\u0634\u0627\u0648\u0646)"},{"id":460,"name":"Tamernout","nameAr":"\u062a\u0627\u0645\u0631\u0646\u0648\u062a"},{"id":461,"name":"Aouchtame","nameAr":"\u0623\u0648\u0634\u062a\u0627\u0645"},{"id":462,"name":"Tamrabet","nameAr":"\u062a\u0627\u0645\u0631\u0628\u062a"},{"id":463,"name":"Anounfeg","nameAr":"\u0623\u0646\u0648\u0646\u0641\u0643"},{"id":464,"name":"Azla","nameAr":"\u0623\u0632\u0644\u0627"},{"id":465,"name":"Amsa","nameAr":"\u0623\u0645\u0633\u0627"},{"id":466,"name":"Ribate El Kheir","nameAr":"\u0631\u0628\u0627\u0637 \u0627\u0644\u062e\u064a\u0631"},{"id":467,"name":"Ain Allah","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u0644\u0647"},{"id":468,"name":"Ain Seddaq","nameAr":"\u0639\u064a\u0646 \u0633\u062f\u0627\u0643"},{"id":469,"name":"Ain Tekki","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u062a\u0643\u064a"},{"id":470,"name":"Majjate meknes","nameAr":"\u0645\u062c\u0627\u0637 (\u0645\u0643\u0646\u0627\u0633)"},{"id":471,"name":"Bir Tam Tam","nameAr":"\u0628\u064a\u0631 \u062a\u0645 \u062a\u0645"},{"id":472,"name":"Ouled Mbarek","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0645\u0628\u0627\u0631\u0643"},{"id":473,"name":"ras el ma ifrane","nameAr":"\u0631\u0623\u0633 \u0627\u0644\u0645\u0627\u0621 (\u0625\u0641\u0631\u0627\u0646)"},{"id":474,"name":"Ouled Aarfa traoudant","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0639\u0631\u0641\u0629 (\u062a\u0627\u0631\u0648\u062f\u0627\u0646\u062a)"},{"id":475,"name":"Boured","nameAr":"\u0628\u0648\u0631\u064a\u062f"},{"id":476,"name":"Tizi Ouasli","nameAr":"\u062a\u064a\u0632\u064a \u0648\u0633\u0644\u064a"},{"id":477,"name":"Aknoul","nameAr":"\u0623\u0643\u0646\u0648\u0644"},{"id":478,"name":"La\u00e2tamna","nameAr":"\u0644\u0639\u0637\u0627\u0645\u0646\u0629"},{"id":479,"name":"Fezouane","nameAr":"\u0641\u0632\u0648\u0627\u0646"},{"id":480,"name":"Lamriss","nameAr":"\u0644\u0645\u0631\u064a\u0633"},{"id":481,"name":"Sidi Moussa Lhamri","nameAr":"\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 \u0627\u0644\u062d\u0645\u0631\u064a"},{"id":482,"name":"Azrou ait melloul","nameAr":"\u0623\u0632\u0631\u0648 (\u0622\u064a\u062a \u0645\u0644\u0648\u0644)"},{"id":483,"name":"Tarrast","nameAr":"\u062a\u0627\u0631\u0627\u0633\u062a"},{"id":484,"name":"Ikhourbane","nameAr":"\u0625\u062e\u0648\u0631\u0628\u0627\u0646"},{"id":485,"name":"Ras El Ma Fes","nameAr":"\u0631\u0623\u0633 \u0627\u0644\u0645\u0627\u0621 (\u0641\u0627\u0633)"},{"id":486,"name":"Lalla Takerkoust","nameAr":"\u0644\u0627\u0644\u0629 \u062a\u0643\u0631\u0643\u0648\u0633\u062a"},{"id":487,"name":"TIGENZIWINE","nameAr":"\u062a\u064a\u06ad\u0646\u0632\u064a\u0648\u064a\u0646"},{"id":488,"name":"Igoudar","nameAr":"\u0625\u06ad\u0648\u062f\u0627\u0631"},{"id":489,"name":"Lmrah","nameAr":"\u0627\u0644\u0645\u0631\u0627\u062d"},{"id":490,"name":"Ben Yakhlef","nameAr":"\u0628\u0646 \u064a\u062e\u0644\u0641"},{"id":491,"name":"Sidi Harazem","nameAr":"\u0633\u064a\u062f\u064a \u062d\u0631\u0627\u0632\u0645"},{"id":492,"name":"Amizmiz","nameAr":"\u0623\u0645\u0632\u0645\u064a\u0632"},{"id":493,"name":"Ait ben hadou","nameAr":"\u0622\u064a\u062a \u0628\u0646 \u062d\u062f\u0648"},{"id":495,"name":"khmis dades","nameAr":"\u062e\u0645\u064a\u0633 \u062f\u0627\u062f\u0633"},{"id":496,"name":"laaroumiate","nameAr":"\u0627\u0644\u0639\u0631\u0648\u0645\u064a\u0627\u062a"},{"id":498,"name":"idelsan","nameAr":"\u0625\u064a\u062f\u0644\u0633\u0627\u0646"},{"id":499,"name":"Taghezout ouarzazate","nameAr":"\u062a\u063a\u0627\u0632\u0648\u062a (\u0648\u0631\u0632\u0627\u0632\u0627\u062a)"},{"id":500,"name":"Sidi Bousberr","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0648\u0633\u0628\u0631"},{"id":501,"name":"Teroual","nameAr":"\u062a\u0631\u0648\u0627\u0644"},{"id":502,"name":"Ain defali","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u062f\u0641\u0627\u0644\u064a"},{"id":505,"name":"Masmouda","nameAr":"\u0645\u0635\u0645\u0648\u062f\u0629"},{"id":506,"name":"Asjen","nameAr":"\u0623\u0633\u062c\u0646"},{"id":507,"name":"Beni quolla","nameAr":"\u0628\u0646\u064a \u0642\u0644\u0629"},{"id":508,"name":"Oulad bourahema","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0628\u0648\u0631\u062d\u064a\u0645\u0629"},{"id":509,"name":"Sidi Ayache","nameAr":"\u0633\u064a\u062f\u064a \u0639\u064a\u0627\u0634"},{"id":510,"name":"N\u0027khakhsa","nameAr":"\u0646\u062e\u0627\u062e\u0633\u0629"},{"id":511,"name":"Had oulad jelloul","nameAr":"\u062d\u062f \u0623\u0648\u0644\u0627\u062f \u062c\u0644\u0648\u0644"},{"id":512,"name":"Souk tlet du gharb","nameAr":"\u0633\u0648\u0642 \u062b\u0644\u0627\u062b\u0627\u0621 \u0627\u0644\u063a\u0631\u0628"},{"id":514,"name":"Ketama","nameAr":"\u0643\u062a\u0627\u0645\u0629"},{"id":515,"name":"Bni Boufrah","nameAr":"\u0628\u0646\u064a \u0628\u0648\u0641\u0631\u0627\u062d"},{"id":516,"name":"Sidi Bettache","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0637\u0627\u0634"},{"id":517,"name":"Rommani","nameAr":"\u0627\u0644\u0631\u0645\u0627\u0646\u064a"},{"id":518,"name":"Tala Youssef","nameAr":"\u062a\u0627\u0644\u0627 \u064a\u0648\u0633\u0641"},{"id":519,"name":"Ait youssef ou ali","nameAr":"\u0622\u064a\u062a \u064a\u0648\u0633\u0641 \u0623\u0648\u0639\u0644\u064a"},{"id":520,"name":"Souani","nameAr":"\u0627\u0644\u0633\u0648\u0627\u0646\u064a"},{"id":521,"name":"Izemmouren","nameAr":"\u0625\u0632\u0645\u0648\u0631\u0646"},{"id":522,"name":"Rouadi","nameAr":"\u0627\u0644\u0631\u0648\u0627\u0636\u064a"},{"id":523,"name":"Karia ba mohamed","nameAr":"\u0642\u0631\u064a\u0629 \u0628\u0627 \u0645\u062d\u0645\u062f"},{"id":524,"name":"Tamesna Meknes","nameAr":"\u062a\u0627\u0645\u0633\u0646\u0627 (\u0645\u0643\u0646\u0627\u0633)"},{"id":526,"name":"Laakarta","nameAr":"\u0627\u0644\u0639\u0643\u0627\u0631\u062a\u0629"},{"id":528,"name":"kasbat Ayir","nameAr":"\u0642\u0635\u0628\u0629 \u0622\u064a\u062a \u0639\u064a\u0631"},{"id":529,"name":"heyout chair","nameAr":"\u0647\u064a\u0648\u062a \u0627\u0644\u0634\u0639\u064a\u0640\u0631"},{"id":530,"name":"Ahiout El kohia","nameAr":"\u0623\u062d\u064a\u0648\u062a \u0627\u0644\u0643\u062d\u064a\u0644\u0629"},{"id":531,"name":"El Menaadla El jadida","nameAr":"\u0627\u0644\u0645\u0639\u0627\u062f\u0644\u0629 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":532,"name":"Laatamena el jadida","nameAr":"\u0644\u0639\u0637\u0627\u0645\u0646\u0629 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":533,"name":"Douar wald El aisase","nameAr":"\u062f\u0648\u0627\u0631 \u0648\u0644\u062f \u0627\u0644\u0639\u064a\u0633\u0627\u0648\u064a"},{"id":534,"name":"Lota","nameAr":"\u0644\u0648\u0637\u0629"},{"id":536,"name":"El bouchtiaine","nameAr":"\u0627\u0644\u0628\u0648\u0634\u062a\u064a\u064a\u0646"},{"id":537,"name":"Lkrouchiaine","nameAr":"\u0627\u0644\u0643\u0631\u0648\u0634\u064a\u064a\u0646"},{"id":538,"name":"Dar 40","nameAr":"\u062f\u0627\u0631 40"},{"id":539,"name":"Sad rouida","nameAr":"\u0633\u062f \u0631\u0648\u064a\u062f\u0629"},{"id":540,"name":"Oulad Jerrar","nameAr":"\u0623\u0648\u0644\u0627\u062f \u062c\u0631\u0627\u0631"},{"id":541,"name":"Tadouart tiznit","nameAr":"\u062a\u0627\u062f\u0648\u0631\u062a (\u062a\u0632\u0646\u064a\u062a)"},{"id":542,"name":"Lakhssas","nameAr":"\u0644\u062e\u0635\u0627\u0635"},{"id":543,"name":"Tafraout N\u0027Lakhsass","nameAr":"\u062a\u0627\u0641\u0631\u0627\u0648\u062a \u0646\u0644\u062e\u0635\u0627\u0635"},{"id":544,"name":"Mirght","nameAr":"\u0645\u064a\u0631\u063a\u062a"},{"id":545,"name":"El Aargoube","nameAr":"\u0627\u0644\u0639\u0631\u0642\u0648\u0628"},{"id":546,"name":"Reggada ( agadir )","nameAr":"\u0627\u0644\u0631\u0643\u0627\u062f\u0629 (\u0623\u0643\u0627\u062f\u064a\u0631)"},{"id":547,"name":"Agouray","nameAr":"\u0623\u0643\u0648\u0631\u0627\u0649"},{"id":548,"name":"Taloust","nameAr":"\u062a\u0627\u0644\u0648\u0633\u062a"},{"id":549,"name":"Laaouina","nameAr":"\u0627\u0644\u0639\u0648\u064a\u0646\u0629"},{"id":550,"name":"Sidi ali borekba","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0644\u064a \u0628\u0648\u0631\u0643\u0628\u0629"},{"id":551,"name":"Taddart guercif","nameAr":"\u062a\u0627\u062f\u0631\u062a (\u062c\u0631\u0633\u064a\u0641)"},{"id":552,"name":"Msoun","nameAr":"\u0645\u0633\u0648\u0646"},{"id":553,"name":"SAKA guercif","nameAr":"\u0633\u0627\u0643\u0627 (\u062c\u0631\u0633\u064a\u0641)"},{"id":554,"name":"Bab Marzouka","nameAr":"\u0628\u0627\u0628 \u0645\u0631\u0632\u0648\u0642\u0629"},{"id":555,"name":"had oulad zbayer","nameAr":"\u062d\u062f \u0623\u0648\u0644\u0627\u062f \u0632\u0628\u0627\u064a\u0631"},{"id":556,"name":"Abaynou","nameAr":"\u0623\u0628\u0627\u064a\u0646\u0648"},{"id":557,"name":"asrir","nameAr":"\u0623\u0633\u0631\u064a\u0631"},{"id":558,"name":"tighmert","nameAr":"\u062a\u064a\u063a\u0645\u0631\u062a"},{"id":559,"name":"ouaaroun","nameAr":"\u0648\u0639\u0631\u0648\u0646"},{"id":560,"name":"laqsabi","nameAr":"\u0627\u0644\u0642\u0635\u0627\u0628\u064a"},{"id":561,"name":"Daouar tikni","nameAr":"\u062f\u0648\u0627\u0631 \u062a\u064a\u0643\u0646\u064a"},{"id":562,"name":"Daouar tajin","nameAr":"\u062f\u0648\u0627\u0631 \u062a\u0627\u062c\u064a\u0646"},{"id":563,"name":"Tamawanza","nameAr":"\u062a\u0645\u0627\u0648\u0627\u0646\u0632\u0627"},{"id":564,"name":"Taddart ANZA","nameAr":"\u062a\u0627\u062f\u0631\u062a (\u0623\u0646\u0632\u0627)"},{"id":565,"name":"Aghzdisse","nameAr":"\u0623\u063a\u0632\u062f\u064a\u0633"},{"id":566,"name":"Tiguert","nameAr":"\u062a\u064a\u06ad\u064a\u0631\u062a"},{"id":567,"name":"Plage Aghroud","nameAr":"\u0634\u0627\u0637\u0626 \u0623\u063a\u0631\u0648\u0636"},{"id":568,"name":"Port de p\u00eache Agadir","nameAr":"\u0645\u064a\u0646\u0627\u0621 \u0627\u0644\u0635\u064a\u062f \u0623\u0643\u0627\u062f\u064a\u0631"},{"id":569,"name":"Tadouarte agadir","nameAr":"\u062a\u0627\u062f\u0648\u0631\u062a (\u0623\u0643\u0627\u062f\u064a\u0631)"},{"id":570,"name":"A\u00e9roport international Agadir","nameAr":"\u0645\u0637\u0627\u0631 \u0623\u0643\u0627\u062f\u064a\u0631 \u0627\u0644\u0645\u0633\u064a\u0631\u0629 \u0627\u0644\u062f\u0648\u0644\u064a"},{"id":571,"name":"Sidi Boumoussa","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0648\u0645\u0648\u0633\u0649"},{"id":572,"name":"Lakhnafif","nameAr":"\u0644\u062e\u0646\u0627\u0641\u064a\u0641"},{"id":573,"name":"Bouaassida","nameAr":"\u0628\u0648\u0639\u0633\u064a\u062f\u0629"},{"id":574,"name":"Al Hadib","nameAr":"\u0627\u0644\u0647\u0636\u064a\u0628"},{"id":575,"name":"Labaarir","nameAr":"\u0627\u0644\u0628\u0631\u0627\u0631\u064a\u0631"},{"id":576,"name":"Baakila","nameAr":"\u0628\u0639\u0642\u064a\u0644\u0629"},{"id":577,"name":"Lhmadate","nameAr":"\u0627\u0644\u062d\u0645\u0627\u062f\u0627\u062a"},{"id":578,"name":"Oulad Brahim ouled teima","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0625\u0628\u0631\u0627\u0647\u064a\u0645 (\u0623\u0648\u0644\u0627\u062f \u062a\u0627\u064a\u0645\u0629)"},{"id":579,"name":"Houara","nameAr":"\u0647\u0648\u0627\u0631\u0629"},{"id":580,"name":"Idaousmlal","nameAr":"\u0625\u062f\u0627\u0648\u0633\u0645\u0644\u0627\u0644"},{"id":581,"name":"Anzi","nameAr":"\u0623\u0646\u0632\u064a"},{"id":582,"name":"Tighirt TIZNIT","nameAr":"\u062a\u064a\u063a\u0631\u062a (\u062a\u0632\u0646\u064a\u062a)"},{"id":583,"name":"El Maader El Kabir","nameAr":"\u0627\u0644\u0645\u0639\u0630\u0631 \u0627\u0644\u0643\u0628\u064a\u0631"},{"id":584,"name":"takad","nameAr":"\u062a\u0627\u0643\u062f"},{"id":585,"name":"Hassi al bagar","nameAr":"\u062d\u0627\u0633\u064a \u0627\u0644\u0628\u0642\u0631"},{"id":586,"name":"ait mimoun","nameAr":"\u0622\u064a\u062a \u0645\u064a\u0645\u0648\u0646"},{"id":587,"name":"lborj - Oulad teima","nameAr":"\u0627\u0644\u0628\u0631\u062c (\u0623\u0648\u0644\u0627\u062f \u062a\u0627\u064a\u0645\u0629)"},{"id":588,"name":"ihchach CHTOUKA","nameAr":"\u0625\u064a\u062d\u0634\u0627\u0634 (\u0634\u062a\u0648\u0643\u0629)"},{"id":589,"name":"tin amara","nameAr":"\u062a\u064a\u0646 \u0639\u0645\u0627\u0631\u0629"},{"id":590,"name":"niya","nameAr":"\u0646\u064a\u0629"},{"id":591,"name":"agouram","nameAr":"\u0623\u06ad\u0648\u0631\u0627\u0645"},{"id":592,"name":"ait botayeb","nameAr":"\u0622\u064a\u062a \u0628\u0648\u062a\u0627\u064a\u0628"},{"id":593,"name":"ait ali","nameAr":"\u0622\u064a\u062a \u0639\u0644\u064a"},{"id":594,"name":"khayz","nameAr":"\u062e\u0627\u064a\u0632"},{"id":595,"name":"inchaden","nameAr":"\u0625\u0646\u0634\u0627\u062f\u0646"},{"id":596,"name":"okhrib","nameAr":"\u0623\u0648\u062e\u0631\u064a\u0628"},{"id":597,"name":"El kharij","nameAr":"\u0627\u0644\u062e\u0627\u0631\u062c"},{"id":598,"name":"lkharba","nameAr":"\u0627\u0644\u062e\u0631\u0628\u0629"},{"id":599,"name":"ighrissen","nameAr":"\u0625\u063a\u0631\u064a\u0633\u0646"},{"id":600,"name":"Oum El Guerdane","nameAr":"\u0623\u0645 \u0627\u0644\u0643\u0631\u062f\u0627\u0646"},{"id":602,"name":"Addiss","nameAr":"\u0623\u062f\u064a\u0633"},{"id":603,"name":"Tazarte","nameAr":"\u062a\u0627\u0632\u0627\u0631\u062a"},{"id":604,"name":"Aguinane","nameAr":"\u0623\u06ad\u064a\u0646\u0627\u0646"},{"id":605,"name":"Akka Ighane","nameAr":"\u0623\u0643\u0627 \u0625\u063a\u0627\u0646"},{"id":606,"name":"Tagmout","nameAr":"\u062a\u0627\u06ad\u0645\u0648\u062a"},{"id":607,"name":"Issafn TATA","nameAr":"\u0625\u064a\u0633\u0627\u0641\u0646 (\u0637\u0627\u0637\u0627)"},{"id":608,"name":"Tissint TATA","nameAr":"\u062a\u064a\u0633\u064a\u0646\u062a (\u0637\u0627\u0637\u0627)"},{"id":609,"name":"Foum Jemaa","nameAr":"\u0641\u0645 \u0627\u0644\u062c\u0645\u0639\u0629"},{"id":610,"name":"Tanant azilal","nameAr":"\u062a\u0627\u0646\u0627\u0646\u062a (\u0623\u0632\u064a\u0644\u0627\u0644)"},{"id":611,"name":"dar Ouled Zidouh","nameAr":"\u062f\u0627\u0631 \u0623\u0648\u0644\u0627\u062f \u0632\u064a\u062f\u0648\u062d"},{"id":612,"name":"tassaout","nameAr":"\u062a\u0633\u0627\u0648\u062a"},{"id":613,"name":"Oulad Youssef","nameAr":"\u0623\u0648\u0644\u0627\u062f \u064a\u0648\u0633\u0641"},{"id":614,"name":"El Mghassiyine","nameAr":"\u0627\u0644\u0645\u063a\u0627\u0635\u064a\u064a\u0646"},{"id":615,"name":"Sidi Ali Ban Hamdouche\teljadida","nameAr":"\u0633\u064a\u062f\u064a \u0639\u0644\u064a \u0628\u0646 \u062d\u0645\u062f\u0648\u0634 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":616,"name":"EL BAHARA","nameAr":"\u0627\u0644\u0628\u062d\u0627\u0631\u0629"},{"id":617,"name":"DOUAR CHHAB","nameAr":"\u062f\u0648\u0627\u0631 \u0627\u0644\u0634\u0647\u0627\u0628"},{"id":618,"name":"Lfahs el jadida","nameAr":"\u0644\u0641\u062d\u0635 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":619,"name":"Chwiref eljadida","nameAr":"\u0627\u0644\u0634\u0648\u064a\u0631\u0641 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":620,"name":"Wlad hssin eljadida","nameAr":"\u0648\u0644\u0627\u062f \u062d\u0633\u064a\u0646 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":621,"name":"Bzat","nameAr":"\u0628\u0632\u0627\u062a"},{"id":622,"name":"Barakat hssina","nameAr":"\u0628\u0631\u0643\u0627\u062a \u062d\u0633\u064a\u0646\u0629"},{"id":623,"name":"Laakba lhamra","nameAr":"\u0627\u0644\u0639\u0642\u0628\u0629 \u0627\u0644\u062d\u0645\u0631\u0627\u0621"},{"id":624,"name":"Saniat berghig","nameAr":"\u0633\u0646\u064a\u0629 \u0628\u0631\u063a\u064a\u063a"},{"id":625,"name":"Bni khlef eljadia","nameAr":"\u0628\u0646\u064a \u062e\u0644\u0641 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"},{"id":626,"name":"Biriz","nameAr":"\u0628\u064a\u0631\u064a\u0632"},{"id":627,"name":"Kasbah El Taher Ait melloul","nameAr":"\u0642\u0635\u0628\u0629 \u0627\u0644\u0637\u0627\u0647\u0631 (\u0622\u064a\u062a \u0645\u0644\u0648\u0644)"},{"id":628,"name":"Al Mazar Ait melloul","nameAr":"\u0627\u0644\u0645\u0632\u0627\u0631 (\u0622\u064a\u062a \u0645\u0644\u0648\u0644)"},{"id":629,"name":"Oulad saleh bouskoura","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0635\u0627\u0644\u062d (\u0628\u0648\u0633\u0643\u0648\u0631\u0629)"},{"id":630,"name":"La ville verte","nameAr":"\u0627\u0644\u0645\u062f\u064a\u0646\u0629 \u0627\u0644\u062e\u0636\u0631\u0627\u0621"},{"id":631,"name":"sidi massoud sidi maarouf","nameAr":"\u0633\u064a\u062f\u064a \u0645\u0633\u0639\u0648\u062f (\u0633\u064a\u062f\u064a \u0645\u0639\u0631\u0648\u0641)"},{"id":632,"name":"Victoria Bouskoura","nameAr":"\u0641\u064a\u0643\u062a\u0648\u0631\u064a\u0627 \u0628\u0648\u0633\u0643\u0648\u0631\u0629"},{"id":633,"name":"Merchouch","nameAr":"\u0645\u0631\u0634\u0648\u0634"},{"id":634,"name":"Chrifia Marrakech","nameAr":"\u0627\u0644\u0634\u0631\u064a\u0641\u064a\u0629 (\u0645\u0631\u0627\u0643\u0634)"},{"id":635,"name":"Ouled A\u00efssa","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0639\u064a\u0633\u0649"},{"id":636,"name":"Guigou","nameAr":"\u0763\u064a\u063a\u0648"},{"id":637,"name":"El Aarjate","nameAr":"\u0627\u0644\u0639\u0631\u062c\u0627\u062a"},{"id":638,"name":"Howara","nameAr":"\u0647\u0648\u0627\u0631\u0629"},{"id":639,"name":"Ouahat Sidi Brahim","nameAr":"\u0648\u0627\u062d\u0627\u062a \u0633\u064a\u062f\u064a \u0625\u0628\u0631\u0627\u0647\u064a\u0645"},{"id":640,"name":"Nzalat Laadam","nameAr":"\u0646\u0632\u0627\u0644\u0627\u062a \u0627\u0644\u0639\u062f\u0627\u0645"},{"id":641,"name":"Ouled Jelal Marrakech","nameAr":"\u0623\u0648\u0644\u0627\u062f \u062c\u0644\u0627\u0644 (\u0645\u0631\u0627\u0643\u0634)"},{"id":642,"name":"Sebt Mzouda","nameAr":"\u0633\u0628\u062a \u0645\u0632\u0648\u062f\u0629"},{"id":643,"name":"Idouirane","nameAr":"\u0625\u062f\u0648\u0631\u064a\u0631\u0627\u0646"},{"id":644,"name":"Znada","nameAr":"\u0632\u0646\u0627\u062f\u0629"},{"id":645,"name":"Borj Agharghar","nameAr":"\u0628\u0631\u062c \u0623\u063a\u0631\u063a\u0627\u0631"},{"id":646,"name":"Sidi Ettiji","nameAr":"\u0633\u064a\u062f\u064a \u0627\u0644\u062a\u064a\u062c\u064a"},{"id":647,"name":"Jdour","nameAr":"\u062c\u062f\u0648\u0631"},{"id":648,"name":"Laaouissate","nameAr":"\u0627\u0644\u0639\u0648\u064a\u0633\u0627\u062a"},{"id":649,"name":"Sbiaat","nameAr":"\u0627\u0644\u0633\u0628\u064a\u0639\u0627\u062a"},{"id":650,"name":"Thine Riate","nameAr":"\u0627\u062b\u0646\u064a\u0646 \u0631\u064a\u0627\u062a"},{"id":651,"name":"Ouled zekri","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0627\u0644\u0632\u0643\u0631\u064a"},{"id":652,"name":"Lakhechachena","nameAr":"\u0627\u0644\u062e\u0634\u0634\u0627\u0634\u0646\u0629"},{"id":653,"name":"Ben Rahmoun marrakech","nameAr":"\u0628\u0646 \u0631\u062d\u0645\u0648\u0646 (\u0645\u0631\u0627\u0643\u0634)"},{"id":654,"name":"Sidi Hejjaj (ben ahmed)","nameAr":"\u0633\u064a\u062f\u064a \u062d\u062c\u0627\u062c (\u0628\u0646 \u0623\u062d\u0645\u062f)"},{"id":655,"name":"La Nouvelle Ville Ibn Batouta","nameAr":"\u0627\u0644\u0645\u062f\u064a\u0646\u0629 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 \u0627\u0628\u0646 \u0628\u0637\u0648\u0637\u0629"},{"id":656,"name":"Houara tanger","nameAr":"\u0647\u0648\u0627\u0631\u0629 (\u0637\u0646\u062c\u0629)"},{"id":657,"name":"Dayedaate","nameAr":"\u0627\u0644\u0636\u064a\u0639\u0627\u062a"},{"id":658,"name":"Gueznaia","nameAr":"\u0763\u0632\u0646\u0627\u064a\u0629"},{"id":659,"name":"Briyech","nameAr":"\u0628\u0631\u064a\u064a\u0634"},{"id":660,"name":"Taliouine","nameAr":"\u062a\u0627\u0644\u0648\u064a\u0646"},{"id":661,"name":"Assaki Taliouine","nameAr":"\u0623\u0633\u0643\u0627\u0643\u064a (\u062a\u0627\u0644\u0648\u064a\u0646)"},{"id":662,"name":"Tassoultante","nameAr":"\u062a\u0627\u0633\u0648\u0644\u062a\u0627\u0646\u062a"},{"id":663,"name":"Sebt Ben Sassi","nameAr":"\u0633\u0628\u062a \u0628\u0646 \u0633\u0627\u0633\u064a"},{"id":664,"name":"Laamamcha","nameAr":"\u0627\u0644\u0645\u0639\u0627\u0645\u0634\u0629"},{"id":665,"name":"Sidi El Ayedi","nameAr":"\u0633\u064a\u062f\u064a \u0627\u0644\u0639\u0627\u064a\u062f\u064a"},{"id":666,"name":"Ighoud","nameAr":"\u0625\u063a\u0648\u062f"},{"id":667,"name":"Sidi chiker","nameAr":"\u0633\u064a\u062f\u064a \u0634\u064a\u0643\u0631"},{"id":668,"name":"Taouloukoult","nameAr":"\u062a\u0627\u0648\u0644\u0648\u0643\u0648\u0644\u062a"},{"id":669,"name":"Timezgadiouine","nameAr":"\u062a\u064a\u0645\u0632\u0643\u0627\u062f\u064a\u0648\u064a\u0646"},{"id":670,"name":"Ain beida chichaoua","nameAr":"\u0639\u064a\u0646 \u0627\u0644\u0628\u064a\u0636\u0627\u0621 (\u0634\u064a\u0634\u0627\u0648\u0629)"},{"id":671,"name":"Ait hadi","nameAr":"\u0622\u064a\u062a \u0647\u0627\u062f\u064a"},{"id":672,"name":"Sidi bouzid chichaoua","nameAr":"\u0633\u064a\u062f\u064a \u0628\u0648\u0632\u064a\u062f (\u0634\u064a\u0634\u0627\u0648\u0629)"},{"id":673,"name":"Tafetachte","nameAr":"\u062a\u0627\u0641\u062a\u0627\u0633\u062a"},{"id":674,"name":"Had El Brachoua","nameAr":"\u062d\u062f \u0627\u0644\u0628\u0631\u0627\u0634\u0648\u0629"},{"id":675,"name":"Khenichet","nameAr":"\u062e\u0646\u064a\u0634\u0627\u062a"},{"id":676,"name":"Lagouassem","nameAr":"\u0627\u0644\u0763\u0648\u0627\u0633\u0645"},{"id":677,"name":"A\u00efn Sfa","nameAr":"\u0639\u064a\u0646 \u0635\u0641\u0627"},{"id":678,"name":"Talsint","nameAr":"\u062a\u0627\u0644\u0633\u064a\u0646\u062a"},{"id":679,"name":"Aghmat","nameAr":"\u0623\u063a\u0645\u0627\u062a"},{"id":680,"name":"Sidi Moussa Marrakech","nameAr":"\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 (\u0645\u0631\u0627\u0643\u0634)"},{"id":681,"name":"Ben Rahmoun","nameAr":"\u0628\u0646 \u0631\u062d\u0645\u0648\u0646"},{"id":682,"name":"Ahdil","nameAr":"\u0623\u0647\u062f\u064a\u0644"},{"id":683,"name":"Dar Gueddari","nameAr":"\u062f\u0627\u0631 \u0627\u0644\u0643\u062f\u0627\u0631\u064a"},{"id":684,"name":"Ouaouizeght","nameAr":"\u0648\u0627\u0648\u064a\u0632\u063a\u062a"},{"id":685,"name":"Tarfaya","nameAr":"\u0637\u0631\u0641\u0627\u064a\u0629"},{"id":686,"name":"Akhfennir","nameAr":"\u0623\u062e\u0641\u0646\u064a\u0631"},{"id":687,"name":"Had Kourt","nameAr":"\u062d\u062f \u0643\u0648\u0631\u062a"},{"id":688,"name":"Touama","nameAr":"\u062a\u0648\u0645\u0627"},{"id":689,"name":"Toufliht","nameAr":"\u062a\u0648\u0641\u0644\u064a\u062d\u062a"},{"id":690,"name":"Souk El Had Zerkten","nameAr":"\u0633\u0648\u0642 \u0627\u0644\u0623\u062d\u062f \u0632\u0631\u0643\u062a\u0646"},{"id":691,"name":"Tizi N\u0027Tichka","nameAr":"\u062a\u064a\u0632\u064a \u0646 \u062a\u064a\u0634\u0643\u0627"},{"id":692,"name":"Talnif - Marrakech","nameAr":"\u062a\u0627\u0644\u0646\u064a\u0641"},{"id":693,"name":"Taddarte Tichka","nameAr":"\u062a\u0627\u062f\u0631\u062a (\u062a\u064a\u0634\u0643\u0627)"},{"id":694,"name":"Aguelmouss  ( Marrakech )","nameAr":"\u0623\u0643\u0644\u0645\u0648\u0633 (\u0645\u0631\u0627\u0643\u0634)"},{"id":695,"name":"Agouim","nameAr":"\u0623\u06ad\u0648\u064a\u0645"},{"id":697,"name":"Ras Tbouda","nameAr":"\u0631\u0623\u0633 \u062a\u0628\u0648\u062f\u0629"},{"id":698,"name":"Oulad Bou Abid","nameAr":"\u0623\u0648\u0644\u0627\u062f \u0628\u0648 \u0639\u0628\u064a\u062f"},{"id":699,"name":"Sa\u00efss","nameAr":"\u0633\u0627\u064a\u0633"},{"id":700,"name":"Souiria","nameAr":"\u0627\u0644\u0635\u0648\u064a\u0631\u064a\u0629"},{"id":701,"name":"Jem\u00e2a Feddalat","nameAr":"\u062c\u0645\u0639\u0629 \u0641\u0636\u0627\u0644\u0629"},{"id":702,"name":"Sidi Moussa Ben Ali","nameAr":"\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 \u0628\u0646 \u0639\u0644\u064a"},{"id":703,"name":"Oulm\u00e8s","nameAr":"\u0623\u0648\u0644\u0645\u0627\u0633"},{"id":704,"name":"Ksar Bjir"},{"id":705,"name":"Zenata"},{"id":706,"name":"Cascade ouzoud"},{"id":707,"name":"Imsouane"},{"id":708,"name":"Sidi Kaouki"},{"id":709,"name":"Ait Daoud"},{"id":710,"name":"Smara"},{"id":711,"name":"Jerf Arfoud"},{"id":712,"name":"akermoud"},{"id":713,"name":"aghbalou nserdane ( Khenifra )"}]
+[
+    {
+        "id": 1,
+        "name": "Agadir",
+        "nameAr": "\u0627\u0643\u0627\u062f\u064a\u0631"
+    },
+    {
+        "id": 2,
+        "name": "Marrakech",
+        "nameAr": "\u0645\u0631\u0627\u0643\u0634"
+    },
+    {
+        "id": 3,
+        "name": "Casablanca",
+        "nameAr": "\u0627\u0644\u062f\u0627\u0631 \u0627\u0644\u0628\u064a\u0636\u0627\u0621"
+    },
+    {
+        "id": 4,
+        "name": "Rabat",
+        "nameAr": "\u0627\u0644\u0631\u0628\u0627\u0637"
+    },
+    {
+        "id": 5,
+        "name": "Tanger",
+        "nameAr": "\u0637\u0646\u062c\u0629"
+    },
+    {
+        "id": 6,
+        "name": "Ait melloul",
+        "nameAr": "\u0627\u064a\u062a \u0645\u0644\u0648\u0644"
+    },
+    {
+        "id": 7,
+        "name": "Inezgane",
+        "nameAr": "\u0627\u0646\u0632\u0643\u0627\u0646"
+    },
+    {
+        "id": 8,
+        "name": "Tiznit",
+        "nameAr": "\u062a\u0632\u0646\u064a\u062a"
+    },
+    {
+        "id": 9,
+        "name": "Biougra",
+        "nameAr": "\u0628\u064a\u0648\u0643\u0631\u0649"
+    },
+    {
+        "id": 10,
+        "name": "Taroudannt",
+        "nameAr": "\u062a\u0627\u0631\u0648\u062f\u0627\u0646\u062a"
+    },
+    {
+        "id": 12,
+        "name": "Belfaa",
+        "nameAr": "\u0628\u0644\u0641\u0627\u0639"
+    },
+    {
+        "id": 13,
+        "name": "Tit Mellil",
+        "nameAr": "\u062a\u064a\u0637 \u0645\u0644\u064a\u0644"
+    },
+    {
+        "id": 14,
+        "name": "Mediouna",
+        "nameAr": "\u0645\u062f\u064a\u0648\u0646\u0629"
+    },
+    {
+        "id": 15,
+        "name": "Deroua",
+        "nameAr": "\u0627\u0644\u062f\u0631\u0648\u0629"
+    },
+    {
+        "id": 16,
+        "name": "Bouskoura",
+        "nameAr": "\u0628\u0648\u0633\u0643\u0648\u0631\u0629"
+    },
+    {
+        "id": 17,
+        "name": "Temara",
+        "nameAr": "\u062a\u0645\u0627\u0631\u0629"
+    },
+    {
+        "id": 18,
+        "name": "Sale",
+        "nameAr": "\u0633\u0644\u0627"
+    },
+    {
+        "id": 19,
+        "name": "Sala Al Jadida",
+        "nameAr": "\u0633\u0644\u0627 \u0627\u0644\u062c\u062f\u064a\u062f\u0629"
+    },
+    {
+        "id": 20,
+        "name": "Tetouan",
+        "nameAr": "\u062a\u0637\u0648\u0627\u0646"
+    },
+    {
+        "id": 21,
+        "name": "Larache",
+        "nameAr": "\u0627\u0644\u0639\u0631\u0627\u0626\u0634"
+    },
+    {
+        "id": 22,
+        "name": "Safi",
+        "nameAr": "\u0627\u0633\u0641\u064a"
+    },
+    {
+        "id": 24,
+        "name": "Dakhla",
+        "nameAr": "\u0627\u0644\u062f\u0627\u062e\u0644\u0629"
+    },
+    {
+        "id": 25,
+        "name": "Guelmim",
+        "nameAr": "\u0643\u0644\u0645\u064a\u0645"
+    },
+    {
+        "id": 26,
+        "name": "Mdiq",
+        "nameAr": "\u0627\u0644\u0645\u0636\u064a\u0642"
+    },
+    {
+        "id": 27,
+        "name": "Fnideq",
+        "nameAr": "\u0627\u0644\u0641\u0646\u064a\u062f\u0642"
+    },
+    {
+        "id": 28,
+        "name": "Chefchaouen",
+        "nameAr": "\u0634\u0641\u0634\u0627\u0648\u0646"
+    },
+    {
+        "id": 29,
+        "name": "A\u00efn Atig",
+        "nameAr": "\u0639\u064a\u0646 \u0639\u062a\u064a\u0642"
+    },
+    {
+        "id": 30,
+        "name": "Sidi Bouknadel",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0648\u0642\u0646\u0627\u062f\u0644"
+    },
+    {
+        "id": 31,
+        "name": "Tamesna",
+        "nameAr": "\u062a\u0627\u0645\u0633\u0646\u0627"
+    },
+    {
+        "id": 32,
+        "name": "Fes",
+        "nameAr": "\u0641\u0627\u0633"
+    },
+    {
+        "id": 33,
+        "name": "Mohammadia",
+        "nameAr": "\u0627\u0644\u0645\u062d\u0645\u062f\u064a\u0629"
+    },
+    {
+        "id": 35,
+        "name": "Martil",
+        "nameAr": "\u0645\u0631\u062a\u064a\u0644"
+    },
+    {
+        "id": 36,
+        "name": "Ain Harrouda",
+        "nameAr": "\u0639\u064a\u0646 \u062d\u0631\u0648\u062f\u0629"
+    },
+    {
+        "id": 37,
+        "name": "Meknes",
+        "nameAr": "\u0645\u0643\u0646\u0627\u0633"
+    },
+    {
+        "id": 38,
+        "name": "Laayoune",
+        "nameAr": "\u0627\u0644\u0639\u064a\u0648\u0646"
+    },
+    {
+        "id": 39,
+        "name": "Kenitra",
+        "nameAr": "\u0627\u0644\u0642\u0646\u064a\u0637\u0631\u0629"
+    },
+    {
+        "id": 40,
+        "name": "EL Jadida",
+        "nameAr": "\u0627\u0644\u062c\u062f\u064a\u062f\u0629"
+    },
+    {
+        "id": 42,
+        "name": "Sidi Bouzid - El jadida",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0648\u0632\u064a\u062f \u2013 \u0627\u0644\u062c\u062f\u064a\u062f\u0629"
+    },
+    {
+        "id": 43,
+        "name": "Moulay Abdellah Amghar",
+        "nameAr": "\u0645\u0648\u0644\u0627\u064a \u0639\u0628\u062f \u0627\u0644\u0644\u0647 \u0623\u0645\u063a\u0627\u0631"
+    },
+    {
+        "id": 44,
+        "name": "Jorf Lasfar",
+        "nameAr": "\u0627\u0644\u062c\u0631\u0641 \u0627\u0644\u0623\u0635\u0641\u0631"
+    },
+    {
+        "id": 45,
+        "name": "Temsia",
+        "nameAr": "\u062a\u0645\u0633\u064a\u0629"
+    },
+    {
+        "id": 67,
+        "name": "Oujda",
+        "nameAr": "\u0648\u062c\u062f\u0629"
+    },
+    {
+        "id": 68,
+        "name": "Oulad Teima",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u062a\u0627\u064a\u0645\u0629"
+    },
+    {
+        "id": 69,
+        "name": "Lqli\u00e2a",
+        "nameAr": "\u0627\u0644\u0642\u0644\u064a\u0639\u0629"
+    },
+    {
+        "id": 70,
+        "name": "Oulad Dahou",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u062f\u062d\u0648"
+    },
+    {
+        "id": 71,
+        "name": "Lagfifat",
+        "nameAr": "\u0644\u0643\u0641\u064a\u0641\u0627\u062a"
+    },
+    {
+        "id": 76,
+        "name": "Sidi Bibi",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u064a\u0628\u064a"
+    },
+    {
+        "id": 77,
+        "name": "Dar bouazza",
+        "nameAr": "\u062f\u0627\u0631 \u0628\u0648\u0639\u0632\u0629"
+    },
+    {
+        "id": 78,
+        "name": "Ksar El K\u00e9bir",
+        "nameAr": "\u0627\u0644\u0642\u0635\u0631 \u0627\u0644\u0643\u0628\u064a\u0631"
+    },
+    {
+        "id": 79,
+        "name": "Mehdia",
+        "nameAr": "\u0627\u0644\u0645\u0647\u062f\u064a\u0629"
+    },
+    {
+        "id": 80,
+        "name": "Sidi Taibi",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0627\u0644\u0637\u064a\u0628\u064a"
+    },
+    {
+        "id": 81,
+        "name": "Sidi Yahya El Gharb",
+        "nameAr": "\u0633\u064a\u062f\u064a \u064a\u062d\u064a\u0649 \u0627\u0644\u063a\u0631\u0628"
+    },
+    {
+        "id": 82,
+        "name": "Errachidia",
+        "nameAr": "\u0627\u0644\u0631\u0634\u064a\u062f\u064a\u0629"
+    },
+    {
+        "id": 83,
+        "name": "Arfoud",
+        "nameAr": "\u0623\u0631\u0641\u0648\u062f"
+    },
+    {
+        "id": 84,
+        "name": "Goulmima - ouarzazate",
+        "nameAr": "\u0643\u0644\u0645\u064a\u0645\u0629 - \u0648\u0631\u0632\u0627\u0632\u0627\u062a"
+    },
+    {
+        "id": 85,
+        "name": "Rissani",
+        "nameAr": "\u0627\u0644\u0631\u064a\u0635\u0627\u0646\u064a"
+    },
+    {
+        "id": 86,
+        "name": "Er-Rich",
+        "nameAr": "\u0627\u0644\u0631\u064a\u0634"
+    },
+    {
+        "id": 87,
+        "name": "Settat",
+        "nameAr": "\u0633\u0637\u0627\u062a"
+    },
+    {
+        "id": 88,
+        "name": "Berrechid",
+        "nameAr": "\u0628\u0631\u0634\u064a\u062f"
+    },
+    {
+        "id": 89,
+        "name": "Khouribga",
+        "nameAr": "\u062e\u0631\u064a\u0628\u0643\u0629"
+    },
+    {
+        "id": 92,
+        "name": "B\u00e9ni Mellal",
+        "nameAr": "\u0628\u0646\u064a \u0645\u0644\u0627\u0644"
+    },
+    {
+        "id": 96,
+        "name": "Taza",
+        "nameAr": "\u062a\u0627\u0632\u0629"
+    },
+    {
+        "id": 97,
+        "name": "Ben Ahmed (Berchid)",
+        "nameAr": "\u0628\u0646 \u0623\u062d\u0645\u062f"
+    },
+    {
+        "id": 98,
+        "name": "Aourir",
+        "nameAr": "\u0623\u0648\u0631\u064a\u0631"
+    },
+    {
+        "id": 99,
+        "name": "Ait aamira",
+        "nameAr": "\u0623\u064a\u062a \u0627\u0639\u0645\u064a\u0631\u0629"
+    },
+    {
+        "id": 100,
+        "name": "Taghazout",
+        "nameAr": "\u062a\u063a\u0627\u0632\u0648\u062a"
+    },
+    {
+        "id": 101,
+        "name": "Berkane",
+        "nameAr": "\u0628\u0631\u0643\u0627\u0646"
+    },
+    {
+        "id": 102,
+        "name": "Nador",
+        "nameAr": "\u0627\u0644\u0646\u0627\u0638\u0648\u0631"
+    },
+    {
+        "id": 103,
+        "name": "Ouarzazate",
+        "nameAr": "\u0648\u0631\u0632\u0627\u0632\u0627\u062a"
+    },
+    {
+        "id": 104,
+        "name": "Selouane",
+        "nameAr": "\u0633\u0644\u0648\u0627\u0646"
+    },
+    {
+        "id": 105,
+        "name": "Al Aroui",
+        "nameAr": "\u0627\u0644\u0639\u0631\u0648\u064a"
+    },
+    {
+        "id": 106,
+        "name": "Segangan",
+        "nameAr": "\u0632\u0627\u064a\u0648"
+    },
+    {
+        "id": 107,
+        "name": "Beni ensar",
+        "nameAr": "\u0628\u0646\u064a \u0623\u0646\u0635\u0627\u0631"
+    },
+    {
+        "id": 108,
+        "name": "Ain El Aouda",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u0639\u0648\u062f\u0629"
+    },
+    {
+        "id": 109,
+        "name": "Kasba Tadla",
+        "nameAr": "\u0642\u0635\u0628\u0629 \u062a\u0627\u062f\u0644\u0629"
+    },
+    {
+        "id": 110,
+        "name": "Fquih Ben Salah",
+        "nameAr": "\u0627\u0644\u0641\u0642\u064a\u0647 \u0628\u0646 \u0635\u0627\u0644\u062d"
+    },
+    {
+        "id": 111,
+        "name": "El Ksiba",
+        "nameAr": "\u0627\u0644\u0642\u0635\u064a\u0628\u0629"
+    },
+    {
+        "id": 112,
+        "name": "Souk Sebt Oulad Nemma",
+        "nameAr": "\u0633\u0648\u0642 \u0627\u0644\u0633\u0628\u062a \u0623\u0648\u0644\u0627\u062f \u0627\u0644\u0646\u0645\u0629"
+    },
+    {
+        "id": 113,
+        "name": "Oulad Ayad",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0639\u064a\u0627\u062f"
+    },
+    {
+        "id": 114,
+        "name": "Afourar",
+        "nameAr": "\u0623\u0641\u0648\u0631\u0627\u0631"
+    },
+    {
+        "id": 115,
+        "name": "Oulad moussa (beni mellal)",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0645\u0648\u0633\u0649"
+    },
+    {
+        "id": 116,
+        "name": "Bir Jdid",
+        "nameAr": "\u0628\u0626\u0631 \u062c\u062f\u064a\u062f"
+    },
+    {
+        "id": 117,
+        "name": "Lakhyayeta",
+        "nameAr": "\u0627\u0644\u0644\u062d\u064a\u0627\u064a\u0637\u0627"
+    },
+    {
+        "id": 118,
+        "name": "had soualem",
+        "nameAr": "\u062d\u062f \u0627\u0644\u0633\u0648\u0627\u0644\u0645"
+    },
+    {
+        "id": 119,
+        "name": "Sidi Rehal",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0631\u062d\u0627\u0644"
+    },
+    {
+        "id": 121,
+        "name": "Ait Ourir",
+        "nameAr": "\u0622\u064a\u062a \u0623\u0648\u0631\u064a\u0631"
+    },
+    {
+        "id": 122,
+        "name": "Tahanaout",
+        "nameAr": "\u062a\u062d\u0646\u0627\u0648\u062a"
+    },
+    {
+        "id": 123,
+        "name": "Souihla",
+        "nameAr": "\u0633\u0648\u064a\u062d\u0644\u0629"
+    },
+    {
+        "id": 124,
+        "name": "Ourika",
+        "nameAr": "\u0623\u0648\u0631\u064a\u0643\u0629"
+    },
+    {
+        "id": 125,
+        "name": "BELAAGUID",
+        "nameAr": "\u0628\u0644\u0639\u0643\u064a\u062f"
+    },
+    {
+        "id": 126,
+        "name": "Sidi Bou Othmane",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0648\u0639\u062b\u0645\u0627\u0646"
+    },
+    {
+        "id": 127,
+        "name": "Tamansourt",
+        "nameAr": "\u062a\u0627\u0645\u0646\u0633\u0648\u0631\u062a"
+    },
+    {
+        "id": 128,
+        "name": "Sidi Zouine",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0627\u0644\u0632\u0648\u064a\u0646"
+    },
+    {
+        "id": 129,
+        "name": "Loudaya",
+        "nameAr": "\u0644\u0648\u062f\u0627\u064a\u0629"
+    },
+    {
+        "id": 130,
+        "name": "Oulad Hassoun",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u062d\u0633\u0648\u0646"
+    },
+    {
+        "id": 131,
+        "name": "Kh\u00e9nifra",
+        "nameAr": "\u062e\u0646\u064a\u0641\u0631\u0629"
+    },
+    {
+        "id": 132,
+        "name": "M\u0027rirt",
+        "nameAr": "\u0645\u0631\u064a\u0631\u062a"
+    },
+    {
+        "id": 133,
+        "name": "Azilal",
+        "nameAr": "\u0623\u0632\u064a\u0644\u0627\u0644"
+    },
+    {
+        "id": 134,
+        "name": "Al Hoce\u00efma",
+        "nameAr": "\u0627\u0644\u062d\u0633\u064a\u0645\u0629"
+    },
+    {
+        "id": 135,
+        "name": "Imzouren",
+        "nameAr": "\u0625\u0645\u0632\u0648\u0631\u0646"
+    },
+    {
+        "id": 136,
+        "name": "Azemmour",
+        "nameAr": "\u0623\u0632\u0645\u0648\u0631"
+    },
+    {
+        "id": 138,
+        "name": "Oued Zem",
+        "nameAr": "\u0648\u0627\u062f\u064a \u0632\u0645"
+    },
+    {
+        "id": 139,
+        "name": "Sidi Kacem",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0642\u0627\u0633\u0645"
+    },
+    {
+        "id": 140,
+        "name": "Sidi Slimane",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0633\u0644\u064a\u0645\u0627\u0646"
+    },
+    {
+        "id": 141,
+        "name": "Sebt Gezoula",
+        "nameAr": "\u0633\u0628\u062a \u062c\u0632\u0648\u0644\u0629"
+    },
+    {
+        "id": 142,
+        "name": "Skoura ( ouarzazate )",
+        "nameAr": "\u0633\u0643\u0648\u0631\u0629 (\u0648\u0631\u0632\u0627\u0632\u0627\u062a)"
+    },
+    {
+        "id": 144,
+        "name": "Ahfir",
+        "nameAr": "\u0623\u062d\u0641\u064a\u0631"
+    },
+    {
+        "id": 145,
+        "name": "Sa\u00efdia",
+        "nameAr": "\u0627\u0644\u0633\u0639\u064a\u062f\u064a\u0629"
+    },
+    {
+        "id": 146,
+        "name": "Bni Drar",
+        "nameAr": "\u0628\u0646\u064a \u062f\u0631\u0627\u0631"
+    },
+    {
+        "id": 147,
+        "name": "Ras El Ma",
+        "nameAr": "\u0631\u0623\u0633 \u0627\u0644\u0645\u0627\u0621"
+    },
+    {
+        "id": 148,
+        "name": "Sidi Bennour",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0646\u0648\u0631"
+    },
+    {
+        "id": 149,
+        "name": "Khemis Zemamra",
+        "nameAr": "\u062e\u0645\u064a\u0633 \u0627\u0644\u0632\u0645\u0627\u0645\u0631\u0629"
+    },
+    {
+        "id": 150,
+        "name": "Caf\u00e9maure",
+        "nameAr": "\u0643\u0627\u0641\u064a\u0645\u0648\u0631"
+    },
+    {
+        "id": 151,
+        "name": "Oued Laou",
+        "nameAr": "\u0648\u0627\u062f\u064a \u0644\u0627\u0648"
+    },
+    {
+        "id": 152,
+        "name": "Ajdir",
+        "nameAr": "\u0623\u062c\u062f\u064a\u0631"
+    },
+    {
+        "id": 153,
+        "name": "Bni Bouayach",
+        "nameAr": "\u0628\u0646\u064a \u0628\u0648\u0639\u064a\u0627\u0634"
+    },
+    {
+        "id": 154,
+        "name": "Sidi Sma\u00efl",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0625\u0633\u0645\u0627\u0639\u064a\u0644"
+    },
+    {
+        "id": 155,
+        "name": "Kh\u00e9misset",
+        "nameAr": "\u0627\u0644\u062e\u0645\u064a\u0633\u0627\u062a"
+    },
+    {
+        "id": 156,
+        "name": "Ouazzane",
+        "nameAr": "\u0648\u0632\u0627\u0646"
+    },
+    {
+        "id": 157,
+        "name": "Tiflet",
+        "nameAr": "\u062a\u064a\u0641\u0644\u062a"
+    },
+    {
+        "id": 158,
+        "name": "El Hajeb",
+        "nameAr": "\u0627\u0644\u062d\u0627\u062c\u0628"
+    },
+    {
+        "id": 159,
+        "name": "Boufakrane",
+        "nameAr": "\u0628\u0648\u0641\u0643\u0631\u0627\u0646"
+    },
+    {
+        "id": 160,
+        "name": "Sabaa Aiyoun",
+        "nameAr": "\u0633\u0628\u062a \u0622\u064a\u062a \u0631\u062d\u062d\u0648"
+    },
+    {
+        "id": 161,
+        "name": "Tameslouht",
+        "nameAr": "\u062a\u0627\u0645\u0633\u0644\u0648\u062d\u062a"
+    },
+    {
+        "id": 162,
+        "name": "Nouasser",
+        "nameAr": "\u0627\u0644\u0646\u0648\u0627\u0635\u0631"
+    },
+    {
+        "id": 163,
+        "name": "Zaou\u00efat Cheikh",
+        "nameAr": "\u0632\u0627\u0648\u064a\u0629 \u0627\u0644\u0634\u064a\u062e"
+    },
+    {
+        "id": 164,
+        "name": "Youssoufia",
+        "nameAr": "\u0627\u0644\u064a\u0648\u0633\u0641\u064a\u0629"
+    },
+    {
+        "id": 165,
+        "name": "Jam\u00e2at Shaim",
+        "nameAr": "\u062c\u0645\u0627\u0639\u0629 \u0627\u0644\u0634\u0639\u064a\u0628\u0627\u062a"
+    },
+    {
+        "id": 166,
+        "name": "Zeghanghane",
+        "nameAr": "\u0632\u063a\u0627\u0646\u063a\u0646"
+    },
+    {
+        "id": 167,
+        "name": "Targuist",
+        "nameAr": "\u062a\u0627\u0631\u062c\u064a\u0633\u062a"
+    },
+    {
+        "id": 168,
+        "name": "Assilah",
+        "nameAr": "\u0623\u0635\u064a\u0644\u0629"
+    },
+    {
+        "id": 169,
+        "name": "Ksar Sghir",
+        "nameAr": "\u0642\u0635\u0631 \u0635\u063a\u064a\u0631"
+    },
+    {
+        "id": 170,
+        "name": "Essaouira",
+        "nameAr": "\u0627\u0644\u0635\u0648\u064a\u0631\u0629"
+    },
+    {
+        "id": 171,
+        "name": "El Mansouria",
+        "nameAr": "\u0627\u0644\u0645\u0646\u0635\u0648\u0631\u064a\u0629"
+    },
+    {
+        "id": 172,
+        "name": "Guercif",
+        "nameAr": "\u062c\u0631\u0633\u064a\u0641"
+    },
+    {
+        "id": 173,
+        "name": "Demnate",
+        "nameAr": "\u062f\u0645\u0646\u0627\u062a"
+    },
+    {
+        "id": 174,
+        "name": "Tahla",
+        "nameAr": "\u062a\u0627\u0647\u0644\u0629"
+    },
+    {
+        "id": 175,
+        "name": "Oued Amlil",
+        "nameAr": "\u0648\u0627\u062f\u064a \u0623\u0645\u0644\u064a\u0644"
+    },
+    {
+        "id": 176,
+        "name": "Farkhana",
+        "nameAr": "\u0641\u0631\u062e\u0627\u0646\u0629"
+    },
+    {
+        "id": 177,
+        "name": "Azrou",
+        "nameAr": "\u0623\u0632\u0631\u0648"
+    },
+    {
+        "id": 178,
+        "name": "Ifrane",
+        "nameAr": "\u0625\u0641\u0631\u0627\u0646"
+    },
+    {
+        "id": 179,
+        "name": "Moulay Idriss Zerhoun",
+        "nameAr": "\u0645\u0648\u0644\u0627\u064a \u0625\u062f\u0631\u064a\u0633 \u0632\u0631\u0647\u0648\u0646"
+    },
+    {
+        "id": 180,
+        "name": "Beja\u00e2d",
+        "nameAr": "\u0628\u062c\u0639\u062f"
+    },
+    {
+        "id": 181,
+        "name": "El Marsa (Laayoune)",
+        "nameAr": "\u0627\u0644\u0645\u0631\u0633\u0649 \u2013 \u0627\u0644\u0639\u064a\u0648\u0646"
+    },
+    {
+        "id": 182,
+        "name": "El Kela\u00e2 des Sraghna",
+        "nameAr": "\u0642\u0644\u0639\u0629 \u0627\u0644\u0633\u0631\u0627\u063a\u0646\u0629"
+    },
+    {
+        "id": 183,
+        "name": "L\u00e2attaouia",
+        "nameAr": "\u0627\u0644\u0639\u0637\u0627\u0648\u064a\u0629"
+    },
+    {
+        "id": 184,
+        "name": "Errahma",
+        "nameAr": "\u0627\u0644\u0631\u062d\u0627\u0645\u0646\u0629"
+    },
+    {
+        "id": 185,
+        "name": "Echemmaia",
+        "nameAr": "\u0627\u0644\u0634\u0645\u0627\u0639\u064a\u0629"
+    },
+    {
+        "id": 186,
+        "name": "Ounagha",
+        "nameAr": "\u0623\u0648\u0646\u0627\u06ad\u0629"
+    },
+    {
+        "id": 187,
+        "name": "Smimou",
+        "nameAr": "\u0633\u0645\u064a\u0645\u0648"
+    },
+    {
+        "id": 188,
+        "name": "Sebt El Guerdane",
+        "nameAr": "\u0633\u0628\u062a \u0627\u0644\u0643\u0631\u062f\u0627\u0646"
+    },
+    {
+        "id": 189,
+        "name": "Tin Mansour",
+        "nameAr": "\u062a\u0627\u0645\u0646\u0635\u0648\u0631\u062a"
+    },
+    {
+        "id": 190,
+        "name": "Tamanar",
+        "nameAr": "\u062a\u0645\u0646\u0627\u0631"
+    },
+    {
+        "id": 191,
+        "name": "Talmest",
+        "nameAr": "\u062a\u0627\u0644\u0645\u0633\u062a"
+    },
+    {
+        "id": 192,
+        "name": "Midelt",
+        "nameAr": "\u0645\u064a\u062f\u0644\u062a"
+    },
+    {
+        "id": 193,
+        "name": "Tinghir",
+        "nameAr": "\u062a\u0646\u063a\u064a\u0631"
+    },
+    {
+        "id": 194,
+        "name": "Tinejdad",
+        "nameAr": "\u062a\u0646\u062c\u062f\u0627\u062f"
+    },
+    {
+        "id": 195,
+        "name": "Aoufous",
+        "nameAr": "\u0623\u0648\u0641\u0648\u0633"
+    },
+    {
+        "id": 196,
+        "name": "Tan-Tan",
+        "nameAr": "\u0637\u0627\u0646\u0637\u0627\u0646"
+    },
+    {
+        "id": 197,
+        "name": "Kelaat-M\u0027Gouna",
+        "nameAr": "\u0642\u0644\u0639\u0629 \u0645\u0643\u0648\u0646\u0629"
+    },
+    {
+        "id": 198,
+        "name": "Boumalne-Dad\u00e8s",
+        "nameAr": "\u0628\u0648\u0645\u0627\u0644\u0646 \u062f\u0627\u062f\u0633"
+    },
+    {
+        "id": 199,
+        "name": "Ain Taoujdate",
+        "nameAr": "\u0639\u064a\u0646 \u062a\u0627\u0648\u062c\u0637\u0627\u062a"
+    },
+    {
+        "id": 200,
+        "name": "Harhoura",
+        "nameAr": "\u0647\u0631\u0647\u0648\u0631\u0629"
+    },
+    {
+        "id": 201,
+        "name": "Bouznika",
+        "nameAr": "\u0628\u0648\u0632\u0646\u064a\u0642\u0629"
+    },
+    {
+        "id": 202,
+        "name": "Benslimane",
+        "nameAr": "\u0628\u0646\u0633\u0644\u064a\u0645\u0627\u0646"
+    },
+    {
+        "id": 203,
+        "name": "Aklim",
+        "nameAr": "\u0623\u0643\u0644\u064a\u0645"
+    },
+    {
+        "id": 204,
+        "name": "Za\u00efo",
+        "nameAr": "\u0632\u0627\u064a\u0648"
+    },
+    {
+        "id": 205,
+        "name": "Bab Taza",
+        "nameAr": "\u0628\u0627\u0628 \u062a\u0627\u0632\u0629"
+    },
+    {
+        "id": 206,
+        "name": "Boumia",
+        "nameAr": "\u0628\u0648\u0645\u064a\u0629"
+    },
+    {
+        "id": 207,
+        "name": "Za\u00efda",
+        "nameAr": "\u0632\u0627\u064a\u062f\u0629"
+    },
+    {
+        "id": 208,
+        "name": "Bouizakarne",
+        "nameAr": "\u0628\u0648\u064a\u0632\u0643\u0627\u0631\u0646"
+    },
+    {
+        "id": 209,
+        "name": "Skhinat\u00a0fes",
+        "nameAr": "\u0633\u062e\u064a\u0646\u0627\u062a \u0641\u0627\u0633"
+    },
+    {
+        "id": 210,
+        "name": "Skhirate",
+        "nameAr": "\u0627\u0644\u0634\u062e\u064a\u0631\u0627\u062a"
+    },
+    {
+        "id": 212,
+        "name": "Agdz",
+        "nameAr": "\u0623\u0643\u062f\u0632"
+    },
+    {
+        "id": 213,
+        "name": "Tazenakht",
+        "nameAr": "\u062a\u0627\u0632\u0646\u0627\u062e\u062a"
+    },
+    {
+        "id": 214,
+        "name": "Tata",
+        "nameAr": "\u0637\u0627\u0637\u0627"
+    },
+    {
+        "id": 215,
+        "name": "Akka",
+        "nameAr": "\u0623\u0642\u0627"
+    },
+    {
+        "id": 216,
+        "name": "Foum Zguid",
+        "nameAr": "\u0641\u0645 \u0632\u0643\u064a\u062f"
+    },
+    {
+        "id": 217,
+        "name": "Foum EL Hassane",
+        "nameAr": "\u0641\u0645 \u0627\u0644\u062d\u0635\u0646"
+    },
+    {
+        "id": 218,
+        "name": "Igherm",
+        "nameAr": "\u0625\u063a\u064a\u0631\u0645"
+    },
+    {
+        "id": 219,
+        "name": "Isafen",
+        "nameAr": "\u0633\u0641\u0631\u0648"
+    },
+    {
+        "id": 220,
+        "name": "S\u00e9frou",
+        "nameAr": "\u0628\u0647\u0627\u0644\u064a\u0644"
+    },
+    {
+        "id": 221,
+        "name": "Bhalil",
+        "nameAr": "\u0628\u0647\u0644\u064a\u0644"
+    },
+    {
+        "id": 222,
+        "name": "Chichaoua",
+        "nameAr": "\u0634\u064a\u0634\u0627\u0648\u0629"
+    },
+    {
+        "id": 223,
+        "name": "Imouzzer Kandar",
+        "nameAr": "\u0625\u064a\u0645\u0648\u0632\u0627\u0631 \u0643\u0646\u062f\u0631"
+    },
+    {
+        "id": 224,
+        "name": "A\u00efn Cheggag",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u0634\u0643\u0627\u0643"
+    },
+    {
+        "id": 225,
+        "name": "El Menzel",
+        "nameAr": "\u0627\u0644\u0645\u0646\u0632\u0644"
+    },
+    {
+        "id": 226,
+        "name": "Ain Beda",
+        "nameAr": "\u0639\u064a\u0646 \u0628\u064a\u062f\u0629"
+    },
+    {
+        "id": 227,
+        "name": "Sidi Khiar Kandar",
+        "nameAr": "\u0633\u064a\u062f\u064a \u062e\u064a\u0627\u0631 \u0643\u0646\u062f\u0631"
+    },
+    {
+        "id": 228,
+        "name": "Bab Berred",
+        "nameAr": "\u0628\u0627\u0628 \u0628\u0631\u062f"
+    },
+    {
+        "id": 229,
+        "name": "Ouled Tayeb",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0627\u0644\u0637\u064a\u0628"
+    },
+    {
+        "id": 230,
+        "name": "Madagh",
+        "nameAr": "\u0645\u062f\u0627\u063a"
+    },
+    {
+        "id": 231,
+        "name": "Massa",
+        "nameAr": "\u0645\u0627\u0633\u0629"
+    },
+    {
+        "id": 232,
+        "name": "Taourirt",
+        "nameAr": "\u062a\u0627\u0648\u0631\u064a\u0631\u062a"
+    },
+    {
+        "id": 233,
+        "name": "Souk El Arbaa",
+        "nameAr": "\u0633\u0648\u0642 \u0627\u0644\u0623\u0631\u0628\u0639\u0627\u0621"
+    },
+    {
+        "id": 234,
+        "name": "Bel Ksiri",
+        "nameAr": "\u0628\u0644\u0642\u0635\u064a\u0631\u064a"
+    },
+    {
+        "id": 235,
+        "name": "Moulay Bousselham",
+        "nameAr": "\u0645\u0648\u0644\u0627\u064a \u0628\u0648\u0633\u0644\u0647\u0627\u0645"
+    },
+    {
+        "id": 236,
+        "name": "Mechra Bel Ksiri",
+        "nameAr": "\u0645\u0634\u0631\u0639 \u0628\u0644\u0642\u0635\u064a\u0631\u064a"
+    },
+    {
+        "id": 237,
+        "name": "El A\u00efoun Sidi Mellouk",
+        "nameAr": "\u0627\u0644\u0639\u064a\u0646 \u0633\u064a\u062f\u064a \u0645\u0644\u0648\u0643"
+    },
+    {
+        "id": 238,
+        "name": "El Aioun Oriental",
+        "nameAr": "\u0627\u0644\u0639\u064a\u0648\u0646 \u0627\u0644\u0634\u0631\u0642\u064a\u0629"
+    },
+    {
+        "id": 239,
+        "name": "Boujniba",
+        "nameAr": "\u0628\u0648\u062c\u0646\u064a\u0628\u0629"
+    },
+    {
+        "id": 240,
+        "name": "Ja\u00e2dar",
+        "nameAr": "\u062c\u0639\u062f\u0627\u0631"
+    },
+    {
+        "id": 241,
+        "name": "Driouch",
+        "nameAr": "\u0627\u0644\u062f\u0631\u064a\u0648\u0634"
+    },
+    {
+        "id": 242,
+        "name": "Tiztoutine",
+        "nameAr": "\u062a\u0632\u0637\u0648\u0637\u064a\u0646"
+    },
+    {
+        "id": 243,
+        "name": "Ben Guerir",
+        "nameAr": "\u0628\u0646 \u062c\u0631\u064a\u0631"
+    },
+    {
+        "id": 244,
+        "name": "Moulay Ya\u00e2coub",
+        "nameAr": "\u0645\u0648\u0644\u0627\u064a \u064a\u0639\u0642\u0648\u0628"
+    },
+    {
+        "id": 245,
+        "name": "Imintanoute",
+        "nameAr": "\u0625\u0645\u0646\u062a\u0627\u0646\u0648\u062a"
+    },
+    {
+        "id": 246,
+        "name": "Sid L\u0027Mokhtar",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0627\u0644\u0645\u062e\u062a\u0627\u0631"
+    },
+    {
+        "id": 249,
+        "name": "Tafoughalt",
+        "nameAr": "\u062a\u0627\u0641\u0648\u063a\u0627\u0644\u062a"
+    },
+    {
+        "id": 250,
+        "name": "Jerada",
+        "nameAr": "\u062c\u0631\u0627\u062f\u0629"
+    },
+    {
+        "id": 251,
+        "name": "Ain Chqef",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u0634\u0642\u0641"
+    },
+    {
+        "id": 252,
+        "name": "Ghazoua",
+        "nameAr": "\u063a\u0632\u0648\u0629"
+    },
+    {
+        "id": 253,
+        "name": "Oualidia",
+        "nameAr": "\u0627\u0644\u0648\u0644\u064a\u062f\u064a\u0629"
+    },
+    {
+        "id": 254,
+        "name": "Tnine Chtouka - El jadida",
+        "nameAr": "\u062a\u0632\u0646\u064a\u062a"
+    },
+    {
+        "id": 255,
+        "name": "Sidi Abed - El jadida",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0627\u0628\u062f"
+    },
+    {
+        "id": 256,
+        "name": "Sidi Jaber",
+        "nameAr": "\u0633\u064a\u062f\u064a \u062c\u0627\u0628\u0631"
+    },
+    {
+        "id": 257,
+        "name": "Bradia",
+        "nameAr": "\u0628\u0631\u0627\u062f\u064a\u0629"
+    },
+    {
+        "id": 258,
+        "name": "Taghzirt",
+        "nameAr": "\u062a\u0627\u063a\u0632\u064a\u0631\u062a"
+    },
+    {
+        "id": 259,
+        "name": "Oulad Frej",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0641\u0631\u062c"
+    },
+    {
+        "id": 260,
+        "name": "Midar",
+        "nameAr": "\u0645\u064a\u062f\u0627\u0631"
+    },
+    {
+        "id": 261,
+        "name": "Ben Ta\u00efeb",
+        "nameAr": "\u0628\u0646 \u0627\u0644\u0637\u064a\u0628"
+    },
+    {
+        "id": 302,
+        "name": "Kariat Arekmane",
+        "nameAr": "\u0642\u0631\u064a\u0629 \u0623\u0631\u0643\u0645\u0627\u0646"
+    },
+    {
+        "id": 303,
+        "name": "Bouarg",
+        "nameAr": "\u0628\u0648\u0639\u0631\u0643"
+    },
+    {
+        "id": 304,
+        "name": "A\u00efn Dorij",
+        "nameAr": "\u0639\u064a\u0646 \u062f\u0648\u0631\u064a\u0640\u062c"
+    },
+    {
+        "id": 305,
+        "name": "Zoumi",
+        "nameAr": "\u0632\u0648\u0648\u0645\u064a"
+    },
+    {
+        "id": 306,
+        "name": "Sidi Redouane",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0631\u0636\u0648\u0627\u0646"
+    },
+    {
+        "id": 307,
+        "name": "Ait Aissa oubrahim",
+        "nameAr": "\u0622\u064a\u062a \u0639\u064a\u0633\u0649 \u0623\u0648\u0628\u0631\u0627\u0647\u064a\u0645"
+    },
+    {
+        "id": 309,
+        "name": "Timatraouine",
+        "nameAr": "\u062a\u064a\u0645\u0627\u062a\u0631\u0627\u0648\u064a\u0646"
+    },
+    {
+        "id": 310,
+        "name": "Imider",
+        "nameAr": "\u0625\u0645\u064a\u0636\u0631"
+    },
+    {
+        "id": 312,
+        "name": "Taounate",
+        "nameAr": "\u062a\u0627\u0648\u0646\u0627\u062a"
+    },
+    {
+        "id": 313,
+        "name": "Tissa",
+        "nameAr": "\u062a\u064a\u0633\u0629"
+    },
+    {
+        "id": 314,
+        "name": "ain aicha",
+        "nameAr": "\u0639\u064a\u0646 \u0639\u0627\u0626\u0634\u0629"
+    },
+    {
+        "id": 315,
+        "name": "Missour",
+        "nameAr": "\u0645\u064a\u0633\u0648\u0631"
+    },
+    {
+        "id": 316,
+        "name": "Boulemane",
+        "nameAr": "\u0628\u0648\u0644\u0645\u0627\u0646"
+    },
+    {
+        "id": 317,
+        "name": "Merzouga",
+        "nameAr": "\u0645\u0631\u0632\u0648\u0643\u0629"
+    },
+    {
+        "id": 322,
+        "name": "Zagora",
+        "nameAr": "\u0632\u0627\u0643\u0648\u0631\u0629"
+    },
+    {
+        "id": 323,
+        "name": "Aguim",
+        "nameAr": "\u0623\u0643\u0644\u0645\u064a\u0645"
+    },
+    {
+        "id": 324,
+        "name": "Figuig",
+        "nameAr": "\u0641\u062c\u064a\u062c"
+    },
+    {
+        "id": 325,
+        "name": "Bouarfa",
+        "nameAr": "\u0628\u0648\u0639\u0631\u0641\u0629"
+    },
+    {
+        "id": 326,
+        "name": "Tendrara",
+        "nameAr": "\u062a\u064a\u0646\u062f\u0631\u0627\u0631\u0629"
+    },
+    {
+        "id": 328,
+        "name": "Tafersit",
+        "nameAr": "\u062a\u0627\u0641\u0631\u0633\u064a\u062a"
+    },
+    {
+        "id": 329,
+        "name": "Kassita",
+        "nameAr": "\u0642\u0627\u0633\u064a\u0637\u0629"
+    },
+    {
+        "id": 330,
+        "name": "Dar El Kebdani",
+        "nameAr": "\u062f\u0627\u0631 \u0627\u0644\u0643\u0628\u062f\u0627\u0646\u064a"
+    },
+    {
+        "id": 331,
+        "name": "Boudinar",
+        "nameAr": "\u0628\u0648\u062f\u064a\u0646\u0627\u0631"
+    },
+    {
+        "id": 332,
+        "name": "Krona",
+        "nameAr": "\u0643\u0631\u0648\u0646\u0629"
+    },
+    {
+        "id": 333,
+        "name": "Tamsamane",
+        "nameAr": "\u062a\u0627\u0645\u0633\u0645\u0627\u0646"
+    },
+    {
+        "id": 334,
+        "name": "Boujdour",
+        "nameAr": "\u0628\u0648\u062c\u0630\u0648\u0631"
+    },
+    {
+        "id": 335,
+        "name": "Es-Semara",
+        "nameAr": "\u0627\u0644\u0633\u0645\u0627\u0631\u0629"
+    },
+    {
+        "id": 336,
+        "name": "El Aouamra",
+        "nameAr": "\u0627\u0644\u0639\u0648\u0627\u0645\u0631\u0629"
+    },
+    {
+        "id": 337,
+        "name": "Kh\u00e9mis Sahel",
+        "nameAr": "\u062e\u0645\u064a\u0633 \u0627\u0644\u0633\u0627\u062d\u0644"
+    },
+    {
+        "id": 339,
+        "name": "Ouled Hammou",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u062d\u0645\u0648"
+    },
+    {
+        "id": 340,
+        "name": "Tighassaline",
+        "nameAr": "\u062a\u064a\u063a\u0633\u0627\u0644\u064a\u0646"
+    },
+    {
+        "id": 341,
+        "name": "A\u00eft Ishaq",
+        "nameAr": "\u0622\u064a\u062a \u0625\u0633\u062d\u0627\u0642"
+    },
+    {
+        "id": 342,
+        "name": "Haj Kaddour",
+        "nameAr": "\u0627\u0644\u062d\u0627\u062c \u0642\u062f\u0648\u0631"
+    },
+    {
+        "id": 344,
+        "name": "Bni Chiker",
+        "nameAr": "\u0628\u0646\u064a \u0634\u064a\u0643\u0631"
+    },
+    {
+        "id": 345,
+        "name": "Issaguen",
+        "nameAr": "\u0625\u0633\u0627\u0643\u0646"
+    },
+    {
+        "id": 346,
+        "name": "Boukidan",
+        "nameAr": "\u0628\u0648\u0643\u064a\u062f\u0627\u0646"
+    },
+    {
+        "id": 347,
+        "name": "El Hanchane",
+        "nameAr": "\u0627\u0644\u062d\u0646\u0634\u0627\u0646"
+    },
+    {
+        "id": 348,
+        "name": "El Ouatia (Tan-Tan)",
+        "nameAr": "\u0627\u0644\u0648\u0637\u064a\u0629 (\u0637\u0627\u0646\u0637\u0627\u0646)"
+    },
+    {
+        "id": 349,
+        "name": "Boudnib",
+        "nameAr": "\u0628\u0648\u062f\u0646\u064a\u0628"
+    },
+    {
+        "id": 350,
+        "name": "Outat El Haj",
+        "nameAr": "\u0623\u0648\u0637\u0627\u0637 \u0627\u0644\u062d\u0627\u062c"
+    },
+    {
+        "id": 351,
+        "name": "AGHBALOU N\u0027CERDAN",
+        "nameAr": "\u0623\u063a\u0628\u0627\u0644\u0648 \u0646\u0643\u0631\u062f\u0627\u0646"
+    },
+    {
+        "id": 352,
+        "name": "Itzer",
+        "nameAr": "\u0625\u064a\u062a\u0632\u0631"
+    },
+    {
+        "id": 353,
+        "name": "Sidi Ifni",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0625\u0641\u0646\u064a"
+    },
+    {
+        "id": 354,
+        "name": "Tafraout",
+        "nameAr": "\u062a\u0627\u0641\u0631\u0627\u0648\u062a"
+    },
+    {
+        "id": 355,
+        "name": "Oulad Berhil",
+        "nameAr": "\u0627\u0648\u0644\u0627\u062f \u0628\u0631\u062d\u064a\u0644"
+    },
+    {
+        "id": 356,
+        "name": "Aoulouz",
+        "nameAr": "\u0623\u0648\u0644\u0648\u0632"
+    },
+    {
+        "id": 358,
+        "name": "Ouled Ghanem",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u063a\u0627\u0646\u0645"
+    },
+    {
+        "id": 359,
+        "name": "Msawar Rasso",
+        "nameAr": "\u0645\u0633\u0648\u0627\u0631 \u0631\u0627\u0633\u0648"
+    },
+    {
+        "id": 360,
+        "name": "Tamallalt",
+        "nameAr": "\u062a\u0627\u0645\u0644\u0627\u0644\u062a"
+    },
+    {
+        "id": 361,
+        "name": "Assahrij",
+        "nameAr": "\u0627\u0644\u0635\u0647\u0631\u064a\u062c"
+    },
+    {
+        "id": 362,
+        "name": "Sidi Allal Tazi",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0644\u0627\u0644 \u0627\u0644\u062a\u0627\u0632\u064a"
+    },
+    {
+        "id": 363,
+        "name": "Bouyafar",
+        "nameAr": "\u0628\u0648\u064a\u0627\u0641\u0631"
+    },
+    {
+        "id": 364,
+        "name": "Assa",
+        "nameAr": "\u0622\u0633\u0627"
+    },
+    {
+        "id": 365,
+        "name": "Zag",
+        "nameAr": "\u0627\u0644\u0632\u0627\u0643"
+    },
+    {
+        "id": 366,
+        "name": "Skhour Rehamna",
+        "nameAr": "\u0635\u062e\u0648\u0631 \u0627\u0644\u0631\u062d\u0627\u0645\u0646\u0629"
+    },
+    {
+        "id": 367,
+        "name": "A\u00efn Bni Mathar",
+        "nameAr": "\u0639\u064a\u0646 \u0628\u0646\u064a \u0645\u0637\u0647\u0631"
+    },
+    {
+        "id": 368,
+        "name": "Mariouari",
+        "nameAr": "\u0645\u0627\u0631\u064a\u0648\u0627\u0631\u064a"
+    },
+    {
+        "id": 369,
+        "name": "Ouled Settout",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0633\u062a\u0648\u062a"
+    },
+    {
+        "id": 370,
+        "name": "Mzoudia",
+        "nameAr": "\u0645\u0632\u0648\u0636\u064a\u0629"
+    },
+    {
+        "id": 371,
+        "name": "Mejjat",
+        "nameAr": "\u0645\u062c\u0627\u0637"
+    },
+    {
+        "id": 372,
+        "name": "Aguelmous ( khenifra )",
+        "nameAr": "\u0623\u0643\u0644\u0645\u0648\u0633 (\u062e\u0646\u064a\u0641\u0631\u0629)"
+    },
+    {
+        "id": 373,
+        "name": "Elbarj ( Khenifra )",
+        "nameAr": "\u0627\u0644\u0628\u0631\u0627\u062c (\u062e\u0646\u064a\u0641\u0631\u0629)"
+    },
+    {
+        "id": 374,
+        "name": "Lahri",
+        "nameAr": "\u0644\u0647\u0631\u064a"
+    },
+    {
+        "id": 375,
+        "name": "Bni Hadifa",
+        "nameAr": "\u0628\u0646\u064a \u062d\u0630\u064a\u0641\u0629"
+    },
+    {
+        "id": 376,
+        "name": "Bouanane",
+        "nameAr": "\u0628\u0648\u0639\u0646\u0627\u0646"
+    },
+    {
+        "id": 377,
+        "name": "A\u00efn Karma",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u0643\u0631\u0645\u0629"
+    },
+    {
+        "id": 378,
+        "name": "Sidi sliman Mol kifan",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0633\u0644\u064a\u0645\u0627\u0646 \u0645\u0648\u0644 \u0627\u0644\u0643\u064a\u0641\u0627\u0646"
+    },
+    {
+        "id": 379,
+        "name": "Boderbala",
+        "nameAr": "\u0628\u0648\u062f\u0631\u0628\u0627\u0644\u0629"
+    },
+    {
+        "id": 380,
+        "name": "Ain Arma",
+        "nameAr": "\u0639\u064a\u0646 \u0639\u0631\u0645\u0629"
+    },
+    {
+        "id": 382,
+        "name": "Dar Oum Sultan",
+        "nameAr": "\u062f\u0627\u0631 \u0623\u0645 \u0627\u0644\u0633\u0644\u0637\u0627\u0646"
+    },
+    {
+        "id": 383,
+        "name": "Tlat Loulad",
+        "nameAr": "\u062b\u0644\u0627\u062b \u0623\u0648\u0644\u0627\u062f"
+    },
+    {
+        "id": 384,
+        "name": "Ait Qamra",
+        "nameAr": "\u0622\u064a\u062a \u0642\u0645\u0631\u0629"
+    },
+    {
+        "id": 385,
+        "name": "Ajdir Igzennayen",
+        "nameAr": "\u0623\u062c\u062f\u064a\u0631 \u0625\u063a\u0632\u0646\u0627\u064a\u0646"
+    },
+    {
+        "id": 386,
+        "name": "Oulad Ghadbane",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u063a\u0636\u0628\u0627\u0646"
+    },
+    {
+        "id": 387,
+        "name": "Ouaoumana",
+        "nameAr": "\u0648\u0627\u0648\u0645\u0627\u0646\u0629"
+    },
+    {
+        "id": 388,
+        "name": "El kebab",
+        "nameAr": "\u0627\u0644\u0643\u0628\u0627\u0628"
+    },
+    {
+        "id": 389,
+        "name": "Had Bouhssoussen",
+        "nameAr": "\u062d\u062f \u0628\u0648\u062d\u0633\u0648\u0633\u0646"
+    },
+    {
+        "id": 390,
+        "name": "Tighza",
+        "nameAr": "\u062a\u064a\u063a\u0632\u0629"
+    },
+    {
+        "id": 391,
+        "name": "Moulay Bouazza",
+        "nameAr": "\u0645\u0648\u0644\u0627\u064a \u0628\u0648\u0639\u0632\u0629"
+    },
+    {
+        "id": 392,
+        "name": "Kef en Nsour",
+        "nameAr": "\u0643\u0627\u0641 \u0627\u0644\u0646\u0633\u0648\u0631"
+    },
+    {
+        "id": 393,
+        "name": "Sebt Ait Rahhou",
+        "nameAr": "\u0633\u0628\u062a \u0622\u064a\u062a \u0631\u062d\u0648"
+    },
+    {
+        "id": 394,
+        "name": "Oued Laabid",
+        "nameAr": "\u0648\u0627\u062f\u064a \u0627\u0644\u0639\u0628\u064a\u062f"
+    },
+    {
+        "id": 395,
+        "name": "Bzou",
+        "nameAr": "\u0628\u0632\u0648"
+    },
+    {
+        "id": 396,
+        "name": "El Borouj",
+        "nameAr": "\u0627\u0644\u0628\u0631\u0648\u062c"
+    },
+    {
+        "id": 397,
+        "name": "El Menzeh",
+        "nameAr": "\u0627\u0644\u0645\u0646\u0632\u0647"
+    },
+    {
+        "id": 398,
+        "name": "Sidi Yahya Za\u00ebr",
+        "nameAr": "\u0633\u064a\u062f\u064a \u064a\u062d\u064a\u0649 \u0632\u0639\u064a\u0631"
+    },
+    {
+        "id": 400,
+        "name": "Tazarine",
+        "nameAr": "\u062a\u0627\u0632\u0627\u0631\u064a\u0646"
+    },
+    {
+        "id": 402,
+        "name": "Nkob",
+        "nameAr": "\u0646\u0643\u0648\u0628"
+    },
+    {
+        "id": 403,
+        "name": "Tamezmoute",
+        "nameAr": "\u062a\u0627\u0645\u0632\u0645\u0648\u062a"
+    },
+    {
+        "id": 404,
+        "name": "Tinzouline",
+        "nameAr": "\u062a\u0646\u0632\u0648\u0644\u064a\u0646"
+    },
+    {
+        "id": 405,
+        "name": "Tamegroute",
+        "nameAr": "\u062a\u0627\u0645\u0643\u0631\u0648\u062a"
+    },
+    {
+        "id": 406,
+        "name": "Tagounite",
+        "nameAr": "\u062a\u0627\u063a\u0648\u0646\u064a\u062a"
+    },
+    {
+        "id": 407,
+        "name": "M\u0027Hamid El Ghizlane",
+        "nameAr": "\u0645\u062d\u0627\u0645\u064a\u062f \u0627\u0644\u063a\u0632\u0644\u0627\u0646"
+    },
+    {
+        "id": 408,
+        "name": "Bni Zoli",
+        "nameAr": "\u0628\u0646\u064a \u0632\u0648\u0644\u064a"
+    },
+    {
+        "id": 410,
+        "name": "Dcheira El Jihadia",
+        "nameAr": "\u0627\u0644\u062f\u0634\u064a\u0631\u0629 \u0627\u0644\u062c\u0647\u0627\u062f\u064a\u0629"
+    },
+    {
+        "id": 411,
+        "name": "Drargua",
+        "nameAr": "\u0627\u0644\u062f\u0631\u0627\u0631\u0643\u0629"
+    },
+    {
+        "id": 412,
+        "name": "Jorf El Melha",
+        "nameAr": "\u062c\u0631\u0641 \u0627\u0644\u0645\u0644\u062d\u0629"
+    },
+    {
+        "id": 413,
+        "name": "Sidi Allal El Bahraoui",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0644\u0627\u0644 \u0627\u0644\u0628\u062d\u0631\u0627\u0648\u064a"
+    },
+    {
+        "id": 415,
+        "name": "Lalla Mimouna",
+        "nameAr": "\u0644\u0627\u0644\u0629 \u0645\u064a\u0645\u0648\u0646\u0629"
+    },
+    {
+        "id": 416,
+        "name": "Dlalha",
+        "nameAr": "\u062f\u0644\u0627\u0644\u0629"
+    },
+    {
+        "id": 417,
+        "name": "Sebt Jahjouh",
+        "nameAr": "\u0633\u0628\u062a \u062c\u062d\u062c\u0648\u062d"
+    },
+    {
+        "id": 418,
+        "name": "Sidi Ali Ban Hamdouche ( Meknes )",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0644\u064a \u0628\u0646 \u062d\u0645\u062f\u0648\u0634 (\u0645\u0643\u0646\u0627\u0633)"
+    },
+    {
+        "id": 419,
+        "name": "Dkhissa",
+        "nameAr": "\u062f\u062e\u064a\u0633\u0629"
+    },
+    {
+        "id": 420,
+        "name": "Sidi Hajjaj (tit mellil - Casa)",
+        "nameAr": "\u0633\u064a\u062f\u064a \u062d\u062c\u0627\u062c (\u062a\u064a\u0637 \u0645\u0644\u064a\u0644 \u2013 \u0627\u0644\u062f\u0627\u0631 \u0627\u0644\u0628\u064a\u0636\u0627\u0621)"
+    },
+    {
+        "id": 421,
+        "name": "Kantina",
+        "nameAr": "\u0627\u0644\u0642\u0646\u0637\u064a\u0646\u0629"
+    },
+    {
+        "id": 422,
+        "name": "Ait Yaazem",
+        "nameAr": "\u0622\u064a\u062a \u064a\u0639\u0632\u0645"
+    },
+    {
+        "id": 423,
+        "name": "Sidi Moussa El Mejdoub",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 \u0627\u0644\u0645\u062c\u062f\u0648\u0628"
+    },
+    {
+        "id": 424,
+        "name": "Chellalate",
+        "nameAr": "\u0627\u0644\u0634\u0644\u0627\u0644\u0627\u062a"
+    },
+    {
+        "id": 425,
+        "name": "Mirleft",
+        "nameAr": "\u0645\u064a\u0631\u0644\u0641\u062a"
+    },
+    {
+        "id": 426,
+        "name": "Tamaris",
+        "nameAr": "\u062a\u0645\u0627\u0631\u064a\u0633"
+    },
+    {
+        "id": 427,
+        "name": "Hrara",
+        "nameAr": "\u062d\u0631\u0627\u0631\u0629"
+    },
+    {
+        "id": 428,
+        "name": "Bouguedra",
+        "nameAr": "\u0628\u0648\u0643\u062f\u0631\u0629"
+    },
+    {
+        "id": 429,
+        "name": "Moulay Brahim",
+        "nameAr": "\u0645\u0648\u0644\u0627\u064a \u0625\u0628\u0631\u0627\u0647\u064a\u0645"
+    },
+    {
+        "id": 430,
+        "name": "Asni",
+        "nameAr": "\u0623\u0633\u0646\u064a"
+    },
+    {
+        "id": 431,
+        "name": "Chwiter",
+        "nameAr": "\u0634\u0648\u064a\u062a\u0640\u0631"
+    },
+    {
+        "id": 433,
+        "name": "Ait Baha",
+        "nameAr": "\u0622\u064a\u062a \u0628\u0627\u0647\u0627"
+    },
+    {
+        "id": 434,
+        "name": "Ait Aiaaza",
+        "nameAr": "\u0622\u064a\u062a \u0625\u0639\u064a\u0627\u0632\u0629"
+    },
+    {
+        "id": 435,
+        "name": "Tamait Izder",
+        "nameAr": "\u062a\u0645\u0627\u064a\u062a \u0625\u0632\u062f\u0631"
+    },
+    {
+        "id": 436,
+        "name": "Tagadirt",
+        "nameAr": "\u062a\u063a\u0627\u062f\u064a\u0631\u062a"
+    },
+    {
+        "id": 437,
+        "name": "Tigmi N Bobker",
+        "nameAr": "\u062a\u064a\u063a\u0645\u064a \u0646 \u0628\u0648\u0628\u0643\u0631"
+    },
+    {
+        "id": 438,
+        "name": "Issen",
+        "nameAr": "\u0625\u064a\u0633\u0646"
+    },
+    {
+        "id": 439,
+        "name": "Aglou",
+        "nameAr": "\u0623\u0643\u0644\u0648"
+    },
+    {
+        "id": 440,
+        "name": "El Boura",
+        "nameAr": "\u0627\u0644\u0628\u0648\u0631\u0629"
+    },
+    {
+        "id": 441,
+        "name": "El Houmer",
+        "nameAr": "\u0627\u0644\u062d\u0648\u0645\u0631"
+    },
+    {
+        "id": 442,
+        "name": "Oulad Yaich",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u064a\u0639\u064a\u0634"
+    },
+    {
+        "id": 443,
+        "name": "Tikiouine",
+        "nameAr": "\u062a\u064a\u0643\u064a\u0648\u064a\u0646"
+    },
+    {
+        "id": 444,
+        "name": "Bensergao",
+        "nameAr": "\u0628\u0646\u0633\u0631\u0643\u0627\u0648"
+    },
+    {
+        "id": 445,
+        "name": "Azrarag",
+        "nameAr": "\u0623\u0632\u0631\u0627\u0631\u0627\u0643"
+    },
+    {
+        "id": 446,
+        "name": "El Gara",
+        "nameAr": "\u0627\u0644\u0763\u0627\u0631\u0629"
+    },
+    {
+        "id": 447,
+        "name": "Nouayl",
+        "nameAr": "\u0646\u0648\u0627\u064a\u0644"
+    },
+    {
+        "id": 448,
+        "name": "Ouled Aissa taroudant",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0639\u064a\u0633\u0649 (\u062a\u0627\u0631\u0648\u062f\u0627\u0646\u062a)"
+    },
+    {
+        "id": 449,
+        "name": "Sidi Abdallah Ghiat",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0628\u062f \u0627\u0644\u0644\u0647 \u063a\u064a\u0627\u062b"
+    },
+    {
+        "id": 451,
+        "name": "Imi Imqqurn",
+        "nameAr": "\u0625\u0645\u064a \u0625\u0645\u0642\u0648\u0631\u0646"
+    },
+    {
+        "id": 452,
+        "name": "Boulanouare",
+        "nameAr": "\u0628\u0648\u0644\u0646\u0648\u0627\u0631"
+    },
+    {
+        "id": 453,
+        "name": "Hattane",
+        "nameAr": "\u062d\u062a\u0627\u0646"
+    },
+    {
+        "id": 454,
+        "name": "Anza",
+        "nameAr": "\u0623\u0646\u0632\u0627"
+    },
+    {
+        "id": 455,
+        "name": "Cabo Negro",
+        "nameAr": "\u0643\u0627\u0628\u0648 \u0646\u064a\u0643\u0631\u0648"
+    },
+    {
+        "id": 456,
+        "name": "Marina Smir",
+        "nameAr": "\u0645\u0627\u0631\u064a\u0646\u0627 \u0633\u0645\u064a\u0631"
+    },
+    {
+        "id": 457,
+        "name": "Bab Taliouane - T\u00e9touan",
+        "nameAr": "\u0628\u0627\u0628 \u062a\u0644\u064a\u0648\u0627\u0646 (\u062a\u0637\u0648\u0627\u0646)"
+    },
+    {
+        "id": 458,
+        "name": "Dardara",
+        "nameAr": "\u062f\u0631\u062f\u0627\u0631\u0629"
+    },
+    {
+        "id": 459,
+        "name": "chrafate chefchaouen",
+        "nameAr": "\u0627\u0644\u0634\u0631\u0627\u0641\u0627\u062a (\u0634\u0641\u0634\u0627\u0648\u0646)"
+    },
+    {
+        "id": 460,
+        "name": "Tamernout",
+        "nameAr": "\u062a\u0627\u0645\u0631\u0646\u0648\u062a"
+    },
+    {
+        "id": 461,
+        "name": "Aouchtame",
+        "nameAr": "\u0623\u0648\u0634\u062a\u0627\u0645"
+    },
+    {
+        "id": 462,
+        "name": "Tamrabet",
+        "nameAr": "\u062a\u0627\u0645\u0631\u0628\u062a"
+    },
+    {
+        "id": 463,
+        "name": "Anounfeg",
+        "nameAr": "\u0623\u0646\u0648\u0646\u0641\u0643"
+    },
+    {
+        "id": 464,
+        "name": "Azla",
+        "nameAr": "\u0623\u0632\u0644\u0627"
+    },
+    {
+        "id": 465,
+        "name": "Amsa",
+        "nameAr": "\u0623\u0645\u0633\u0627"
+    },
+    {
+        "id": 466,
+        "name": "Ribate El Kheir",
+        "nameAr": "\u0631\u0628\u0627\u0637 \u0627\u0644\u062e\u064a\u0631"
+    },
+    {
+        "id": 467,
+        "name": "Ain Allah",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u0644\u0647"
+    },
+    {
+        "id": 468,
+        "name": "Ain Seddaq",
+        "nameAr": "\u0639\u064a\u0646 \u0633\u062f\u0627\u0643"
+    },
+    {
+        "id": 469,
+        "name": "Ain Tekki",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u062a\u0643\u064a"
+    },
+    {
+        "id": 470,
+        "name": "Majjate meknes",
+        "nameAr": "\u0645\u062c\u0627\u0637 (\u0645\u0643\u0646\u0627\u0633)"
+    },
+    {
+        "id": 471,
+        "name": "Bir Tam Tam",
+        "nameAr": "\u0628\u064a\u0631 \u062a\u0645 \u062a\u0645"
+    },
+    {
+        "id": 472,
+        "name": "Ouled Mbarek",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0645\u0628\u0627\u0631\u0643"
+    },
+    {
+        "id": 473,
+        "name": "ras el ma ifrane",
+        "nameAr": "\u0631\u0623\u0633 \u0627\u0644\u0645\u0627\u0621 (\u0625\u0641\u0631\u0627\u0646)"
+    },
+    {
+        "id": 474,
+        "name": "Ouled Aarfa traoudant",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0639\u0631\u0641\u0629 (\u062a\u0627\u0631\u0648\u062f\u0627\u0646\u062a)"
+    },
+    {
+        "id": 475,
+        "name": "Boured",
+        "nameAr": "\u0628\u0648\u0631\u064a\u062f"
+    },
+    {
+        "id": 476,
+        "name": "Tizi Ouasli",
+        "nameAr": "\u062a\u064a\u0632\u064a \u0648\u0633\u0644\u064a"
+    },
+    {
+        "id": 477,
+        "name": "Aknoul",
+        "nameAr": "\u0623\u0643\u0646\u0648\u0644"
+    },
+    {
+        "id": 478,
+        "name": "La\u00e2tamna",
+        "nameAr": "\u0644\u0639\u0637\u0627\u0645\u0646\u0629"
+    },
+    {
+        "id": 479,
+        "name": "Fezouane",
+        "nameAr": "\u0641\u0632\u0648\u0627\u0646"
+    },
+    {
+        "id": 480,
+        "name": "Lamriss",
+        "nameAr": "\u0644\u0645\u0631\u064a\u0633"
+    },
+    {
+        "id": 481,
+        "name": "Sidi Moussa Lhamri",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 \u0627\u0644\u062d\u0645\u0631\u064a"
+    },
+    {
+        "id": 482,
+        "name": "Azrou ait melloul",
+        "nameAr": "\u0623\u0632\u0631\u0648 (\u0622\u064a\u062a \u0645\u0644\u0648\u0644)"
+    },
+    {
+        "id": 483,
+        "name": "Tarrast",
+        "nameAr": "\u062a\u0627\u0631\u0627\u0633\u062a"
+    },
+    {
+        "id": 484,
+        "name": "Ikhourbane",
+        "nameAr": "\u0625\u062e\u0648\u0631\u0628\u0627\u0646"
+    },
+    {
+        "id": 485,
+        "name": "Ras El Ma Fes",
+        "nameAr": "\u0631\u0623\u0633 \u0627\u0644\u0645\u0627\u0621 (\u0641\u0627\u0633)"
+    },
+    {
+        "id": 486,
+        "name": "Lalla Takerkoust",
+        "nameAr": "\u0644\u0627\u0644\u0629 \u062a\u0643\u0631\u0643\u0648\u0633\u062a"
+    },
+    {
+        "id": 487,
+        "name": "TIGENZIWINE",
+        "nameAr": "\u062a\u064a\u06ad\u0646\u0632\u064a\u0648\u064a\u0646"
+    },
+    {
+        "id": 488,
+        "name": "Igoudar",
+        "nameAr": "\u0625\u06ad\u0648\u062f\u0627\u0631"
+    },
+    {
+        "id": 489,
+        "name": "Lmrah",
+        "nameAr": "\u0627\u0644\u0645\u0631\u0627\u062d"
+    },
+    {
+        "id": 490,
+        "name": "Ben Yakhlef",
+        "nameAr": "\u0628\u0646 \u064a\u062e\u0644\u0641"
+    },
+    {
+        "id": 491,
+        "name": "Sidi Harazem",
+        "nameAr": "\u0633\u064a\u062f\u064a \u062d\u0631\u0627\u0632\u0645"
+    },
+    {
+        "id": 492,
+        "name": "Amizmiz",
+        "nameAr": "\u0623\u0645\u0632\u0645\u064a\u0632"
+    },
+    {
+        "id": 493,
+        "name": "Ait ben hadou",
+        "nameAr": "\u0622\u064a\u062a \u0628\u0646 \u062d\u062f\u0648"
+    },
+    {
+        "id": 495,
+        "name": "khmis dades",
+        "nameAr": "\u062e\u0645\u064a\u0633 \u062f\u0627\u062f\u0633"
+    },
+    {
+        "id": 496,
+        "name": "laaroumiate",
+        "nameAr": "\u0627\u0644\u0639\u0631\u0648\u0645\u064a\u0627\u062a"
+    },
+    {
+        "id": 498,
+        "name": "idelsan",
+        "nameAr": "\u0625\u064a\u062f\u0644\u0633\u0627\u0646"
+    },
+    {
+        "id": 499,
+        "name": "Taghezout ouarzazate",
+        "nameAr": "\u062a\u063a\u0627\u0632\u0648\u062a (\u0648\u0631\u0632\u0627\u0632\u0627\u062a)"
+    },
+    {
+        "id": 500,
+        "name": "Sidi Bousberr",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0648\u0633\u0628\u0631"
+    },
+    {
+        "id": 501,
+        "name": "Teroual",
+        "nameAr": "\u062a\u0631\u0648\u0627\u0644"
+    },
+    {
+        "id": 502,
+        "name": "Ain defali",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u062f\u0641\u0627\u0644\u064a"
+    },
+    {
+        "id": 505,
+        "name": "Masmouda",
+        "nameAr": "\u0645\u0635\u0645\u0648\u062f\u0629"
+    },
+    {
+        "id": 506,
+        "name": "Asjen",
+        "nameAr": "\u0623\u0633\u062c\u0646"
+    },
+    {
+        "id": 507,
+        "name": "Beni quolla",
+        "nameAr": "\u0628\u0646\u064a \u0642\u0644\u0629"
+    },
+    {
+        "id": 508,
+        "name": "Oulad bourahema",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0628\u0648\u0631\u062d\u064a\u0645\u0629"
+    },
+    {
+        "id": 509,
+        "name": "Sidi Ayache",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u064a\u0627\u0634"
+    },
+    {
+        "id": 510,
+        "name": "N\u0027khakhsa",
+        "nameAr": "\u0646\u062e\u0627\u062e\u0633\u0629"
+    },
+    {
+        "id": 511,
+        "name": "Had oulad jelloul",
+        "nameAr": "\u062d\u062f \u0623\u0648\u0644\u0627\u062f \u062c\u0644\u0648\u0644"
+    },
+    {
+        "id": 512,
+        "name": "Souk tlet du gharb",
+        "nameAr": "\u0633\u0648\u0642 \u062b\u0644\u0627\u062b\u0627\u0621 \u0627\u0644\u063a\u0631\u0628"
+    },
+    {
+        "id": 514,
+        "name": "Ketama",
+        "nameAr": "\u0643\u062a\u0627\u0645\u0629"
+    },
+    {
+        "id": 515,
+        "name": "Bni Boufrah",
+        "nameAr": "\u0628\u0646\u064a \u0628\u0648\u0641\u0631\u0627\u062d"
+    },
+    {
+        "id": 516,
+        "name": "Sidi Bettache",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0637\u0627\u0634"
+    },
+    {
+        "id": 517,
+        "name": "Rommani",
+        "nameAr": "\u0627\u0644\u0631\u0645\u0627\u0646\u064a"
+    },
+    {
+        "id": 518,
+        "name": "Tala Youssef",
+        "nameAr": "\u062a\u0627\u0644\u0627 \u064a\u0648\u0633\u0641"
+    },
+    {
+        "id": 519,
+        "name": "Ait youssef ou ali",
+        "nameAr": "\u0622\u064a\u062a \u064a\u0648\u0633\u0641 \u0623\u0648\u0639\u0644\u064a"
+    },
+    {
+        "id": 520,
+        "name": "Souani",
+        "nameAr": "\u0627\u0644\u0633\u0648\u0627\u0646\u064a"
+    },
+    {
+        "id": 521,
+        "name": "Izemmouren",
+        "nameAr": "\u0625\u0632\u0645\u0648\u0631\u0646"
+    },
+    {
+        "id": 522,
+        "name": "Rouadi",
+        "nameAr": "\u0627\u0644\u0631\u0648\u0627\u0636\u064a"
+    },
+    {
+        "id": 523,
+        "name": "Karia ba mohamed",
+        "nameAr": "\u0642\u0631\u064a\u0629 \u0628\u0627 \u0645\u062d\u0645\u062f"
+    },
+    {
+        "id": 524,
+        "name": "Tamesna Meknes",
+        "nameAr": "\u062a\u0627\u0645\u0633\u0646\u0627 (\u0645\u0643\u0646\u0627\u0633)"
+    },
+    {
+        "id": 526,
+        "name": "Laakarta",
+        "nameAr": "\u0627\u0644\u0639\u0643\u0627\u0631\u062a\u0629"
+    },
+    {
+        "id": 528,
+        "name": "kasbat Ayir",
+        "nameAr": "\u0642\u0635\u0628\u0629 \u0622\u064a\u062a \u0639\u064a\u0631"
+    },
+    {
+        "id": 529,
+        "name": "heyout chair",
+        "nameAr": "\u0647\u064a\u0648\u062a \u0627\u0644\u0634\u0639\u064a\u0640\u0631"
+    },
+    {
+        "id": 530,
+        "name": "Ahiout El kohia",
+        "nameAr": "\u0623\u062d\u064a\u0648\u062a \u0627\u0644\u0643\u062d\u064a\u0644\u0629"
+    },
+    {
+        "id": 531,
+        "name": "El Menaadla El jadida",
+        "nameAr": "\u0627\u0644\u0645\u0639\u0627\u062f\u0644\u0629 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 532,
+        "name": "Laatamena el jadida",
+        "nameAr": "\u0644\u0639\u0637\u0627\u0645\u0646\u0629 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 533,
+        "name": "Douar wald El aisase",
+        "nameAr": "\u062f\u0648\u0627\u0631 \u0648\u0644\u062f \u0627\u0644\u0639\u064a\u0633\u0627\u0648\u064a"
+    },
+    {
+        "id": 534,
+        "name": "Lota",
+        "nameAr": "\u0644\u0648\u0637\u0629"
+    },
+    {
+        "id": 536,
+        "name": "El bouchtiaine",
+        "nameAr": "\u0627\u0644\u0628\u0648\u0634\u062a\u064a\u064a\u0646"
+    },
+    {
+        "id": 537,
+        "name": "Lkrouchiaine",
+        "nameAr": "\u0627\u0644\u0643\u0631\u0648\u0634\u064a\u064a\u0646"
+    },
+    {
+        "id": 538,
+        "name": "Dar 40",
+        "nameAr": "\u062f\u0627\u0631 40"
+    },
+    {
+        "id": 539,
+        "name": "Sad rouida",
+        "nameAr": "\u0633\u062f \u0631\u0648\u064a\u062f\u0629"
+    },
+    {
+        "id": 540,
+        "name": "Oulad Jerrar",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u062c\u0631\u0627\u0631"
+    },
+    {
+        "id": 541,
+        "name": "Tadouart tiznit",
+        "nameAr": "\u062a\u0627\u062f\u0648\u0631\u062a (\u062a\u0632\u0646\u064a\u062a)"
+    },
+    {
+        "id": 542,
+        "name": "Lakhssas",
+        "nameAr": "\u0644\u062e\u0635\u0627\u0635"
+    },
+    {
+        "id": 543,
+        "name": "Tafraout N\u0027Lakhsass",
+        "nameAr": "\u062a\u0627\u0641\u0631\u0627\u0648\u062a \u0646\u0644\u062e\u0635\u0627\u0635"
+    },
+    {
+        "id": 544,
+        "name": "Mirght",
+        "nameAr": "\u0645\u064a\u0631\u063a\u062a"
+    },
+    {
+        "id": 545,
+        "name": "El Aargoube",
+        "nameAr": "\u0627\u0644\u0639\u0631\u0642\u0648\u0628"
+    },
+    {
+        "id": 546,
+        "name": "Reggada ( agadir )",
+        "nameAr": "\u0627\u0644\u0631\u0643\u0627\u062f\u0629 (\u0623\u0643\u0627\u062f\u064a\u0631)"
+    },
+    {
+        "id": 547,
+        "name": "Agouray",
+        "nameAr": "\u0623\u0643\u0648\u0631\u0627\u0649"
+    },
+    {
+        "id": 548,
+        "name": "Taloust",
+        "nameAr": "\u062a\u0627\u0644\u0648\u0633\u062a"
+    },
+    {
+        "id": 549,
+        "name": "Laaouina",
+        "nameAr": "\u0627\u0644\u0639\u0648\u064a\u0646\u0629"
+    },
+    {
+        "id": 550,
+        "name": "Sidi ali borekba",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0644\u064a \u0628\u0648\u0631\u0643\u0628\u0629"
+    },
+    {
+        "id": 551,
+        "name": "Taddart guercif",
+        "nameAr": "\u062a\u0627\u062f\u0631\u062a (\u062c\u0631\u0633\u064a\u0641)"
+    },
+    {
+        "id": 552,
+        "name": "Msoun",
+        "nameAr": "\u0645\u0633\u0648\u0646"
+    },
+    {
+        "id": 553,
+        "name": "SAKA guercif",
+        "nameAr": "\u0633\u0627\u0643\u0627 (\u062c\u0631\u0633\u064a\u0641)"
+    },
+    {
+        "id": 554,
+        "name": "Bab Marzouka",
+        "nameAr": "\u0628\u0627\u0628 \u0645\u0631\u0632\u0648\u0642\u0629"
+    },
+    {
+        "id": 555,
+        "name": "had oulad zbayer",
+        "nameAr": "\u062d\u062f \u0623\u0648\u0644\u0627\u062f \u0632\u0628\u0627\u064a\u0631"
+    },
+    {
+        "id": 556,
+        "name": "Abaynou",
+        "nameAr": "\u0623\u0628\u0627\u064a\u0646\u0648"
+    },
+    {
+        "id": 557,
+        "name": "asrir",
+        "nameAr": "\u0623\u0633\u0631\u064a\u0631"
+    },
+    {
+        "id": 558,
+        "name": "tighmert",
+        "nameAr": "\u062a\u064a\u063a\u0645\u0631\u062a"
+    },
+    {
+        "id": 559,
+        "name": "ouaaroun",
+        "nameAr": "\u0648\u0639\u0631\u0648\u0646"
+    },
+    {
+        "id": 560,
+        "name": "laqsabi",
+        "nameAr": "\u0627\u0644\u0642\u0635\u0627\u0628\u064a"
+    },
+    {
+        "id": 561,
+        "name": "Daouar tikni",
+        "nameAr": "\u062f\u0648\u0627\u0631 \u062a\u064a\u0643\u0646\u064a"
+    },
+    {
+        "id": 562,
+        "name": "Daouar tajin",
+        "nameAr": "\u062f\u0648\u0627\u0631 \u062a\u0627\u062c\u064a\u0646"
+    },
+    {
+        "id": 563,
+        "name": "Tamawanza",
+        "nameAr": "\u062a\u0645\u0627\u0648\u0627\u0646\u0632\u0627"
+    },
+    {
+        "id": 564,
+        "name": "Taddart ANZA",
+        "nameAr": "\u062a\u0627\u062f\u0631\u062a (\u0623\u0646\u0632\u0627)"
+    },
+    {
+        "id": 565,
+        "name": "Aghzdisse",
+        "nameAr": "\u0623\u063a\u0632\u062f\u064a\u0633"
+    },
+    {
+        "id": 566,
+        "name": "Tiguert",
+        "nameAr": "\u062a\u064a\u06ad\u064a\u0631\u062a"
+    },
+    {
+        "id": 567,
+        "name": "Plage Aghroud",
+        "nameAr": "\u0634\u0627\u0637\u0626 \u0623\u063a\u0631\u0648\u0636"
+    },
+    {
+        "id": 568,
+        "name": "Port de p\u00eache Agadir",
+        "nameAr": "\u0645\u064a\u0646\u0627\u0621 \u0627\u0644\u0635\u064a\u062f \u0623\u0643\u0627\u062f\u064a\u0631"
+    },
+    {
+        "id": 569,
+        "name": "Tadouarte agadir",
+        "nameAr": "\u062a\u0627\u062f\u0648\u0631\u062a (\u0623\u0643\u0627\u062f\u064a\u0631)"
+    },
+    {
+        "id": 570,
+        "name": "A\u00e9roport international Agadir",
+        "nameAr": "\u0645\u0637\u0627\u0631 \u0623\u0643\u0627\u062f\u064a\u0631 \u0627\u0644\u0645\u0633\u064a\u0631\u0629 \u0627\u0644\u062f\u0648\u0644\u064a"
+    },
+    {
+        "id": 571,
+        "name": "Sidi Boumoussa",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0648\u0645\u0648\u0633\u0649"
+    },
+    {
+        "id": 572,
+        "name": "Lakhnafif",
+        "nameAr": "\u0644\u062e\u0646\u0627\u0641\u064a\u0641"
+    },
+    {
+        "id": 573,
+        "name": "Bouaassida",
+        "nameAr": "\u0628\u0648\u0639\u0633\u064a\u062f\u0629"
+    },
+    {
+        "id": 574,
+        "name": "Al Hadib",
+        "nameAr": "\u0627\u0644\u0647\u0636\u064a\u0628"
+    },
+    {
+        "id": 575,
+        "name": "Labaarir",
+        "nameAr": "\u0627\u0644\u0628\u0631\u0627\u0631\u064a\u0631"
+    },
+    {
+        "id": 576,
+        "name": "Baakila",
+        "nameAr": "\u0628\u0639\u0642\u064a\u0644\u0629"
+    },
+    {
+        "id": 577,
+        "name": "Lhmadate",
+        "nameAr": "\u0627\u0644\u062d\u0645\u0627\u062f\u0627\u062a"
+    },
+    {
+        "id": 578,
+        "name": "Oulad Brahim ouled teima",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0625\u0628\u0631\u0627\u0647\u064a\u0645 (\u0623\u0648\u0644\u0627\u062f \u062a\u0627\u064a\u0645\u0629)"
+    },
+    {
+        "id": 579,
+        "name": "Houara",
+        "nameAr": "\u0647\u0648\u0627\u0631\u0629"
+    },
+    {
+        "id": 580,
+        "name": "Idaousmlal",
+        "nameAr": "\u0625\u062f\u0627\u0648\u0633\u0645\u0644\u0627\u0644"
+    },
+    {
+        "id": 581,
+        "name": "Anzi",
+        "nameAr": "\u0623\u0646\u0632\u064a"
+    },
+    {
+        "id": 582,
+        "name": "Tighirt TIZNIT",
+        "nameAr": "\u062a\u064a\u063a\u0631\u062a (\u062a\u0632\u0646\u064a\u062a)"
+    },
+    {
+        "id": 583,
+        "name": "El Maader El Kabir",
+        "nameAr": "\u0627\u0644\u0645\u0639\u0630\u0631 \u0627\u0644\u0643\u0628\u064a\u0631"
+    },
+    {
+        "id": 584,
+        "name": "takad",
+        "nameAr": "\u062a\u0627\u0643\u062f"
+    },
+    {
+        "id": 585,
+        "name": "Hassi al bagar",
+        "nameAr": "\u062d\u0627\u0633\u064a \u0627\u0644\u0628\u0642\u0631"
+    },
+    {
+        "id": 586,
+        "name": "ait mimoun",
+        "nameAr": "\u0622\u064a\u062a \u0645\u064a\u0645\u0648\u0646"
+    },
+    {
+        "id": 587,
+        "name": "lborj - Oulad teima",
+        "nameAr": "\u0627\u0644\u0628\u0631\u062c (\u0623\u0648\u0644\u0627\u062f \u062a\u0627\u064a\u0645\u0629)"
+    },
+    {
+        "id": 588,
+        "name": "ihchach CHTOUKA",
+        "nameAr": "\u0625\u064a\u062d\u0634\u0627\u0634 (\u0634\u062a\u0648\u0643\u0629)"
+    },
+    {
+        "id": 589,
+        "name": "tin amara",
+        "nameAr": "\u062a\u064a\u0646 \u0639\u0645\u0627\u0631\u0629"
+    },
+    {
+        "id": 590,
+        "name": "niya",
+        "nameAr": "\u0646\u064a\u0629"
+    },
+    {
+        "id": 591,
+        "name": "agouram",
+        "nameAr": "\u0623\u06ad\u0648\u0631\u0627\u0645"
+    },
+    {
+        "id": 592,
+        "name": "ait botayeb",
+        "nameAr": "\u0622\u064a\u062a \u0628\u0648\u062a\u0627\u064a\u0628"
+    },
+    {
+        "id": 593,
+        "name": "ait ali",
+        "nameAr": "\u0622\u064a\u062a \u0639\u0644\u064a"
+    },
+    {
+        "id": 594,
+        "name": "khayz",
+        "nameAr": "\u062e\u0627\u064a\u0632"
+    },
+    {
+        "id": 595,
+        "name": "inchaden",
+        "nameAr": "\u0625\u0646\u0634\u0627\u062f\u0646"
+    },
+    {
+        "id": 596,
+        "name": "okhrib",
+        "nameAr": "\u0623\u0648\u062e\u0631\u064a\u0628"
+    },
+    {
+        "id": 597,
+        "name": "El kharij",
+        "nameAr": "\u0627\u0644\u062e\u0627\u0631\u062c"
+    },
+    {
+        "id": 598,
+        "name": "lkharba",
+        "nameAr": "\u0627\u0644\u062e\u0631\u0628\u0629"
+    },
+    {
+        "id": 599,
+        "name": "ighrissen",
+        "nameAr": "\u0625\u063a\u0631\u064a\u0633\u0646"
+    },
+    {
+        "id": 600,
+        "name": "Oum El Guerdane",
+        "nameAr": "\u0623\u0645 \u0627\u0644\u0643\u0631\u062f\u0627\u0646"
+    },
+    {
+        "id": 602,
+        "name": "Addiss",
+        "nameAr": "\u0623\u062f\u064a\u0633"
+    },
+    {
+        "id": 603,
+        "name": "Tazarte",
+        "nameAr": "\u062a\u0627\u0632\u0627\u0631\u062a"
+    },
+    {
+        "id": 604,
+        "name": "Aguinane",
+        "nameAr": "\u0623\u06ad\u064a\u0646\u0627\u0646"
+    },
+    {
+        "id": 605,
+        "name": "Akka Ighane",
+        "nameAr": "\u0623\u0643\u0627 \u0625\u063a\u0627\u0646"
+    },
+    {
+        "id": 606,
+        "name": "Tagmout",
+        "nameAr": "\u062a\u0627\u06ad\u0645\u0648\u062a"
+    },
+    {
+        "id": 607,
+        "name": "Issafn TATA",
+        "nameAr": "\u0625\u064a\u0633\u0627\u0641\u0646 (\u0637\u0627\u0637\u0627)"
+    },
+    {
+        "id": 608,
+        "name": "Tissint TATA",
+        "nameAr": "\u062a\u064a\u0633\u064a\u0646\u062a (\u0637\u0627\u0637\u0627)"
+    },
+    {
+        "id": 609,
+        "name": "Foum Jemaa",
+        "nameAr": "\u0641\u0645 \u0627\u0644\u062c\u0645\u0639\u0629"
+    },
+    {
+        "id": 610,
+        "name": "Tanant azilal",
+        "nameAr": "\u062a\u0627\u0646\u0627\u0646\u062a (\u0623\u0632\u064a\u0644\u0627\u0644)"
+    },
+    {
+        "id": 611,
+        "name": "dar Ouled Zidouh",
+        "nameAr": "\u062f\u0627\u0631 \u0623\u0648\u0644\u0627\u062f \u0632\u064a\u062f\u0648\u062d"
+    },
+    {
+        "id": 612,
+        "name": "tassaout",
+        "nameAr": "\u062a\u0633\u0627\u0648\u062a"
+    },
+    {
+        "id": 613,
+        "name": "Oulad Youssef",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u064a\u0648\u0633\u0641"
+    },
+    {
+        "id": 614,
+        "name": "El Mghassiyine",
+        "nameAr": "\u0627\u0644\u0645\u063a\u0627\u0635\u064a\u064a\u0646"
+    },
+    {
+        "id": 615,
+        "name": "Sidi Ali Ban Hamdouche\teljadida",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0639\u0644\u064a \u0628\u0646 \u062d\u0645\u062f\u0648\u0634 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 616,
+        "name": "EL BAHARA",
+        "nameAr": "\u0627\u0644\u0628\u062d\u0627\u0631\u0629"
+    },
+    {
+        "id": 617,
+        "name": "DOUAR CHHAB",
+        "nameAr": "\u062f\u0648\u0627\u0631 \u0627\u0644\u0634\u0647\u0627\u0628"
+    },
+    {
+        "id": 618,
+        "name": "Lfahs el jadida",
+        "nameAr": "\u0644\u0641\u062d\u0635 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 619,
+        "name": "Chwiref eljadida",
+        "nameAr": "\u0627\u0644\u0634\u0648\u064a\u0631\u0641 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 620,
+        "name": "Wlad hssin eljadida",
+        "nameAr": "\u0648\u0644\u0627\u062f \u062d\u0633\u064a\u0646 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 621,
+        "name": "Bzat",
+        "nameAr": "\u0628\u0632\u0627\u062a"
+    },
+    {
+        "id": 622,
+        "name": "Barakat hssina",
+        "nameAr": "\u0628\u0631\u0643\u0627\u062a \u062d\u0633\u064a\u0646\u0629"
+    },
+    {
+        "id": 623,
+        "name": "Laakba lhamra",
+        "nameAr": "\u0627\u0644\u0639\u0642\u0628\u0629 \u0627\u0644\u062d\u0645\u0631\u0627\u0621"
+    },
+    {
+        "id": 624,
+        "name": "Saniat berghig",
+        "nameAr": "\u0633\u0646\u064a\u0629 \u0628\u0631\u063a\u064a\u063a"
+    },
+    {
+        "id": 625,
+        "name": "Bni khlef eljadia",
+        "nameAr": "\u0628\u0646\u064a \u062e\u0644\u0641 (\u0627\u0644\u062c\u062f\u064a\u062f\u0629)"
+    },
+    {
+        "id": 626,
+        "name": "Biriz",
+        "nameAr": "\u0628\u064a\u0631\u064a\u0632"
+    },
+    {
+        "id": 627,
+        "name": "Kasbah El Taher Ait melloul",
+        "nameAr": "\u0642\u0635\u0628\u0629 \u0627\u0644\u0637\u0627\u0647\u0631 (\u0622\u064a\u062a \u0645\u0644\u0648\u0644)"
+    },
+    {
+        "id": 628,
+        "name": "Al Mazar Ait melloul",
+        "nameAr": "\u0627\u0644\u0645\u0632\u0627\u0631 (\u0622\u064a\u062a \u0645\u0644\u0648\u0644)"
+    },
+    {
+        "id": 629,
+        "name": "Oulad saleh bouskoura",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0635\u0627\u0644\u062d (\u0628\u0648\u0633\u0643\u0648\u0631\u0629)"
+    },
+    {
+        "id": 630,
+        "name": "La ville verte",
+        "nameAr": "\u0627\u0644\u0645\u062f\u064a\u0646\u0629 \u0627\u0644\u062e\u0636\u0631\u0627\u0621"
+    },
+    {
+        "id": 631,
+        "name": "sidi massoud sidi maarouf",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0645\u0633\u0639\u0648\u062f (\u0633\u064a\u062f\u064a \u0645\u0639\u0631\u0648\u0641)"
+    },
+    {
+        "id": 632,
+        "name": "Victoria Bouskoura",
+        "nameAr": "\u0641\u064a\u0643\u062a\u0648\u0631\u064a\u0627 \u0628\u0648\u0633\u0643\u0648\u0631\u0629"
+    },
+    {
+        "id": 633,
+        "name": "Merchouch",
+        "nameAr": "\u0645\u0631\u0634\u0648\u0634"
+    },
+    {
+        "id": 634,
+        "name": "Chrifia Marrakech",
+        "nameAr": "\u0627\u0644\u0634\u0631\u064a\u0641\u064a\u0629 (\u0645\u0631\u0627\u0643\u0634)"
+    },
+    {
+        "id": 635,
+        "name": "Ouled A\u00efssa",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0639\u064a\u0633\u0649"
+    },
+    {
+        "id": 636,
+        "name": "Guigou",
+        "nameAr": "\u0763\u064a\u063a\u0648"
+    },
+    {
+        "id": 637,
+        "name": "El Aarjate",
+        "nameAr": "\u0627\u0644\u0639\u0631\u062c\u0627\u062a"
+    },
+    {
+        "id": 638,
+        "name": "Howara",
+        "nameAr": "\u0647\u0648\u0627\u0631\u0629"
+    },
+    {
+        "id": 639,
+        "name": "Ouahat Sidi Brahim",
+        "nameAr": "\u0648\u0627\u062d\u0627\u062a \u0633\u064a\u062f\u064a \u0625\u0628\u0631\u0627\u0647\u064a\u0645"
+    },
+    {
+        "id": 640,
+        "name": "Nzalat Laadam",
+        "nameAr": "\u0646\u0632\u0627\u0644\u0627\u062a \u0627\u0644\u0639\u062f\u0627\u0645"
+    },
+    {
+        "id": 641,
+        "name": "Ouled Jelal Marrakech",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u062c\u0644\u0627\u0644 (\u0645\u0631\u0627\u0643\u0634)"
+    },
+    {
+        "id": 642,
+        "name": "Sebt Mzouda",
+        "nameAr": "\u0633\u0628\u062a \u0645\u0632\u0648\u062f\u0629"
+    },
+    {
+        "id": 643,
+        "name": "Idouirane",
+        "nameAr": "\u0625\u062f\u0648\u0631\u064a\u0631\u0627\u0646"
+    },
+    {
+        "id": 644,
+        "name": "Znada",
+        "nameAr": "\u0632\u0646\u0627\u062f\u0629"
+    },
+    {
+        "id": 645,
+        "name": "Borj Agharghar",
+        "nameAr": "\u0628\u0631\u062c \u0623\u063a\u0631\u063a\u0627\u0631"
+    },
+    {
+        "id": 646,
+        "name": "Sidi Ettiji",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0627\u0644\u062a\u064a\u062c\u064a"
+    },
+    {
+        "id": 647,
+        "name": "Jdour",
+        "nameAr": "\u062c\u062f\u0648\u0631"
+    },
+    {
+        "id": 648,
+        "name": "Laaouissate",
+        "nameAr": "\u0627\u0644\u0639\u0648\u064a\u0633\u0627\u062a"
+    },
+    {
+        "id": 649,
+        "name": "Sbiaat",
+        "nameAr": "\u0627\u0644\u0633\u0628\u064a\u0639\u0627\u062a"
+    },
+    {
+        "id": 650,
+        "name": "Thine Riate",
+        "nameAr": "\u0627\u062b\u0646\u064a\u0646 \u0631\u064a\u0627\u062a"
+    },
+    {
+        "id": 651,
+        "name": "Ouled zekri",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0627\u0644\u0632\u0643\u0631\u064a"
+    },
+    {
+        "id": 652,
+        "name": "Lakhechachena",
+        "nameAr": "\u0627\u0644\u062e\u0634\u0634\u0627\u0634\u0646\u0629"
+    },
+    {
+        "id": 653,
+        "name": "Ben Rahmoun marrakech",
+        "nameAr": "\u0628\u0646 \u0631\u062d\u0645\u0648\u0646 (\u0645\u0631\u0627\u0643\u0634)"
+    },
+    {
+        "id": 654,
+        "name": "Sidi Hejjaj (ben ahmed)",
+        "nameAr": "\u0633\u064a\u062f\u064a \u062d\u062c\u0627\u062c (\u0628\u0646 \u0623\u062d\u0645\u062f)"
+    },
+    {
+        "id": 655,
+        "name": "La Nouvelle Ville Ibn Batouta",
+        "nameAr": "\u0627\u0644\u0645\u062f\u064a\u0646\u0629 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 \u0627\u0628\u0646 \u0628\u0637\u0648\u0637\u0629"
+    },
+    {
+        "id": 656,
+        "name": "Houara tanger",
+        "nameAr": "\u0647\u0648\u0627\u0631\u0629 (\u0637\u0646\u062c\u0629)"
+    },
+    {
+        "id": 657,
+        "name": "Dayedaate",
+        "nameAr": "\u0627\u0644\u0636\u064a\u0639\u0627\u062a"
+    },
+    {
+        "id": 658,
+        "name": "Gueznaia",
+        "nameAr": "\u0763\u0632\u0646\u0627\u064a\u0629"
+    },
+    {
+        "id": 659,
+        "name": "Briyech",
+        "nameAr": "\u0628\u0631\u064a\u064a\u0634"
+    },
+    {
+        "id": 660,
+        "name": "Taliouine",
+        "nameAr": "\u062a\u0627\u0644\u0648\u064a\u0646"
+    },
+    {
+        "id": 661,
+        "name": "Assaki Taliouine",
+        "nameAr": "\u0623\u0633\u0643\u0627\u0643\u064a (\u062a\u0627\u0644\u0648\u064a\u0646)"
+    },
+    {
+        "id": 662,
+        "name": "Tassoultante",
+        "nameAr": "\u062a\u0627\u0633\u0648\u0644\u062a\u0627\u0646\u062a"
+    },
+    {
+        "id": 663,
+        "name": "Sebt Ben Sassi",
+        "nameAr": "\u0633\u0628\u062a \u0628\u0646 \u0633\u0627\u0633\u064a"
+    },
+    {
+        "id": 664,
+        "name": "Laamamcha",
+        "nameAr": "\u0627\u0644\u0645\u0639\u0627\u0645\u0634\u0629"
+    },
+    {
+        "id": 665,
+        "name": "Sidi El Ayedi",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0627\u0644\u0639\u0627\u064a\u062f\u064a"
+    },
+    {
+        "id": 666,
+        "name": "Ighoud",
+        "nameAr": "\u0625\u063a\u0648\u062f"
+    },
+    {
+        "id": 667,
+        "name": "Sidi chiker",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0634\u064a\u0643\u0631"
+    },
+    {
+        "id": 668,
+        "name": "Taouloukoult",
+        "nameAr": "\u062a\u0627\u0648\u0644\u0648\u0643\u0648\u0644\u062a"
+    },
+    {
+        "id": 669,
+        "name": "Timezgadiouine",
+        "nameAr": "\u062a\u064a\u0645\u0632\u0643\u0627\u062f\u064a\u0648\u064a\u0646"
+    },
+    {
+        "id": 670,
+        "name": "Ain beida chichaoua",
+        "nameAr": "\u0639\u064a\u0646 \u0627\u0644\u0628\u064a\u0636\u0627\u0621 (\u0634\u064a\u0634\u0627\u0648\u0629)"
+    },
+    {
+        "id": 671,
+        "name": "Ait hadi",
+        "nameAr": "\u0622\u064a\u062a \u0647\u0627\u062f\u064a"
+    },
+    {
+        "id": 672,
+        "name": "Sidi bouzid chichaoua",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0628\u0648\u0632\u064a\u062f (\u0634\u064a\u0634\u0627\u0648\u0629)"
+    },
+    {
+        "id": 673,
+        "name": "Tafetachte",
+        "nameAr": "\u062a\u0627\u0641\u062a\u0627\u0633\u062a"
+    },
+    {
+        "id": 674,
+        "name": "Had El Brachoua",
+        "nameAr": "\u062d\u062f \u0627\u0644\u0628\u0631\u0627\u0634\u0648\u0629"
+    },
+    {
+        "id": 675,
+        "name": "Khenichet",
+        "nameAr": "\u062e\u0646\u064a\u0634\u0627\u062a"
+    },
+    {
+        "id": 676,
+        "name": "Lagouassem",
+        "nameAr": "\u0627\u0644\u0763\u0648\u0627\u0633\u0645"
+    },
+    {
+        "id": 677,
+        "name": "A\u00efn Sfa",
+        "nameAr": "\u0639\u064a\u0646 \u0635\u0641\u0627"
+    },
+    {
+        "id": 678,
+        "name": "Talsint",
+        "nameAr": "\u062a\u0627\u0644\u0633\u064a\u0646\u062a"
+    },
+    {
+        "id": 679,
+        "name": "Aghmat",
+        "nameAr": "\u0623\u063a\u0645\u0627\u062a"
+    },
+    {
+        "id": 680,
+        "name": "Sidi Moussa Marrakech",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 (\u0645\u0631\u0627\u0643\u0634)"
+    },
+    {
+        "id": 681,
+        "name": "Ben Rahmoun",
+        "nameAr": "\u0628\u0646 \u0631\u062d\u0645\u0648\u0646"
+    },
+    {
+        "id": 682,
+        "name": "Ahdil",
+        "nameAr": "\u0623\u0647\u062f\u064a\u0644"
+    },
+    {
+        "id": 683,
+        "name": "Dar Gueddari",
+        "nameAr": "\u062f\u0627\u0631 \u0627\u0644\u0643\u062f\u0627\u0631\u064a"
+    },
+    {
+        "id": 684,
+        "name": "Ouaouizeght",
+        "nameAr": "\u0648\u0627\u0648\u064a\u0632\u063a\u062a"
+    },
+    {
+        "id": 685,
+        "name": "Tarfaya",
+        "nameAr": "\u0637\u0631\u0641\u0627\u064a\u0629"
+    },
+    {
+        "id": 686,
+        "name": "Akhfennir",
+        "nameAr": "\u0623\u062e\u0641\u0646\u064a\u0631"
+    },
+    {
+        "id": 687,
+        "name": "Had Kourt",
+        "nameAr": "\u062d\u062f \u0643\u0648\u0631\u062a"
+    },
+    {
+        "id": 688,
+        "name": "Touama",
+        "nameAr": "\u062a\u0648\u0645\u0627"
+    },
+    {
+        "id": 689,
+        "name": "Toufliht",
+        "nameAr": "\u062a\u0648\u0641\u0644\u064a\u062d\u062a"
+    },
+    {
+        "id": 690,
+        "name": "Souk El Had Zerkten",
+        "nameAr": "\u0633\u0648\u0642 \u0627\u0644\u0623\u062d\u062f \u0632\u0631\u0643\u062a\u0646"
+    },
+    {
+        "id": 691,
+        "name": "Tizi N\u0027Tichka",
+        "nameAr": "\u062a\u064a\u0632\u064a \u0646 \u062a\u064a\u0634\u0643\u0627"
+    },
+    {
+        "id": 692,
+        "name": "Talnif - Marrakech",
+        "nameAr": "\u062a\u0627\u0644\u0646\u064a\u0641"
+    },
+    {
+        "id": 693,
+        "name": "Taddarte Tichka",
+        "nameAr": "\u062a\u0627\u062f\u0631\u062a (\u062a\u064a\u0634\u0643\u0627)"
+    },
+    {
+        "id": 694,
+        "name": "Aguelmouss  ( Marrakech )",
+        "nameAr": "\u0623\u0643\u0644\u0645\u0648\u0633 (\u0645\u0631\u0627\u0643\u0634)"
+    },
+    {
+        "id": 695,
+        "name": "Agouim",
+        "nameAr": "\u0623\u06ad\u0648\u064a\u0645"
+    },
+    {
+        "id": 697,
+        "name": "Ras Tbouda",
+        "nameAr": "\u0631\u0623\u0633 \u062a\u0628\u0648\u062f\u0629"
+    },
+    {
+        "id": 698,
+        "name": "Oulad Bou Abid",
+        "nameAr": "\u0623\u0648\u0644\u0627\u062f \u0628\u0648 \u0639\u0628\u064a\u062f"
+    },
+    {
+        "id": 699,
+        "name": "Sa\u00efss",
+        "nameAr": "\u0633\u0627\u064a\u0633"
+    },
+    {
+        "id": 700,
+        "name": "Souiria",
+        "nameAr": "\u0627\u0644\u0635\u0648\u064a\u0631\u064a\u0629"
+    },
+    {
+        "id": 701,
+        "name": "Jem\u00e2a Feddalat",
+        "nameAr": "\u062c\u0645\u0639\u0629 \u0641\u0636\u0627\u0644\u0629"
+    },
+    {
+        "id": 702,
+        "name": "Sidi Moussa Ben Ali",
+        "nameAr": "\u0633\u064a\u062f\u064a \u0645\u0648\u0633\u0649 \u0628\u0646 \u0639\u0644\u064a"
+    },
+    {
+        "id": 703,
+        "name": "Oulm\u00e8s",
+        "nameAr": "\u0623\u0648\u0644\u0645\u0627\u0633"
+    },
+    {
+        "id": 704,
+        "name": "Ksar Bjir"
+    },
+    {
+        "id": 705,
+        "name": "Zenata"
+    },
+    {
+        "id": 706,
+        "name": "Cascade ouzoud"
+    },
+    {
+        "id": 707,
+        "name": "Imsouane"
+    },
+    {
+        "id": 708,
+        "name": "Sidi Kaouki"
+    },
+    {
+        "id": 709,
+        "name": "Ait Daoud"
+    },
+    {
+        "id": 710,
+        "name": "Smara"
+    },
+    {
+        "id": 711,
+        "name": "Jerf Arfoud"
+    },
+    {
+        "id": 712,
+        "name": "akermoud"
+    },
+    {
+        "id": 713,
+        "name": "aghbalou nserdane ( Khenifra )"
+    }
+]
