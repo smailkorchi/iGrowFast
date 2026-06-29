@@ -4528,7 +4528,6 @@ export type Database = {
         Row: {
           active: boolean | null
           address: string | null
-          assignment: number | null
           avatar_config: Json | null
           avatar_url: string | null
           bank_account_holder: string | null
@@ -4557,7 +4556,6 @@ export type Database = {
         Insert: {
           active?: boolean | null
           address?: string | null
-          assignment?: number | null
           avatar_config?: Json | null
           avatar_url?: string | null
           bank_account_holder?: string | null
@@ -4586,7 +4584,6 @@ export type Database = {
         Update: {
           active?: boolean | null
           address?: string | null
-          assignment?: number | null
           avatar_config?: Json | null
           avatar_url?: string | null
           bank_account_holder?: string | null
