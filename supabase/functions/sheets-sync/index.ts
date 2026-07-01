@@ -7,8 +7,9 @@
 //   { action: 'sync_channel', channel_id }  — sync one channel (the "Check now" button / per-channel cron)
 //   { action: 'poll' }                       — sync all active, scheduled, due channels (pg_cron)
 //
-// Google auth: service-account JSON (base64) in env GOOGLE_SHEETS_SA_KEY, scope spreadsheets.readonly,
-// mirroring the google-analytics-fetch pattern (jose RS256 + token exchange, token cached per cold start).
+// Google auth: service-account JSON in Vault (secret `google_sheets_sa_key`), read via the
+// service_role-only RPC `get_google_sheets_sa_key()`; scope spreadsheets.readonly, mirroring
+// google-analytics-fetch (jose RS256 + token exchange, token cached per cold start).
 //
 // Deploy: verify_jwt = false. Invoked by pg_cron (service key) or an authenticated client. The RPC is
 // business-scoped to the channel, so a caller can only ever cause a channel to ingest into its OWN business.
@@ -23,7 +24,9 @@ import { SignJWT, importPKCS8 } from 'https://esm.sh/jose@5.9.6';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const SA_B64 = Deno.env.get('GOOGLE_SHEETS_SA_KEY') ?? '';
+// The Google SA JSON lives in Vault (secret `google_sheets_sa_key`), not the edge env; this
+// service_role client reads it via the SECURITY DEFINER RPC `get_google_sheets_sa_key()`.
+const saClient = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
 const CORS: HeadersInit = {
   'Access-Control-Allow-Origin': '*',
@@ -33,15 +36,16 @@ const CORS: HeadersInit = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json', ...CORS } });
 
-function saJson(): { client_email: string; private_key: string } {
-  if (!SA_B64) throw new Error('GOOGLE_SHEETS_SA_KEY not set');
-  const raw = SA_B64.trim();
-  // Robust decode: the secret should be base64(service-account.json), but tolerate the secret
-  // being saved as raw JSON, URL-safe base64, or with whitespace/newlines or missing padding —
-  // these mis-encodings are what produce the opaque "Failed to decode base64" from a bare atob().
+async function saJson(): Promise<{ client_email: string; private_key: string }> {
+  const { data, error } = await saClient.rpc('get_google_sheets_sa_key');
+  if (error) throw new Error(`get_google_sheets_sa_key RPC failed: ${error.message}`);
+  const raw = String(data ?? '').trim();
+  if (!raw) throw new Error('google_sheets_sa_key is missing/empty in vault');
+  // Tolerate the secret stored as raw JSON (default) or base64(JSON), with whitespace,
+  // URL-safe alphabet, or missing padding.
   let txt: string;
   if (raw.startsWith('{')) {
-    txt = raw; // already raw JSON, no base64 layer
+    txt = raw; // raw JSON
   } else {
     let b64 = raw.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
     const pad = b64.length % 4;
@@ -49,19 +53,17 @@ function saJson(): { client_email: string; private_key: string } {
     try {
       txt = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
     } catch {
-      throw new Error(
-        'GOOGLE_SHEETS_SA_KEY is set but is neither raw JSON nor valid base64-encoded JSON — re-set it to base64(service-account.json)',
-      );
+      throw new Error('google_sheets_sa_key is neither raw JSON nor valid base64-encoded JSON');
     }
   }
   let sa: { client_email?: string; private_key?: string };
   try {
     sa = JSON.parse(txt);
   } catch (e) {
-    throw new Error(`GOOGLE_SHEETS_SA_KEY decoded but is not valid JSON: ${(e as Error)?.message ?? e}`);
+    throw new Error(`google_sheets_sa_key is not valid JSON: ${(e as Error)?.message ?? e}`);
   }
   if (!sa.client_email || !sa.private_key) {
-    throw new Error('GOOGLE_SHEETS_SA_KEY JSON is missing client_email/private_key');
+    throw new Error('google_sheets_sa_key JSON is missing client_email/private_key');
   }
   return { client_email: sa.client_email, private_key: sa.private_key };
 }
@@ -69,7 +71,7 @@ function saJson(): { client_email: string; private_key: string } {
 let TOKEN: { token: string; exp: number } | null = null;
 async function googleToken(): Promise<string> {
   if (TOKEN && TOKEN.exp > Date.now() + 60_000) return TOKEN.token;
-  const sa = saJson();
+  const sa = await saJson();
   const key = await importPKCS8(sa.private_key, 'RS256');
   const jwt = await new SignJWT({ scope: 'https://www.googleapis.com/auth/spreadsheets.readonly' })
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
