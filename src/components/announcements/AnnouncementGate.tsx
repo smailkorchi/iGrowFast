@@ -37,6 +37,7 @@ export function AnnouncementGate() {
             eyebrow={ACTIVE_ANNOUNCEMENT.eyebrow}
             title={ACTIVE_ANNOUNCEMENT.title}
             ctaLabel={ACTIVE_ANNOUNCEMENT.ctaLabel}
+            icon={ACTIVE_ANNOUNCEMENT.icon}
             withBackground
         >
             {ACTIVE_ANNOUNCEMENT.body}

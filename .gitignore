@@ -44,3 +44,5 @@ deploy_key
 deploy_key.pub
 vps.env
 scripts/dev-secrets.env
+docs/SECURITY_AUDIT_*.md
+docs/SECURITY_REMEDIATION_*.md
