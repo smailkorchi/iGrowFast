@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
 
     const allTimeRange = useMemo(() => ({ from: '2020-01-01', to: todayKey }), [todayKey]);
     const { daily } = useMediaBuyerStats(allTimeRange);
-    const { rows: earningsRows } = useMediaBuyerEarnings(currentMonth);
+    const { rows: earningsRows } = useMediaBuyerEarnings(currentMonth, { selfMbId: currentUserId });
     const myEarnings = useMemo(() => earningsRows.find((r) => r.mediabuyer_id === currentUserId) || null, [earningsRows, currentUserId]);
 
     const { data: profile } = useQuery<Profile | null>({

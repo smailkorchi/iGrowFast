@@ -206,6 +206,14 @@ Deno.serve(async (req) => {
 
         if (action === 'verify_property') {
             try {
+                // Onboarding probe against an arbitrary GA property the shared
+                // service account can see — restrict to business admins (the UI
+                // already gates add-connection to non-mediabuyers).
+                const { data: prof } = await admin
+                    .from('users').select('role').eq('id', userData.user.id).maybeSingle();
+                if (!prof || !['super admin', 'admin'].includes(prof.role)) {
+                    return jsonResponse({ ok: false, error: 'forbidden' }, 403);
+                }
                 const propertyId = normalizePropertyId(body.property_id);
                 const token = await getAccessToken(admin);
                 const meta = await gaRequest(`properties/${propertyId}/metadata`, token);

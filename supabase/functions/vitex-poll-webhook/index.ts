@@ -17,12 +17,21 @@ Deno.serve(async (req: Request) => {
     const json = (body: object, status = 200) =>
         new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Caller authorization: this is a cron-only worker (pg_cron invoke_vitex_poll
+    // sends the service_role key as bearer). It runs on service_role internally,
+    // so require the service_role key to invoke it — it is not a public endpoint.
+    const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    if (!bearer || bearer !== serviceKey) {
+        return json({ error: 'unauthorized' }, 401);
+    }
+
     try {
         const { trigger = 'manual' } = await req.json().catch(() => ({}));
         console.log(`[vitex-poll] started trigger=${trigger}`);
 
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, serviceKey);
 
         const { data: vitexWebhooks, error: whErr } = await supabase

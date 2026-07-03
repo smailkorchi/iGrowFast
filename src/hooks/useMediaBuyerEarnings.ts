@@ -129,21 +129,29 @@ const monthBounds = (month: string): { from: string; to: string } => {
     return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
 };
 
-export function useMediaBuyerEarnings(month: string) {
+// `selfMbId` narrows the fetch to a single media buyer's own row. The MB
+// Dashboard/Payments surfaces only ever display the current user's own
+// earnings (they `.find(r => r.mediabuyer_id === currentUserId)`), so passing
+// the caller's id keeps peers' banking/salary/PII columns out of the client's
+// projection (need-to-know). Admin pages omit it and get every media buyer.
+export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string | null }) {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+    const selfMbId = opts?.selfMbId ?? null;
     const { deliveredPkgIds } = useStatusCategories();
     const { from, to } = useMemo(() => monthBounds(month), [month]);
 
-    // 1. All media buyers in business.
+    // 1. Media buyers in business (self only when selfMbId is set).
     const { data: mediabuyers = [], isLoading: loadingMBs } = useQuery<MBUser[]>({
-        queryKey: ['mb-earnings-users', activeBusinessId],
+        queryKey: ['mb-earnings-users', activeBusinessId, selfMbId ?? 'all'],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
+            let q = (supabase as any)
                 .from('users')
                 .select('id, name, email, avatar_url, avatar_config, phone, role, payment_type, commission_price, salary_amount, bank_name, bank_account_holder, bank_rib, cin_number, address, created_at, active')
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('role', 'mediabuyer');
+            if (selfMbId) q = q.eq('id', selfMbId);
+            const { data, error } = await q;
             if (error) throw error;
             return (data || []) as MBUser[];
         },
