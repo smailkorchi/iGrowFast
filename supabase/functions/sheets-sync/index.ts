@@ -24,6 +24,7 @@ import { SignJWT, importPKCS8 } from 'https://esm.sh/jose@5.9.6';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 // The Google SA JSON lives in Vault (secret `google_sheets_sa_key`), not the edge env; this
 // service_role client reads it via the SECURITY DEFINER RPC `get_google_sheets_sa_key()`.
 const saClient = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
@@ -170,6 +171,25 @@ Deno.serve(async (req) => {
     body = await req.json();
   } catch { /* empty body => poll */ }
   const action = (body?.action as string) ?? 'poll';
+
+  // ── Caller authorization ─────────────────────────────────────────────
+  // Two callers: pg_cron 'poll' (service_role key bearer) and the admin
+  // "Check now" button 'sync_channel' (user session JWT). Require the
+  // service_role key for poll; require a business admin for sync_channel.
+  const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (!bearer) return json({ ok: false, error: 'unauthorized' }, 401);
+  if (bearer !== SERVICE_ROLE) {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
+      auth: { persistSession: false },
+    });
+    const { data: { user }, error: uErr } = await userClient.auth.getUser();
+    if (uErr || !user) return json({ ok: false, error: 'unauthorized' }, 401);
+    const { data: prof } = await admin.from('users').select('role').eq('id', user.id).maybeSingle();
+    if (!prof || !['super admin', 'admin'].includes(prof.role)) {
+      return json({ ok: false, error: 'forbidden' }, 403);
+    }
+  }
 
   try {
     if (action === 'sync_channel') {

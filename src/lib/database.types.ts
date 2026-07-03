@@ -4895,6 +4895,10 @@ export type Database = {
       invoke_tracking_sync: { Args: { p_trigger?: string }; Returns: number }
       invoke_vitex_poll: { Args: { p_trigger?: string }; Returns: number }
       is_owner: { Args: never; Returns: boolean }
+      login_email_for_username: {
+        Args: { p_username: string }
+        Returns: string
+      }
       link_company_parcels_to_delivery_note: {
         Args: { p_delivery_note_id: string; p_parcel_ids: string[] }
         Returns: Json

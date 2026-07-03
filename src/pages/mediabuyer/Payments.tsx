@@ -129,7 +129,7 @@ const Payments: React.FC = () => {
     const [selected, setSelected] = useState<Payout | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
 
-    const { rows: allRows, isLoading: loadingEarnings } = useMediaBuyerEarnings(currentMonth);
+    const { rows: allRows, isLoading: loadingEarnings } = useMediaBuyerEarnings(currentMonth, { selfMbId: currentUserId });
     const myEarnings = useMemo(() => allRows.find((r) => r.mediabuyer_id === currentUserId) || null, [allRows, currentUserId]);
 
     const stats = useMemo(() => {

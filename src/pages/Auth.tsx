@@ -120,16 +120,16 @@ const Auth = () => {
             let email = values.identifier;
 
             if (!values.identifier.includes('@')) {
-                const { data: user, error: userError } = await supabase
-                    .from('users')
-                    .select('email')
-                    .eq('username', values.identifier)
-                    .single();
+                // Anon no longer has table access to users; resolve the login
+                // email through a single-purpose SECURITY DEFINER function that
+                // returns exactly one supplied username's email (cannot list).
+                const { data: resolvedEmail, error: userError } = await supabase
+                    .rpc('login_email_for_username', { p_username: values.identifier });
 
-                if (userError || !user) {
+                if (userError || !resolvedEmail) {
                     throw new Error('Utilisateur introuvable avec cet identifiant.');
                 }
-                email = user.email;
+                email = resolvedEmail as string;
             }
 
             const { data, error } = await supabase.auth.signInWithPassword({

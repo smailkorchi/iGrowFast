@@ -286,6 +286,15 @@ Deno.serve(async (req) => {
                 if (!token || !business_id || !ad_account_id || !display_name) {
                     throw new Error('token, business_id, ad_account_id, display_name are required');
                 }
+                // Authorize: business admin of the SAME business the connection
+                // is created for (previously any authenticated user could create
+                // a connection + Vault secret against any business_id).
+                const { data: prof } = await admin
+                    .from('users').select('role, "DigiCom Business"').eq('id', userData.user.id).maybeSingle();
+                if (!prof || !['super admin', 'admin'].includes(prof.role)
+                    || !prof['DigiCom Business'] || prof['DigiCom Business'] !== business_id) {
+                    return jsonResponse({ ok: false, error: 'forbidden' }, 403);
+                }
                 const act = normalizeAdAccountId(ad_account_id);
                 // sanity probe
                 await graphGet(`/${act}`, token, { fields: 'id,name' });

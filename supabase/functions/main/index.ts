@@ -108,10 +108,13 @@ async function isValidHybridJWT(jwt: string): Promise<boolean> {
 // verify_jwt=false). Self-host's VERIFY_JWT is global; this allowlist restores
 // per-function behaviour so external callers (providers, OAuth redirect, public
 // signup) reach these while everything else still requires a valid JWT.
+//
+// manage-users and reopen-delivery-note were REMOVED from this list on
+// 2026-07-03 (security remediation R1/R3): they mutate accounts and finalized
+// settlement records, so the router now requires a valid JWT and each function
+// performs its own admin-role + tenant authorization on top.
 const PUBLIC_FUNCTIONS = new Set([
-  'manage-users',
   'provider-webhook',
-  'reopen-delivery-note',
   'send-courier-push',
   'google-analytics-fetch',
   'meta-ads-fetch',

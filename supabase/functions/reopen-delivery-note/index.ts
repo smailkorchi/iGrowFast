@@ -84,12 +84,51 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // ── Caller authorization + tenant scoping ────────────────────────────
+    // Reopening a finalized note mutates settlement records and triggers a
+    // provider-API call, so it must be gated by identity + admin role + tenant.
+    // (This function runs on the service_role key, above RLS.)
+    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!jwt) {
+      return new Response(JSON.stringify({ success: false, error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const caller = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false },
+    });
+    const { data: { user: callerUser }, error: callerErr } = await caller.auth.getUser();
+    if (callerErr || !callerUser) {
+      return new Response(JSON.stringify({ success: false, error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: me } = await supabase
+      .from("users")
+      .select('role, "DigiCom Business"')
+      .eq("id", callerUser.id)
+      .maybeSingle();
+    // Roles that operate delivery notes (admins + sellers). Every path stays
+    // identity-checked, tenant-scoped, and fail-closed regardless of role.
+    if (!me || !["super admin", "admin", "commercial"].includes(me.role) || !me["DigiCom Business"]) {
+      return new Response(JSON.stringify({ success: false, error: "forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const callerBusinessId = me["DigiCom Business"];
 
     const { data: provider, error: providerError } = await supabase
       .from("providers")
       .select("*")
       .eq("id", provider_id)
+      .eq("DigiCom Business", callerBusinessId)
       .single();
 
     if (providerError || !provider) {
@@ -126,20 +165,30 @@ Deno.serve(async (req: Request) => {
         break;
     }
 
-    // Update database — mark as not finalized
+    // Update database — mark as not finalized. Tenant-scoped and fail-closed:
+    // the update must affect the caller's own note or we return 404.
     if (delivery_note_id) {
-      const { error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from("company_delivery_notes")
         .update({
           is_finalized: false,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", delivery_note_id);
+        .eq("id", delivery_note_id)
+        .eq("DigiCom Business", callerBusinessId)
+        .select("id");
 
       if (updateError) {
-        console.error(
-          "[REOPEN] DB update failed:",
-          updateError.message
+        console.error("[REOPEN] DB update failed:", updateError.message);
+        return new Response(
+          JSON.stringify({ success: false, error: updateError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (!updated || updated.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: "delivery note not found in your business" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }

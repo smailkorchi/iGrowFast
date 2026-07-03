@@ -7,6 +7,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status,
+  });
+}
+
+// Roles allowed to administer accounts. Source of truth = the DB row for the
+// caller's auth.uid(), never JWT metadata (user_metadata is user-editable).
+// 'owner' is included because the owner console (owner/Users.tsx,
+// owner/Businesses.tsx) provisions owner accounts and a new business's first
+// super-admin through this function. The owner's own "DigiCom Business" is
+// NULL (unscoped), so the create-time tenant-force below no-ops for it and the
+// owner supplies the target business explicitly; super-admin/admin callers are
+// pinned to their own business.
+const ADMIN_ROLES = ["super admin", "admin", "owner"];
+
 // Map raw Postgres / GoTrue errors to messages a human can act on.
 // supabase-js AuthApiError can surface an opaque body whose .message is "{}"
 // with no usable .code, so regex-parsing alone is unreliable — the caller passes
@@ -166,10 +183,36 @@ Deno.serve(async (req) => {
       },
     );
 
+    // ── Caller authorization (complete mediation) ─────────────────────────
+    // The router now requires a valid JWT to reach this function, but any
+    // authenticated user of any role would pass that gate. Because this
+    // function runs on the service_role key (above RLS/column policies), it
+    // must authorize the caller itself: resolve the bearer to a user, then
+    // require an admin role from the DB (not from JWT metadata).
+    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!jwt) return json({ error: "unauthorized" }, 401);
+    const caller = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: `Bearer ${jwt}` } }, auth: { persistSession: false } },
+    );
+    const { data: { user: callerUser }, error: callerErr } = await caller.auth.getUser();
+    if (callerErr || !callerUser) return json({ error: "unauthorized" }, 401);
+    const { data: me } = await supabaseClient
+      .from("users")
+      .select('role, "DigiCom Business"')
+      .eq("id", callerUser.id)
+      .maybeSingle();
+    if (!me || !ADMIN_ROLES.includes(me.role)) return json({ error: "forbidden" }, 403);
+
     const { action, userData, userId } = await req.json();
 
     if (action === "create") {
       const { email, password, name, username, role, whatsapp_access, ga_access, meta_access, ...rest } = userData;
+      // Tenant scoping: a created account always belongs to the caller's own
+      // business, regardless of any "DigiCom Business" the client supplied.
+      // (Owner rows are the exception — enforce_owner_unscoped() nulls it.)
+      if (me["DigiCom Business"]) rest["DigiCom Business"] = me["DigiCom Business"];
 
       const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
         email,
