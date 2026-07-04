@@ -23,10 +23,11 @@ never in this repo.
 | `igf-restic-backup.sh` | both | box 03:35 / tb 03:50 | config/state → `igf-config-backups/restic/{box,toolbox}` |
 | `igf-restic-maint.sh` | both | Sat + monthly | restic forget/prune + check (+`--deep`) |
 | `igf-cf-export.sh` | box | (restic pre-hook) | export CF dashboard state (tunnel/DNS/Access/rules/lifecycle) |
+| `igf-restore-drill.sh` | box | on-demand (monthly per Phase 11) | full PITR restore drill into throwaway container; `--target` proves point-in-time |
 
 ## Recovery entry points
 - Logical restore (fallback): `igf-db-backups/logical/RESTORE_RUNBOOK.md`.
-- PITR restore: pgBackRest stanza `igf`; drill procedure = Phase 5 (see BACKUP_PREFLIGHT doc / progress memory).
+- PITR restore: pgBackRest stanza `igf`; proven drill = `igf-restore-drill.sh` (end-of-WAL and `--target` point-in-time both verified 2026-07-04).
 - Vault key + `.env` escrow: `igf-config-backups/escrow/` (age; private key = Mac Keychain `igf-backup-escrow-age` + offline copy).
 
 ## Secrets index (values NOT here)
