@@ -1,0 +1,9 @@
+# Overlay: swap the db service to the pgBackRest-enabled derived image.
+# Appended LAST to COMPOSE_FILE so it wins the image field. pull_policy:never guarantees
+# the locally-built image is used (never pulled). Longer stop grace = clean shutdown headroom.
+# Nothing else about the db service changes — same volumes, env, command, healthcheck.
+services:
+  db:
+    image: igf/supabase-postgres:17.6.1.136-pgbackrest.1
+    pull_policy: never
+    stop_grace_period: 2m
