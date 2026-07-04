@@ -112,7 +112,11 @@ export default function OwnerBackups() {
     const kpi = [
         { label: 'POSTURE', value: vm.word, sub: `vérifié ${relFr(s.generated ? Math.floor(Date.now() / 1000) - s.generated : 0)}`, accent: vm.accent },
         { label: 'RESTAURATION', value: s.drill_fresh ? 'Prouvée' : 'Non prouvée', sub: 'clone == live', accent: s.drill_fresh ? 'bg-ant-green' : 'bg-ant-rose' },
-        { label: 'FENÊTRE PITR', value: walSpanFr(s), sub: 'à la seconde', accent: 'bg-ant-blue' },
+        {
+            label: 'FENÊTRE PITR', value: walSpanFr(s),
+            sub: (() => { const l = parsePgTime(s.archiver.last); return l ? `jusqu’à il y a ${Math.max(0, Math.floor((Date.now() - l.getTime()) / 1000))} s` : 'à la seconde'; })(),
+            accent: 'bg-ant-blue',
+        },
         { label: 'DERNIER DUMP', value: newestSet ? relFr(Math.floor((Date.now() - (parseStamp(newestSet.stamp)?.getTime() ?? 0)) / 1000)) : '—', sub: 'nuit · chiffré', accent: 'bg-ant-blue' },
         { label: 'STOCKAGE', value: s.disk ? `${s.disk.used_pct} %` : '—', sub: s.disk ? `${formatBytes(s.disk.avail_bytes)} libres` : '—', accent: (s.disk?.used_pct ?? 0) >= 80 ? 'bg-ant-orange' : 'bg-ant-green' },
     ];
@@ -216,6 +220,38 @@ export default function OwnerBackups() {
                     {/* 02 recovery points */}
                     <Section n="02" title="Points de restauration — revenir en arrière" subtitle="Une chaîne continue. Choisissez un instant, pas un fichier.">
                         <div className="px-5 py-4 space-y-4">
+                            {/* LIVE stream — the actual "to the second" proof, ticking */}
+                            {(() => {
+                                const last = parsePgTime(s.archiver.last);
+                                const ageS = last ? Math.max(0, Math.floor((Date.now() - last.getTime()) / 1000)) : null;
+                                const hhmmss = last ? last.toISOString().slice(11, 19) : '—';
+                                const healthy = ageS != null && ageS < 180;
+                                return (
+                                    <div className={cn('rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center gap-3',
+                                        healthy ? 'border-ant-green/30 bg-ant-green-soft/30' : 'border-ant-orange/30 bg-ant-orange-soft/30')}>
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                            <span className="relative flex h-3 w-3 shrink-0">
+                                                <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-60', healthy ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                                <span className={cn('relative inline-flex rounded-full h-3 w-3', healthy ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                            </span>
+                                            <div className="min-w-0">
+                                                <div className="font-display text-[15px] text-ant-ink tabular-nums">
+                                                    Restaurable jusqu’à <b>{hhmmss} UTC</b>
+                                                    {ageS != null && <span className={cn('ml-2 text-[13px]', healthy ? 'text-ant-green' : 'text-ant-orange')}>— il y a {ageS} s</span>}
+                                                </div>
+                                                <p className="font-serif italic text-[11.5px] text-ant-muted leading-snug">
+                                                    Le journal des transactions part vers R2 en continu — un segment toutes les ≤ 60 s.
+                                                    Regardez le compteur : il retombe à chaque envoi.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <div className="font-display text-[13px] text-ant-ink tabular-nums">{s.archiver.archived ?? '—'} segments</div>
+                                            <div className="font-serif italic text-[11px] text-ant-muted">perte max en cas de crash : ~60 s</div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                             {(() => {
                                 const nowSec = Math.floor(Date.now() / 1000);
                                 const span = winStart ? Math.max(1, nowSec - winStart) : 1;
@@ -251,6 +287,12 @@ export default function OwnerBackups() {
                                 );
                             })()}
                             <div className="overflow-x-auto">
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-ant-muted pt-1 pb-2">
+                                    Sauvegardes de base — points d’appui techniques
+                                    <span className="normal-case tracking-normal font-serif italic text-[11px]">
+                                        {' '}· la précision à la seconde vient du flux ci-dessus, pas de ces lignes
+                                    </span>
+                                </p>
                                 <table className="w-full min-w-[560px] text-[12px]">
                                     <thead><tr className="text-left text-[9px] uppercase tracking-[0.18em] text-ant-muted border-b border-ant-line">
                                         <th className="py-2 pr-3 font-medium">Type</th><th className="py-2 pr-3 font-medium">Horodatage (UTC)</th>
