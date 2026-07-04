@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
 import {
     Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
 } from '@/components/ui/tooltip';
@@ -38,15 +37,6 @@ function Section({ n, title, subtitle, children }: { n: string; title: string; s
     );
 }
 
-function FreshnessBar({ ageSec, maxAge }: { ageSec: number; maxAge: number | null }) {
-    const ratio = maxAge ? Math.min(1.2, ageSec / maxAge) : 0;
-    const color = ratio > 1 ? 'bg-ant-rose' : ratio > 0.7 ? 'bg-ant-orange' : 'bg-ant-green';
-    return (
-        <div className="h-1.5 w-16 rounded-full bg-ant-line overflow-hidden">
-            <div className={cn('h-full rounded-full', color)} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
-        </div>
-    );
-}
 
 /* ── page ────────────────────────────────────────────────────────────────── */
 
@@ -331,12 +321,14 @@ export default function OwnerBackups() {
                                     {g.keys.map((k) => {
                                         const hb = s.heartbeats[k];
                                         return (
-                                            <div key={k} className="flex items-center justify-between gap-3 py-2 border-b border-ant-line-soft last:border-0">
+                                            <div key={k} className="flex items-center justify-between gap-4 py-2 border-b border-ant-line-soft last:border-0">
                                                 <div className="min-w-0 flex-1"><div className="text-[12.5px] text-ant-ink truncate">{streamLabel(k)}</div></div>
-                                                <div className="text-[11px] text-ant-muted tabular-nums w-24 text-right">dernier {relFr(hb.age_sec)}</div>
-                                                <div className="text-[11px] text-ant-mid w-24 text-right hidden sm:block">{streamCadenceLabel(k)}</div>
-                                                <FreshnessBar ageSec={hb.age_sec} maxAge={hb.max_age_sec} />
-                                                <span className={cn('text-[10px] w-16 text-right', hb.fresh ? 'text-ant-green' : 'text-ant-rose')}>{hb.fresh ? 'à jour' : 'en retard'}</span>
+                                                <div className="text-[11px] text-ant-muted tabular-nums whitespace-nowrap text-right">dernier {relFr(hb.age_sec)}</div>
+                                                <div className="text-[11px] text-ant-mid whitespace-nowrap w-24 text-right hidden sm:block">{streamCadenceLabel(k)}</div>
+                                                <span className={cn('inline-flex items-center gap-1.5 text-[11px] w-20 justify-end', hb.fresh ? 'text-ant-green' : 'text-ant-rose')}>
+                                                    <span className={cn('w-1.5 h-1.5 rounded-full', hb.fresh ? 'bg-ant-green' : 'bg-ant-rose')} />
+                                                    {hb.fresh ? 'à jour' : 'en retard'}
+                                                </span>
                                             </div>
                                         );
                                     })}
