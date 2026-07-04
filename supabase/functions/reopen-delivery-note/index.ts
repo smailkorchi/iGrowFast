@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${jwt}` } },
       auth: { persistSession: false },
     });
-    const { data: { user: callerUser }, error: callerErr } = await caller.auth.getUser();
+    const { data: { user: callerUser }, error: callerErr } = await caller.auth.getUser(jwt);
     if (callerErr || !callerUser) {
       return new Response(JSON.stringify({ success: false, error: "unauthorized" }), {
         status: 401,

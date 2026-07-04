@@ -179,7 +179,7 @@ async function handleStart(req: Request, admin: ReturnType<typeof createClient>)
         global: { headers: { Authorization: authHeader } },
         auth: { persistSession: false },
     });
-    const { data: userData } = await userClient.auth.getUser();
+    const { data: userData } = await userClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (!userData?.user) return jsonResponse({ ok: false, error: '[oauth_v3] unauthorized' });
 
     const body = await req.json().catch(() => ({}));

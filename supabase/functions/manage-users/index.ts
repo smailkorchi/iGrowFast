@@ -196,11 +196,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: `Bearer ${jwt}` } }, auth: { persistSession: false } },
     );
-    const { data: { user: callerUser }, error: callerErr } = await caller.auth.getUser();
+    // getUser(jwt) — explicit token. The no-arg form needs a client session, which
+    // this stateless service client never has, so it 401'd every call.
+    const { data: { user: callerUser }, error: callerErr } = await caller.auth.getUser(jwt);
     if (callerErr || !callerUser) return json({ error: "unauthorized" }, 401);
     const { data: me } = await supabaseClient
       .from("users")
-      .select('role, "DigiCom Business"')
+      .select('role, "DigiCom Business", backup_root')
       .eq("id", callerUser.id)
       .maybeSingle();
     if (!me || !ADMIN_ROLES.includes(me.role)) return json({ error: "forbidden" }, 403);
@@ -208,7 +210,13 @@ Deno.serve(async (req) => {
     const { action, userData, userId } = await req.json();
 
     if (action === "create") {
-      const { email, password, name, username, role, whatsapp_access, ga_access, meta_access, ...rest } = userData;
+      // backup_admin is grantable ONLY by the backup_root account; backup_root is
+      // never settable through the app. Destructuring strips both from `rest` so
+      // they can't ride in via the service-role writes below.
+      const { email, password, name, username, role, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
+      if (me.backup_root === true && typeof backup_admin === "boolean") {
+        rest.backup_admin = backup_admin;
+      }
       // Tenant scoping: a created account always belongs to the caller's own
       // business, regardless of any "DigiCom Business" the client supplied.
       // (Owner rows are the exception — enforce_owner_unscoped() nulls it.)
@@ -266,7 +274,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update") {
-      const { email, password, whatsapp_access, ga_access, meta_access, ...rest } = userData;
+      // Same rule as create: only the backup_root caller may set backup_admin;
+      // backup_root itself is never accepted from the client.
+      const { email, password, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
+      if (me.backup_root === true && typeof backup_admin === "boolean") {
+        rest.backup_admin = backup_admin;
+      }
 
       // Read the current auth login email so we only touch GoTrue when something
       // actually changed. Forwarding an unchanged email made GoTrue treat every

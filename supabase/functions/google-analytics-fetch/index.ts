@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
             global: { headers: { Authorization: authHeader } },
             auth: { persistSession: false },
         });
-        const { data: userData } = await userClient.auth.getUser();
+        const { data: userData } = await userClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
         if (!userData?.user) {
             return jsonResponse({ ok: false, error: 'unauthorized' });
         }

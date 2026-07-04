@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${bearer}` } },
       auth: { persistSession: false },
     });
-    const { data: { user }, error: uErr } = await userClient.auth.getUser();
+    const { data: { user }, error: uErr } = await userClient.auth.getUser(bearer);
     if (uErr || !user) return json({ ok: false, error: 'unauthorized' }, 401);
     const { data: prof } = await admin.from('users').select('role').eq('id', user.id).maybeSingle();
     if (!prof || !['super admin', 'admin'].includes(prof.role)) {

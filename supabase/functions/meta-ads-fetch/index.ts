@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
             global: { headers: { Authorization: authHeader } },
             auth: { persistSession: false },
         });
-        const { data: userData } = await userClient.auth.getUser();
+        const { data: userData } = await userClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
         if (!userData?.user) return jsonResponse({ ok: false, error: 'unauthorized' });
 
         const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
