@@ -14,7 +14,7 @@ import {
 import {
     backupAgent, computeVerdict, VERDICT_META, worstFailureSentence, anyUnitActive,
     activeUnitLabel, walSpanFr, walWindowStart, streamLabel, streamServer, streamCadence,
-    formatBytes, relFr, inFr, fmtEpochUtc, parseStamp,
+    formatBytes, relFr, inFr, fmtEpochUtc, parseStamp, parsePgTime,
     type AgentStatus, type BackupSet, type PitrBackup,
 } from '@/lib/backupAgent';
 import { ManualBackupWizard } from '@/components/owner/backups/ManualBackupWizard';
