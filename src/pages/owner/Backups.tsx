@@ -216,13 +216,40 @@ export default function OwnerBackups() {
                     {/* 02 recovery points */}
                     <Section n="02" title="Points de restauration — revenir en arrière" subtitle="Une chaîne continue. Choisissez un instant, pas un fichier.">
                         <div className="px-5 py-4 space-y-4">
-                            <div>
-                                <div className="flex items-center justify-between text-[11px] font-mono text-ant-mid mb-1">
-                                    <span>{winStart ? fmtEpochUtc(winStart) : '—'}</span><span>maintenant</span>
-                                </div>
-                                <div className="h-2 rounded-full bg-gradient-to-r from-ant-blue-soft to-ant-blue" />
-                                <p className="font-serif italic text-[11px] text-ant-muted mt-1">Fenêtre récupérable — restauration à n’importe quelle seconde de cet intervalle.</p>
-                            </div>
+                            {(() => {
+                                const nowSec = Math.floor(Date.now() / 1000);
+                                const span = winStart ? Math.max(1, nowSec - winStart) : 1;
+                                const pos = (epoch: number) => Math.max(0, Math.min(100, ((epoch - (winStart ?? epoch)) / span) * 100));
+                                const pts = (s.pitr.backups ?? []).filter((b) => b.stop != null);
+                                return (
+                                    <div>
+                                        <div className="flex items-center justify-between text-[11px] font-mono text-ant-mid mb-1">
+                                            <span>{winStart ? fmtEpochUtc(winStart) : '—'}</span><span>maintenant</span>
+                                        </div>
+                                        {/* window band with a base-backup tick at each point */}
+                                        <div className="relative h-2 rounded-full bg-gradient-to-r from-ant-blue-soft to-ant-blue">
+                                            {pts.map((b) => (
+                                                <span key={b.label}
+                                                    title={`${b.type === 'full' ? 'Complète' : 'Incrémentale'} · ${fmtEpochUtc(b.stop)}`}
+                                                    className={cn('absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full border',
+                                                        b.type === 'full' ? 'w-3 h-3 bg-ant-ink border-ant-ink' : 'w-2.5 h-2.5 bg-ant-paper border-ant-mid')}
+                                                    style={{ left: `${pos(b.stop!)}%` }} />
+                                            ))}
+                                            <span className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-ant-green ring-2 ring-ant-paper" title="maintenant" />
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-2 text-[10px] text-ant-muted">
+                                            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-ant-ink inline-block" /> complète</span>
+                                            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-ant-paper border border-ant-mid inline-block" /> incrémentale</span>
+                                            <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ant-green inline-block" /> maintenant</span>
+                                        </div>
+                                        <p className="font-serif italic text-[11px] text-ant-muted mt-1.5 leading-relaxed">
+                                            Restauration à n’importe quelle seconde entre le plus ancien point et maintenant.
+                                            Les repères sont les sauvegardes de base ; l’archivage WAL continu comble les
+                                            intervalles — y compris au-delà de la dernière sauvegarde, jusqu’à l’instant présent.
+                                        </p>
+                                    </div>
+                                );
+                            })()}
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-[560px] text-[12px]">
                                     <thead><tr className="text-left text-[9px] uppercase tracking-[0.18em] text-ant-muted border-b border-ant-line">

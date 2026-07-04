@@ -195,10 +195,11 @@ export function parsePgTime(s: string | null | undefined): Date | null {
     const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
     return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])) : null;
 }
-/** Earliest restorable instant (epoch sec) = oldest retained backup start. null if none. */
+/** Earliest restorable instant (epoch sec) = when the oldest retained base backup
+ *  became consistent (its stop). null if none. Matches the timestamp shown per row. */
 export function walWindowStart(s: AgentStatus): number | null {
-    const starts = (s.pitr.backups ?? []).map((b) => b.start).filter((x): x is number => x != null);
-    return starts.length ? Math.min(...starts) : null;
+    const stops = (s.pitr.backups ?? []).map((b) => b.stop).filter((x): x is number => x != null);
+    return stops.length ? Math.min(...stops) : null;
 }
 /** Human span of the recoverable window, e.g. "6 j 04 h". */
 export function walSpanFr(s: AgentStatus): string {
