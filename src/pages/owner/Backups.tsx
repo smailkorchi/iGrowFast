@@ -119,7 +119,9 @@ export default function OwnerBackups() {
         { icon: Key, title: 'Secrets escrow', line: 'clés vault · age', keys: ['vmi3390870/restic'] },
         { icon: Globe, title: 'Sites 2 & 3', line: 'toolbox hebdo · Mac mensuel', keys: ['vmi3414204/db-pull'] },
     ];
-    const rowFresh = (keys: string[]) => keys.every((k) => s.heartbeats[k]?.fresh ?? true);
+    // a MISSING heartbeat is unknown, not healthy — render it as not-fresh so a
+    // silent stream failure never shows green.
+    const rowFresh = (keys: string[]) => keys.every((k) => s.heartbeats[k]?.fresh === true);
 
     const streamKeys = Object.keys(s.heartbeats).filter((k) => !k.startsWith('_'));
     const byServer = ['Box', 'Toolbox', 'WhatsApp'].map((srv) => ({ srv, keys: streamKeys.filter((k) => streamServer(k) === srv).sort((a, b) => streamLabel(a).localeCompare(streamLabel(b), 'fr')) })).filter((g) => g.keys.length);

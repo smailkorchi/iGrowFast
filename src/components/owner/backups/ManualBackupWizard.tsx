@@ -12,24 +12,28 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-    backupAgent, sessionIsAal2, AgentError, type AgentStatus,
+    backupAgent, sessionIsAal2, AgentError, unitRunning, unitFailed, type AgentStatus,
 } from '@/lib/backupAgent';
 import { TotpGate } from './TotpGate';
 
+// job id (trigger + systemd unit share the same suffix) -> log file the job writes
+const JOB_LOG: Record<string, string> = {
+    'pitr-full': 'pgbackrest.log', 'pitr-incr': 'pgbackrest.log',
+    'pgdump': 'pgdump.log', 'storage-mirror': 'storage-mirror.log', 'restic': 'restic.log',
+};
 type JobKind = {
     key: string;               // trigger job id
     title: string; line: string; icon: LucideIcon;
-    unit: string;              // status unit name to watch
     isPitr?: boolean;
 };
 const JOBS: JobKind[] = [
-    { key: 'pitr-full', title: 'Physique / PITR', icon: HardDrive, unit: 'igf-pgbackrest-full', isPitr: true,
+    { key: 'pitr-full', title: 'Physique / PITR', icon: HardDrive, isPitr: true,
         line: 'Copie au niveau octet, restaurable à la seconde près. Reste sur nos serveurs.' },
-    { key: 'pgdump', title: 'Logique / portable', icon: FileArchive, unit: 'igf-pgdump',
+    { key: 'pgdump', title: 'Logique / portable', icon: FileArchive,
         line: 'Un fichier unique, chiffré, téléchargeable et restaurable ailleurs. Plus lent, plus flexible.' },
-    { key: 'storage-mirror', title: 'Stockage', icon: ImageIcon, unit: 'igf-storage-mirror',
+    { key: 'storage-mirror', title: 'Stockage', icon: ImageIcon,
         line: 'Les fichiers uploadés par vos utilisateurs.' },
-    { key: 'restic', title: 'Configuration', icon: Server, unit: 'igf-restic',
+    { key: 'restic', title: 'Configuration', icon: Server,
         line: 'L’état des 3 serveurs : système et logiciels.' },
 ];
 const STEPS = [
@@ -50,27 +54,36 @@ export function ManualBackupWizard({ open, onClose, status }: {
     const [outcome, setOutcome] = useState<'running' | 'done' | 'error' | null>(null);
 
     const job = JOBS.find((j) => j.key === sel)!;
-    const runJobKey = job.isPitr ? pitrMode : job.key;
-    const unitActive = status?.units?.[job.unit] === 'active';
+    const runJobKey = job.isPitr ? pitrMode : job.key;   // the actual trigger job (pitr-full|pitr-incr|…)
+    const watchUnit = `igf-${runJobKey === 'pitr-full' || runJobKey === 'pitr-incr' ? runJobKey.replace('pitr-', 'pgbackrest-') : runJobKey}`;
+    const logKey = JOB_LOG[runJobKey] ?? '';
+    const unitActive = unitRunning(status?.units?.[watchUnit]);
+    const [launchedAt, setLaunchedAt] = useState(0);
 
     useEffect(() => {
-        if (!open) { setStep(0); setSel('pitr-full'); setPitrMode('pitr-full'); setNeedAal2(false); setBusy(false); setOutcome(null); }
+        if (!open) { setStep(0); setSel('pitr-full'); setPitrMode('pitr-full'); setNeedAal2(false); setBusy(false); setOutcome(null); setLaunchedAt(0); }
     }, [open]);
 
-    // watch for completion while on step 2
+    // watch for completion while on step 2 — but only AFTER the unit has been seen
+    // running at least once (a oneshot may still read idle for the first poll).
+    const [sawRunning, setSawRunning] = useState(false);
     useEffect(() => {
         if (step !== 2 || outcome !== 'running' || !status) return;
-        if (status.units[job.unit] !== 'active') {
+        const st = status.units[watchUnit];
+        if (unitRunning(st)) { setSawRunning(true); return; }
+        if (unitFailed(st)) { setOutcome('error'); return; }
+        // only conclude "done" once we've actually seen it run, or a grace period elapsed
+        if (sawRunning || (launchedAt && Date.now() - launchedAt > 20_000)) {
             setOutcome('done');
-            toast({ title: 'Sauvegarde terminée.' });
         }
-    }, [status, step, outcome, job.unit, toast]);
+    }, [status, step, outcome, watchUnit, sawRunning, launchedAt]);
 
     const launch = async () => {
         setBusy(true);
         try {
             if (!(await sessionIsAal2())) { setNeedAal2(true); setBusy(false); return; }
             await backupAgent.trigger(runJobKey);
+            setSawRunning(false); setLaunchedAt(Date.now());
             setStep(2); setOutcome('running');
         } catch (e) {
             if (e instanceof AgentError && e.code === 'aal2_required') { setNeedAal2(true); }
@@ -182,7 +195,7 @@ export function ManualBackupWizard({ open, onClose, status }: {
                                 <div className="min-w-0">
                                     <div className="font-display text-[13px] text-ant-ink">{job.title} en cours…</div>
                                     <div className="font-mono text-[11px] text-ant-muted truncate">
-                                        {status?.log_tails?.[`${job.key}.log`] ?? 'traitement…'}
+                                        {status?.log_tails?.[logKey] ?? 'traitement…'}
                                     </div>
                                 </div>
                             </div>

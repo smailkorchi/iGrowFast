@@ -126,11 +126,19 @@ export function worstFailureSentence(s: AgentStatus): string {
     return `Tout est sain — restauration prouvée, fenêtre de ${walSpanFr(s)}.`;
 }
 
+// oneshot systemd units report "activating" while running, "active" (RemainAfterExit),
+// "failed" on error, "inactive"/"dead" when finished. Treat the first two as running.
+export function unitRunning(state: string | undefined): boolean {
+    return state === 'active' || state === 'activating' || state === 'reloading';
+}
+export function unitFailed(state: string | undefined): boolean {
+    return state === 'failed';
+}
 export function anyUnitActive(s: AgentStatus): boolean {
-    return Object.values(s.units).some((v) => v === 'active');
+    return Object.values(s.units).some(unitRunning);
 }
 export function activeUnitLabel(s: AgentStatus): string | null {
-    const u = Object.entries(s.units).find(([, v]) => v === 'active');
+    const u = Object.entries(s.units).find(([, v]) => unitRunning(v));
     return u ? unitLabel(u[0]) : null;
 }
 

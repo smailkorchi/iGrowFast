@@ -131,10 +131,12 @@ def status_json() -> int:
             pass
     data["log_tails"] = tails
     units = ["igf-pgdump", "igf-pgbackrest-incr", "igf-pgbackrest-full", "igf-restic",
-             "igf-storage-mirror", "igf-pgbackrest-verify", "igf-restore-drill"]
+             "igf-storage-mirror", "igf-pgbackrest-verify", "igf-restore-drill", "igf-restore"]
     act = {}
     for u in units:
         try:
+            # oneshot units read "activating" while ExecStart runs, "failed" on error,
+            # "inactive"/"dead" when done. The frontend maps these to running/failed/idle.
             act[u] = run(["systemctl", "is-active", f"{u}.service"], timeout=5).stdout.strip()
         except Exception:
             act[u] = "unknown"

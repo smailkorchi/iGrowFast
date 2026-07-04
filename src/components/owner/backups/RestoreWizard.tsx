@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-    backupAgent, sessionIsAal2, parsePgTime, fmtEpochUtc, relFr,
+    backupAgent, sessionIsAal2, parsePgTime, fmtEpochUtc, relFr, unitRunning, unitFailed,
     type AgentStatus, type PitrBackup, type RestorePlan,
 } from '@/lib/backupAgent';
 import { TotpGate } from './TotpGate';
@@ -40,8 +40,11 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
     const [aborting, setAborting] = useState(0);
 
     const backups = useMemo(() => (status?.pitr.backups ?? []).slice().reverse(), [status]);
+    // earliest restorable instant = oldest base backup's STOP (when it became consistent),
+    // matching the window shown on the dashboard. Using start would allow an un-restorable
+    // instant in the oldest backup's start->stop band.
     const winStart = useMemo(() => {
-        const s = (status?.pitr.backups ?? []).map((b) => b.start).filter((x): x is number => x != null);
+        const s = (status?.pitr.backups ?? []).map((b) => b.stop).filter((x): x is number => x != null);
         return s.length ? Math.min(...s) : null;
     }, [status]);
 
@@ -55,12 +58,15 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
         setAal2(false); setAck(false); setTyped(''); setPlan(null); setExec('idle'); setAborting(0);
     };
 
-    // resolved target string for pitr mode ("YYYY-MM-DD HH:MM:SS+00")
+    // resolved target string for pitr mode ("YYYY-MM-DD HH:MM:SS+00").
+    // react-day-picker returns a Date at LOCAL midnight; use its LOCAL calendar
+    // Y/M/D (what the owner clicked) as the UTC calendar day, NOT getUTC* which
+    // would shift a day earlier for UTC+ timezones (Morocco).
     const targetIso = useMemo(() => {
         if (mode !== 'pitr' || !day) return null;
         const d = day;
         const [hh, mm, ss] = time.split(':');
-        const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${hh}:${mm}:${ss || '00'}+00`;
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${hh}:${mm}:${ss || '00'}+00`;
         return iso;
     }, [mode, day, time]);
 
@@ -80,8 +86,10 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
         } catch (e) { toast({ variant: 'destructive', title: 'Plan indisponible', description: (e as Error).message }); return null; }
     };
 
+    const [sawRunning, setSawRunning] = useState(false);
+    const [launchedAt, setLaunchedAt] = useState(0);
     const doRestore = async () => {
-        setExec('starting');
+        setExec('starting'); setSawRunning(false); setLaunchedAt(Date.now());
         try {
             const r = await backupAgent.restore({
                 mode, target_iso: mode === 'pitr' ? targetIso : null,
@@ -92,11 +100,17 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
         } catch (e) { setExec('error'); toast({ variant: 'destructive', title: 'Échec', description: (e as Error).message }); }
     };
 
-    // watch the restore unit to flip running->done
+    // Watch the real igf-restore unit. A oneshot reads "activating" while running,
+    // "failed" on error. Do NOT conclude "done" until we've actually seen it run
+    // (or a long grace elapses) — otherwise the first idle poll would falsely
+    // report success while the safety-backup + clone + parity (up to ~30 min) run.
     useEffect(() => {
         if (exec !== 'running' || !status) return;
-        if (status.units['igf-restore'] !== 'active') { setExec('done'); }
-    }, [status, exec]);
+        const st = status.units['igf-restore'];
+        if (unitRunning(st)) { setSawRunning(true); return; }
+        if (unitFailed(st)) { setExec('error'); return; }
+        if (sawRunning || (launchedAt && Date.now() - launchedAt > 45_000)) { setExec('done'); }
+    }, [status, exec, sawRunning, launchedAt]);
 
     const armed = plan?.armed ?? false;
     const finalLabel = armed
