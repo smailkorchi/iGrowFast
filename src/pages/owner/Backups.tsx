@@ -252,40 +252,23 @@ export default function OwnerBackups() {
                                     </div>
                                 );
                             })()}
-                            {(() => {
-                                const nowSec = Math.floor(Date.now() / 1000);
-                                const span = winStart ? Math.max(1, nowSec - winStart) : 1;
-                                const pos = (epoch: number) => Math.max(0, Math.min(100, ((epoch - (winStart ?? epoch)) / span) * 100));
-                                const pts = (s.pitr.backups ?? []).filter((b) => b.stop != null);
-                                return (
-                                    <div>
-                                        <div className="flex items-center justify-between text-[11px] font-mono text-ant-mid mb-1">
-                                            <span>{winStart ? fmtEpochUtc(winStart) : '—'}</span><span>maintenant</span>
-                                        </div>
-                                        {/* window band with a base-backup tick at each point */}
-                                        <div className="relative h-2 rounded-full bg-gradient-to-r from-ant-blue-soft to-ant-blue">
-                                            {pts.map((b) => (
-                                                <span key={b.label}
-                                                    title={`${b.type === 'full' ? 'Complète' : 'Incrémentale'} · ${fmtEpochUtc(b.stop)}`}
-                                                    className={cn('absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full border',
-                                                        b.type === 'full' ? 'w-3 h-3 bg-ant-ink border-ant-ink' : 'w-2.5 h-2.5 bg-ant-paper border-ant-mid')}
-                                                    style={{ left: `${pos(b.stop!)}%` }} />
-                                            ))}
-                                            <span className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-ant-green ring-2 ring-ant-paper" title="maintenant" />
-                                        </div>
-                                        <div className="flex items-center gap-3 mt-2 text-[10px] text-ant-muted">
-                                            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-ant-ink inline-block" /> complète</span>
-                                            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-ant-paper border border-ant-mid inline-block" /> incrémentale</span>
-                                            <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ant-green inline-block" /> maintenant</span>
-                                        </div>
-                                        <p className="font-serif italic text-[11px] text-ant-muted mt-1.5 leading-relaxed">
-                                            Restauration à n’importe quelle seconde entre le plus ancien point et maintenant.
-                                            Les repères sont les sauvegardes de base ; l’archivage WAL continu comble les
-                                            intervalles — y compris au-delà de la dernière sauvegarde, jusqu’à l’instant présent.
-                                        </p>
-                                    </div>
-                                );
-                            })()}
+                            <div>
+                                <div className="flex items-center justify-between text-[11px] font-mono text-ant-mid mb-1.5">
+                                    <span>{winStart ? fmtEpochUtc(winStart) : '—'}</span>
+                                    <span className="uppercase tracking-[0.14em] text-[9px] text-ant-mid">← n’importe quelle seconde de cet intervalle →</span>
+                                    <span>maintenant</span>
+                                </div>
+                                {/* continuous recoverable window — NOT discrete points; the whole blue band is restorable */}
+                                <div className="relative h-3 rounded-full bg-gradient-to-r from-ant-blue-soft to-ant-blue overflow-hidden">
+                                    <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(255,255,255,0.18)_0,rgba(255,255,255,0.18)_1px,transparent_1px,transparent_7px)]" />
+                                    <span className="absolute top-1/2 right-0.5 -translate-y-1/2 w-2 h-2 rounded-full bg-ant-green ring-2 ring-ant-paper animate-pulse" title="maintenant — le bord avance en continu" />
+                                </div>
+                                <p className="font-serif italic text-[11.5px] text-ant-muted mt-1.5 leading-relaxed">
+                                    Toute la bande bleue est restaurable, à la seconde — pas seulement des points isolés.
+                                    Le bord droit avance en continu grâce à l’archivage WAL. Les sauvegardes de base
+                                    listées plus bas ne sont que les fondations techniques, pas les seuls moments possibles.
+                                </p>
+                            </div>
                             <div className="overflow-x-auto">
                                 <p className="text-[10px] uppercase tracking-[0.18em] text-ant-muted pt-1 pb-2">
                                     Sauvegardes de base — points d’appui techniques
