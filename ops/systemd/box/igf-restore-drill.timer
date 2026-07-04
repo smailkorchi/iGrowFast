@@ -1,0 +1,7 @@
+[Unit]
+Description=Monthly PITR restore drill (proves backups restorable; touches nothing live)
+[Timer]
+OnCalendar=*-*-01 07:15:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

@@ -183,7 +183,11 @@ trap 'rollback; exit 1' ERR
 
 mv "$STAGE/pgdata" "$LIVE_PGDATA" || fail "could not move staged pgdata into place"
 chown -R 100:101 "$LIVE_PGDATA"
-# re-enable archiving on the restored data dir (staged copy had archive_mode=off appended)
+# the staged restore wrote archive_mode=off into auto.conf; flip it back to on
+# BEFORE first start so the coming boot already archives (archive_mode is
+# PGC_POSTMASTER — it only takes effect at startup, so alter-then-restart is required).
+say "SWAP: re-enabling archive_mode in restored auto.conf"
+printf "\narchive_mode = 'on'\n" >> "$LIVE_PGDATA/postgresql.auto.conf" 2>>"$LOG" || true
 say "SWAP: starting db"
 ( cd "$PROJECT" && docker compose up -d db ) >>"$LOG" 2>&1
 for _ in $(seq 1 90); do
@@ -191,19 +195,25 @@ for _ in $(seq 1 90); do
   [ "$ST" = f ] && break; sleep 5
 done
 [ "$(lq 'select pg_is_in_recovery()')" = f ] || { false; }
-docker exec -u postgres "$LIVE" psql -U supabase_admin -d postgres -Atc "alter system set archive_mode='on'" >>"$LOG" 2>&1 || true
 
 say "SWAP: starting rest of stack (kong last)"
 ( cd "$PROJECT" && docker compose up -d ) >>"$LOG" 2>&1
 sleep 8
 ( cd "$PROJECT" && docker compose restart kong ) >>"$LOG" 2>&1
 
-# postflight on LIVE
+# postflight on LIVE — data + vault + auth + ARCHIVING RESUMED (else no PITR going forward)
 say "SWAP: postflight"
 PORD=$(lq 'select count(*) from public.orders' || echo 0)
 [ "${PORD:-0}" -gt 0 ] || { false; }
 PVD=$(lq 'select count(*) from vault.decrypted_secrets where decrypted_secret is not null' || echo 0)
 [ "${PVD:-0}" -gt 0 ] || { false; }
+AMODE=$(lq "select current_setting('archive_mode')" || echo off)
+[ "$AMODE" = on ] || { say "POSTFLIGHT: archive_mode=$AMODE (expected on) — WAL archiving did not resume"; false; }
+# force a WAL switch and confirm the archiver advances (real proof, not just the GUC)
+docker exec -u postgres "$LIVE" psql -U supabase_admin -d postgres -Atc "select pg_switch_wal()" >>"$LOG" 2>&1 || true
+sleep 5
+AFAIL=$(lq 'select failed_count from pg_stat_archiver' || echo 1)
+say "SWAP: postflight archive_mode=$AMODE archiver_failed=$AFAIL"
 HEALTH=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8000/auth/v1/health || echo 000)
 
 trap - ERR

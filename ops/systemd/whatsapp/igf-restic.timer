@@ -1,0 +1,7 @@
+[Unit]
+Description=Nightly restic config backup 04:05 UTC
+[Timer]
+OnCalendar=*-*-* 04:05:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

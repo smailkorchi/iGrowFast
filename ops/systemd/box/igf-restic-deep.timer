@@ -1,0 +1,7 @@
+[Unit]
+Description=Monthly restic deep check (1st 05:00 UTC)
+[Timer]
+OnCalendar=*-*-01 05:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,5 @@
+[Unit]
+Description=iGrowFast PITR restore drill (throwaway container, touches nothing live)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-restore-drill.sh

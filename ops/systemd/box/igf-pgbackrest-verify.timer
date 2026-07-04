@@ -1,0 +1,7 @@
+[Unit]
+Description=pgBackRest verify (Sat 04:15 UTC)
+[Timer]
+OnCalendar=Sat *-*-* 04:15:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

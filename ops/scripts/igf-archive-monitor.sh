@@ -25,7 +25,7 @@ elif [ "$amode" != "on" ]; then
 elif [ "$failed" -gt "$prev_failed" ]; then
   alert "PITR archiver FAILING" "pg_stat_archiver.failed_count rose $prev_failed→$failed on $(hostname). archive_command failing to R2. Risk: pg_wal fills the 242G root fs → PANIC. Check pgbackrest + R2 token."
 elif [ "$lastage" -gt 1800 ]; then
-  alert "PITR archiver STALE" "Last successful WAL archive was ${lastage}s ago on $(hostname) (archive_timeout=300, expect <30min even idle). archive-push may be stuck. Investigate."
+  alert "PITR archiver STALE" "Last successful WAL archive was ${lastage}s ago on $(hostname) (archive_timeout=60, expect a segment every ~60s). archive-push may be stuck. Investigate."
 fi
 echo "$failed" > "$STATE"
 
@@ -34,3 +34,8 @@ usep=$(df --output=pcent / | tail -1 | tr -dc 0-9)
 if [ "${usep:-0}" -ge 70 ]; then
   alert "Box disk ${usep}%" "Root fs on $(hostname) at ${usep}%. pg_wal growth from stalled archiving is the prime suspect. df -h and check pgbackrest archive-push queue."
 fi
+
+# heartbeat LAST — this monitor is the only archiver-stall + disk-fill detector, and
+# log_min_messages=fatal hides archiver logs, so its OWN death must be caught fast.
+# Tight max-age (20min) so the peer watchdog alerts within minutes if it stops.
+igf-heartbeat.sh archive-monitor 1200 || true

@@ -1,0 +1,7 @@
+[Unit]
+Description=Weekly restic maintenance (Sat 04:30 UTC)
+[Timer]
+OnCalendar=Sat *-*-* 04:30:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

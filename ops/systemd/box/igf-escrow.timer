@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily secrets escrow refresh 01:20 UTC
+[Timer]
+OnCalendar=*-*-* 01:20:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

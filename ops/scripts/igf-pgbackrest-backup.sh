@@ -25,5 +25,9 @@ docker exec -u postgres "$CONT" pgbackrest --stanza=igf --config="$CONF" --type=
 # gate heartbeat on the backup actually being registered
 docker exec -u postgres "$CONT" pgbackrest --stanza=igf --config="$CONF" info >>"$LOG" 2>&1 \
   || fail "pgbackrest info failed after backup"
-igf-heartbeat.sh "pgbackrest-$TYPE" $((8*24*3600))   # full weekly, incr daily; generous window, verify job covers gaps
+# heartbeat window per type: incr is daily (36h catches a missed day fast), full is
+# weekly (9d covers a missed Sunday). A too-generous window would let a daily incr
+# silently stop for a week (sweep L2).
+if [ "$TYPE" = incr ]; then HB_MAXAGE=$((36*3600)); else HB_MAXAGE=$((9*24*3600)); fi
+igf-heartbeat.sh "pgbackrest-$TYPE" "$HB_MAXAGE"
 echo "$(date -uIs) OK $TYPE" >>"$LOG"

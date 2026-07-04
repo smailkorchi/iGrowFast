@@ -1,0 +1,8 @@
+[Unit]
+Description=iGrowFast backup watchdog (watches toolbox heartbeats in R2)
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-watchdog.sh vmi3414204
+ExecStart=/usr/local/bin/igf-watchdog.sh vmi3418398

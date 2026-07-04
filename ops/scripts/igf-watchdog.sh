@@ -13,10 +13,22 @@ BUCKET="${IGF_WD_BUCKET:?IGF_WD_BUCKET not set}"
 GRACE=${IGF_WD_GRACE:-7200}
 NOW=$(date -u +%s)
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+
+# Distinguish "R2 read failed" from "no heartbeats yet". A failed read (expired/
+# revoked r2wd token, R2 outage, network partition) must NOT be mistaken for
+# all-clear — that is the exact blind spot the watchdog exists to avoid.
+if ! rclone lsjson "r2wd:${BUCKET}/heartbeat/${WATCH}/" >"$TMP/.ls" 2>"$TMP/.err"; then
+  printf 'Watchdog on %s CANNOT READ heartbeats for %s from R2.\n\nError:\n%s\n\nCause: r2wd token expired/revoked, R2 outage, or network. This BLINDS monitoring of %s — fix now.\n' \
+    "$(hostname)" "$WATCH" "$(head -c 400 "$TMP/.err")" "$WATCH" | igf-alert.sh "WATCHDOG BLIND on ${WATCH}"
+  exit 1
+fi
 rclone copy "r2wd:${BUCKET}/heartbeat/${WATCH}/" "$TMP/" 2>/dev/null || true
 shopt -s nullglob
 files=("$TMP"/*.json)
-[ ${#files[@]} -eq 0 ] && exit 0   # nothing registered yet
+# heartbeat: this watchdog ran and could read R2 — the peer reads THIS to catch a
+# silently-dead watchdog (mutual liveness). Own-heartbeat write must not gate the check.
+igf-heartbeat.sh "watchdog-${WATCH}" 5400 || true
+[ ${#files[@]} -eq 0 ] && exit 0   # read OK, nothing registered yet
 STALE=""
 for f in "${files[@]}"; do
   job=$(basename "$f" .json)

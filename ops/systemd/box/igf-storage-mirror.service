@@ -1,0 +1,5 @@
+[Unit]
+Description=iGrowFast nightly igf-storage bucket mirror to R2 backup prefix
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-storage-mirror.sh

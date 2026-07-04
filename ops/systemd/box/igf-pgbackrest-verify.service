@@ -1,0 +1,5 @@
+[Unit]
+Description=pgBackRest weekly repo verify
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-pgbackrest-verify.sh

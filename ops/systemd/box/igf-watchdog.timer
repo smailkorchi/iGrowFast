@@ -1,0 +1,6 @@
+[Unit]
+Description=Backup watchdog every 30 min
+[Timer]
+OnCalendar=*:5/30
+[Install]
+WantedBy=timers.target

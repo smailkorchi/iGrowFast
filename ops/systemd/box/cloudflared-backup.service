@@ -1,0 +1,18 @@
+[Unit]
+Description=cloudflared tunnel for backup-api.igrowfast.com (host-level, independent of compose stack)
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=igf-agent
+Group=igf-agent
+EnvironmentFile=/etc/igf-backup-agent/tunnel.env
+ExecStart=/usr/local/bin/cloudflared tunnel run --token ${TUNNEL_TOKEN}
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target

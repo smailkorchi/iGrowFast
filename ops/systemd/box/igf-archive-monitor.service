@@ -1,0 +1,5 @@
+[Unit]
+Description=pgBackRest WAL archiver health monitor
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-archive-monitor.sh

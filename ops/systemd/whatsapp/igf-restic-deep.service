@@ -1,0 +1,6 @@
+[Unit]
+Description=Monthly restic deep verify (read-data subset)
+[Service]
+Environment=HOME=/root
+Type=oneshot
+ExecStart=/usr/local/bin/igf-restic-maint.sh --deep

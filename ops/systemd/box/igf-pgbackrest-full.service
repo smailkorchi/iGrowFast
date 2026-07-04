@@ -1,0 +1,6 @@
+[Unit]
+Description=pgBackRest full backup
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-pgbackrest-backup.sh full

@@ -1,0 +1,8 @@
+[Unit]
+Description=iGrowFast nightly logical DB backup to R2
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-pgdump.sh

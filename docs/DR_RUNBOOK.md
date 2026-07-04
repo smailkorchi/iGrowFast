@@ -45,13 +45,22 @@ The clone is fully isolated (no TCP, no network, cron/pg_net inert). Extract wha
 ## S2 — A deleted user upload
 
 Object layout mirrors storage-api: `stub/<bucket>/<key>/<version-uuid>`.
+There is NO writable rclone remote for `igf-storage` on the box (the RW token is wired only
+into storage-api's env, and `r2src` is read-only). To copy an object back you must first define
+a temporary RW remote from the `cf-igf-r2-igf-storage` token, then copy:
 ```
-# check current mirror first, then the dated deletion archive
+# 1. locate it in the mirror (current, then the dated deletion archive/<date>/)
 rclone lsf r2db:igf-db-backups/storage-mirror/current/stub/<bucket>/ | grep <name>
+# 2. build a one-off RW remote from the igf-storage token (Keychain cf-igf-r2-igf-storage on the Mac,
+#    or mint a scoped one) and copy back:
+export RCLONE_CONFIG=/dev/null RCLONE_CONFIG_R2STOR_TYPE=s3 RCLONE_CONFIG_R2STOR_PROVIDER=Cloudflare \
+  RCLONE_CONFIG_R2STOR_ACCESS_KEY_ID=<key> RCLONE_CONFIG_R2STOR_SECRET_ACCESS_KEY=<secret> \
+  RCLONE_CONFIG_R2STOR_ENDPOINT=https://8897211ce4bdb3eff028770e3dc584be.r2.cloudflarestorage.com \
+  RCLONE_CONFIG_R2STOR_REGION=auto RCLONE_CONFIG_R2STOR_NO_CHECK_BUCKET=true
 rclone copy r2db:igf-db-backups/storage-mirror/current/<path> r2stor:igf-storage/<dir>/
 ```
 If the `storage.objects` row is also gone, restore it too (see reconciliation section of
-`igf-db-backups/logical/RESTORE_RUNBOOK.md`).
+`igf-db-backups/logical/RESTORE_RUNBOOK.md`) — the object alone won't reappear in the app without its row.
 
 ## S3 — Whole-database restore onto the live box (the big red button)
 
@@ -74,7 +83,10 @@ Phase 9 will gate this behind the dashboard. Manual procedure (proven by the dri
    `/opt/supabase-project` (compose + .env), `/etc` hardening, all `/usr/local/bin` scripts,
    `/root/.config/igf-backup`, systemd units, CF exports.
 4. `pgsodium_root.key`: restic set has it; card C1 is the fallback.
-5. Rebuild the postgres image: `ops/postgres-image/Dockerfile` (in repo and in the restic set).
+5. Rebuild the postgres image: the Dockerfile is in the git repo (`ops/postgres-image/Dockerfile`)
+   AND in the restic set (`/opt/backup-infra/postgres-image/Dockerfile`, captured since 2026-07-04).
+   `docker build` it from the pinned public base digest. (The built 1.74GB image is NOT stored — it is
+   rebuilt from the recipe.)
 6. Restore DB per S3. Point the CF tunnel at the new box (config in `/root/config-exports/`).
 7. Re-arm timers (`systemctl enable --now igf-*.timer`), verify heartbeats return.
 

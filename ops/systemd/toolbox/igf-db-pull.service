@@ -1,0 +1,5 @@
+[Unit]
+Description=iGrowFast weekly pull of newest DB backups from R2 (second location)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/igf-db-pull.sh
