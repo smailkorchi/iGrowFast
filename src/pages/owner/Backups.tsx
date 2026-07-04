@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/tooltip';
 import {
     backupAgent, computeVerdict, VERDICT_META, worstFailureSentence, anyUnitActive,
-    activeUnitLabel, walSpanFr, walWindowStart, streamLabel, streamServer, streamCadence,
-    formatBytes, relFr, inFr, fmtEpochUtc, parseStamp, parsePgTime,
+    activeUnitLabel, walSpanFr, walWindowStart, streamLabel, streamServer, streamCadenceLabel,
+    formatBytes, relFr, fmtEpochUtc, parseStamp, parsePgTime,
     type AgentStatus, type BackupSet, type PitrBackup,
 } from '@/lib/backupAgent';
 import { ManualBackupWizard } from '@/components/owner/backups/ManualBackupWizard';
@@ -330,12 +330,11 @@ export default function OwnerBackups() {
                                     <div className="text-[10px] uppercase tracking-[0.2em] text-ant-mid py-1.5 border-b border-ant-line-soft">— {g.srv} —</div>
                                     {g.keys.map((k) => {
                                         const hb = s.heartbeats[k];
-                                        const nextIn = hb.iso ? Math.floor((new Date(hb.iso).getTime() + streamCadence(k) * 1000 - Date.now()) / 1000) : 0;
                                         return (
                                             <div key={k} className="flex items-center justify-between gap-3 py-2 border-b border-ant-line-soft last:border-0">
                                                 <div className="min-w-0 flex-1"><div className="text-[12.5px] text-ant-ink truncate">{streamLabel(k)}</div></div>
-                                                <div className="text-[11px] text-ant-muted tabular-nums w-20 text-right">{relFr(hb.age_sec)}</div>
-                                                <div className="text-[11px] text-ant-mid tabular-nums w-20 text-right hidden sm:block">{inFr(nextIn)}</div>
+                                                <div className="text-[11px] text-ant-muted tabular-nums w-24 text-right">dernier {relFr(hb.age_sec)}</div>
+                                                <div className="text-[11px] text-ant-mid w-24 text-right hidden sm:block">{streamCadenceLabel(k)}</div>
                                                 <FreshnessBar ageSec={hb.age_sec} maxAge={hb.max_age_sec} />
                                                 <span className={cn('text-[10px] w-16 text-right', hb.fresh ? 'text-ant-green' : 'text-ant-rose')}>{hb.fresh ? 'à jour' : 'en retard'}</span>
                                             </div>

@@ -151,6 +151,14 @@ const STREAM_META: Record<string, { label: string; server: string; cadenceSec: n
 export function streamLabel(key: string): string { return STREAM_META[key]?.label ?? key; }
 export function streamServer(key: string): string { return STREAM_META[key]?.server ?? key.split('/')[0]; }
 export function streamCadence(key: string): number { return STREAM_META[key]?.cadenceSec ?? 86400; }
+/** How often the stream runs, as an honest descriptor (never a fake countdown). */
+export function streamCadenceLabel(key: string): string {
+    const c = streamCadence(key);
+    if (c <= 3600) return 'continu';
+    if (c <= 86400) return 'quotidien';
+    if (c <= 604800) return 'hebdomadaire';
+    return 'mensuel';
+}
 
 const UNIT_LABEL: Record<string, string> = {
     'igf-pgdump': 'Dump logique', 'igf-pgbackrest-incr': 'PITR incrémental',
