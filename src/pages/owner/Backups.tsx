@@ -112,7 +112,7 @@ export default function OwnerBackups() {
     ];
 
     const estate: Array<{ icon: LucideIcon; title: string; line: string; keys: string[] }> = [
-        { icon: HardDrive, title: 'PITR physique', line: 'octet près · toute seconde', keys: ['vmi3390870/pgbackrest-incr', 'vmi3390870/pgbackrest-full'] },
+        { icon: HardDrive, title: 'PITR physique', line: 'octet près · toute seconde', keys: ['vmi3390870/pgbackrest-incr'] },
         { icon: FileArchive, title: 'Dumps logiques', line: 'portable · chiffré age', keys: ['vmi3390870/pgdump'] },
         { icon: ImageIcon, title: 'Miroir stockage', line: 'fichiers clients · quotidien', keys: ['vmi3390870/storage-mirror'] },
         { icon: Server, title: 'Config (restic)', line: '3 serveurs OS + stack', keys: ['vmi3390870/restic', 'vmi3414204/restic', 'vmi3418398/restic'] },
