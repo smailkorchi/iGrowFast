@@ -91,6 +91,7 @@ import { Navigate } from "react-router-dom";
 import OwnerConfig from "./pages/owner/Config";
 import OwnerEmailTemplates from "./pages/owner/EmailTemplates";
 import OwnerProfile from "./pages/owner/Profile";
+import OwnerBackups from "./pages/owner/Backups";
 import MediaBuyerProfile from "./pages/mediabuyer/Profile";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
@@ -192,6 +193,7 @@ const App = () => (
                   <Route path="zones" element={<OwnerZones />} />
                   <Route path="email-templates" element={<OwnerEmailTemplates />} />
                   <Route path="config" element={<OwnerConfig />} />
+                  <Route path="backups" element={<OwnerBackups />} />
                   <Route path="profile" element={<OwnerProfile />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>

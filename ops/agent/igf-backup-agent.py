@@ -36,7 +36,11 @@ PORT = int(os.environ.get("IGF_AGENT_PORT", "8787"))
 ISSUER = os.environ.get("IGF_JWT_ISS", "https://api.igrowfast.com/auth/v1")
 JWKS_FILE = os.environ.get("IGF_JWKS_FILE", "/etc/igf-backup-agent/jwks.json")
 JWKS_URL = os.environ.get("IGF_JWKS_URL", ISSUER + "/.well-known/jwks.json")
-ORIGIN = os.environ.get("IGF_ALLOWED_ORIGIN", "https://app.igrowfast.com")
+# Comma-separated allowlist. The response echoes back the caller's Origin only if
+# it is in this set (else the first entry — which won't match, so the browser
+# blocks it). localhost entries let the owner test from the Vite dev server.
+ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
+    "IGF_ALLOWED_ORIGINS", "https://app.igrowfast.com").split(",") if o.strip()]
 R2_ENDPOINT = os.environ["IGF_R2_ENDPOINT"]  # host only, no scheme
 R2_BUCKET = os.environ.get("IGF_R2_BUCKET", "igf-db-backups")
 R2_AK = os.environ["IGF_R2_RO_ACCESS_KEY"]
@@ -277,7 +281,9 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", ORIGIN)
+        origin = self.headers.get("Origin", "")
+        allow = origin if origin in ALLOWED_ORIGINS else ALLOWED_ORIGINS[0]
+        self.send_header("Access-Control-Allow-Origin", allow)
         self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "authorization, content-type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")

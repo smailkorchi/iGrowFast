@@ -14,6 +14,7 @@ import {
     Map,
     Mails,
     Settings,
+    DatabaseBackup,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -74,6 +75,14 @@ const OwnerSidebar = () => {
             return data;
         }
     });
+
+    // Backups entry appears only for accounts granted backup access.
+    const navItems = React.useMemo<NavItem[]>(() => {
+        if ((profile as any)?.backup_admin) {
+            return [...navigation, { icon: DatabaseBackup, label: 'Backups', path: '/owner/backups' }];
+        }
+        return navigation;
+    }, [profile]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -139,7 +148,7 @@ const OwnerSidebar = () => {
 
                     {/* Nav */}
                     <div className="flex-1 px-2 pt-2 space-y-0.5 overflow-y-auto overflow-x-hidden no-scrollbar pb-3 scroll-smooth">
-                        {navigation.map((item) => (
+                        {navItems.map((item) => (
                             <NavLink
                                 key={item.path}
                                 to={item.path}
