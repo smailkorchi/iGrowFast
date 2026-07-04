@@ -164,7 +164,7 @@ export function ManualBackupWizard({ open, onClose, status }: {
                             Vous allez lancer : <b>{job.title}{job.isPitr ? (pitrMode === 'pitr-full' ? ' · complète' : ' · incrémentale') : ''}</b>.
                         </p>
                         <div className="rounded-lg bg-ant-blue-soft/50 border border-ant-blue/20 p-3 text-[12px] text-ant-ink">
-                            Sans risque — une sauvegarde n’écrase jamais vos données.
+                            Opération sans risque · aucune donnée écrasée.
                         </div>
                         {unitActive && (
                             <div className="rounded-lg bg-ant-orange-soft/50 border border-ant-orange/20 p-3 text-[12px] text-ant-ink">
@@ -218,7 +218,7 @@ export function ManualBackupWizard({ open, onClose, status }: {
                             </div>
                         )}
                         <p className="font-serif italic text-[11px] text-ant-muted">
-                            Vous pouvez fermer — le travail continue en arrière-plan, visible dans « Flux & santé ».
+                            Fermable — le job continue en arrière-plan (voir Flux & santé).
                         </p>
                         <div className="flex justify-end">
                             <Button onClick={onClose} variant="ghost" className="rounded-full text-ant-mid">Fermer</Button>

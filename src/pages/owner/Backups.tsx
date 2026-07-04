@@ -211,14 +211,14 @@ export default function OwnerBackups() {
                     </div>
 
                     {/* 01 posture */}
-                    <Section n="01" title="Posture — ce que nous protégeons" subtitle="Six lignes de défense, de la seconde près à l’hors-site.">
+                    <Section n="01" title="Couverture" subtitle="Périmètre sauvegardé · fraîcheur par flux.">
                         <div className="px-5 pt-4">
                             <div className="rounded-lg bg-ant-blue-soft/40 border border-ant-blue/20 px-3 py-2 flex items-center gap-2 flex-wrap">
                                 <Globe className="w-3.5 h-3.5 text-ant-blue shrink-0" />
                                 <span className="text-[11.5px] text-ant-ink">
-                                    Destination : <b>Cloudflare R2</b> — hors-site, chiffré, capacité non bornée.
+                                    Destination <b>Cloudflare R2</b> — hors-site, chiffré.
                                 </span>
-                                <span className="text-[11px] text-ant-muted">+ 2 copies (toolbox hebdo · Mac mensuel). Le disque serveur ne stocke pas les sauvegardes.</span>
+                                <span className="text-[11px] text-ant-muted">Répliqué toolbox + Mac.</span>
                             </div>
                         </div>
                         <div className="px-5 py-2">
@@ -238,7 +238,7 @@ export default function OwnerBackups() {
                     </Section>
 
                     {/* 02 recovery points */}
-                    <Section n="02" title="Points de restauration — revenir en arrière" subtitle="Une chaîne continue. Choisissez un instant, pas un fichier.">
+                    <Section n="02" title="Points de restauration" subtitle="PITR continu · à la seconde.">
                         <div className="px-5 py-4 space-y-4">
                             {/* LIVE stream — the actual "to the second" proof, ticking */}
                             {(() => {
@@ -260,14 +260,13 @@ export default function OwnerBackups() {
                                                     {ageS != null && <span className={cn('ml-2 text-[13px]', healthy ? 'text-ant-green' : 'text-ant-orange')}>— il y a {ageS} s</span>}
                                                 </div>
                                                 <p className="font-serif italic text-[11.5px] text-ant-muted leading-snug">
-                                                    Le journal des transactions part vers R2 en continu — un segment toutes les ≤ 60 s.
-                                                    Regardez le compteur : il retombe à chaque envoi.
+                                                    Archivage continu vers R2 · segment ≤ 60 s.
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
                                             <div className="font-display text-[13px] text-ant-ink tabular-nums">{s.archiver.archived ?? '—'} segments</div>
-                                            <div className="font-serif italic text-[11px] text-ant-muted">perte max en cas de crash : ~60 s</div>
+                                            <div className="font-serif italic text-[11px] text-ant-muted">perte max ≤ 60 s</div>
                                         </div>
                                     </div>
                                 );
@@ -283,18 +282,13 @@ export default function OwnerBackups() {
                                     <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(255,255,255,0.18)_0,rgba(255,255,255,0.18)_1px,transparent_1px,transparent_7px)]" />
                                     <span className="absolute top-1/2 right-0.5 -translate-y-1/2 w-2 h-2 rounded-full bg-ant-green ring-2 ring-ant-paper animate-pulse" title="maintenant — le bord avance en continu" />
                                 </div>
-                                <p className="font-serif italic text-[11.5px] text-ant-muted mt-1.5 leading-relaxed">
-                                    Toute la bande bleue est restaurable, à la seconde — pas seulement des points isolés.
-                                    Le bord droit avance en continu grâce à l’archivage WAL. Les sauvegardes de base
-                                    listées plus bas ne sont que les fondations techniques, pas les seuls moments possibles.
+                                <p className="font-serif italic text-[11.5px] text-ant-muted mt-1.5">
+                                    Restauration à la seconde sur tout l’intervalle.
                                 </p>
                             </div>
                             <div className="overflow-x-auto">
                                 <p className="text-[10px] uppercase tracking-[0.18em] text-ant-muted pt-1 pb-2">
-                                    Sauvegardes de base — points d’appui techniques
-                                    <span className="normal-case tracking-normal font-serif italic text-[11px]">
-                                        {' '}· la précision à la seconde vient du flux ci-dessus, pas de ces lignes
-                                    </span>
+                                    Sauvegardes de base
                                 </p>
                                 <table className="w-full min-w-[560px] text-[12px]">
                                     <thead><tr className="text-left text-[9px] uppercase tracking-[0.18em] text-ant-muted border-b border-ant-line">
@@ -323,7 +317,7 @@ export default function OwnerBackups() {
                     </Section>
 
                     {/* 03 streams */}
-                    <Section n="03" title="Flux & santé — ce qui tourne" subtitle="Dix flux, trois serveurs. Archivage WAL toutes les 60 s.">
+                    <Section n="03" title="Flux & santé" subtitle="10 flux · 3 serveurs · WAL 60 s.">
                         <div className="px-5 py-4 space-y-4">
                             <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
                                 {[
@@ -360,7 +354,7 @@ export default function OwnerBackups() {
                     </Section>
 
                     {/* 04 exports */}
-                    <Section n="04" title="Exports téléchargeables — emporter une copie" subtitle="Dumps chiffrés, portables. Lien signé, 10 minutes.">
+                    <Section n="04" title="Exports" subtitle="Dumps chiffrés · lien signé 10 min.">
                         <div className="px-5 py-2">
                             {backups.isLoading && <div className="py-6 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-ant-mid" /></div>}
                             {(backups.data?.sets ?? []).map((set) => (
@@ -389,7 +383,7 @@ export default function OwnerBackups() {
                     </Section>
 
                     {/* 05 actions */}
-                    <Section n="05" title="Actions" subtitle="Lancer une sauvegarde, ou — en dernier recours — restaurer.">
+                    <Section n="05" title="Actions" subtitle="Sauvegarde manuelle · restauration.">
                         <div className="p-5 grid sm:grid-cols-2 gap-3">
                             <button onClick={() => setManualOpen(true)} className="rounded-xl border border-ant-line p-4 text-left hover:border-ant-mid transition-colors">
                                 <RotateCw className="w-4 h-4 text-ant-ink mb-2" />
