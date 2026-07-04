@@ -122,8 +122,8 @@ export function worstFailureSentence(s: AgentStatus): string {
         .filter(([, h]) => h.max_age_sec != null && !h.fresh)
         .sort(([, a], [, b]) => (b.age_sec / (b.max_age_sec || 1)) - (a.age_sec / (a.max_age_sec || 1)))[0];
     if (worst) return `${streamLabel(worst[0])} en retard (${relFr(worst[1].age_sec)}).`;
-    if ((s.archiver.failed ?? 0) > 0) return `${s.archiver.failed} archivage(s) WAL en échec.`;
-    return `Tout est sain — restauration prouvée, fenêtre de ${walSpanFr(s)}.`;
+    if ((s.archiver.failed ?? 0) > 0) return `L’envoi continu des sauvegardes rencontre ${s.archiver.failed} échec(s) — à vérifier.`;
+    return `Vos données sont protégées et restaurables — ${walSpanFr(s)} d’historique.`;
 }
 
 // oneshot systemd units report "activating" while running, "active" (RemainAfterExit),

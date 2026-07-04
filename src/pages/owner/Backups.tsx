@@ -97,18 +97,26 @@ export default function OwnerBackups() {
     }
 
     const winStart = walWindowStart(s);
-    const newestSet = backups.data?.sets[0];
 
+    // Owner-facing metrics only: what protects the business, in plain words.
+    // No internal jargon, no server disk (backups live in R2, not on that disk).
+    const archiverOk = (s.archiver.failed ?? 0) === 0;
     const kpi = [
-        { label: 'POSTURE', value: vm.word, sub: `vérifié ${relFr(s.generated ? Math.floor(Date.now() / 1000) - s.generated : 0)}`, accent: vm.accent },
-        { label: 'RESTAURATION', value: s.drill_fresh ? 'Prouvée' : 'Non prouvée', sub: 'clone == live', accent: s.drill_fresh ? 'bg-ant-green' : 'bg-ant-rose' },
+        { label: 'PROTECTION', value: vm.word, sub: 'temps réel · chiffré', accent: vm.accent },
         {
-            label: 'FENÊTRE PITR', value: walSpanFr(s),
-            sub: (() => { const l = parsePgTime(s.archiver.last); return l ? `jusqu’à il y a ${Math.max(0, Math.floor((Date.now() - l.getTime()) / 1000))} s` : 'à la seconde'; })(),
-            accent: 'bg-ant-blue',
+            label: 'PERTE MAXIMALE',
+            value: archiverOk ? '≈ 1 min' : 'à risque',
+            sub: archiverOk ? 'journal envoyé en continu' : `${s.archiver.failed} envois en échec`,
+            accent: archiverOk ? 'bg-ant-green' : 'bg-ant-rose',
         },
-        { label: 'DERNIER DUMP', value: newestSet ? relFr(Math.floor((Date.now() - (parseStamp(newestSet.stamp)?.getTime() ?? 0)) / 1000)) : '—', sub: 'nuit · chiffré', accent: 'bg-ant-blue' },
-        { label: 'DISQUE SERVEUR', value: s.disk ? `${s.disk.used_pct} %` : '—', sub: s.disk ? `${formatBytes(s.disk.avail_bytes)} libres · spool WAL` : '—', accent: (s.disk?.used_pct ?? 0) >= 80 ? 'bg-ant-orange' : 'bg-ant-green' },
+        { label: 'HISTORIQUE', value: walSpanFr(s), sub: 'restaurable à la seconde', accent: 'bg-ant-blue' },
+        { label: 'EMPLACEMENTS', value: '3 lieux', sub: 'R2 · toolbox · Mac', accent: 'bg-ant-green' },
+        {
+            label: 'RESTAURATION',
+            value: s.drill_fresh ? 'Prouvée' : 'À tester',
+            sub: s.drill_fresh ? 'test automatique réussi' : 'lancez un test',
+            accent: s.drill_fresh ? 'bg-ant-green' : 'bg-ant-rose',
+        },
     ];
 
     const estate: Array<{ icon: LucideIcon; title: string; line: string; keys: string[] }> = [
