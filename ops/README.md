@@ -24,6 +24,7 @@ never in this repo.
 | `igf-restic-maint.sh` | both | Sat + monthly | restic forget/prune + check (+`--deep`) |
 | `igf-cf-export.sh` | box | (restic pre-hook) | export CF dashboard state (tunnel/DNS/Access/rules/lifecycle) |
 | `igf-restore-drill.sh` | box | on-demand (monthly per Phase 11) | full PITR restore drill into throwaway container; `--target` proves point-in-time |
+| `igf-storage-mirror.sh` | box | 02:30 daily | igf-storage (user uploads) → `igf-db-backups/storage-mirror/` (current + dated archive of deletions, 45d) |
 
 ## Recovery entry points
 - Logical restore (fallback): `igf-db-backups/logical/RESTORE_RUNBOOK.md`.
