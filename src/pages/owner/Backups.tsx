@@ -317,7 +317,7 @@ export default function OwnerBackups() {
                     </Section>
 
                     {/* 03 streams */}
-                    <Section n="03" title="Flux & santé" subtitle="10 flux · 3 serveurs · WAL 60 s.">
+                    <Section n="03" title="Flux & santé" subtitle={`${totalStreams} flux · ${byServer.length} serveurs · WAL 60 s`}>
                         <div className="px-5 py-4 space-y-4">
                             <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
                                 {[
