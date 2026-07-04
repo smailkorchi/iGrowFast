@@ -1,0 +1,12 @@
+# /etc/sudoers.d/igf-agent — exact-command grants for the backup agent.
+# The helper validates its own argv (verb whitelist + strict UUID regex);
+# triggers are limited to the fixed unit list, one line each, no wildcard units.
+igf-agent ALL=(root) NOPASSWD: /usr/local/bin/igf-agent-helper status-json
+igf-agent ALL=(root) NOPASSWD: /usr/local/bin/igf-agent-helper check-admin *
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-pgdump.service
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-pgbackrest-incr.service
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-pgbackrest-full.service
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-pgbackrest-verify.service
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-restic.service
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-storage-mirror.service
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-restore-drill.service

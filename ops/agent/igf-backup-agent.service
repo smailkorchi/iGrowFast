@@ -1,0 +1,24 @@
+[Unit]
+Description=iGrowFast backup agent (Tier A: status/trigger/download)
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+User=igf-agent
+Group=igf-agent
+EnvironmentFile=/etc/igf-backup-agent/agent.env
+# root-side JWKS refresh: keeps a disk cache of GoTrue's public keys so the
+# agent can authenticate the owner even while the Supabase stack is down
+ExecStartPre=+/bin/sh -c 'curl -s --max-time 10 https://api.igrowfast.com/auth/v1/.well-known/jwks.json > /etc/igf-backup-agent/jwks.json.tmp && mv /etc/igf-backup-agent/jwks.json.tmp /etc/igf-backup-agent/jwks.json && chmod 644 /etc/igf-backup-agent/jwks.json || true'
+ExecStart=/usr/bin/python3 /usr/local/lib/igf-backup-agent/igf-backup-agent.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=no
+ProtectSystem=strict
+# read-only (not true): the sudo'd root helper reads rclone creds under /root/.config
+ProtectHome=read-only
+ReadWritePaths=/var/log/igf-backup
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

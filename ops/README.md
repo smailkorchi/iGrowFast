@@ -26,6 +26,14 @@ never in this repo.
 | `igf-restore-drill.sh` | box | on-demand (monthly per Phase 11) | full PITR restore drill into throwaway container; `--target` proves point-in-time |
 | `igf-storage-mirror.sh` | box | 02:30 daily | igf-storage (user uploads) → `igf-db-backups/storage-mirror/` (current + dated archive of deletions, 45d) |
 
+## agent/ (deployed on box)
+`igf-backup-agent.py` (127.0.0.1:8787, user igf-agent) + `igf-agent-helper` (root, sudoers-scoped) +
+systemd units. Public via host-level cloudflared `cloudflared-backup.service` -> backup-api.igrowfast.com
+(tunnel 5edf36b8, independent of the compose stack). Auth: ES256-only JWT vs disk-cached GoTrue JWKS,
+sub must be an active `users.backup_admin` (live DB check), `aal2` required for POST triggers.
+Endpoints: /health, /api/status, /api/backups, /api/download (presigned RO, 10 min), /api/trigger/<job>.
+Audit: /var/log/igf-backup/agent-audit.log. CORS pinned to https://app.igrowfast.com.
+
 ## Recovery entry points
 - Logical restore (fallback): `igf-db-backups/logical/RESTORE_RUNBOOK.md`.
 - PITR restore: pgBackRest stanza `igf`; proven drill = `igf-restore-drill.sh` (end-of-WAL and `--target` point-in-time both verified 2026-07-04).
