@@ -118,7 +118,7 @@ export default function OwnerBackups() {
             accent: 'bg-ant-blue',
         },
         { label: 'DERNIER DUMP', value: newestSet ? relFr(Math.floor((Date.now() - (parseStamp(newestSet.stamp)?.getTime() ?? 0)) / 1000)) : '—', sub: 'nuit · chiffré', accent: 'bg-ant-blue' },
-        { label: 'STOCKAGE', value: s.disk ? `${s.disk.used_pct} %` : '—', sub: s.disk ? `${formatBytes(s.disk.avail_bytes)} libres` : '—', accent: (s.disk?.used_pct ?? 0) >= 80 ? 'bg-ant-orange' : 'bg-ant-green' },
+        { label: 'DISQUE SERVEUR', value: s.disk ? `${s.disk.used_pct} %` : '—', sub: s.disk ? `${formatBytes(s.disk.avail_bytes)} libres · spool WAL` : '—', accent: (s.disk?.used_pct ?? 0) >= 80 ? 'bg-ant-orange' : 'bg-ant-green' },
     ];
 
     const estate: Array<{ icon: LucideIcon; title: string; line: string; keys: string[] }> = [
@@ -200,6 +200,15 @@ export default function OwnerBackups() {
 
                     {/* 01 posture */}
                     <Section n="01" title="Posture — ce que nous protégeons" subtitle="Six lignes de défense, de la seconde près à l’hors-site.">
+                        <div className="px-5 pt-4">
+                            <div className="rounded-lg bg-ant-blue-soft/40 border border-ant-blue/20 px-3 py-2 flex items-center gap-2 flex-wrap">
+                                <Globe className="w-3.5 h-3.5 text-ant-blue shrink-0" />
+                                <span className="text-[11.5px] text-ant-ink">
+                                    Destination : <b>Cloudflare R2</b> — hors-site, chiffré, capacité non bornée.
+                                </span>
+                                <span className="text-[11px] text-ant-muted">+ 2 copies (toolbox hebdo · Mac mensuel). Le disque serveur ne stocke pas les sauvegardes.</span>
+                            </div>
+                        </div>
                         <div className="px-5 py-2">
                             {estate.map((e) => (
                                 <div key={e.title} className="flex items-center justify-between py-2.5 border-b border-ant-line-soft last:border-0">
