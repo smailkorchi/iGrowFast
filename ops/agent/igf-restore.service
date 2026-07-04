@@ -1,0 +1,7 @@
+[Unit]
+Description=iGrowFast gated PITR restore (validate-into-clone; swap only when armed)
+After=network-online.target docker.service
+[Service]
+Type=oneshot
+TimeoutStartSec=1800
+ExecStart=/usr/local/bin/igf-restore-runner.sh

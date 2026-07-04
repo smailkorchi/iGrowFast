@@ -10,3 +10,6 @@ igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-pgbackrest-verify.se
 igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-restic.service
 igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-storage-mirror.service
 igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start igf-restore-drill.service
+igf-agent ALL=(root) NOPASSWD: /usr/local/bin/igf-agent-helper restore-plan *
+igf-agent ALL=(root) NOPASSWD: /usr/local/bin/igf-agent-helper restore-start *
+igf-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start --no-block igf-restore.service

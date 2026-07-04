@@ -1,68 +1,50 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-    AlertCircle, ArrowUpRight, Download, Loader2, RefreshCcw, ShieldCheck,
+    HardDrive, FileArchive, Image as ImageIcon, Server, Key, Globe, RotateCw,
+    AlertTriangle, Loader2, Lock, Download, ChevronDown, CheckCircle2, RefreshCcw,
+    type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 import {
-    backupAgent, formatBytes, parseStamp,
-    type AgentStatus, type BackupSet, type Heartbeat,
+    Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
+} from '@/components/ui/tooltip';
+import {
+    backupAgent, computeVerdict, VERDICT_META, worstFailureSentence, anyUnitActive,
+    activeUnitLabel, walSpanFr, walWindowStart, streamLabel, streamServer, streamCadence,
+    formatBytes, relFr, inFr, fmtEpochUtc, parseStamp,
+    type AgentStatus, type BackupSet, type PitrBackup,
 } from '@/lib/backupAgent';
+import { ManualBackupWizard } from '@/components/owner/backups/ManualBackupWizard';
+import { RestoreWizard } from '@/components/owner/backups/RestoreWizard';
 
-/* ── formatting ──────────────────────────────────────────────────────────── */
+/* ── tiny shared bits ────────────────────────────────────────────────────── */
 
-const utcFmt = new Intl.DateTimeFormat('fr-FR', {
-    timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-});
-const fmtUtc = (d: Date | null) => (d ? `${utcFmt.format(d)} UTC` : '—');
-const fmtEpochUtc = (sec: number | null | undefined) =>
-    sec ? fmtUtc(new Date(sec * 1000)) : '—';
-
-function ilYA(sec: number): string {
-    if (sec < 60) return `il y a ${sec} s`;
-    if (sec < 3600) return `il y a ${Math.floor(sec / 60)} min`;
-    if (sec < 86400) return `il y a ${Math.floor(sec / 3600)} h`;
-    return `il y a ${Math.floor(sec / 86400)} j`;
-}
-
-/* ── stream labels ───────────────────────────────────────────────────────── */
-
-const STREAMS: Record<string, { label: string; detail: string }> = {
-    'vmi3390870/pgdump': { label: 'Dump logique nocturne', detail: 'base complète · chiffré age' },
-    'vmi3390870/pgbackrest-incr': { label: 'PITR — incrémental', detail: 'pgBackRest · lun–sam 01:45' },
-    'vmi3390870/pgbackrest-full': { label: 'PITR — complet', detail: 'pgBackRest · dimanche 01:45' },
-    'vmi3390870/pgbackrest-verify': { label: 'PITR — vérification du dépôt', detail: 'intégrité · samedi 04:15' },
-    'vmi3390870/restic': { label: 'Configuration serveur', detail: 'box principale · restic' },
-    'vmi3390870/storage-mirror': { label: 'Miroir du stockage', detail: 'uploads utilisateurs · 02:30' },
-    'vmi3390870/restore-drill': { label: 'Exercice de restauration', detail: 'preuve de restaurabilité' },
-    'vmi3414204/restic': { label: 'Configuration serveur', detail: 'toolbox · restic' },
-    'vmi3414204/db-pull': { label: 'Copie secondaire', detail: 'toolbox · dimanche 06:10' },
-    'vmi3418398/restic': { label: 'Configuration serveur', detail: 'box WhatsApp · restic' },
-};
-
-/* ── shared section shell (Vue d'ensemble vocabulary) ────────────────────── */
-
-function Section({ number, title, subtitle, accent, children }: {
-    number: string; title: string; subtitle: string;
-    accent: 'bg-ant-ink' | 'bg-ant-orange' | 'bg-ant-green' | 'bg-ant-rose';
-    children: React.ReactNode;
-}) {
+function Section({ n, title, subtitle, children }: { n: string; title: string; subtitle: string; children: React.ReactNode }) {
     return (
         <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-            <div className={cn('h-[3px] w-full', accent)} />
-            <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line">
+            <div className="h-[3px] w-full bg-ant-orange" />
+            <div className="px-5 py-4 border-b border-ant-line">
                 <div className="flex items-center gap-2">
-                    <span className="font-display text-[11px] text-ant-orange">{number}</span>
-                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                        {title}
-                    </span>
+                    <span className="font-display text-[12px] text-ant-orange">{n}</span>
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-ink font-medium">{title}</span>
                 </div>
-                <p className="font-serif italic text-[12px] text-ant-mid mt-1">{subtitle}</p>
+                <p className="font-serif italic text-[13px] text-ant-muted mt-1">{subtitle}</p>
             </div>
             {children}
         </section>
+    );
+}
+
+function FreshnessBar({ ageSec, maxAge }: { ageSec: number; maxAge: number | null }) {
+    const ratio = maxAge ? Math.min(1.2, ageSec / maxAge) : 0;
+    const color = ratio > 1 ? 'bg-ant-rose' : ratio > 0.7 ? 'bg-ant-orange' : 'bg-ant-green';
+    return (
+        <div className="h-1.5 w-16 rounded-full bg-ant-line overflow-hidden">
+            <div className={cn('h-full rounded-full', color)} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+        </div>
     );
 }
 
@@ -70,374 +52,294 @@ function Section({ number, title, subtitle, accent, children }: {
 
 export default function OwnerBackups() {
     const { toast } = useToast();
+    const [, forceTick] = useState(0);
+    const [manualOpen, setManualOpen] = useState(false);
+    const [restoreOpen, setRestoreOpen] = useState(false);
+    const [seedBackup, setSeedBackup] = useState<PitrBackup | null>(null);
+    const [openSet, setOpenSet] = useState<string | null>(null);
 
-    const status = useQuery<AgentStatus>({
-        queryKey: ['backup-status'],
-        queryFn: backupAgent.status,
-        refetchInterval: 60_000,
-        retry: 1,
-    });
-    const backups = useQuery<{ sets: BackupSet[] }>({
-        queryKey: ['backup-sets'],
-        queryFn: backupAgent.backups,
-        retry: 1,
-    });
+    const status = useQuery<AgentStatus>({ queryKey: ['backup-status'], queryFn: backupAgent.status, refetchInterval: (q) => (q.state.data && anyUnitActive(q.state.data) ? 5_000 : 10_000), retry: 1 });
+    const backups = useQuery<{ sets: BackupSet[] }>({ queryKey: ['backup-sets'], queryFn: backupAgent.backups, refetchInterval: 60_000, retry: 1 });
+
+    // re-render every second so relative times tick without refetching
+    useEffect(() => { const t = setInterval(() => forceTick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
 
     const s = status.data;
-
-    const streams = useMemo(() => {
-        if (!s) return [] as Array<[string, Heartbeat]>;
-        return Object.entries(s.heartbeats)
-            .filter(([k]) => !k.startsWith('_'))
-            .sort(([a], [b]) => (STREAMS[a]?.label ?? a).localeCompare(STREAMS[b]?.label ?? b, 'fr'));
-    }, [s]);
-
-    const freshCount = streams.filter(([, hb]) => hb.fresh).length;
-    const allFresh = streams.length > 0 && freshCount === streams.length;
-    const archiverFailed = s?.archiver?.failed ?? 0;
-    const drillGood = !!s?.drill_fresh;
-    const pitrOk = s?.pitr?.status === 'ok';
-
-    const download = async (key: string, name: string) => {
-        try {
-            const { url } = await backupAgent.downloadUrl(key);
-            window.open(url, '_blank', 'noopener');
-        } catch (e) {
-            toast({
-                variant: 'destructive',
-                title: 'Téléchargement impossible',
-                description: (e as Error).message === 'forbidden'
-                    ? 'Ce compte n’est pas autorisé pour les sauvegardes.'
-                    : `${name} — ${(e as Error).message}`,
-            });
-        }
-    };
-
     const errMsg = status.error ? (status.error as Error).message : null;
     const forbidden = errMsg === 'forbidden' || errMsg === 'unauthorized';
 
-    /* loading */
+    const verdict = s ? computeVerdict(s) : 'sain';
+    const vm = VERDICT_META[verdict];
+    const running = s ? anyUnitActive(s) : false;
+    const activeLabel = s ? activeUnitLabel(s) : null;
+
+    const download = async (key: string, name: string) => {
+        try { const { url } = await backupAgent.downloadUrl(key); window.open(url, '_blank', 'noopener'); toast({ title: 'Lien valable 10 minutes.' }); }
+        catch (e) { toast({ variant: 'destructive', title: 'Téléchargement impossible', description: (e as Error).message }); }
+    };
+    const openRestore = (b?: PitrBackup) => { setSeedBackup(b ?? null); setRestoreOpen(true); };
+
+    /* forbidden / error / loading */
+    if (forbidden) {
+        return (
+            <div className="ant-surface max-w-md mx-auto mt-24 rounded-2xl border border-ant-line bg-ant-paper p-8 text-center space-y-2">
+                <Lock className="w-6 h-6 text-ant-mid mx-auto" />
+                <p className="font-display text-[15px] text-ant-ink">Accès réservé</p>
+                <p className="font-serif italic text-[13px] text-ant-muted">Ce compte ne dispose pas du privilège sauvegardes.</p>
+            </div>
+        );
+    }
     if (status.isLoading) {
+        return <div className="ant-surface flex items-center justify-center min-h-[60vh]"><Loader2 className="w-5 h-5 animate-spin text-ant-mid" /></div>;
+    }
+    if (!s) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-5 h-5 animate-spin text-ant-mid" />
+            <div className="ant-surface max-w-md mx-auto mt-24 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] bg-ant-rose" />
+                <div className="p-8 text-center space-y-3">
+                    <AlertTriangle className="w-6 h-6 text-ant-rose mx-auto" />
+                    <p className="font-display text-[14px] text-ant-ink">Agent de sauvegarde injoignable</p>
+                    <p className="font-serif italic text-[12px] text-ant-muted">{errMsg} — l’agent ou son tunnel ne répond pas.</p>
+                    <button onClick={() => status.refetch()} className="rounded-full bg-ant-ink text-ant-light text-[12px] px-4 h-9">Réessayer</button>
+                </div>
             </div>
         );
     }
 
-    /* agent unreachable / not authorized */
-    if (status.isError || !s) {
-        return (
-            <div className="space-y-5 md:space-y-6">
-                <PageHeader onRefresh={() => { status.refetch(); backups.refetch(); }} fetching={status.isFetching} />
-                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                    <div className="h-[3px] w-full bg-ant-rose" />
-                    <div className="p-10 flex flex-col items-center gap-3 text-center">
-                        <AlertCircle className="w-6 h-6 text-ant-rose" />
-                        <div className="space-y-1">
-                            <p className="font-display text-[14px] text-ant-ink">
-                                {forbidden ? 'Accès non autorisé' : 'Agent de sauvegarde injoignable'}
-                            </p>
-                            <p className="font-serif italic text-[12px] text-ant-mid max-w-sm mx-auto">
-                                {forbidden
-                                    ? 'Ce compte ne dispose pas du privilège sauvegardes. Il se donne depuis la fiche utilisateur, par le compte racine.'
-                                    : `L’agent ou son tunnel ne répond pas (${errMsg}). En soi un signal à investiguer.`}
-                            </p>
-                        </div>
-                        {!forbidden && (
-                            <button
-                                type="button"
-                                onClick={() => status.refetch()}
-                                className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors"
-                            >
-                                Réessayer
-                            </button>
-                        )}
-                    </div>
-                </section>
-            </div>
-        );
-    }
+    const winStart = walWindowStart(s);
+    const newestSet = backups.data?.sets[0];
 
-    /* KPI hairline strip */
-    const kpi: Array<{ title: string; value: string; sub: string; accent: string }> = [
-        {
-            title: 'Restauration',
-            value: drillGood ? 'Prouvée' : 'À prouver',
-            sub: drillGood ? 'exercice récent réussi' : 'lancer un exercice',
-            accent: drillGood ? 'bg-ant-green' : 'bg-ant-orange',
-        },
-        {
-            title: 'Dépôt PITR',
-            value: pitrOk ? 'Sain' : (s.pitr?.status ?? 'Erreur'),
-            sub: 'chiffré · Cloudflare R2',
-            accent: pitrOk ? 'bg-ant-green' : 'bg-ant-rose',
-        },
-        {
-            title: 'Archivage WAL',
-            value: archiverFailed === 0 ? 'Continu' : `${archiverFailed} échecs`,
-            sub: s.archiver?.last ? `dernier segment ${s.archiver.last.slice(11, 19)} UTC` : '—',
-            accent: archiverFailed === 0 ? 'bg-ant-green' : 'bg-ant-rose',
-        },
-        {
-            title: 'Flux',
-            value: `${freshCount}/${streams.length}`,
-            sub: allFresh ? 'tous à l’heure' : 'flux en retard',
-            accent: allFresh ? 'bg-ant-ink' : 'bg-ant-rose',
-        },
-        {
-            title: 'Dumps logiques',
-            value: String(backups.data?.sets.length ?? '—'),
-            sub: 'chiffrés · téléchargeables',
-            accent: 'bg-ant-ink',
-        },
-        {
-            title: 'Disque serveur',
-            value: s.disk ? `${s.disk.used_pct}%` : '—',
-            sub: s.disk ? `${formatBytes(s.disk.avail_bytes)} libres` : '—',
-            accent: (s.disk?.used_pct ?? 0) >= 80 ? 'bg-ant-orange' : 'bg-ant-ink',
-        },
+    const kpi = [
+        { label: 'POSTURE', value: vm.word, sub: `vérifié ${relFr(s.generated ? Math.floor(Date.now() / 1000) - s.generated : 0)}`, accent: vm.accent },
+        { label: 'RESTAURATION', value: s.drill_fresh ? 'Prouvée' : 'Non prouvée', sub: 'clone == live', accent: s.drill_fresh ? 'bg-ant-green' : 'bg-ant-rose' },
+        { label: 'FENÊTRE PITR', value: walSpanFr(s), sub: 'à la seconde', accent: 'bg-ant-blue' },
+        { label: 'DERNIER DUMP', value: newestSet ? relFr(Math.floor((Date.now() - (parseStamp(newestSet.stamp)?.getTime() ?? 0)) / 1000)) : '—', sub: 'nuit · chiffré', accent: 'bg-ant-blue' },
+        { label: 'STOCKAGE', value: s.disk ? `${s.disk.used_pct} %` : '—', sub: s.disk ? `${formatBytes(s.disk.avail_bytes)} libres` : '—', accent: (s.disk?.used_pct ?? 0) >= 80 ? 'bg-ant-orange' : 'bg-ant-green' },
     ];
 
+    const estate: Array<{ icon: LucideIcon; title: string; line: string; keys: string[] }> = [
+        { icon: HardDrive, title: 'PITR physique', line: 'octet près · toute seconde', keys: ['vmi3390870/pgbackrest-incr', 'vmi3390870/pgbackrest-full'] },
+        { icon: FileArchive, title: 'Dumps logiques', line: 'portable · chiffré age', keys: ['vmi3390870/pgdump'] },
+        { icon: ImageIcon, title: 'Miroir stockage', line: 'fichiers clients · quotidien', keys: ['vmi3390870/storage-mirror'] },
+        { icon: Server, title: 'Config (restic)', line: '3 serveurs OS + stack', keys: ['vmi3390870/restic', 'vmi3414204/restic', 'vmi3418398/restic'] },
+        { icon: Key, title: 'Secrets escrow', line: 'clés vault · age', keys: ['vmi3390870/restic'] },
+        { icon: Globe, title: 'Sites 2 & 3', line: 'toolbox hebdo · Mac mensuel', keys: ['vmi3414204/db-pull'] },
+    ];
+    const rowFresh = (keys: string[]) => keys.every((k) => s.heartbeats[k]?.fresh ?? true);
+
+    const streamKeys = Object.keys(s.heartbeats).filter((k) => !k.startsWith('_'));
+    const byServer = ['Box', 'Toolbox', 'WhatsApp'].map((srv) => ({ srv, keys: streamKeys.filter((k) => streamServer(k) === srv).sort((a, b) => streamLabel(a).localeCompare(streamLabel(b), 'fr')) })).filter((g) => g.keys.length);
+
     return (
-        <div className="space-y-5 md:space-y-6">
-            <PageHeader onRefresh={() => { status.refetch(); backups.refetch(); }} fetching={status.isFetching || backups.isFetching} />
-
-            {/* KPI hairline strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
-                {kpi.map((card) => (
-                    <div key={card.title} className="bg-ant-paper p-4 flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                            <span className={cn('w-1 h-4 rounded-full', card.accent)} />
-                            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate flex-1">
-                                {card.title}
-                            </span>
-                        </div>
-                        <p className="font-display text-[22px] leading-none tabular-nums text-ant-ink">
-                            {card.value}
-                        </p>
-                        <p className="font-serif italic text-[11px] text-ant-mid leading-tight">
-                            {card.sub}
-                        </p>
-                    </div>
-                ))}
-            </div>
-
-            {/* 01 — streams */}
-            <Section
-                number="01"
-                title="Flux de sauvegarde"
-                subtitle="Chaque flux émet un battement après un passage réussi — la fraîcheur fait foi."
-                accent="bg-ant-ink"
-            >
-                <div className="grid grid-cols-1 lg:grid-cols-2">
-                    {streams.map(([key, hb], i) => {
-                        const meta = STREAMS[key] ?? { label: key, detail: key.split('/')[0] };
-                        return (
-                            <div
-                                key={key}
-                                className={cn(
-                                    'flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-ant-line',
-                                    i >= streams.length - (streams.length % 2 === 0 ? 2 : 1) && 'lg:border-b-0',
-                                    i === streams.length - 1 && 'border-b-0',
-                                    i % 2 === 0 && 'lg:border-r lg:border-r-ant-line',
-                                )}
-                            >
-                                <div className="min-w-0">
-                                    <p className="font-display text-[13px] text-ant-ink leading-tight truncate">
-                                        {meta.label}
-                                    </p>
-                                    <p className="font-serif italic text-[11px] text-ant-mid mt-0.5 truncate">
-                                        {meta.detail}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-[11px] text-ant-mid tabular-nums">{ilYA(hb.age_sec)}</span>
-                                    <span
-                                        className={cn(
-                                            'inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[10px] font-medium tracking-wide',
-                                            hb.fresh
-                                                ? 'bg-ant-green/10 text-ant-green'
-                                                : 'bg-ant-rose/10 text-ant-rose',
-                                        )}
-                                    >
-                                        <span className={cn('w-1 h-1 rounded-full', hb.fresh ? 'bg-ant-green' : 'bg-ant-rose')} />
-                                        {hb.fresh ? 'à l’heure' : 'en retard'}
-                                    </span>
-                                </div>
+        <TooltipProvider>
+            <div className="ant-surface bg-ant-light -m-4 md:-m-6 p-4 md:p-6">
+                <div className="max-w-[1200px] mx-auto space-y-6">
+                    {/* header */}
+                    <header className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-muted">Plateforme · Sauvegardes</span>
                             </div>
-                        );
-                    })}
-                </div>
-            </Section>
-
-            {/* 02 — PITR chain */}
-            <Section
-                number="02"
-                title="Restauration continue (PITR)"
-                subtitle="Sauvegardes de base + archivage WAL — retour possible à n’importe quelle minute."
-                accent="bg-ant-orange"
-            >
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[560px]">
-                        <thead>
-                            <tr className="border-b border-ant-line">
-                                {['Type', 'Horodatage (UTC)', 'Base', 'Dépôt R2'].map((h) => (
-                                    <th key={h} className="text-left px-4 md:px-6 py-2.5 text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">
-                                        {h}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {(s.pitr?.backups ?? []).slice().reverse().map((b) => (
-                                <tr key={b.label} className="border-b border-ant-line last:border-b-0">
-                                    <td className="px-4 md:px-6 py-3">
-                                        <span className={cn(
-                                            'inline-flex h-6 items-center px-2.5 rounded-full text-[10px] font-medium',
-                                            b.type === 'full'
-                                                ? 'bg-ant-orange/10 text-ant-orange'
-                                                : 'bg-ant-ink/[0.05] text-ant-mid',
-                                        )}>
-                                            {b.type === 'full' ? 'complet' : b.type === 'incr' ? 'incrémental' : b.type}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 md:px-6 py-3 font-display text-[12.5px] text-ant-ink tabular-nums whitespace-nowrap">
-                                        {fmtEpochUtc(b.stop)}
-                                    </td>
-                                    <td className="px-4 md:px-6 py-3 text-[12px] text-ant-mid tabular-nums">{formatBytes(b.db_bytes)}</td>
-                                    <td className="px-4 md:px-6 py-3 text-[12px] text-ant-mid tabular-nums">{formatBytes(b.repo_bytes)}</td>
-                                </tr>
-                            ))}
-                            {!(s.pitr?.backups ?? []).length && (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-10 text-center font-serif italic text-[12px] text-ant-mid">
-                                        Aucune sauvegarde PITR signalée.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                {pitrOk && (
-                    <div className="px-4 md:px-6 py-3 border-t border-ant-line flex items-center gap-2">
-                        <ShieldCheck className="w-3.5 h-3.5 text-ant-green shrink-0" />
-                        <p className="font-serif italic text-[11.5px] text-ant-mid">
-                            Le journal WAL est archivé en continu — la fenêtre de restauration couvre chaque instant
-                            depuis la plus ancienne sauvegarde complète.
-                        </p>
-                    </div>
-                )}
-            </Section>
-
-            {/* 03 — logical dumps */}
-            <Section
-                number="03"
-                title="Dumps logiques"
-                subtitle="Exports complets chiffrés (age) — téléchargement par lien signé, valable 10 minutes."
-                accent="bg-ant-green"
-            >
-                {backups.isLoading ? (
-                    <div className="px-6 py-10 flex items-center justify-center gap-2 text-ant-mid">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="font-serif italic text-[12px]">Inventaire en cours…</span>
-                    </div>
-                ) : (
-                    <div>
-                        {(backups.data?.sets ?? []).map((set, i) => (
-                            <div
-                                key={set.stamp}
-                                className={cn(
-                                    'px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center gap-3 border-b border-ant-line last:border-b-0',
-                                    i === 0 && 'bg-ant-light/40',
+                            <div className="flex items-center gap-3">
+                                {running && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-ant-orange-soft/70 text-ant-orange px-2.5 py-1 text-[11px] font-medium">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-orange animate-pulse" /> En cours · {activeLabel}
+                                    </span>
                                 )}
-                            >
-                                <div className="md:w-64 shrink-0">
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-display text-[13.5px] text-ant-ink tabular-nums">
-                                            {fmtUtc(parseStamp(set.stamp))}
-                                        </p>
-                                        {i === 0 && (
-                                            <span className="inline-flex h-5 items-center px-2 rounded-full bg-ant-green/10 text-ant-green text-[9px] font-medium uppercase tracking-[0.14em]">
-                                                récent
+                                <span className="font-mono text-[11px] text-ant-mid">MAJ {relFr(Math.floor(Date.now() / 1000) - s.generated)}</span>
+                            </div>
+                        </div>
+                        <h1 className="font-display text-[28px] md:text-[32px] font-semibold tracking-tight text-ant-ink">Sauvegardes &amp; restauration</h1>
+                        <p className="font-serif italic text-[14px] text-ant-muted">{worstFailureSentence(s)}</p>
+                    </header>
+
+                    {/* sticky verdict + action bar */}
+                    <div className="sticky top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 bg-ant-light/85 backdrop-blur border-b border-ant-line">
+                        <div className="h-14 flex items-center justify-between">
+                            <span className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium', vm.chip)}>
+                                <span className={cn('w-1.5 h-1.5 rounded-full', vm.dot)} /> {vm.word}
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setManualOpen(true)} className="inline-flex items-center gap-1.5 rounded-full bg-ant-ink text-ant-light px-4 py-2 text-[12px] font-medium hover:opacity-90 shadow-sm">
+                                    <RotateCw className="w-3.5 h-3.5" /> Sauvegarder maintenant
+                                </button>
+                                {s.drill_fresh ? (
+                                    <button onClick={() => openRestore()} className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose text-ant-rose px-4 py-2 text-[12px] font-medium hover:bg-ant-rose hover:text-ant-light">
+                                        <AlertTriangle className="w-3.5 h-3.5" /> Restaurer
+                                    </button>
+                                ) : (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose/40 text-ant-rose/50 px-4 py-2 text-[12px] font-medium cursor-not-allowed">
+                                                <AlertTriangle className="w-3.5 h-3.5" /> Restaurer
                                             </span>
-                                        )}
-                                    </div>
-                                    <p className="font-serif italic text-[11px] text-ant-mid mt-0.5">
-                                        {set.files.length} fichiers · {formatBytes(set.bytes)}
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {set.files.map((f) => (
-                                        <button
-                                            key={f.key}
-                                            onClick={() => download(f.key, f.name)}
-                                            title={`${f.name} · ${formatBytes(f.size)}`}
-                                            className="group inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[11px] font-medium text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
-                                        >
-                                            <Download className="w-3 h-3 text-ant-mid group-hover:text-ant-light transition-colors" />
-                                            {f.name}
-                                        </button>
-                                    ))}
-                                </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs text-[12px]">Indisponible : la restauration doit d’abord être prouvée par le test mensuel (drill).</TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
+                        </div>
+                        {running && <div className="h-px w-full bg-ant-orange animate-pulse" />}
+                    </div>
+
+                    {/* KPI strip */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                        {kpi.map((k) => (
+                            <div key={k.label} className="bg-ant-paper p-4 flex flex-col gap-1.5">
+                                <span className={cn('h-1 w-8 rounded-full', k.accent)} />
+                                <span className="text-[10px] uppercase tracking-[0.18em] text-ant-muted">{k.label}</span>
+                                <span className="font-display text-[20px] leading-none tabular-nums text-ant-ink">{k.value}</span>
+                                <span className="font-serif italic text-[11px] text-ant-muted">{k.sub}</span>
                             </div>
                         ))}
-                        {backups.data && !backups.data.sets.length && (
-                            <p className="px-6 py-10 text-center font-serif italic text-[12px] text-ant-mid">
-                                Aucun dump logique trouvé.
-                            </p>
-                        )}
                     </div>
-                )}
-            </Section>
 
-            <p className="font-serif italic text-[11px] text-ant-mid/70 text-center">
-                Lecture seule · actualisation automatique chaque minute · état généré à{' '}
-                {new Date(s.generated * 1000).toISOString().slice(11, 19)} UTC
-            </p>
-        </div>
-    );
-}
+                    {/* 01 posture */}
+                    <Section n="01" title="Posture — ce que nous protégeons" subtitle="Six lignes de défense, de la seconde près à l’hors-site.">
+                        <div className="px-5 py-2">
+                            {estate.map((e) => (
+                                <div key={e.title} className="flex items-center justify-between py-2.5 border-b border-ant-line-soft last:border-0">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <e.icon className="w-4 h-4 text-ant-mid shrink-0" />
+                                        <div className="min-w-0">
+                                            <div className="font-display text-[13px] text-ant-ink leading-tight">{e.title}</div>
+                                            <div className="font-serif italic text-[11px] text-ant-muted">{e.line}</div>
+                                        </div>
+                                    </div>
+                                    <span className={cn('w-2 h-2 rounded-full shrink-0', rowFresh(e.keys) ? 'bg-ant-green' : 'bg-ant-rose')} />
+                                </div>
+                            ))}
+                        </div>
+                    </Section>
 
-/* ── header ──────────────────────────────────────────────────────────────── */
+                    {/* 02 recovery points */}
+                    <Section n="02" title="Points de restauration — revenir en arrière" subtitle="Une chaîne continue. Choisissez un instant, pas un fichier.">
+                        <div className="px-5 py-4 space-y-4">
+                            <div>
+                                <div className="flex items-center justify-between text-[11px] font-mono text-ant-mid mb-1">
+                                    <span>{winStart ? fmtEpochUtc(winStart) : '—'}</span><span>maintenant</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-gradient-to-r from-ant-blue-soft to-ant-blue" />
+                                <p className="font-serif italic text-[11px] text-ant-muted mt-1">Fenêtre récupérable — restauration à n’importe quelle seconde de cet intervalle.</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[560px] text-[12px]">
+                                    <thead><tr className="text-left text-[9px] uppercase tracking-[0.18em] text-ant-muted border-b border-ant-line">
+                                        <th className="py-2 pr-3 font-medium">Type</th><th className="py-2 pr-3 font-medium">Horodatage (UTC)</th>
+                                        <th className="py-2 pr-3 font-medium">Base</th><th className="py-2 pr-3 font-medium">Dépôt</th>
+                                        <th className="py-2 pr-3 font-medium">État</th><th className="py-2 font-medium"></th>
+                                    </tr></thead>
+                                    <tbody>
+                                        {(s.pitr.backups ?? []).slice().reverse().map((b) => (
+                                            <tr key={b.label} className={cn('border-b border-ant-line-soft last:border-0', b.error && 'bg-ant-rose-soft/30')}>
+                                                <td className="py-2.5 pr-3"><span className={cn('inline-flex h-5 items-center px-2 rounded-full text-[10px] font-medium', b.type === 'full' ? 'bg-ant-orange-soft/70 text-ant-orange' : 'bg-ant-ink/[0.05] text-ant-muted')}>{b.type === 'full' ? 'complet' : 'incr'}</span></td>
+                                                <td className="py-2.5 pr-3 text-ant-ink tabular-nums whitespace-nowrap">{fmtEpochUtc(b.stop)}</td>
+                                                <td className="py-2.5 pr-3 text-ant-muted tabular-nums">{formatBytes(b.db_bytes)}</td>
+                                                <td className="py-2.5 pr-3 text-ant-muted tabular-nums">{formatBytes(b.repo_bytes)}</td>
+                                                <td className="py-2.5 pr-3">{b.error ? <span className="inline-flex items-center gap-1 text-ant-rose"><AlertTriangle className="w-3 h-3" /> erreur</span> : <CheckCircle2 className="w-3.5 h-3.5 text-ant-green" />}</td>
+                                                <td className="py-2.5 text-right">
+                                                    {s.drill_fresh && <button onClick={() => openRestore(b)} className="text-[11px] text-ant-rose hover:underline">Restaurer</button>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {!(s.pitr.backups ?? []).length && <tr><td colSpan={6} className="py-6 text-center font-serif italic text-ant-muted">Aucun point de restauration.</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </Section>
 
-function PageHeader({ onRefresh, fetching }: { onRefresh: () => void; fetching: boolean }) {
-    return (
-        <header className="space-y-3">
-            <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
-                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                    Platform · Sauvegardes
-                </span>
-            </div>
-            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                <div className="space-y-1.5">
-                    <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
-                        Sauvegardes
-                    </h1>
-                    <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
-                        Santé de chaque flux, points de restauration et exports — en direct depuis le serveur.
+                    {/* 03 streams */}
+                    <Section n="03" title="Flux & santé — ce qui tourne" subtitle="Dix flux, trois serveurs. Archivage WAL toutes les 60 s.">
+                        <div className="px-5 py-4 space-y-4">
+                            <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                                {[
+                                    { l: 'Archivés', v: s.archiver.archived ?? '—', c: 'text-ant-ink' },
+                                    { l: 'Échoués', v: s.archiver.failed ?? 0, c: (s.archiver.failed ?? 0) > 0 ? 'text-ant-rose' : 'text-ant-green' },
+                                    { l: 'Dernier segment', v: s.archiver.last ? `${s.archiver.last.slice(11, 19)} UTC` : '—', c: 'text-ant-muted' },
+                                ].map((a) => (
+                                    <div key={a.l} className="bg-ant-paper p-3">
+                                        <div className="text-[9px] uppercase tracking-[0.18em] text-ant-muted">{a.l}</div>
+                                        <div className={cn('font-display text-[16px] tabular-nums mt-0.5', a.c)}>{a.v}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            {byServer.map((g) => (
+                                <div key={g.srv}>
+                                    <div className="text-[10px] uppercase tracking-[0.2em] text-ant-mid py-1.5 border-b border-ant-line-soft">— {g.srv} —</div>
+                                    {g.keys.map((k) => {
+                                        const hb = s.heartbeats[k];
+                                        const nextIn = hb.iso ? Math.floor((new Date(hb.iso).getTime() + streamCadence(k) * 1000 - Date.now()) / 1000) : 0;
+                                        return (
+                                            <div key={k} className="flex items-center justify-between gap-3 py-2 border-b border-ant-line-soft last:border-0">
+                                                <div className="min-w-0 flex-1"><div className="text-[12.5px] text-ant-ink truncate">{streamLabel(k)}</div></div>
+                                                <div className="text-[11px] text-ant-muted tabular-nums w-20 text-right">{relFr(hb.age_sec)}</div>
+                                                <div className="text-[11px] text-ant-mid tabular-nums w-20 text-right hidden sm:block">{inFr(nextIn)}</div>
+                                                <FreshnessBar ageSec={hb.age_sec} maxAge={hb.max_age_sec} />
+                                                <span className={cn('text-[10px] w-16 text-right', hb.fresh ? 'text-ant-green' : 'text-ant-rose')}>{hb.fresh ? 'à jour' : 'en retard'}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    </Section>
+
+                    {/* 04 exports */}
+                    <Section n="04" title="Exports téléchargeables — emporter une copie" subtitle="Dumps chiffrés, portables. Lien signé, 10 minutes.">
+                        <div className="px-5 py-2">
+                            {backups.isLoading && <div className="py-6 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-ant-mid" /></div>}
+                            {(backups.data?.sets ?? []).map((set) => (
+                                <div key={set.stamp} className="border-b border-ant-line-soft last:border-0 py-2.5">
+                                    <button onClick={() => setOpenSet(openSet === set.stamp ? null : set.stamp)} className="w-full flex items-center justify-between">
+                                        <div className="text-left">
+                                            <div className="font-display text-[12.5px] text-ant-ink tabular-nums">{fmtEpochUtc(parseStamp(set.stamp) ? parseStamp(set.stamp)!.getTime() / 1000 : null)}</div>
+                                            <div className="font-serif italic text-[11px] text-ant-muted">{set.files.length} fichiers · {formatBytes(set.bytes)}</div>
+                                        </div>
+                                        <ChevronDown className={cn('w-4 h-4 text-ant-mid transition-transform', openSet === set.stamp && 'rotate-180')} />
+                                    </button>
+                                    {openSet === set.stamp && (
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {set.files.map((f) => (
+                                                <button key={f.key} onClick={() => download(f.key, f.name)} title={`${f.name} · ${formatBytes(f.size)}`}
+                                                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-ant-line text-[11px] text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors">
+                                                    <Download className="w-3 h-3" /> {f.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {backups.data && !backups.data.sets.length && <p className="py-6 text-center font-serif italic text-[12px] text-ant-muted">Aucun export téléchargeable pour l’instant.</p>}
+                        </div>
+                    </Section>
+
+                    {/* 05 actions */}
+                    <Section n="05" title="Actions" subtitle="Lancer une sauvegarde, ou — en dernier recours — restaurer.">
+                        <div className="p-5 grid sm:grid-cols-2 gap-3">
+                            <button onClick={() => setManualOpen(true)} className="rounded-xl border border-ant-line p-4 text-left hover:border-ant-mid transition-colors">
+                                <RotateCw className="w-4 h-4 text-ant-ink mb-2" />
+                                <div className="font-display text-[13px] text-ant-ink">Sauvegarder maintenant</div>
+                                <div className="font-serif italic text-[11px] text-ant-muted mt-0.5">Physique, logique, stockage ou configuration.</div>
+                            </button>
+                            <button onClick={() => s.drill_fresh && openRestore()} disabled={!s.drill_fresh}
+                                className={cn('rounded-xl border p-4 text-left transition-colors', s.drill_fresh ? 'border-ant-rose/40 hover:border-ant-rose' : 'border-ant-line opacity-50 cursor-not-allowed')}>
+                                <AlertTriangle className="w-4 h-4 text-ant-rose mb-2" />
+                                <div className="font-display text-[13px] text-ant-ink">Restaurer…</div>
+                                <div className="font-serif italic text-[11px] text-ant-rose mt-0.5">Remplace les données en direct. Accès protégé.</div>
+                            </button>
+                        </div>
+                    </Section>
+
+                    <p className="font-serif italic text-[11px] text-ant-muted/70 text-center pb-2">
+                        Lecture seule · actualisation {running ? '5' : '10'} s · état généré à {new Date(s.generated * 1000).toISOString().slice(11, 19)} UTC
                     </p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <a
-                        href="https://backup-api.igrowfast.com/health"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
-                    >
-                        Agent <ArrowUpRight className="w-3 h-3" />
-                    </a>
-                    <button
-                        type="button"
-                        onClick={onRefresh}
-                        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-ant-ink text-ant-light text-[11px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_8px_20px_-8px_rgba(20,20,19,0.45)]"
-                    >
-                        <RefreshCcw className={cn('w-3 h-3', fetching && 'animate-spin')} />
-                        Actualiser
-                    </button>
-                </div>
             </div>
-        </header>
+
+            <ManualBackupWizard open={manualOpen} onClose={() => setManualOpen(false)} status={s} />
+            <RestoreWizard open={restoreOpen} onClose={() => setRestoreOpen(false)} status={s} seedBackup={seedBackup} />
+        </TooltipProvider>
     );
 }

@@ -374,8 +374,67 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"url": presign_get(key), "expires_sec": 600})
         return self._json(404, {"error": "not_found"})
 
+    def _body(self, limit=4096):
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+            if n <= 0 or n > limit:
+                return {}
+            return json.loads(self.rfile.read(n) or b"{}")
+        except Exception:
+            return {}
+
     def do_POST(self):
         url = urllib.parse.urlparse(self.path)
+
+        # --- restore: dry-run plan (read-only, aal2) ---
+        if url.path == "/api/restore/plan":
+            claims = self._auth(need_aal2=True)
+            if not claims:
+                return
+            body = self._body()
+            target = body.get("target_iso") or ""
+            if target and not re.match(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}", str(target)):
+                return self._json(400, {"error": "bad_target"})
+            arg = str(target).replace("T", " ").replace("Z", "+00")[:25] if target else ""
+            try:
+                out = subprocess.run(
+                    ["sudo", "-n", HELPER, "restore-plan", arg or "-"],
+                    capture_output=True, text=True, timeout=60)
+                data = json.loads(out.stdout) if out.returncode == 0 else {"error": "plan_failed"}
+            except Exception as e:
+                data = {"error": f"plan_failed: {e.__class__.__name__}"}
+            audit({"sub": claims["sub"], "path": url.path, "target": arg, "ok": "error" not in data})
+            return self._json(200 if "error" not in data else 502, data)
+
+        # --- restore: execute (destructive-capable, aal2, server re-validates every gate) ---
+        if url.path == "/api/restore":
+            claims = self._auth(need_aal2=True)
+            if not claims:
+                return
+            body = self._body()
+            target = str(body.get("target_iso") or "")
+            confirm = str(body.get("confirm_timestamp") or "")
+            if body.get("safety_backup") is not True:
+                return self._json(400, {"error": "safety_backup_required"})
+            if target and not re.match(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}", target):
+                return self._json(400, {"error": "bad_target"})
+            arg = target.replace("T", " ").replace("Z", "+00")[:25] if target else "-"
+            try:
+                out = subprocess.run(
+                    ["sudo", "-n", HELPER, "restore-start", arg, confirm or "-"],
+                    capture_output=True, text=True, timeout=20)
+                ok = out.returncode == 0
+                resp = json.loads(out.stdout) if out.stdout.strip().startswith("{") else {}
+            except Exception:
+                ok, resp = False, {}
+            audit({"sub": claims["sub"], "path": url.path, "target": arg,
+                   "mode": resp.get("mode"), "started": ok})
+            if ok:
+                return self._json(202, {"started": True, "mode": resp.get("mode"),
+                                        "note": resp.get("note", "restore runs async; watch /api/status")})
+            return self._json(502, {"error": "restore_start_failed",
+                                    "detail": (out.stderr or out.stdout or "")[:300]})
+
         m = re.match(r"^/api/trigger/([a-z-]+)$", url.path)
         if not m:
             return self._json(404, {"error": "not_found"})

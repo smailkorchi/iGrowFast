@@ -144,12 +144,54 @@ def status_json() -> int:
     return 0
 
 
+TARGET_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{2}$")
+
+
+def restore_plan(target: str) -> int:
+    cmd = ["/usr/local/bin/igf-restore-plan.sh"]
+    if target and target != "-":
+        if not TARGET_RE.match(target):
+            print(json.dumps({"error": "bad_target"})); return 1
+        cmd += ["--target", target]
+    out = run(cmd, timeout=60)
+    sys.stdout.write(out.stdout)
+    return out.returncode
+
+
+def restore_start(target: str, confirm: str) -> int:
+    """Write the restore request and start the fixed unit. The execute script
+    itself enforces the arm gate + drill freshness + confirm match; without the
+    RESTORE_ARMED flag it runs in the SAFE validate-into-clone mode."""
+    if target and target != "-" and not TARGET_RE.match(target):
+        print(json.dumps({"error": "bad_target"})); return 1
+    armed = os.path.exists("/etc/igf-backup-agent/RESTORE_ARMED")
+    mode = "swap" if armed else "validate"
+    os.makedirs("/run/igf-restore", exist_ok=True)
+    req = {"target": "" if target == "-" else target,
+           "confirm": "" if confirm == "-" else confirm, "mode": mode}
+    with open("/run/igf-restore/request.json", "w") as f:
+        json.dump(req, f)
+    os.chmod("/run/igf-restore/request.json", 0o600)
+    r = run(["systemctl", "start", "--no-block", "igf-restore.service"], timeout=15)
+    if r.returncode != 0:
+        print(json.dumps({"error": "unit_start_failed"})); return 1
+    note = ("restauration en direct lancée" if armed else
+            "validation du point de restauration (le serveur n'est pas armé pour l'écrasement en direct)")
+    print(json.dumps({"mode": mode, "note": note}))
+    return 0
+
+
 def main() -> int:
-    if len(sys.argv) >= 2 and sys.argv[1] == "check-admin" and len(sys.argv) == 3:
+    if len(sys.argv) == 3 and sys.argv[1] == "check-admin":
         return check_admin(sys.argv[2])
     if len(sys.argv) == 2 and sys.argv[1] == "status-json":
         return status_json()
-    print("usage: igf-agent-helper check-admin <uuid> | status-json", file=sys.stderr)
+    if len(sys.argv) == 3 and sys.argv[1] == "restore-plan":
+        return restore_plan(sys.argv[2])
+    if len(sys.argv) == 4 and sys.argv[1] == "restore-start":
+        return restore_start(sys.argv[2], sys.argv[3])
+    print("usage: igf-agent-helper check-admin <uuid> | status-json | "
+          "restore-plan <target|-> | restore-start <target|-> <confirm|->", file=sys.stderr)
     return 2
 
 
