@@ -136,8 +136,7 @@ export default function OwnerBackups() {
 
     return (
         <TooltipProvider>
-            <div className="ant-surface bg-ant-light -m-4 md:-m-6 p-4 md:p-6">
-                <div className="max-w-[1200px] mx-auto space-y-6">
+            <div className="ant-surface space-y-6">
                     {/* header */}
                     <header className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -387,7 +386,6 @@ export default function OwnerBackups() {
                     <p className="font-serif italic text-[11px] text-ant-muted/70 text-center pb-2">
                         Lecture seule · actualisation {running ? '5' : '10'} s · état généré à {new Date(s.generated * 1000).toISOString().slice(11, 19)} UTC
                     </p>
-                </div>
             </div>
 
             <ManualBackupWizard open={manualOpen} onClose={() => setManualOpen(false)} status={s} />
