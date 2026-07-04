@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-    backupAgent, sessionIsAal2, parsePgTime, fmtEpochUtc, relFr, unitRunning, unitFailed,
+    backupAgent, sessionIsAal2, fmtEpoch, TZ_LABEL, unitRunning, unitFailed,
     type AgentStatus, type PitrBackup, type RestorePlan,
 } from '@/lib/backupAgent';
 import { TotpGate } from './TotpGate';
@@ -58,30 +58,36 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
         setAal2(false); setAck(false); setTyped(''); setPlan(null); setExec('idle'); setAborting(0);
     };
 
-    // resolved target string for pitr mode ("YYYY-MM-DD HH:MM:SS+00").
-    // react-day-picker returns a Date at LOCAL midnight; use its LOCAL calendar
-    // Y/M/D (what the owner clicked) as the UTC calendar day, NOT getUTC* which
-    // would shift a day earlier for UTC+ timezones (Morocco).
-    const targetIso = useMemo(() => {
-        if (mode !== 'pitr' || !day) return null;
-        const d = day;
-        const [hh, mm, ss] = time.split(':');
-        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${hh}:${mm}:${ss || '00'}+00`;
-        return iso;
-    }, [mode, day, time]);
+    // The owner picks a target in LOCAL (Morocco) time — a listed backup, or a
+    // calendar day + HH:MM:SS. Everything is resolved to a single epoch, then:
+    //   - targetIso     = canonical UTC "YYYY-MM-DD HH:MM:SS+00" sent to the backend
+    //   - targetLocalStr= "YYYY-MM-DD HH:MM:SS" LOCAL, what the owner retypes to confirm
+    //   - targetDisplay = pretty local (with tz label) shown in banners
+    const resolvedEpoch = useMemo(() => {
+        if (mode === 'backup') return backups.find((b) => b.label === backupLabel)?.stop ?? null;
+        if (!day) return null;
+        const [hh, mm, ss] = time.split(':').map((n) => parseInt(n || '0', 10));
+        // components interpreted as browser-LOCAL time → correct UTC instant
+        return Math.floor(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hh || 0, mm || 0, ss || 0).getTime() / 1000);
+    }, [mode, backupLabel, backups, day, time]);
 
-    const targetLabel = mode === 'backup' ? backupLabel : (targetIso ?? '');
-    const inWindow = useMemo(() => {
-        if (mode === 'backup') return !!backupLabel;
-        const t = parsePgTime(targetIso); if (!t || !winStart) return false;
-        return t.getTime() / 1000 >= winStart && t.getTime() <= Date.now();
-    }, [mode, backupLabel, targetIso, winStart]);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    const targetIso = useMemo(() => {
+        if (resolvedEpoch == null) return null;
+        const d = new Date(resolvedEpoch * 1000);
+        return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())}+00`;
+    }, [resolvedEpoch]);
+    const targetLocalStr = useMemo(() => {
+        if (resolvedEpoch == null) return '';
+        const d = new Date(resolvedEpoch * 1000);
+        return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+    }, [resolvedEpoch]);
+    const targetDisplay = resolvedEpoch != null ? fmtEpoch(resolvedEpoch) : '';
+    const inWindow = resolvedEpoch != null && winStart != null && resolvedEpoch >= winStart && resolvedEpoch * 1000 <= Date.now();
 
     const fetchPlan = async () => {
         try {
-            const p = await backupAgent.restorePlan(
-                mode === 'backup' ? { mode: 'backup', backup_label: backupLabel } : { mode: 'pitr', target_iso: targetIso },
-            );
+            const p = await backupAgent.restorePlan({ mode: 'pitr', target_iso: targetIso });
             setPlan(p); return p;
         } catch (e) { toast({ variant: 'destructive', title: 'Plan indisponible', description: (e as Error).message }); return null; }
     };
@@ -92,8 +98,8 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
         setExec('starting'); setSawRunning(false); setLaunchedAt(Date.now());
         try {
             const r = await backupAgent.restore({
-                mode, target_iso: mode === 'pitr' ? targetIso : null,
-                confirm_timestamp: typed, safety_backup: true,
+                mode: 'pitr', target_iso: targetIso,
+                confirm_timestamp: targetIso ?? '', safety_backup: true,   // server re-validates against its resolved UTC target
             });
             setExec('running');
             toast({ title: r.mode === 'swap' ? 'Restauration lancée' : 'Validation du point lancée', description: r.note });
@@ -114,7 +120,7 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
 
     const armed = plan?.armed ?? false;
     const finalLabel = armed
-        ? `RESTAURER VERS ${targetLabel || 'CE POINT'} — REMPLACE LES DONNÉES`
+        ? `RESTAURER VERS ${targetDisplay || 'CE POINT'} — REMPLACE LES DONNÉES`
         : `VALIDER CE POINT DE RESTAURATION`;
 
     return (
@@ -175,7 +181,7 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
                                             className={cn('w-full text-left px-3 py-2 flex items-center justify-between border-b border-ant-line-soft last:border-0',
                                                 backupLabel === b.label ? 'bg-ant-orange-soft/40' : 'hover:bg-ant-light/60')}>
                                             <span className="text-[12px] text-ant-ink">
-                                                {b.type === 'full' ? 'Complète' : 'Incr.'} · {fmtEpochUtc(b.stop)}
+                                                {b.type === 'full' ? 'Complète' : 'Incr.'} · {fmtEpoch(b.stop)}
                                             </span>
                                             {backupLabel === b.label && <CheckCircle2 className="w-3.5 h-3.5 text-ant-orange" />}
                                         </button>
@@ -195,11 +201,11 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
                                         <Clock className="w-3.5 h-3.5 text-ant-mid" />
                                         <Input value={time} onChange={(e) => setTime(e.target.value)} placeholder="HH:MM:SS"
                                             className={cn('h-8 w-28 tabular-nums text-[12px]', !inWindow && day && 'border-ant-rose')} />
-                                        <span className="text-[11px] text-ant-muted">UTC</span>
+                                        <span className="text-[11px] text-ant-muted">{TZ_LABEL}</span>
                                     </div>
                                     {targetIso && (
                                         <p className={cn('font-serif italic text-[11.5px]', inWindow ? 'text-ant-muted' : 'text-ant-rose')}>
-                                            {inWindow ? `Cible : ${targetIso}` : `Hors de la fenêtre récupérable (depuis ${plan?.wal_min_time ?? '…'}).`}
+                                            {inWindow ? `Cible : ${targetDisplay}` : `Hors de la fenêtre récupérable.`}
                                         </p>
                                     )}
                                 </div>
@@ -248,7 +254,7 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
                                     {armed && (
                                         <div className="rounded-lg bg-ant-rose-soft/50 border border-ant-rose/30 p-3 space-y-2">
                                             <p className="text-[12px] text-ant-ink leading-relaxed">
-                                                Les commandes, paiements et utilisateurs créés après <b>{targetLabel}</b> seront
+                                                Les commandes, paiements et utilisateurs créés après <b>{targetDisplay}</b> seront
                                                 définitivement supprimés. La base entière sera restaurée à cet état.
                                             </p>
                                             <label className="flex items-start gap-2 text-[12px] text-ant-ink cursor-pointer">
@@ -259,10 +265,10 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
                                     )}
                                     <div>
                                         <p className="text-[12px] text-ant-muted mb-1">Recopiez l’horodatage exact pour confirmer :</p>
-                                        <code className="block text-[12px] bg-ant-line-soft rounded px-2 py-1 mb-1.5 text-ant-ink select-all">{targetLabel}</code>
+                                        <code className="block text-[12px] bg-ant-line-soft rounded px-2 py-1 mb-1.5 text-ant-ink select-all">{targetLocalStr}</code>
                                         <Input value={typed} onChange={(e) => setTyped(e.target.value)}
-                                            className={cn('h-9 text-[12px]', typed && typed !== targetLabel && 'border-ant-rose')} placeholder="…" />
-                                        {typed && typed !== targetLabel && <p className="font-serif italic text-[11px] text-ant-rose mt-1">Le texte ne correspond pas.</p>}
+                                            className={cn('h-9 text-[12px]', typed && typed !== targetLocalStr && 'border-ant-rose')} placeholder="…" />
+                                        {typed && typed !== targetLocalStr && <p className="font-serif italic text-[11px] text-ant-rose mt-1">Le texte ne correspond pas.</p>}
                                     </div>
 
                                     {aborting > 0 ? (
@@ -273,7 +279,7 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
                                     ) : (
                                         <HoldToConfirmButton
                                             label={finalLabel}
-                                            disabled={typed !== targetLabel || (armed && !ack)}
+                                            disabled={typed !== targetLocalStr || (armed && !ack)}
                                             onConfirm={() => {
                                                 let n = 3; setAborting(n);
                                                 const iv = setInterval(() => {
@@ -317,7 +323,7 @@ export function RestoreWizard({ open, onClose, status, seedBackup }: {
                             {exec === 'done' && (
                                 <div className="rounded-lg border border-ant-green/30 bg-ant-green-soft/40 p-3 text-[12.5px] text-ant-ink flex items-center gap-2">
                                     <CheckCircle2 className="w-4 h-4 text-ant-green" />
-                                    {armed ? `Base restaurée à l’état du ${targetLabel}.` : 'Point de restauration validé — complet et restaurable.'}
+                                    {armed ? `Base restaurée à l’état du ${targetDisplay}.` : 'Point de restauration validé — complet et restaurable.'}
                                 </div>
                             )}
                             {exec === 'error' && (

@@ -152,8 +152,13 @@ const STREAM_META: Record<string, { label: string; server: string; cadenceSec: n
     'vmi3390870/restic': { label: 'Config serveur', server: 'Box', cadenceSec: 86400 },
     'vmi3390870/storage-mirror': { label: 'Miroir stockage', server: 'Box', cadenceSec: 86400 },
     'vmi3390870/restore-drill': { label: 'Exercice de restauration', server: 'Box', cadenceSec: 2592000 },
+    'vmi3390870/escrow': { label: 'Escrow secrets', server: 'Box', cadenceSec: 86400 },
+    'vmi3390870/archive-monitor': { label: 'Moniteur WAL', server: 'Box', cadenceSec: 300 },
+    'vmi3390870/watchdog-vmi3414204': { label: 'Surveillance · toolbox', server: 'Box', cadenceSec: 1800 },
+    'vmi3390870/watchdog-vmi3418398': { label: 'Surveillance · whatsapp', server: 'Box', cadenceSec: 1800 },
     'vmi3414204/restic': { label: 'Config serveur', server: 'Toolbox', cadenceSec: 86400 },
     'vmi3414204/db-pull': { label: 'Copie secondaire', server: 'Toolbox', cadenceSec: 604800 },
+    'vmi3414204/watchdog-vmi3390870': { label: 'Surveillance · box', server: 'Toolbox', cadenceSec: 1800 },
     'vmi3418398/restic': { label: 'Config serveur', server: 'WhatsApp', cadenceSec: 86400 },
 };
 export function streamLabel(key: string): string { return STREAM_META[key]?.label ?? key; }
@@ -199,8 +204,23 @@ export function inFr(sec: number): string {
     if (sec < 86400) return `dans ${Math.floor(sec / 3600)} h`;
     return `dans ${Math.floor(sec / 86400)} j`;
 }
-const UTC = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-export function fmtEpochUtc(sec: number | null | undefined): string { return sec ? `${UTC.format(new Date(sec * 1000))} UTC` : '—'; }
+// All displayed timestamps are rendered in the VIEWER's local timezone (Morocco =
+// UTC+1 for this owner), with the offset shown so it's unambiguous. Backups and
+// schedules are stored/computed in UTC; only the presentation is localised.
+const LOCAL_DT = new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+});
+const LOCAL_TIME = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+export function fmtEpoch(sec: number | null | undefined): string { return sec ? LOCAL_DT.format(new Date(sec * 1000)) : '—'; }
+/** HH:MM:SS in the viewer's local timezone. */
+export function fmtTimeLocal(d: Date | null | undefined): string { return d ? LOCAL_TIME.format(d) : '—'; }
+/** Short local-timezone label, e.g. "UTC+1" / "GMT+1". Computed once. */
+export const TZ_LABEL = (() => {
+    try {
+        const p = new Intl.DateTimeFormat('fr-FR', { timeZoneName: 'short' }).formatToParts(new Date());
+        return p.find((x) => x.type === 'timeZoneName')?.value ?? 'local';
+    } catch { return 'local'; }
+})();
 export function parseStamp(stamp: string): Date | null {
     const m = stamp.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
     return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])) : null;

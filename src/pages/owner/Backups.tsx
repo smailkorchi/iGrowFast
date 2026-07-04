@@ -13,7 +13,7 @@ import {
 import {
     backupAgent, computeVerdict, VERDICT_META, worstFailureSentence, anyUnitActive,
     activeUnitLabel, walSpanFr, walWindowStart, streamLabel, streamServer, streamCadenceLabel,
-    formatBytes, relFr, fmtEpochUtc, parseStamp, parsePgTime,
+    formatBytes, relFr, fmtEpoch, fmtTimeLocal, TZ_LABEL, parseStamp, parsePgTime,
     type AgentStatus, type BackupSet, type PitrBackup,
 } from '@/lib/backupAgent';
 import { ManualBackupWizard } from '@/components/owner/backups/ManualBackupWizard';
@@ -116,7 +116,7 @@ export default function OwnerBackups() {
         { icon: FileArchive, title: 'Dumps logiques', line: 'portable · chiffré age', keys: ['vmi3390870/pgdump'] },
         { icon: ImageIcon, title: 'Miroir stockage', line: 'fichiers clients · quotidien', keys: ['vmi3390870/storage-mirror'] },
         { icon: Server, title: 'Config (restic)', line: '3 serveurs OS + stack', keys: ['vmi3390870/restic', 'vmi3414204/restic', 'vmi3418398/restic'] },
-        { icon: Key, title: 'Secrets escrow', line: 'clés vault · age', keys: ['vmi3390870/restic'] },
+        { icon: Key, title: 'Secrets escrow', line: 'clés vault · age', keys: ['vmi3390870/escrow'] },
         { icon: Globe, title: 'Sites 2 & 3', line: 'toolbox hebdo · Mac mensuel', keys: ['vmi3414204/db-pull'] },
     ];
     // a MISSING heartbeat is unknown, not healthy — render it as not-fresh so a
@@ -224,7 +224,7 @@ export default function OwnerBackups() {
                             {(() => {
                                 const last = parsePgTime(s.archiver.last);
                                 const ageS = last ? Math.max(0, Math.floor((Date.now() - last.getTime()) / 1000)) : null;
-                                const hhmmss = last ? last.toISOString().slice(11, 19) : '—';
+                                const hhmmss = fmtTimeLocal(last);
                                 const healthy = ageS != null && ageS < 180;
                                 return (
                                     <div className={cn('rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center gap-3',
@@ -236,7 +236,7 @@ export default function OwnerBackups() {
                                             </span>
                                             <div className="min-w-0">
                                                 <div className="font-display text-[15px] text-ant-ink tabular-nums">
-                                                    Restaurable jusqu’à <b>{hhmmss} UTC</b>
+                                                    Restaurable jusqu’à <b>{hhmmss} {TZ_LABEL}</b>
                                                     {ageS != null && <span className={cn('ml-2 text-[13px]', healthy ? 'text-ant-green' : 'text-ant-orange')}>— il y a {ageS} s</span>}
                                                 </div>
                                                 <p className="font-serif italic text-[11.5px] text-ant-muted leading-snug">
@@ -254,7 +254,7 @@ export default function OwnerBackups() {
                             })()}
                             <div>
                                 <div className="flex items-center justify-between text-[11px] font-mono text-ant-mid mb-1.5">
-                                    <span>{winStart ? fmtEpochUtc(winStart) : '—'}</span>
+                                    <span>{winStart ? fmtEpoch(winStart) : '—'}</span>
                                     <span className="uppercase tracking-[0.14em] text-[9px] text-ant-mid">← n’importe quelle seconde de cet intervalle →</span>
                                     <span>maintenant</span>
                                 </div>
@@ -278,7 +278,7 @@ export default function OwnerBackups() {
                                 </p>
                                 <table className="w-full min-w-[560px] text-[12px]">
                                     <thead><tr className="text-left text-[9px] uppercase tracking-[0.18em] text-ant-muted border-b border-ant-line">
-                                        <th className="py-2 pr-3 font-medium">Type</th><th className="py-2 pr-3 font-medium">Horodatage (UTC)</th>
+                                        <th className="py-2 pr-3 font-medium">Type</th><th className="py-2 pr-3 font-medium">Horodatage ({TZ_LABEL})</th>
                                         <th className="py-2 pr-3 font-medium">Base</th><th className="py-2 pr-3 font-medium">Dépôt</th>
                                         <th className="py-2 pr-3 font-medium">État</th><th className="py-2 font-medium"></th>
                                     </tr></thead>
@@ -286,7 +286,7 @@ export default function OwnerBackups() {
                                         {(s.pitr.backups ?? []).slice().reverse().map((b) => (
                                             <tr key={b.label} className={cn('border-b border-ant-line-soft last:border-0', b.error && 'bg-ant-rose-soft/30')}>
                                                 <td className="py-2.5 pr-3"><span className={cn('inline-flex h-5 items-center px-2 rounded-full text-[10px] font-medium', b.type === 'full' ? 'bg-ant-orange-soft/70 text-ant-orange' : 'bg-ant-ink/[0.05] text-ant-muted')}>{b.type === 'full' ? 'complet' : 'incr'}</span></td>
-                                                <td className="py-2.5 pr-3 text-ant-ink tabular-nums whitespace-nowrap">{fmtEpochUtc(b.stop)}</td>
+                                                <td className="py-2.5 pr-3 text-ant-ink tabular-nums whitespace-nowrap">{fmtEpoch(b.stop)}</td>
                                                 <td className="py-2.5 pr-3 text-ant-muted tabular-nums">{formatBytes(b.db_bytes)}</td>
                                                 <td className="py-2.5 pr-3 text-ant-muted tabular-nums">{formatBytes(b.repo_bytes)}</td>
                                                 <td className="py-2.5 pr-3">{b.error ? <span className="inline-flex items-center gap-1 text-ant-rose"><AlertTriangle className="w-3 h-3" /> erreur</span> : <CheckCircle2 className="w-3.5 h-3.5 text-ant-green" />}</td>
@@ -309,7 +309,7 @@ export default function OwnerBackups() {
                                 {[
                                     { l: 'Archivés', v: s.archiver.archived ?? '—', c: 'text-ant-ink' },
                                     { l: 'Échoués', v: s.archiver.failed ?? 0, c: (s.archiver.failed ?? 0) > 0 ? 'text-ant-rose' : 'text-ant-green' },
-                                    { l: 'Dernier segment', v: s.archiver.last ? `${s.archiver.last.slice(11, 19)} UTC` : '—', c: 'text-ant-muted' },
+                                    { l: 'Dernier segment', v: s.archiver.last ? `${fmtTimeLocal(parsePgTime(s.archiver.last))} ${TZ_LABEL}` : '—', c: 'text-ant-muted' },
                                 ].map((a) => (
                                     <div key={a.l} className="bg-ant-paper p-3">
                                         <div className="text-[9px] uppercase tracking-[0.18em] text-ant-muted">{a.l}</div>
@@ -347,7 +347,7 @@ export default function OwnerBackups() {
                                 <div key={set.stamp} className="border-b border-ant-line-soft last:border-0 py-2.5">
                                     <button onClick={() => setOpenSet(openSet === set.stamp ? null : set.stamp)} className="w-full flex items-center justify-between">
                                         <div className="text-left">
-                                            <div className="font-display text-[12.5px] text-ant-ink tabular-nums">{fmtEpochUtc(parseStamp(set.stamp) ? parseStamp(set.stamp)!.getTime() / 1000 : null)}</div>
+                                            <div className="font-display text-[12.5px] text-ant-ink tabular-nums">{fmtEpoch(parseStamp(set.stamp) ? parseStamp(set.stamp)!.getTime() / 1000 : null)}</div>
                                             <div className="font-serif italic text-[11px] text-ant-muted">{set.files.length} fichiers · {formatBytes(set.bytes)}</div>
                                         </div>
                                         <ChevronDown className={cn('w-4 h-4 text-ant-mid transition-transform', openSet === set.stamp && 'rotate-180')} />
@@ -386,7 +386,7 @@ export default function OwnerBackups() {
                     </Section>
 
                     <p className="font-serif italic text-[11px] text-ant-muted/70 text-center pb-2">
-                        Lecture seule · actualisation {running ? '5' : '10'} s · état généré à {new Date(s.generated * 1000).toISOString().slice(11, 19)} UTC
+                        Lecture seule · actualisation {running ? '5' : '10'} s · état généré à {fmtTimeLocal(new Date(s.generated * 1000))} {TZ_LABEL}
                     </p>
             </div>
 
