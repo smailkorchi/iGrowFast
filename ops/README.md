@@ -13,17 +13,17 @@ never in this repo.
 ## scripts/ (deployed to /usr/local/bin on hosts)
 | script | host | schedule (UTC) | purpose |
 |---|---|---|---|
-| `igf-alert.sh` | both | on-demand | ops email via SMTPS, independent of the Supabase stack |
-| `igf-heartbeat.sh` | both | (called by jobs) | write success heartbeat to R2 |
+| `igf-alert.sh` | all 3 | on-demand | ops email via SMTPS, independent of the Supabase stack |
+| `igf-heartbeat.sh` | all 3 | (called by jobs) | write success heartbeat to R2 |
 | `igf-watchdog.sh` | both | */30 min | alert if the OTHER box's heartbeats go stale |
 | `igf-pgdump.sh` | box | 01:10 daily | logical dumps → `igf-db-backups/logical/` (age-encrypted) |
 | `igf-pgbackrest-backup.sh` | box | full Sun / incr Mon–Sat 01:45 | PITR base + incremental → `igf-db-backups/pgbackrest/` |
 | `igf-pgbackrest-verify.sh` | box | Sat 04:15 | weekly pgBackRest repo integrity |
 | `igf-archive-monitor.sh` | box | */5 min | SQL-only archiver health (log_min_messages=fatal hides logs) + disk guard |
-| `igf-restic-backup.sh` | both | box 03:35 / tb 03:50 | config/state → `igf-config-backups/restic/{box,toolbox}` |
-| `igf-restic-maint.sh` | both | Sat + monthly | restic forget/prune + check (+`--deep`) |
+| `igf-restic-backup.sh` | all 3 | box 03:35 / tb 03:50 / wa 04:05 | config/state → `igf-config-backups/restic/{box,toolbox}` |
+| `igf-restic-maint.sh` | all 3 | Sat + monthly | restic forget/prune + check (+`--deep`) |
 | `igf-cf-export.sh` | box | (restic pre-hook) | export CF dashboard state (tunnel/DNS/Access/rules/lifecycle) |
-| `igf-restore-drill.sh` | box | on-demand (monthly per Phase 11) | full PITR restore drill into throwaway container; `--target` proves point-in-time |
+| `igf-restore-drill.sh` | box | monthly (1st 07:15) + on-demand | full PITR restore drill into throwaway container; `--target` proves point-in-time |
 | `igf-storage-mirror.sh` | box | 02:30 daily | igf-storage (user uploads) → `igf-db-backups/storage-mirror/` (current + dated archive of deletions, 45d) |
 
 ## agent/ (deployed on box)

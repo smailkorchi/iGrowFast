@@ -39,6 +39,7 @@ const STREAMS: Record<string, { label: string; detail: string }> = {
     'vmi3390870/restore-drill': { label: 'Exercice de restauration', detail: 'preuve de restaurabilité' },
     'vmi3414204/restic': { label: 'Configuration serveur', detail: 'toolbox · restic' },
     'vmi3414204/db-pull': { label: 'Copie secondaire', detail: 'toolbox · dimanche 06:10' },
+    'vmi3418398/restic': { label: 'Configuration serveur', detail: 'box WhatsApp · restic' },
 };
 
 /* ── shared section shell (Vue d'ensemble vocabulary) ────────────────────── */

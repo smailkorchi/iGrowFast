@@ -57,13 +57,14 @@ def heartbeats() -> dict:
     now = time.time()
     sources = [
         ("/root/.config/igf-backup/r2-db-backups.env", "r2db:igf-db-backups/heartbeat/vmi3390870/"),
-        ("/root/.config/igf-backup/r2-hb.env", None),  # r2wd remote resolved below
+        ("/root/.config/igf-backup/r2-hb.env", "vmi3414204"),  # toolbox, via r2wd
+        ("/root/.config/igf-backup/r2-hb.env", "vmi3418398"),  # whatsapp box, via r2wd
     ]
     for envf, remote in sources:
         try:
             env = rclone_env(envf)
-            if remote is None:
-                remote = f"r2wd:{env.get('IGF_WD_BUCKET','')}/heartbeat/vmi3414204/"
+            if not remote.startswith("r2"):
+                remote = f"r2wd:{env.get('IGF_WD_BUCKET','')}/heartbeat/{remote}/"
             ls = run(["rclone", "lsjson", remote], env=env, timeout=30)
             for item in json.loads(ls.stdout or "[]"):
                 name = item["Name"]
