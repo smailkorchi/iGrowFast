@@ -11,7 +11,10 @@ CFG=${IGF_SMTP_CFG:-/root/.config/igf-backup/smtp.env}
 SUBJECT="${1:?subject required}"
 BODY="${2:-$(cat)}"
 HOST=$(hostname)
-RCPT="${IGF_ALERT_TO:?IGF_ALERT_TO not set}"
+RCPT="${IGF_ALERT_TO:?IGF_ALERT_TO not set}"   # comma-separated list supported
+IFS=',' read -ra RCPTS <<< "$RCPT"
+RCPT_ARGS=()
+for r in "${RCPTS[@]}"; do RCPT_ARGS+=(--mail-rcpt "$r"); done
 FROM="${SMTP_ADMIN_EMAIL:?}"
 NAME="${SMTP_SENDER_NAME:-iGrowFast}"
 DATE=$(date -uR)
@@ -19,5 +22,5 @@ MSG=$(printf 'From: %s <%s>\r\nTo: %s\r\nSubject: [iGrowFast %s] %s\r\nDate: %s\
   "$NAME" "$FROM" "$RCPT" "$HOST" "$SUBJECT" "$DATE" "$BODY")
 printf '%s' "$MSG" | curl -sS --url "smtps://${SMTP_HOST}:${SMTP_PORT}" \
   --ssl-reqd --user "${SMTP_USER}:${SMTP_PASS}" \
-  --mail-from "$FROM" --mail-rcpt "$RCPT" --upload-file - --max-time 30
+  --mail-from "$FROM" "${RCPT_ARGS[@]}" --upload-file - --max-time 30
 echo "alert sent: [$HOST] $SUBJECT"
