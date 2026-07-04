@@ -154,8 +154,29 @@ if [ -n "$TARGET" ]; then
   OK=$(q "select coalesce(max(greatest(created_at,updated_at)) <= '$TARGET'::timestamptz, false) from public.orders")
   [ "$OK" = t ] || fail "clone contains writes newer than target $TARGET"
 else
-  LP=$(lq 'select count(*) from pg_policies'); DP=$(q 'select count(*) from pg_policies')
-  [ "$DP" = "$LP" ] || fail "policy count drill=$DP live=$LP"
+  # STRUCTURAL PARITY BATTERY — the clone must equal live in every dimension of
+  # database structure, not just row data. This is the standing guarantee that a
+  # restore brings back EVERYTHING (policies, grants, triggers, functions, crons,
+  # extensions, publications, roles), not merely rows. A legit migration running
+  # during the drill can false-alarm — rerun the drill in that case.
+  parity(){ # parity <label> <sql>
+    local L D
+    L=$(lq "$2"); D=$(q "$2")
+    [ "$D" = "$L" ] || fail "structural parity: $1 drill=$D live=$L"
+    say "parity ok: $1 = $D"
+  }
+  parity "rls_policies"      'select count(*) from pg_policies'
+  parity "rls_enabled_tables" "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.relrowsecurity and n.nspname='public'"
+  parity "roles"             'select count(*) from pg_roles'
+  parity "table_grants"      "select count(*) from information_schema.table_privileges where table_schema in ('public','auth','storage','vault')"
+  parity "triggers"          'select count(*) from pg_trigger where not tgisinternal'
+  parity "functions_public"  "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'"
+  parity "extensions"        'select count(*) from pg_extension'
+  parity "cron_jobs"         'select count(*) from cron.job'
+  parity "publication_tables" 'select count(*) from pg_publication_tables'
+  parity "sequences"         "select count(*) from pg_class where relkind='S'"
+  parity "indexes_public"    "select count(*) from pg_indexes where schemaname='public'"
+  parity "vault_secrets"     'select count(*) from vault.decrypted_secrets where decrypted_secret is not null'
   LO=$(lq 'select count(*) from public.orders')
   { [ "$ORD" -le "$LO" ] && [ $((LO - ORD)) -le 100 ]; } || fail "orders drift drill=$ORD live=$LO"
 fi
