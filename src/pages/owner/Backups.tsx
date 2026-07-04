@@ -98,23 +98,35 @@ export default function OwnerBackups() {
 
     const winStart = walWindowStart(s);
 
-    // Owner-facing metrics only: what protects the business, in plain words.
-    // No internal jargon, no server disk (backups live in R2, not on that disk).
+    // REAL live metrics — moving numbers, not status words (the verdict is already
+    // in the header + sticky bar). Each answers a concrete question with a figure.
     const archiverOk = (s.archiver.failed ?? 0) === 0;
+    const lastArchive = parsePgTime(s.archiver.last);
+    const lastArchiveAge = lastArchive ? Math.max(0, Math.floor((Date.now() - lastArchive.getTime()) / 1000)) : null;
+    const dbBytes = (s.pitr.backups ?? []).map((b) => b.db_bytes).filter((x): x is number => x != null).slice(-1)[0] ?? null;
+    const drillAge = s.heartbeats['vmi3390870/restore-drill']?.age_sec ?? null;
+    const allStreamKeys = Object.keys(s.heartbeats).filter((k) => !k.startsWith('_'));
+    const totalStreams = allStreamKeys.length;
+    const freshCount = allStreamKeys.filter((k) => s.heartbeats[k].fresh).length;
+    const allFresh = totalStreams > 0 && freshCount === totalStreams;
     const kpi = [
-        { label: 'PROTECTION', value: vm.word, sub: 'temps réel · chiffré', accent: vm.accent },
         {
-            label: 'PERTE MAXIMALE',
-            value: archiverOk ? '≈ 1 min' : 'à risque',
-            sub: archiverOk ? 'journal envoyé en continu' : `${s.archiver.failed} envois en échec`,
-            accent: archiverOk ? 'bg-ant-green' : 'bg-ant-rose',
+            label: 'DERNIÈRE SAUVEGARDE',
+            value: lastArchiveAge != null ? relFr(lastArchiveAge).replace('il y a ', '') : '—',
+            sub: 'en continu · chiffrée', accent: archiverOk ? 'bg-ant-green' : 'bg-ant-rose',
         },
         { label: 'HISTORIQUE', value: walSpanFr(s), sub: 'restaurable à la seconde', accent: 'bg-ant-blue' },
-        { label: 'EMPLACEMENTS', value: '3 lieux', sub: 'R2 · toolbox · Mac', accent: 'bg-ant-green' },
+        { label: 'BASE PROTÉGÉE', value: dbBytes != null ? formatBytes(dbBytes) : '—', sub: 'chiffrée · hors-site', accent: 'bg-ant-blue' },
         {
-            label: 'RESTAURATION',
-            value: s.drill_fresh ? 'Prouvée' : 'À tester',
-            sub: s.drill_fresh ? 'test automatique réussi' : 'lancez un test',
+            label: 'FLUX À JOUR',
+            value: `${freshCount} / ${totalStreams}`,
+            sub: allFresh ? 'sur 3 serveurs' : `${totalStreams - freshCount} en retard`,
+            accent: allFresh ? 'bg-ant-green' : (freshCount < totalStreams - 1 ? 'bg-ant-rose' : 'bg-ant-orange'),
+        },
+        {
+            label: 'DERNIER TEST',
+            value: drillAge != null ? relFr(drillAge).replace('il y a ', '') : 'jamais',
+            sub: s.drill_fresh ? 'restauration prouvée' : 'à relancer',
             accent: s.drill_fresh ? 'bg-ant-green' : 'bg-ant-rose',
         },
     ];
