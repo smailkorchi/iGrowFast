@@ -158,6 +158,7 @@ const STREAM_META: Record<string, { label: string; server: string; cadenceSec: n
     'vmi3390870/watchdog-vmi3418398': { label: 'Surveillance · whatsapp', server: 'Box', cadenceSec: 1800 },
     'vmi3414204/restic': { label: 'Config serveur', server: 'Toolbox', cadenceSec: 86400 },
     'vmi3414204/db-pull': { label: 'Copie secondaire', server: 'Toolbox', cadenceSec: 604800 },
+    'vmi3414204/toolbox-dbdump': { label: 'Dump BD indépendant', server: 'Toolbox', cadenceSec: 86400 },
     'vmi3414204/watchdog-vmi3390870': { label: 'Surveillance · box', server: 'Toolbox', cadenceSec: 1800 },
     'vmi3418398/restic': { label: 'Config serveur', server: 'WhatsApp', cadenceSec: 86400 },
 };

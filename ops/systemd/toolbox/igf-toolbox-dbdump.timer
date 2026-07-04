@@ -1,0 +1,7 @@
+[Unit]
+Description=Independent toolbox DB dump 13:10 UTC (12h offset from the box dump)
+[Timer]
+OnCalendar=*-*-* 13:10:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

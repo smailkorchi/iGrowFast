@@ -13,7 +13,7 @@ Keychain; Apple ID recovery is the root dependency for accounts.
 | What | Where (primary) | Copies |
 |---|---|---|
 | Postgres (PITR, any minute) | R2 `igf-db-backups/pgbackrest/` (aes-256-cbc) | toolbox `/srv/db-pulls/pgbackrest/` (weekly) |
-| Postgres (logical dumps, nightly) | R2 `igf-db-backups/logical/` (age) — 30d lifecycle | toolbox keeps 4 newest (weekly); Mac monthly pull |
+| Postgres (logical dumps, nightly) | R2 `igf-db-backups/logical/` (age, box 01:10) — 30d | **independent 2nd producer**: toolbox `logical-toolbox/` (age, 13:10) — survives total box-subsystem failure; toolbox keeps 4 newest (weekly); Mac monthly |
 | User uploads (igf-storage) | live R2 bucket | R2 `igf-db-backups/storage-mirror/current` + dated `archive/` (45d) |
 | Server config/state (3 boxes) | R2 `igf-config-backups/restic/{box,toolbox,whatsapp}` | — (R2 is the copy; sources are the boxes) |
 | CF dashboard state (tunnels/DNS/rules) | inside box restic set (`/root/config-exports/`) | re-exportable any time via `igf-cf-export.sh` |
