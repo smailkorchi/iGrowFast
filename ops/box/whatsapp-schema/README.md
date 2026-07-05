@@ -50,7 +50,15 @@ Empirically on this box:
 | 0 | `migrations/whatsapp_000_bootstrap.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/11002C48) |
 | 1 | `migrations/whatsapp_001_enums.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/230046A8) — 12 enums, dropped user_role |
 | 2 | `migrations/whatsapp_002_encryption.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/2F00B238) — Vault key + encryption_keys + crypto chain |
-| 3–14 | per plan §7 | pending |
+| 3 | `migrations/whatsapp_003_audit_core.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/3C000060) — audit_log + hash chain + audit()/validate/status (owner-gated) |
+| 4–14 | per plan §7 | pending |
+
+## Collision + L1 notes carried forward
+- `audit()` — WA Mancer's `public.audit` wrapper + `private.audit` SECDEF impl merged into ONE
+  `whatsapp.audit(text,text,text,jsonb)` (SECDEF, writes as `auth.uid()`); every RPC keeps the signature.
+- `audit_log` is FLEET-WIDE (no business_id) → its SELECT policy uses `public.is_owner()` (owner Log/
+  Monitor pages), not per-business admin. General rule (plan §4.1): fleet/telemetry surfaces = `is_owner()`;
+  per-business operational surfaces = `is_wa_admin(instance)` (built wave 4).
 
 ## DR escrow — envelope key (wave 2)
 The `igf_whatsapp_envelope_key` Vault secret (key_id=1, encrypts message bodies) is escrowed in THREE
