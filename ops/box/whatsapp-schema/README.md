@@ -49,4 +49,13 @@ Empirically on this box:
 |---|---|---|
 | 0 | `migrations/whatsapp_000_bootstrap.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/11002C48) |
 | 1 | `migrations/whatsapp_001_enums.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/230046A8) — 12 enums, dropped user_role |
-| 2–14 | per plan §7 | pending |
+| 2 | `migrations/whatsapp_002_encryption.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/2F00B238) — Vault key + encryption_keys + crypto chain |
+| 3–14 | per plan §7 | pending |
+
+## DR escrow — envelope key (wave 2)
+The `igf_whatsapp_envelope_key` Vault secret (key_id=1, encrypts message bodies) is escrowed in THREE
+places so a Vault/DB loss is recoverable: (1) box Vault, (2) macOS Keychain `igf-whatsapp-envelope-key`
+(acct `igrowfast`), (3) offline file `/Users/ismailelqorchi/Desktop/IGROWFAST-DR-ESCROW.txt` (to be
+moved off-machine). The committed migration mints a random key ONLY as a fallback if the secret is
+absent; on the live box the secret was pre-provisioned with the escrowed value, so the guard skipped.
+Recovery: re-create the Vault secret with the escrowed value, then `select whatsapp.decrypt_text(whatsapp.encrypt_text('probe'))='probe'`.
