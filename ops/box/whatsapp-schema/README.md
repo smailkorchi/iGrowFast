@@ -58,7 +58,14 @@ Empirically on this box:
 | 7b-1 | `migrations/whatsapp_007b_autoassign_release.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/75000180) — agent_assign_cursor + auto-assign (L1) + release-dms trigger on public.users |
 | 7b-2 | `migrations/whatsapp_007c_worker_assign_rpcs.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/88043780) — 15 worker/assignment RPCs (ported via port+verify workflow) |
 | 8 | `migrations/whatsapp_008_agent_policies.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/900278A8) — agent-select branches + is_wa_admin_conv recursion fix |
-| 9–14 | per plan §7 | pending |
+| 9 | `migrations/whatsapp_009_media.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/970020B8) — media_fetch_jobs (deny-all) + enqueue/complete/fail + whatsapp-media bucket (F6) |
+| 10–14 | per plan §7 | pending |
+
+## Wave 9 (media) — F6 done
+`media_fetch_jobs` RESTRICTIVE deny-all (anon/authenticated false; service_role bypasses; no authenticated grant, W5).
+`enqueue_media_fetch`/`complete_media_fetch`/`fail_media_fetch` SECDEF service_role-only. Adaptations: default bucket
+`wamancer-media`→`whatsapp-media`; `fail_media_fetch` 2-arg+3-arg overloads are ambiguous — ported only the 3-arg
+superset. **F6: private bucket `whatsapp-media` (public=false) provisioned** via `storage.buckets` insert.
 
 ## Wave 8 (agent policies + recursion fix)
 Added agent-select RLS so an assigned seller sees only their assigned conversations/messages/instances/contacts
