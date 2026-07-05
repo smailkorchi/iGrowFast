@@ -1,0 +1,51 @@
+# `whatsapp` schema build — box-native migrations
+
+Execution of the LOCKED plan `docs/wa-mancer-recon/11-whatsapp-schema-build-plan.md` (near-total 1:1
+port of the WA Mancer DB into a new `whatsapp` schema; drop identity only; add L1 multi-tenant + L2
+e-commerce seams + W1–W6 hardening; keep the whole logs/telemetry stack).
+
+## Execution target (do NOT get this wrong)
+LIVE prod = the self-host **box `.102`** Postgres. Reach it ONLY via:
+
+    ssh igf -> docker exec -i supabase-db psql -U postgres -d postgres
+
+The managed Supabase projects are LEGACY and must NEVER receive this DDL:
+`-prod` = `zjkqprrfbibjoslvlmxf`, `-dev` = `pcgvfwqkzyozzxktfogi`. No MCP reaches the box.
+The WA Mancer managed project `xlhlezgpgrypdijynmqr` is the READ-ONLY source of truth for object shapes.
+
+## Per-wave protocol (plan §7)
+author SQL from live WA Mancer DDL -> rehearse on box in `whatsapp_rehearse` scratch schema or
+`BEGIN…ROLLBACK` -> catalog checks (no anon USAGE/grants, no default-ACL leak, `search_path=''`,
+`security_invoker` views, grant==policy) -> impersonation battery (seller/admin/MB/courier of a test
+business; MB+courier see nothing, cross-business sees nothing) -> PITR anchor + `pg_dump` snapshot ->
+apply -> catalog diff vs plan -> commit -> next wave.
+
+## Box facts verified 2026-07-05 (pre-build)
+- PG 17.6; extensions pgcrypto/pg_cron/pg_trgm/supabase_vault/uuid-ossp/pg_net present; citext absent.
+- **F7 PITR GREEN**: pgBackRest stanza `igf` status ok, encrypted repo on Cloudflare R2
+  (`igf-db-backups`), continuous WAL archive (0 failed), host systemd timers full/incr/pgdump/verify
+  all exit-0. PITR window from ~2026-07-04.
+- **F2 GREEN (high-confidence)**: Realtime v2.102.3, `wal2json` slot, `realtime.subscription.entity`
+  is `regclass` + `apply_rls` per subscriber role => schema-agnostic. Final WS round-trip is the
+  wave-14 gate.
+- **F6 GREEN (feasible)**: box Storage (R2-backed) supports private buckets; `whatsapp-media` absent,
+  provisioned out-of-band at wave 9.
+- **F3 DONE**: `PGRST_DB_SCHEMAS` lives in `/opt/supabase-project/.env` and feeds both `rest` +
+  `studio`; exposing a schema = edit `.env` + `docker compose up -d --no-deps rest studio`.
+
+## Security-model finding (drives every function-creating wave)
+Empirically on this box:
+- No global/all-schema default privileges exist and none are scoped to `whatsapp` => the plan's W1
+  "grant-all trap" is ABSENT; new whatsapp tables/sequences are owner-only by default.
+- `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` does NOT take effect here
+  (new funcs keep built-in PUBLIC=EXECUTE). Default-priv GRANT works, REVOKE-from-PUBLIC does not.
+  => Function PUBLIC-execute is stripped DETERMINISTICALLY PER FUNCTION in each wave:
+      REVOKE ALL ON FUNCTION whatsapp.fn(args) FROM PUBLIC;
+      GRANT EXECUTE ON FUNCTION whatsapp.fn(args) TO <intended roles only>;
+  anon is additionally hard-blocked by having NO schema USAGE.
+
+## Waves
+| Wave | File | Status |
+|---|---|---|
+| 0 | `migrations/whatsapp_000_bootstrap.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/11002C48) |
+| 1–14 | per plan §7 | pending |
