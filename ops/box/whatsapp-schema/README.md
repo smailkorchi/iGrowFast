@@ -52,8 +52,16 @@ Empirically on this box:
 | 2 | `migrations/whatsapp_002_encryption.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/2F00B238) — Vault key + encryption_keys + crypto chain |
 | 3 | `migrations/whatsapp_003_audit_core.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/3C000060) — audit_log + hash chain + audit()/validate/status (owner-gated) |
 | 4 | `migrations/whatsapp_004_instances.sql` | APPLIED 2026-07-05 (post-apply LSN 6/500003A8) — whatsapp_instances (+business_id/node_id/key_id) + wa_nodes + is_wa_admin + audit triggers + admin RLS |
-| 5 | `migrations/whatsapp_005_contact_bible.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/5B000000) — 7 contact tables + L2 customer_id seam + admin RLS; resolution fns + jid trigger deferred to wave 6 |
-| 6–14 | per plan §7 | pending |
+| 5 | `migrations/whatsapp_005_contact_bible.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/5B000000) — 7 contact tables + L2 customer_id seam + admin RLS; resolution fns + jid trigger deferred |
+| 6 | `migrations/whatsapp_006_conversations_messages.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/630E6B90) — conversations+messages (+customer_id/key_id seams) + 5 self-contained triggers + admin RLS |
+| 7–14 | per plan §7 | pending |
+
+## Wave 6 deferral ledger (cross-wave trigger deps)
+conversations/messages tables ship with the crypto `key_id` seam and only the 5 self-contained triggers.
+DEFERRED until their dependencies exist (all plpgsql, so they only fail at runtime — no live data yet):
+- **→ wave 7** (need `conversation_assignments`): trigger `messages_auto_assign_on_inbound` + `_auto_assign_on_inbound` (also needs L1 `profiles`→`public.users`, role `'user'`→`'commercial'` rewrite); trigger `conversations_sync_assignment_is_group` + `_sync_assignments_is_group`.
+- **→ after wave 7** (need assignments/queue + wave-11 notes/tags): trigger `conversations_resolve_identity` + `_conversations_resolve_identity` + the whole contact-resolution fn graph (`resolve_identity`, `resolve_contact_from_mapping`, `upsert_jid_mapping`, `link_alt`, `consolidate_*`, `pick_survivor`, `chase_merged_into`, `_resolve_lid_to_phone`, `identifier_trust`, `pair_lid_to_contact`); `private.merge_conversations`; trigger `jid_mapping_resolved` + `_on_jid_mapping_resolved`.
+- SELECT agent branches (conversations/messages) → wave 8.
 
 ## Wave 5 tenancy + deferrals
 - Contact tables carry `instance_id NOT NULL → whatsapp_instances ON DELETE CASCADE`; contacts are PER-INSTANCE (unique per `(instance_id, phone_jid)`/`(instance_id, lid)`). Isolation is transitive via `is_wa_admin(instance_id)`. Only `contacts` gets `+customer_id → public.customers` (L2).
