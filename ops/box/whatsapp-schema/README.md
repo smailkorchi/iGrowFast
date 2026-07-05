@@ -57,7 +57,17 @@ Empirically on this box:
 | 7 | `migrations/whatsapp_007_queue_pacing_assign.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/6F000058) — 6 queue/pacing/lease/assignment tables + same-business guard + ensure_pacing/sync triggers + fleet/per-business RLS |
 | 7b-1 | `migrations/whatsapp_007b_autoassign_release.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/75000180) — agent_assign_cursor + auto-assign (L1) + release-dms trigger on public.users |
 | 7b-2 | `migrations/whatsapp_007c_worker_assign_rpcs.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/88043780) — 15 worker/assignment RPCs (ported via port+verify workflow) |
-| 8–14 | per plan §7 | pending |
+| 8 | `migrations/whatsapp_008_agent_policies.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/900278A8) — agent-select branches + is_wa_admin_conv recursion fix |
+| 9–14 | per plan §7 | pending |
+
+## Wave 8 (agent policies + recursion fix)
+Added agent-select RLS so an assigned seller sees only their assigned conversations/messages/instances/contacts
+(verified: assigned seller sees 1 each, unassigned seller 0, admin all). `dispatcher_snapshot` stays owner-only
+(§4.1); `outbound_queue` agent branch already shipped wave 7.
+**Fixed a wave-7 latent recursion:** `ca_*` policies inline-read `conversations` (from the is_admin→is_wa_admin
+rewrite); once `conversations_select` got an `EXISTS(conversation_assignments)` branch, the two tables' RLS
+recursed. Wrapped the conversation→instance lookup in SECDEF `whatsapp.is_wa_admin_conv(uuid)` (runs as postgres,
+`bypassrls`) and re-pointed `ca_admin_delete`/`ca_admin_insert`/`ca_select` at it. Another catch by the box rehearsal.
 
 ## Wave 7b-2 (15 RPCs, workflow-ported)
 Ported via a port+adversarial-verify Workflow (30 agents), assembled from JSON, diffed + rehearsed on the box.
