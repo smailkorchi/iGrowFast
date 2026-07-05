@@ -63,7 +63,16 @@ Empirically on this box:
 | 10b | `migrations/whatsapp_010b_resolution.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/AD0208E0) — 13 resolution fns (workflow) + merge_conversations + 2 resolve triggers |
 | 10-fix | `migrations/whatsapp_010_fix_is_group_generated.sql` | APPLIED 2026-07-05 — wave-6 correction: conversations.is_group -> GENERATED (remote_jid LIKE '%@g.us') |
 | 10c | `migrations/whatsapp_010c_send_ingest.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/C80000F8) — 24 send/ingest/message-op RPCs + _canonical_remote_jid helper |
-| 11–14 | per plan §7 | pending |
+| 11 | `migrations/whatsapp_011_collab.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/10141278) — tags/conversation_tags/conversation_notes/scheduled_messages (1:1+L1) + quick_replies/message_templates (business ADAPT) |
+| 12–14 | per plan §7 | pending |
+
+## Wave 11 (collab)
+6 tables. 4 instance/conversation-scoped 1:1 (tags, conversation_tags, conversation_notes, scheduled_messages) with
+is_admin -> is_wa_admin(instance)/is_wa_admin_conv(conversation) + agent-via-conversation_assignments. 2 ADAPT to
+per-business (quick_replies: instance_id -> business_id; message_templates: +business_id, global=business-wide,
+uniques re-keyed on business_id). + 2 audit trigger fns (_on_conversation_note_change, _on_message_template_change).
+No collab RPCs (SPA does direct DML via RLS). Verified: assigned seller sees tags/notes; bizA member sees
+quick_replies/templates; bizB admin sees 0 (cross-business isolation). Satisfies merge_conversations runtime deps.
 
 ## Wave 10c + is_group fix
 24 send/ingest/message-op RPCs ported via workflow (ingest_message ×2, send_*, edit/delete/cancel/force_dispatch,
