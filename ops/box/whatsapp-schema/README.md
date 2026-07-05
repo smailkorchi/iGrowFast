@@ -48,4 +48,5 @@ Empirically on this box:
 | Wave | File | Status |
 |---|---|---|
 | 0 | `migrations/whatsapp_000_bootstrap.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/11002C48) |
-| 1–14 | per plan §7 | pending |
+| 1 | `migrations/whatsapp_001_enums.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/230046A8) — 12 enums, dropped user_role |
+| 2–14 | per plan §7 | pending |
