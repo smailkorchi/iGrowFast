@@ -54,7 +54,17 @@ Empirically on this box:
 | 4 | `migrations/whatsapp_004_instances.sql` | APPLIED 2026-07-05 (post-apply LSN 6/500003A8) — whatsapp_instances (+business_id/node_id/key_id) + wa_nodes + is_wa_admin + audit triggers + admin RLS |
 | 5 | `migrations/whatsapp_005_contact_bible.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/5B000000) — 7 contact tables + L2 customer_id seam + admin RLS; resolution fns + jid trigger deferred |
 | 6 | `migrations/whatsapp_006_conversations_messages.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/630E6B90) — conversations+messages (+customer_id/key_id seams) + 5 self-contained triggers + admin RLS |
-| 7–14 | per plan §7 | pending |
+| 7 | `migrations/whatsapp_007_queue_pacing_assign.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/6F000058) — 6 queue/pacing/lease/assignment tables + same-business guard + ensure_pacing/sync triggers + fleet/per-business RLS |
+| 7b | pending — auto-assign + release-dms + operational RPCs | OPEN DECISIONS (see below) |
+| 8–14 | per plan §7 | pending |
+
+## Wave 7 facts + open decisions for 7b
+- `conversation_assignments.user_id → auth.users(id)` is correct: agents must be login-capable. Verified 23/24 iGrowFast users are auth-backed; the 1 non-auth `commercial` simply can't be an agent. `public.users` has NO FK to `auth.users`.
+- Same-business guard (`_guard_assignment_business`, SECURITY INVOKER): rejects cross-business AND non-seller (role<>'commercial'). Fleet surfaces (worker_health/leases/dispatcher) gate on `is_owner()`; per-business (assignments/pacing/queue) on `is_wa_admin(instance)`; agents see own (ca_select user_id, oq_select agent_id).
+- **DEFERRED to 7b (need your calls):**
+  1. `_auto_assign_on_inbound` round-robin cursor: source ordered the pool by `profiles.last_auto_assigned_at` (dropped). Options: (a) new `whatsapp.agent_assign_cursor(user_id, last_auto_assigned_at)` table (faithful time-based RR), or (b) derive least-recently from `conversation_assignments.assigned_at` (no new table, slightly different semantics).
+  2. `_release_dms_on_profile_deactivation` re-hung on **`public.users`** (core table) `AFTER UPDATE OF active` → deletes that user's DM assignments when deactivated.
+  3. Operational RPCs: queue enqueue/dequeue/mark, pacing, lease acquire/renew/release, heartbeat, assign/unassign/claim, dispatch_gate_check.
 
 ## Wave 6 deferral ledger (cross-wave trigger deps)
 conversations/messages tables ship with the crypto `key_id` seam and only the 5 self-contained triggers.
