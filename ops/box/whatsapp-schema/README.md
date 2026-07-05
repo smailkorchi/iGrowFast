@@ -56,8 +56,19 @@ Empirically on this box:
 | 6 | `migrations/whatsapp_006_conversations_messages.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/630E6B90) — conversations+messages (+customer_id/key_id seams) + 5 self-contained triggers + admin RLS |
 | 7 | `migrations/whatsapp_007_queue_pacing_assign.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/6F000058) — 6 queue/pacing/lease/assignment tables + same-business guard + ensure_pacing/sync triggers + fleet/per-business RLS |
 | 7b-1 | `migrations/whatsapp_007b_autoassign_release.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/75000180) — agent_assign_cursor + auto-assign (L1) + release-dms trigger on public.users |
-| 7b-2 | pending — operational RPCs (queue/pacing/lease/heartbeat/assign/claim/dispatch_gate_check) | |
+| 7b-2 | `migrations/whatsapp_007c_worker_assign_rpcs.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/88043780) — 15 worker/assignment RPCs (ported via port+verify workflow) |
 | 8–14 | per plan §7 | pending |
+
+## Wave 7b-2 (15 RPCs, workflow-ported)
+Ported via a port+adversarial-verify Workflow (30 agents), assembled from JSON, diffed + rehearsed on the box.
+Worker (dispatch_gate_check, pacing_take_token, queue_claim_next/mark_sent/mark_failed/mark_dead,
+worker_claim/renew/release_instance_leases, worker_heartbeat) = SECDEF, service_role-only.
+Assignment (assign_conversation, unassign_conversation, claim_conversation, admin_assign/unassign_conversations)
+= SECDEF, authenticated+service_role, is_wa_admin-gated.
+**Box rehearsal caught a defect the workflow verify missed:** admin_assign/unassign were SECURITY INVOKER in
+source; under INVOKER+RLS the `EXISTS(conversations WHERE NOT is_wa_admin)` gate is defeated (non-admin can't
+see the rows) → raw INSERT permission error instead of clean forbidden. Fixed to SECURITY DEFINER (gate now
+bypasses RLS to evaluate is_wa_admin correctly). Lesson: the box rehearsal is the real gate, not agent verify.
 
 ## Wave 7b-1 (decisions resolved)
 - Auto-assign RR cursor = new `whatsapp.agent_assign_cursor` (deny-all). `_auto_assign_on_inbound` rewritten: pool members filtered to `role='commercial'` + `active` + same `business_id` + auth-backed (login-capable), ordered by cursor `last_auto_assigned_at` — pre-filtering guarantees the same-business guard never rejects an auto-assignment.
