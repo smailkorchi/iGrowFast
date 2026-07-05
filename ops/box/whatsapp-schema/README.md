@@ -55,8 +55,13 @@ Empirically on this box:
 | 5 | `migrations/whatsapp_005_contact_bible.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/5B000000) — 7 contact tables + L2 customer_id seam + admin RLS; resolution fns + jid trigger deferred |
 | 6 | `migrations/whatsapp_006_conversations_messages.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/630E6B90) — conversations+messages (+customer_id/key_id seams) + 5 self-contained triggers + admin RLS |
 | 7 | `migrations/whatsapp_007_queue_pacing_assign.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/6F000058) — 6 queue/pacing/lease/assignment tables + same-business guard + ensure_pacing/sync triggers + fleet/per-business RLS |
-| 7b | pending — auto-assign + release-dms + operational RPCs | OPEN DECISIONS (see below) |
+| 7b-1 | `migrations/whatsapp_007b_autoassign_release.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/75000180) — agent_assign_cursor + auto-assign (L1) + release-dms trigger on public.users |
+| 7b-2 | pending — operational RPCs (queue/pacing/lease/heartbeat/assign/claim/dispatch_gate_check) | |
 | 8–14 | per plan §7 | pending |
+
+## Wave 7b-1 (decisions resolved)
+- Auto-assign RR cursor = new `whatsapp.agent_assign_cursor` (deny-all). `_auto_assign_on_inbound` rewritten: pool members filtered to `role='commercial'` + `active` + same `business_id` + auth-backed (login-capable), ordered by cursor `last_auto_assigned_at` — pre-filtering guarantees the same-business guard never rejects an auto-assignment.
+- `_release_dms_on_profile_deactivation` live on **`public.users`** (`AFTER UPDATE OF active`): deactivate a seller → their whatsapp DM assignments are deleted (groups persist). Integrates with the existing suspend/reactivate flow.
 
 ## Wave 7 facts + open decisions for 7b
 - `conversation_assignments.user_id → auth.users(id)` is correct: agents must be login-capable. Verified 23/24 iGrowFast users are auth-backed; the 1 non-auth `commercial` simply can't be an agent. `public.users` has NO FK to `auth.users`.
