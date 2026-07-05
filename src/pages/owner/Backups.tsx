@@ -287,21 +287,24 @@ export default function OwnerBackups() {
                                 </p>
                             </div>
                             <div className="overflow-x-auto">
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-ant-muted pt-1 pb-2">
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-ant-muted pt-1 pb-0.5">
                                     Sauvegardes de base
                                 </p>
-                                <table className="w-full min-w-[560px] text-[12px]">
+                                <p className="font-serif italic text-[11px] text-ant-muted pb-2">
+                                    Chaque ligne restaure la base entière · l’incrémental ne stocke que le delta.
+                                </p>
+                                <table className="w-full min-w-[600px] text-[12px]">
                                     <thead><tr className="text-left text-[9px] uppercase tracking-[0.18em] text-ant-muted border-b border-ant-line">
                                         <th className="py-2 pr-3 font-medium">Type</th><th className="py-2 pr-3 font-medium">Horodatage ({TZ_LABEL})</th>
-                                        <th className="py-2 pr-3 font-medium">Base</th><th className="py-2 pr-3 font-medium">Dépôt</th>
+                                        <th className="py-2 pr-3 font-medium">Récupère</th><th className="py-2 pr-3 font-medium">Stocké&nbsp;R2</th>
                                         <th className="py-2 pr-3 font-medium">État</th><th className="py-2 font-medium"></th>
                                     </tr></thead>
                                     <tbody>
                                         {(s.pitr.backups ?? []).slice().reverse().map((b) => (
                                             <tr key={b.label} className={cn('border-b border-ant-line-soft last:border-0', b.error && 'bg-ant-rose-soft/30')}>
-                                                <td className="py-2.5 pr-3"><span className={cn('inline-flex h-5 items-center px-2 rounded-full text-[10px] font-medium', b.type === 'full' ? 'bg-ant-orange-soft/70 text-ant-orange' : 'bg-ant-ink/[0.05] text-ant-muted')}>{b.type === 'full' ? 'complet' : 'incr'}</span></td>
+                                                <td className="py-2.5 pr-3"><span className={cn('inline-flex h-5 items-center px-2 rounded-full text-[10px] font-medium', b.type === 'full' ? 'bg-ant-orange-soft/70 text-ant-orange' : 'bg-ant-ink/[0.05] text-ant-muted')}>{b.type === 'full' ? 'complet' : 'incrémental'}</span></td>
                                                 <td className="py-2.5 pr-3 text-ant-ink tabular-nums whitespace-nowrap">{fmtEpoch(b.stop)}</td>
-                                                <td className="py-2.5 pr-3 text-ant-muted tabular-nums">{formatBytes(b.db_bytes)}</td>
+                                                <td className="py-2.5 pr-3 text-ant-ink tabular-nums">{formatBytes(b.db_bytes)}<span className="text-ant-muted"> · base entière</span></td>
                                                 <td className="py-2.5 pr-3 text-ant-muted tabular-nums">{formatBytes(b.repo_bytes)}</td>
                                                 <td className="py-2.5 pr-3">{b.error ? <span className="inline-flex items-center gap-1 text-ant-rose"><AlertTriangle className="w-3 h-3" /> erreur</span> : <CheckCircle2 className="w-3.5 h-3.5 text-ant-green" />}</td>
                                                 <td className="py-2.5 text-right">
