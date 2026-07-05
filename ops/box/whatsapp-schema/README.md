@@ -51,7 +51,12 @@ Empirically on this box:
 | 1 | `migrations/whatsapp_001_enums.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/230046A8) — 12 enums, dropped user_role |
 | 2 | `migrations/whatsapp_002_encryption.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/2F00B238) — Vault key + encryption_keys + crypto chain |
 | 3 | `migrations/whatsapp_003_audit_core.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/3C000060) — audit_log + hash chain + audit()/validate/status (owner-gated) |
-| 4–14 | per plan §7 | pending |
+| 4 | `migrations/whatsapp_004_instances.sql` | APPLIED 2026-07-05 (post-apply LSN 6/500003A8) — whatsapp_instances (+business_id/node_id/key_id) + wa_nodes + is_wa_admin + audit triggers + admin RLS |
+| 5–14 | per plan §7 | pending |
+
+## L1 keystone (wave 4)
+- `whatsapp.is_wa_admin(p_instance_id)` = `current_user_is_business_admin()` AND instance's `business_id` = `current_user_digicom_business_id()`. Reuses iGrowFast helpers. Owner (`role='owner'`) excluded from per-business ops. Use this for every per-business operational surface in later waves.
+- Deferred by ordering: `whatsapp_instances_ensure_pacing` trigger → wave 7 (needs `number_pacing_state`); `wi_select` agent branch (`OR conversation_assignments…`) → wave 8 (ALTER POLICY once assignments/conversations exist).
 
 ## Collision + L1 notes carried forward
 - `audit()` — WA Mancer's `public.audit` wrapper + `private.audit` SECDEF impl merged into ONE
