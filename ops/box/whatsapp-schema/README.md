@@ -52,7 +52,13 @@ Empirically on this box:
 | 2 | `migrations/whatsapp_002_encryption.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/2F00B238) — Vault key + encryption_keys + crypto chain |
 | 3 | `migrations/whatsapp_003_audit_core.sql` | APPLIED 2026-07-05 (PITR anchor LSN 6/3C000060) — audit_log + hash chain + audit()/validate/status (owner-gated) |
 | 4 | `migrations/whatsapp_004_instances.sql` | APPLIED 2026-07-05 (post-apply LSN 6/500003A8) — whatsapp_instances (+business_id/node_id/key_id) + wa_nodes + is_wa_admin + audit triggers + admin RLS |
-| 5–14 | per plan §7 | pending |
+| 5 | `migrations/whatsapp_005_contact_bible.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/5B000000) — 7 contact tables + L2 customer_id seam + admin RLS; resolution fns + jid trigger deferred to wave 6 |
+| 6–14 | per plan §7 | pending |
+
+## Wave 5 tenancy + deferrals
+- Contact tables carry `instance_id NOT NULL → whatsapp_instances ON DELETE CASCADE`; contacts are PER-INSTANCE (unique per `(instance_id, phone_jid)`/`(instance_id, lid)`). Isolation is transitive via `is_wa_admin(instance_id)`. Only `contacts` gets `+customer_id → public.customers` (L2).
+- DEFERRED to wave 6 (dependency): every contact-resolution function (resolve_identity, resolve_contact_from_mapping, upsert_jid_mapping, link_alt, consolidate_contact, pick_survivor, chase_merged_into, _resolve_lid_to_phone, identifier_trust, pair_lid_to_contact, upsert_contact_profile, ...) + the `jid_mapping_resolved` trigger — they interleave with `conversations`/`merge_conversations`. Agent-select policies → wave 8.
+- W5: `contact_profiles`/`group_participants` authenticated grant tightened to SELECT (source shipped inert DML that RLS blocked).
 
 ## L1 keystone (wave 4)
 - `whatsapp.is_wa_admin(p_instance_id)` = `current_user_is_business_admin()` AND instance's `business_id` = `current_user_digicom_business_id()`. Reuses iGrowFast helpers. Owner (`role='owner'`) excluded from per-business ops. Use this for every per-business operational surface in later waves.
