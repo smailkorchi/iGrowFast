@@ -59,7 +59,18 @@ Empirically on this box:
 | 7b-2 | `migrations/whatsapp_007c_worker_assign_rpcs.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/88043780) — 15 worker/assignment RPCs (ported via port+verify workflow) |
 | 8 | `migrations/whatsapp_008_agent_policies.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/900278A8) — agent-select branches + is_wa_admin_conv recursion fix |
 | 9 | `migrations/whatsapp_009_media.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/970020B8) — media_fetch_jobs (deny-all) + enqueue/complete/fail + whatsapp-media bucket (F6) |
-| 10–14 | per plan §7 | pending |
+| 10a | `migrations/whatsapp_010a_decrypt_views.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/9F0001C8) — decrypt fns + 3 security_invoker views (decrypt-gate security fix + W2) |
+| 10b | pending — contact-resolution graph + merge_conversations + jid/resolve triggers | |
+| 10c | pending — send/ingest/message-op RPCs | |
+| 11–14 | per plan §7 | pending |
+
+## Wave 10a (decrypt layer) — a security fix
+`_decrypt_message_body`/`_decrypt_conv_preview` + `messages_decrypted`/`conversations_decrypted`/`worker_health_status`
+(all `security_invoker=true`, SELECT-only to authenticated+service_role — W2 closes the source's anon-full-DML trap).
+**SECURITY FIX:** WA Mancer's decrypt gate bypassed on `current_user IN ('postgres','service_role',...)`, but inside a
+SECDEF-postgres fn `current_user` is always postgres → the JWT gate was dead and a direct call by any authenticated
+user decrypted ANY message. Re-gated on `auth.uid() IS NULL` (null=trusted server-side, non-null=must be
+is_wa_admin(instance) OR assigned). Verified: non-assigned direct call → NULL. + key_id seam (decrypt reads row key_id).
 
 ## Wave 9 (media) — F6 done
 `media_fetch_jobs` RESTRICTIVE deny-all (anon/authenticated false; service_role bypasses; no authenticated grant, W5).
