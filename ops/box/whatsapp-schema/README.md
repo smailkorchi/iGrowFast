@@ -61,8 +61,21 @@ Empirically on this box:
 | 9 | `migrations/whatsapp_009_media.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/970020B8) — media_fetch_jobs (deny-all) + enqueue/complete/fail + whatsapp-media bucket (F6) |
 | 10a | `migrations/whatsapp_010a_decrypt_views.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/9F0001C8) — decrypt fns + 3 security_invoker views (decrypt-gate security fix + W2) |
 | 10b | `migrations/whatsapp_010b_resolution.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/AD0208E0) — 13 resolution fns (workflow) + merge_conversations + 2 resolve triggers |
-| 10c | pending — send/ingest/message-op RPCs | |
+| 10-fix | `migrations/whatsapp_010_fix_is_group_generated.sql` | APPLIED 2026-07-05 — wave-6 correction: conversations.is_group -> GENERATED (remote_jid LIKE '%@g.us') |
+| 10c | `migrations/whatsapp_010c_send_ingest.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/C80000F8) — 24 send/ingest/message-op RPCs + _canonical_remote_jid helper |
 | 11–14 | per plan §7 | pending |
+
+## Wave 10c + is_group fix
+24 send/ingest/message-op RPCs ported via workflow (ingest_message ×2, send_*, edit/delete/cancel/force_dispatch,
+toggle_*/set_message_pin, update_conversation_status, mark_conversation_read, ensure_conversation, apply_reaction,
+append_group_system_event, search_conversations, merge_conversation, _assert_conversation_access) + hand-added
+`_canonical_remote_jid` (the one missing helper the box rehearsal exposed).
+**WAVE-6 DEFECT CAUGHT BY BOX REHEARSAL:** conversations.is_group is a STORED GENERATED column
+(remote_jid LIKE '%@g.us'); wave 6 mis-ported it as a plain NOT NULL column because
+information_schema.column_default hides generated columns -> ingest_message/ensure_conversation (which omit
+is_group) failed the NOT NULL check. Fixed by re-creating it GENERATED (drop/recreate conversations_decrypted view;
+table empty). Full-schema scan confirmed is_group is the ONLY generated column. Verified: ingest DM+group,
+send->queue, decrypt round-trip, all toggles/status.
 
 ## Wave 10a (decrypt layer) — a security fix
 `_decrypt_message_body`/`_decrypt_conv_preview` + `messages_decrypted`/`conversations_decrypted`/`worker_health_status`
