@@ -60,7 +60,7 @@ Empirically on this box:
 | 8 | `migrations/whatsapp_008_agent_policies.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/900278A8) — agent-select branches + is_wa_admin_conv recursion fix |
 | 9 | `migrations/whatsapp_009_media.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/970020B8) — media_fetch_jobs (deny-all) + enqueue/complete/fail + whatsapp-media bucket (F6) |
 | 10a | `migrations/whatsapp_010a_decrypt_views.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/9F0001C8) — decrypt fns + 3 security_invoker views (decrypt-gate security fix + W2) |
-| 10b | pending — contact-resolution graph + merge_conversations + jid/resolve triggers | |
+| 10b | `migrations/whatsapp_010b_resolution.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/AD0208E0) — 13 resolution fns (workflow) + merge_conversations + 2 resolve triggers |
 | 10c | pending — send/ingest/message-op RPCs | |
 | 11–14 | per plan §7 | pending |
 
