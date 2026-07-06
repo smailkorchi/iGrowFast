@@ -51,3 +51,14 @@ worker → box .102 Postgres :5432 SESSION mode over tailnet, docker compose per
 5. Edge fns already on .102 point EVOLUTION_API_URL at the .67 tailnet address.
 6. Shipper units on .67.
 7. E2E: instance-create → pair a test number → inbound → inbox; send → delivered.
+
+## Tailnet — LIVE 2026-07-06
+Tailnet `tail707aec.ts.net` (Tailscale free, tagged nodes via tag:server, node-key expiry auto-disabled).
+- igf-main (.102) = 100.112.89.69 ; igf-wa1 (.67) = 100.112.39.73 ; direct WireGuard, ~6ms.
+- ufw `allow in on tailscale0` on both.
+- Postgres session path: `tailscale serve --bg --tcp 5432 tcp://127.0.0.1:5432` on .102 → the port there is
+  SUPAVISOR SESSION (not raw PG) → username must be tenant-qualified: `postgres.igrowfast`.
+  PROVEN from .67: connect + pg_try_advisory_lock + LISTEN all OK (DECISION #5 closed).
+- Worker DATABASE_URL: postgresql://postgres.igrowfast:<POSTGRES_PASSWORD>@100.112.89.69:5432/postgres
+- Auth key: revoked after enrollment (regenerate to add nodes). Tailnet lock deferred until a personal
+  device joins (signing key must not live on servers).
