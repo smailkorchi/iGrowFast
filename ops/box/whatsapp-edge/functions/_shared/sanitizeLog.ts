@@ -1,0 +1,12 @@
+// Shared log sanitizer (Deno port of worker/src/logSink.ts). system_logs is all-admin, 14-day
+// retained, CSV/JSON-exportable → producers MUST redact BEFORE writing. TWO functions:
+//   sanitizePayload — key-based redaction, ONLY for untrusted free-form bags (opts.extra).
+//   capPayload      — regex JID/phone scrub + size caps, NO key redaction (so an error's
+//                     'message'/'stack' survive — 'message' is a SENSITIVE_KEY and would be wiped).
+const SENSITIVE_KEYS = new Set(['jid','phone_jid','phonejid','phone','phone_number','phonenumber','lid','remotejid','remote_jid','senderjid','sender_jid','participant','number','body','text','caption','message','vcard','contact','token','secret','apikey','api_key','authorization','password','qr','pairingcode','pairing_code'])
+const MAX_STR = 600, MAX_PAYLOAD_CHARS = 4000
+function scrubString(s: string): string { let o = s.replace(/\b\d{6,}@[a-z0-9._-]+/gi, '[jid]').replace(/\b\d{10,15}\b/g, '[num]'); return o.length > MAX_STR ? o.slice(0, MAX_STR) + '…' : o }
+function sanitizeValue(key: string, value: unknown, depth: number): unknown { if (SENSITIVE_KEYS.has(key.toLowerCase())) return '[redacted]'; if (typeof value === 'string') return scrubString(value); if (value === null || typeof value !== 'object') return value; if (depth >= 2) return '[…]'; if (Array.isArray(value)) return value.slice(0, 20).map((v) => sanitizeValue(key, v, depth + 1)); const out: Record<string, unknown> = {}; for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = sanitizeValue(k, v, depth + 1); return out }
+export function sanitizePayload(extra: Record<string, unknown> | undefined): Record<string, unknown> { if (!extra) return {}; const out: Record<string, unknown> = {}; for (const [k, v] of Object.entries(extra)) out[k] = sanitizeValue(k, v, 0); const j = JSON.stringify(out); if (j && j.length > MAX_PAYLOAD_CHARS) return { _truncated: true, preview: j.slice(0, MAX_PAYLOAD_CHARS) }; return out }
+export function capPayload(p: Record<string, unknown>): Record<string, unknown> { const out: Record<string, unknown> = {}; for (const [k, v] of Object.entries(p)) out[k] = (typeof v === 'string') ? scrubString(v) : v; const j = JSON.stringify(out); if (j && j.length > MAX_PAYLOAD_CHARS) return { _truncated: true, preview: j.slice(0, MAX_PAYLOAD_CHARS) }; return out }
+export function scrubStr(s: string): string { return scrubString(s) }
