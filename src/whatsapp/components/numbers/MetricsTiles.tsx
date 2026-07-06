@@ -18,7 +18,7 @@ const HEALTH_LABEL: Record<string, string> = {
 }
 
 const KPI_ACCENTS = {
-  ink:    { dot: 'bg-ant-ink',    tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+  ink:    { dot: 'bg-ant-ink',    tile: 'bg-ant-ink/[0.06] border-ant-ink/15 text-ant-ink' },
   orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
   green:  { dot: 'bg-ant-green',  tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
   rose:   { dot: 'bg-ant-rose',   tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },

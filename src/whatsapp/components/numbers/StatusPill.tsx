@@ -10,7 +10,7 @@ const LABEL: Record<InstanceStatus, string> = {
 }
 
 const STATUS_PILL: Record<InstanceStatus, string> = {
-  pending:      'bg-ant-ink/6 border-ant-ink/15 text-ant-mid',
+  pending:      'bg-ant-ink/[0.06] border-ant-ink/15 text-ant-mid',
   connecting:   'bg-ant-orange/10 border-ant-orange/25 text-ant-orange',
   connected:    'bg-ant-green/10 border-ant-green/25 text-ant-green',
   disconnected: 'bg-ant-mid/10 border-ant-mid/30 text-ant-muted',
