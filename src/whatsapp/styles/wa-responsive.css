@@ -1,0 +1,45 @@
+/* IGF RESPONSIVE DELTAS — deliberate additions BEYOND the donor (owner-ordered
+ * 2026-07-06: "it should work on little and huge screens"). WA Mancer's
+ * conversations.css has NO narrow-viewport handling: with the info pane open
+ * the grid is a fixed 400px + 1fr + 400px, so under ~1260px of inbox width the
+ * chat column collapses below its content minimum (fixed-width voice/media
+ * rows ≈ 460px) — horizontal scroll, bubbles under the panel.
+ *
+ * Own file on purpose: the verbatim conversations.css stays byte-identical.
+ * Selectors carry the .wa-root prefix ((0,3,0)) so they beat the donor's
+ * (0,2,0) rules regardless of chunk order. Driven by a CONTAINER query on the
+ * .wa-root mount (container-name: waroot, set inline in
+ * WhatsappConversations.tsx) — reacts to the real inbox width, including the
+ * host sidebar expanding, not just the window.
+ *
+ * D1 — info pane becomes an overlay drawer when 3 columns can't fit
+ *      (400 list + 460 chat floor + 400 info = 1260). WhatsApp-Web-class
+ *      behavior; the pane keeps its own close button.
+ * D2 — below 1000px the fixed 400px chat list yields to the chat column.
+ */
+
+@container waroot (max-width: 1259px) {
+  .wa-root .wac.is-with-info {
+    grid-template-columns: 400px 1fr;
+    position: relative;
+  }
+  .wa-root .wac.is-with-info .wac__info {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(400px, 88cqw);
+    z-index: 40;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: -24px 0 48px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@container waroot (max-width: 999px) {
+  .wa-root .wac {
+    grid-template-columns: minmax(300px, 38cqw) 1fr;
+  }
+  .wa-root .wac.is-with-info {
+    grid-template-columns: minmax(300px, 38cqw) 1fr;
+  }
+}

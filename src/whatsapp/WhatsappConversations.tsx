@@ -8,6 +8,9 @@
 // conversations.css. Import whatsapp.css (the scoped base) BEFORE the page
 // module so equal-specificity collisions resolve the same way they did there.
 import './styles/whatsapp.css'
+// IGF responsive deltas (D1 drawer / D2 list shrink) — own sheet, loads AFTER
+// the page css; selectors out-specify the donor's. See file header.
+import './styles/wa-responsive.css'
 import WaShell from './WaShell'
 import Conversations from './routes/admin/Conversations'
 
@@ -22,7 +25,14 @@ export default function WhatsappConversations() {
           height:100% and brings its own rounding + overflow:hidden. */}
       <div
         className="wa-root h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] overflow-hidden"
-        style={{ overscrollBehavior: 'none' }}
+        style={{
+          overscrollBehavior: 'none',
+          // Size container for the wa-responsive.css @container rules — the
+          // breakpoints react to the INBOX width (host sidebar included), not
+          // the window.
+          containerType: 'inline-size',
+          containerName: 'waroot',
+        }}
       >
         <Conversations />
       </div>
