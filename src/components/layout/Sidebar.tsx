@@ -47,7 +47,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { SiMeta } from 'react-icons/si';
-import { FaGoogle } from 'react-icons/fa';
+import { FaGoogle, FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
@@ -112,6 +112,13 @@ const navigation: NavSection[] = [
         items: [
             { icon: Plug, label: 'Sales Channels', path: '/sales-channels' },
             { icon: ClipboardList, label: 'Leads Review', path: '/sheet-review' },
+        ],
+    },
+    {
+        label: 'WhatsApp',
+        icon: FaWhatsapp,
+        items: [
+            { icon: MessageSquare, label: 'Numbers', path: '/whatsapp/numbers' },
         ],
     },
     {
