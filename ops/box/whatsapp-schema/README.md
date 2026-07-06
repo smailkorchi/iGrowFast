@@ -64,7 +64,17 @@ Empirically on this box:
 | 10-fix | `migrations/whatsapp_010_fix_is_group_generated.sql` | APPLIED 2026-07-05 — wave-6 correction: conversations.is_group -> GENERATED (remote_jid LIKE '%@g.us') |
 | 10c | `migrations/whatsapp_010c_send_ingest.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/C80000F8) — 24 send/ingest/message-op RPCs + _canonical_remote_jid helper |
 | 11 | `migrations/whatsapp_011_collab.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/10141278) — tags/conversation_tags/conversation_notes/scheduled_messages (1:1+L1) + quick_replies/message_templates (business ADAPT) |
-| 12–14 | per plan §7 | pending |
+| 12a | `migrations/whatsapp_012a_telemetry_tables.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/1A0D0ED0) — 9 logs/telemetry tables (structure only, empty), fleet is_owner RLS |
+| 12b | pending — 9 telemetry ingest/snapshot/cache fns (workflow wf_5189c085-d9b) | |
+| 13–14 | per plan §7 | pending |
+
+## Wave 12 (logs/telemetry)
+Port the observability stack STRUCTURE ONLY (WA Mancer's 490MB metric_samples / 658MB system_logs data NOT migrated —
+accumulates fresh). 9 tables: system_logs, host_metrics, db_metrics_history, metric_samples (no PK, append-only),
+r2_metrics, worker_health_history (fleet, is_owner SELECT); app_cache, og_cache (internal caches, RLS-on no-policy,
+service_role); _cron_ingest_state (singleton, no RLS). id = GENERATED ALWAYS AS IDENTITY on the 4 metrics tables
+(attidentity hidden from column_default — same class as the is_group lesson), BY DEFAULT on system_logs/worker_health_
+history. log_level/log_source enums already existed (wave-3 block). NO anon. 12b = 9 ingest/snapshot/cache fns.
 
 ## Wave 11 (collab)
 6 tables. 4 instance/conversation-scoped 1:1 (tags, conversation_tags, conversation_notes, scheduled_messages) with
