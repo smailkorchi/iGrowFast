@@ -294,6 +294,7 @@ const App = () => (
                     <Route path="/products" element={<Products />} />
                     <Route path="/whatsapp/numbers" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappNumbers /></Suspense>} />
                     <Route path="/whatsapp/numbers/:id" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappNumberDetail /></Suspense>} />
+                    <Route path="/whatsapp/conversations" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappConversations /></Suspense>} />
                     <Route path="/accessories" element={<Accessories />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/google-analytics" element={<GoogleAnalyticsPage />} />
