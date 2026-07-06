@@ -106,6 +106,59 @@ async function captureJidMapping(
 // varies, so scan tolerantly: the data may be an array of WAMessage-ish items,
 // an object with a `messages` array, or an object carrying the flags directly.
 // Best-effort — never blocks ingest.
+// ---- History-sync completion: SETTLE-BASED (IGF fix 2026-07-06) ------------
+//
+// Evolution/Baileys messages.set batches carry {isLatest, progress} PER SLICE:
+// WhatsApp uploads the RECENT slice FIRST (isLatest:true, its own progress
+// hitting 100) and the older FULL chunks AFTER — so the flags alone fire
+// minutes early on real phones. Measured on a live pair: flag-stamp at
+// connect+3.8s while 99.8% of the history ingested AFTER it (5.4k messages
+// still streaming). The donor has no reference here: its stamp path was dead
+// (fe72cad), so these semantics were never exercised.
+//
+// Completion therefore = flag seen AND no further messages.set batch for
+// SYNC_SETTLE_MS. Each batch re-arms the timer; the stamp fires once, after
+// the dump goes quiet. If the engine never emits a flag, nothing stamps and
+// the PairDialog's MAX_SYNCING_SECONDS degrade covers it (donor behavior).
+const SYNC_SETTLE_MS = 10_000
+const syncFlagSeen = new Set<string>()
+const syncSettleTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** Called on a genuine (re)connect transition — a new sync cycle begins. */
+function resetSyncSettle(instanceId: string): void {
+  syncFlagSeen.delete(instanceId)
+  const t = syncSettleTimers.get(instanceId)
+  if (t) { clearTimeout(t); syncSettleTimers.delete(instanceId) }
+}
+
+function armSyncSettle(instanceId: string): void {
+  const prev = syncSettleTimers.get(instanceId)
+  if (prev) clearTimeout(prev)
+  syncSettleTimers.set(instanceId, setTimeout(() => {
+    syncSettleTimers.delete(instanceId)
+    if (!syncFlagSeen.has(instanceId)) return   // flags never arrived — let the dialog degrade
+    syncFlagSeen.delete(instanceId)
+    void (async () => {
+      try {
+        await pool.query(
+          `UPDATE whatsapp.whatsapp_instances
+              SET history_synced_at = now(),
+                  sync_progress = 100
+            WHERE id = $1 AND history_synced_at IS NULL`,
+          [instanceId],
+        )
+        log.info('webhook.sync_settled', { instance_id: instanceId, settle_ms: SYNC_SETTLE_MS })
+        // Evolution now holds the fullest contact list — backfill at true completion.
+        void backfillContactsFromEvolution(instanceId)
+      } catch (err) {
+        log.warn('webhook.sync_settle.failed', {
+          instance_id: instanceId, error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    })()
+  }, SYNC_SETTLE_MS))
+}
+
 async function recordSyncProgress(instanceId: string, data: unknown): Promise<void> {
   try {
     const items: unknown[] =
@@ -122,20 +175,18 @@ async function recordSyncProgress(instanceId: string, data: unknown): Promise<vo
       if (o.isLatest === true) isLatest = true
       if (typeof o.progress === 'number') progress = Math.max(progress ?? 0, o.progress)
     }
-    if (progress === null && !isLatest) return            // nothing to record
+    // EVERY batch (flagged or not) re-arms the settle window — completion is
+    // "flag seen + batch silence", so silence must be measured across all
+    // batches, not only flagged ones.
+    if (isLatest || (typeof progress === 'number' && progress >= 100)) syncFlagSeen.add(instanceId)
+    armSyncSettle(instanceId)
+    if (progress === null) return                          // no progress figure to persist
     await pool.query(
       `UPDATE whatsapp.whatsapp_instances
-          SET sync_progress = GREATEST(COALESCE(sync_progress, 0), COALESCE($2::smallint, sync_progress, 0)),
-              history_synced_at = CASE
-                WHEN $3::boolean OR COALESCE($2::int, 0) >= 100 THEN now()
-                ELSE history_synced_at END
-        WHERE id = $1`,
-      [instanceId, progress, isLatest],
+          SET sync_progress = GREATEST(COALESCE(sync_progress, 0), LEAST(COALESCE($2::smallint, 0), 99))
+        WHERE id = $1 AND history_synced_at IS NULL`,
+      [instanceId, progress],
     )
-    // At sync completion Evolution holds the fullest contact list — backfill now.
-    if (isLatest || (typeof progress === 'number' && progress >= 100)) {
-      void backfillContactsFromEvolution(instanceId)
-    }
   } catch (err) {
     log.warn('webhook.sync_progress.record_failed', {
       instance_id: instanceId, error: err instanceof Error ? err.message : String(err),
@@ -1741,8 +1792,11 @@ async function handleConnectionUpdate(
   // First time we see 'connected', stamp paired_at and bind phone_number
   // from the wuid (e.g. "212600000000:XX@s.whatsapp.net" → "+212600000000").
   const phoneNumber = extractPhoneFromWuid(data.wuid)
-  await pool.query(
-    `UPDATE whatsapp.whatsapp_instances
+  const { rows: statusRows } = await pool.query<{ old_status: string | null }>(
+    `WITH prev AS (
+       SELECT status::text AS old_status FROM whatsapp.whatsapp_instances WHERE id = $1
+     )
+     UPDATE whatsapp.whatsapp_instances
        SET status = $2::instance_status,
            status_detail = $3::text,
            last_seen_at = now(),
@@ -1764,9 +1818,17 @@ async function handleConnectionUpdate(
            -- QR (loop ended → disconnected/error) must not linger in the DB and
            -- render as if it were still scannable.
            qr_code = CASE WHEN $2::instance_status IN ('connected','disconnected','error') THEN NULL ELSE qr_code END
-     WHERE id = $1`,
+     WHERE id = $1
+     RETURNING (SELECT old_status FROM prev) AS old_status`,
     [instanceId, newStatus, data.statusReason ? String(data.statusReason) : null, phoneNumber],
   )
+  const wasConnected = statusRows[0]?.old_status === 'connected'
+
+  // Genuine (re)connect transition → a NEW history-sync cycle begins: clear
+  // the settle state so a stale flag from the previous connect can't stamp
+  // this one. Dup 'open' events (wasConnected) must NOT touch it — clearing
+  // mid-sync would eat the flag and force the dialog's 120s degrade.
+  if (newStatus === 'connected' && !wasConnected) resetSyncSettle(instanceId)
 
   log.info('webhook.connection.updated', {
     instance_id: instanceId, state, mapped: newStatus, phone: phoneNumber,
