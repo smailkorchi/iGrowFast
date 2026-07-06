@@ -52,12 +52,33 @@ export function stepsSummary(steps: MessageStep[] | null | undefined): string {
 
 export interface QuickReply {
   id: string
-  instance_id: string
+  business_id: string
   name: string
   steps: MessageStep[]
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+// ─── IGF ADAPTATION (build plan "ADAPT": quick_replies → per-business) ──────
+// On the box, quick_replies is BUSINESS-scoped: WA Mancer's instance_id column
+// became business_id (canned replies are shared across all of a business's
+// numbers; RLS + unique index re-keyed accordingly). The donor UI thinks in
+// instances, so every exported hook KEEPS its instanceId signature and we
+// resolve the owning business once per instance (immutable — cached forever).
+const bizCache = new Map<string, string>()
+async function businessIdOf(instanceId: string): Promise<string> {
+  const hit = bizCache.get(instanceId)
+  if (hit) return hit
+  const { data, error } = await supabase
+    .schema('whatsapp').from('whatsapp_instances')
+    .select('business_id')
+    .eq('id', instanceId)
+    .single()
+  if (error) throw new Error(error.message)
+  const biz = (data as { business_id: string }).business_id
+  bizCache.set(instanceId, biz)
+  return biz
 }
 
 export const quickReplyKeys = {
@@ -70,10 +91,11 @@ export function useQuickReplies(instanceId: string | null) {
     queryKey: quickReplyKeys.list(instanceId ?? '_'),
     queryFn: async () => {
       if (!instanceId) return []
+      const biz = await businessIdOf(instanceId)
       const { data, error } = await supabase
         .schema('whatsapp').from('quick_replies')
         .select('*')
-        .eq('instance_id', instanceId)
+        .eq('business_id', biz)
         .order('name')
       if (error) throw new Error(error.message)
       return (data ?? []) as unknown as QuickReply[]
@@ -87,15 +109,25 @@ export function useQuickRepliesRealtime(instanceId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!instanceId) return
-    const channel = supabase
-      .channel(`qr-${instanceId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'quick_replies', filter: `instance_id=eq.${instanceId}` },
-        () => { void qc.invalidateQueries({ queryKey: quickReplyKeys.list(instanceId) }) },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    void businessIdOf(instanceId)
+      .then((biz) => {
+        if (cancelled) return
+        channel = supabase
+          .channel(`qr-${instanceId}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'whatsapp', table: 'quick_replies', filter: `business_id=eq.${biz}` },
+            () => { void qc.invalidateQueries({ queryKey: quickReplyKeys.list(instanceId) }) },
+          )
+          .subscribe()
+      })
+      .catch(() => { /* resolver failure surfaces through the list query */ })
+    return () => {
+      cancelled = true
+      if (channel) void supabase.removeChannel(channel)
+    }
   }, [instanceId, qc])
 }
 
@@ -107,8 +139,9 @@ export function useCreateQuickReply() {
       name: string
       steps: MessageStep[]
     }) => {
+      const biz = await businessIdOf(params.instanceId)
       const { error } = await supabase.schema('whatsapp').from('quick_replies').insert({
-        instance_id: params.instanceId,
+        business_id: biz,
         name: params.name,
         steps: params.steps as unknown as never,
       })
