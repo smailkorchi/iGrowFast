@@ -19,7 +19,7 @@ import { logError } from '../_shared/logError.ts'
 const TIMEOUT_MS  = 6_000
 const MAX_BYTES   = 1_500_000   // 1.5 MB HTML cap
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000   // 24 h link-preview cache
-const UA          = 'Mozilla/5.0 (compatible; WhatsAppMancer/1.0; +https://wa.welcomdeal.ma) link-preview/og-fetch'
+const UA          = 'Mozilla/5.0 (compatible; iGrowFast/1.0; +https://igrowfast.com) link-preview/og-fetch'
 
 Deno.serve(async (req) => {
   try {

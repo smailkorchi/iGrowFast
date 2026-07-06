@@ -1,7 +1,7 @@
 // media-sign
 //
 // Returns a public R2 URL for a media object referenced by a messages row.
-// The URL routes through the Cloudflare R2 custom domain (media.welcomdeal.ma)
+// The URL routes through the Cloudflare R2 custom domain (media.igrowfast.com)
 // so responses are cached at CF edge POPs worldwide — repeat views serve in
 // ~5ms instead of ~300ms from raw R2.
 //
@@ -27,9 +27,9 @@ import { json, preflight } from '../_shared/cors.ts'
 import { asCaller } from '../_shared/admin.ts'
 import { logError } from '../_shared/logError.ts'
 
-// R2 custom domain — media.welcomdeal.ma CNAME → R2 bucket. Cloudflare edge
+// R2 custom domain — media.igrowfast.com CNAME → R2 bucket. Cloudflare edge
 // caches responses using the object's Cache-Control (public, immutable, 1yr).
-const R2_PUBLIC_DOMAIN = Deno.env.get('R2_MEDIA_PUBLIC_DOMAIN') ?? 'media.welcomdeal.ma'
+const R2_PUBLIC_DOMAIN = Deno.env.get('R2_MEDIA_PUBLIC_DOMAIN') ?? 'media.igrowfast.com'
 
 // Browser-side cache hint. The URL itself never expires (capability token),
 // but we tell the frontend to re-check RLS every 30 min in case the user
