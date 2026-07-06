@@ -68,7 +68,18 @@ Empirically on this box:
 | 12b | `migrations/whatsapp_012b_telemetry_fns.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/1D02FEA0) — 9 ingest/snapshot/cache fns |
 | 13a | `migrations/whatsapp_013a_instance_secrets.sql` | APPLIED 2026-07-06 (LSN 7/2B000088) — reveal/set instance token+webhook secret |
 | 13b | `migrations/whatsapp_013b_admin_dashboards.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/5107A350) — 54 admin/dashboard/stats/monitor RPCs + 4 cache-compute shims (hybrid gating) |
-| 14 | per plan §7 | pending |
+| 14a | `migrations/whatsapp_014a_cron_support.sql` | APPLIED 2026-07-06 (LSN 7/590000C0) — cache_quantize + 6 _compute shims + cache_warm/cache_janitor |
+| 14b | `migrations/whatsapp_014b_cron_fns.sql` | APPLIED 2026-07-06 (LSN 7/5D0000C0) — 11 _cron_* maintenance fn bodies (INERT) |
+| 14c | PENDING OWNER GO — activation: cron.schedule 16 jobs + realtime publication (14 tables) + F2 WS test | |
+
+## Wave 14 (crons + realtime = ACTIVATION)
+14a+14b are inert (fn bodies only). 14c ACTIVATES: 16 cron.schedule jobs (7 every-minute, 1 every-30s cache-warm,
+1 */5 janitor, 1 hourly prune, 6 daily 03:00-04:00 window) + ALTER PUBLICATION supabase_realtime ADD 14 whatsapp
+tables (conversations, messages, conversation_assignments, conversation_notes, conversation_tags, tags,
+message_templates, quick_replies, scheduled_messages, whatsapp_instances, worker_health, dispatcher_snapshot,
+audit_log, system_logs) + F2 websocket end-to-end test. Box has 17 iGrowFast jobs — no name collisions; no other
+job_run_details pruner (janitor's 7-day retention is the only one). _cron_worker_health_alert writes
+worker_heartbeat_stale audit rows (no webhook/vault externals anywhere in the cron surface).
 
 ## Wave 13 (admin/dashboard/stats — hybrid multi-tenant)
 Owner-decision: HYBRID. Fleet fns (monitor_*, db_metrics_*, stats_fleet, dashboard_overview, admin_log_facets,
