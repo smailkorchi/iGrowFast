@@ -70,7 +70,13 @@ Empirically on this box:
 | 13b | `migrations/whatsapp_013b_admin_dashboards.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/5107A350) — 54 admin/dashboard/stats/monitor RPCs + 4 cache-compute shims (hybrid gating) |
 | 14a | `migrations/whatsapp_014a_cron_support.sql` | APPLIED 2026-07-06 (LSN 7/590000C0) — cache_quantize + 6 _compute shims + cache_warm/cache_janitor |
 | 14b | `migrations/whatsapp_014b_cron_fns.sql` | APPLIED 2026-07-06 (LSN 7/5D0000C0) — 11 _cron_* maintenance fn bodies (INERT) |
-| 14c | PENDING OWNER GO — activation: cron.schedule 16 jobs + realtime publication (14 tables) + F2 WS test | |
+| 14c | `migrations/whatsapp_014c_activation.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/61014E60) — ACTIVATED: 16 cron jobs + 14-table realtime publication + whatsapp_instances REPLICA IDENTITY FULL. F2 WS test PASS (`verify/f2_ws_test.mjs`) |
+
+**BUILD COMPLETE 2026-07-06.** All 14 waves applied. 16/16 jobs verified executing (cache-warm 4/4 @30s,
+8 minute-jobs 2/2, janitor 1/1; dailies pending their window). F2: public wss://api.igrowfast.com realtime
+subscription on whatsapp.worker_health received a live INSERT event. Job names 1:1 except wa-cache-warm/
+wa-cache-janitor (prefixed; cron.job shared with 17 iGrowFast jobs). Rollback: cron.unschedule per job,
+ALTER PUBLICATION ... DROP TABLE per table.
 
 ## Wave 14 (crons + realtime = ACTIVATION)
 14a+14b are inert (fn bodies only). 14c ACTIVATES: 16 cron.schedule jobs (7 every-minute, 1 every-30s cache-warm,
