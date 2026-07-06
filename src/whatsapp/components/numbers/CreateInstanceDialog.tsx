@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useCreateInstance } from '../../lib/queries/instances'
 import { normalizeError } from '../../lib/toast/store'
+
+const inputCls =
+  'h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40'
+const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid'
 
 interface Props {
   open: boolean
@@ -56,59 +71,68 @@ export function CreateInstanceDialog({ open, onClose, onCreated }: Props) {
   }
 
   return (
-    <div
-      className="instance-modal__backdrop"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="instance-modal" role="dialog" aria-modal="true" aria-labelledby="ci-title">
-        <div className="instance-modal__beam" aria-hidden="true" />
-        <header className="instance-modal__head">
-          <div>
-            <span className="instance-modal__eyebrow">Nouvelle connexion</span>
-            <h2 id="ci-title" className="instance-modal__title">Ajouter un numéro WhatsApp</h2>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+          <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+            Nouvelle connexion
           </div>
-          <button type="button" className="instance-modal__close" onClick={onClose} aria-label="Fermer">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M1.5 1.5l11 11M12.5 1.5l-11 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </header>
+          <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+            Ajouter un numéro WhatsApp
+          </DialogTitle>
+        </DialogHeader>
 
-        <form onSubmit={submit} className="instance-modal__body">
-          <label className="instance-modal__label" htmlFor="ci-name">
-            Nom affiché
-            <span className="instance-modal__hint">Comment les agents verront ce numéro dans la boîte de réception.</span>
-          </label>
-          <input
-            ref={inputRef}
-            id="ci-name"
-            type="text"
-            className="form__input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => setTouched(true)}
-            placeholder="ex. Service client · Principal"
-            disabled={create.isPending}
-            maxLength={80}
-            autoComplete="off"
-          />
-          {error && <p className="instance-modal__error">{error}</p>}
-          {create.error && (
-            <p className="instance-modal__error">
-              Impossible de créer le numéro : {normalizeError(create.error)}
-            </p>
-          )}
+        <form onSubmit={submit}>
+          <div className="px-6 py-5 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ci-name" className={labelCls}>Nom affiché</Label>
+              <p className="text-[11px] text-ant-mid">
+                Comment les agents verront ce numéro dans la boîte de réception.
+              </p>
+              <Input
+                ref={inputRef}
+                id="ci-name"
+                type="text"
+                className={inputCls}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="ex. Service client · Principal"
+                disabled={create.isPending}
+                maxLength={80}
+                autoComplete="off"
+              />
+            </div>
+            {error && <p className="text-[12px] text-ant-rose">{error}</p>}
+            {create.error && (
+              <p className="text-[12px] text-ant-rose">
+                Impossible de créer le numéro : {normalizeError(create.error)}
+              </p>
+            )}
+          </div>
 
-          <div className="instance-modal__actions">
-            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={create.isPending}>
+          <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={create.isPending}
+              className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+            >
               Annuler
-            </button>
-            <button type="submit" className="btn btn--primary" disabled={!canSubmit}>
+            </Button>
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+            >
+              {create.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {create.isPending ? 'Création…' : 'Créer et appairer'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

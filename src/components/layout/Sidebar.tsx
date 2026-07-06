@@ -64,6 +64,7 @@ type NavSection = {
     label?: string;
     icon?: LucideIcon | React.ComponentType<{ className?: string }>;
     items: NavItem[];
+    isNew?: boolean;
 };
 
 const navigation: NavSection[] = [
@@ -73,6 +74,14 @@ const navigation: NavSection[] = [
             { icon: BarChart2, label: 'Analytics', path: '/analytics' },
             { icon: FaGoogle, label: 'Google Analytics', path: '/google-analytics' },
             { icon: SiMeta, label: 'Meta Ads', path: '/meta-ads', beta: true },
+        ],
+    },
+    {
+        label: 'WhatsApp',
+        icon: FaWhatsapp,
+        isNew: true,
+        items: [
+            { icon: MessageSquare, label: 'Numbers', path: '/whatsapp/numbers' },
         ],
     },
     {
@@ -112,13 +121,6 @@ const navigation: NavSection[] = [
         items: [
             { icon: Plug, label: 'Sales Channels', path: '/sales-channels' },
             { icon: ClipboardList, label: 'Leads Review', path: '/sheet-review' },
-        ],
-    },
-    {
-        label: 'WhatsApp',
-        icon: FaWhatsapp,
-        items: [
-            { icon: MessageSquare, label: 'Numbers', path: '/whatsapp/numbers' },
         ],
     },
     {
@@ -332,8 +334,15 @@ const Sidebar = () => {
                                                 )}
                                             </div>
                                             <div className="flex-1 flex items-center justify-between pr-3 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
-                                                <span className="font-medium text-[12px] whitespace-nowrap tracking-tight">
-                                                    {section.label}
+                                                <span className="flex items-center gap-1.5">
+                                                    <span className="font-medium text-[12px] whitespace-nowrap tracking-tight">
+                                                        {section.label}
+                                                    </span>
+                                                    {section.isNew && (
+                                                        <span className="inline-flex items-center rounded-full bg-ant-green/15 text-ant-green text-[8px] font-bold uppercase tracking-[0.12em] leading-none px-1.5 py-0.5">
+                                                            New
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 <ChevronRight
                                                     className={cn(
