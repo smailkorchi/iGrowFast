@@ -2,8 +2,9 @@
  * 2026-07-06: "it should work on little and huge screens"). WA Mancer's
  * conversations.css has NO narrow-viewport handling: with the info pane open
  * the grid is a fixed 400px + 1fr + 400px, so under ~1260px of inbox width the
- * chat column collapses below its content minimum (fixed-width voice/media
- * rows ≈ 460px) — horizontal scroll, bubbles under the panel.
+ * chat column collapses below its content minimum (voice bubbles are hard-
+ * clamped to min-width 322px by the donor itself) — horizontal scroll,
+ * bubbles under the panel.
  *
  * Own file on purpose: the verbatim conversations.css stays byte-identical.
  * Selectors carry the .wa-root prefix ((0,3,0)) so they beat the donor's
@@ -12,34 +13,27 @@
  * WhatsappConversations.tsx) — reacts to the real inbox width, including the
  * host sidebar expanding, not just the window.
  *
- * D1 — info pane becomes an overlay drawer when 3 columns can't fit
- *      (400 list + 460 chat floor + 400 info = 1260). WhatsApp-Web-class
- *      behavior; the pane keeps its own close button.
- * D2 — below 1000px the fixed 400px chat list yields to the chat column.
+ * D1 — when 3 columns can't fit (400 list + ~460 chat floor + 400 info =
+ *      1260), the CHAT LIST yields while the info pane is open: the grid
+ *      becomes chat + info as two REAL columns. Nothing overlays, nothing
+ *      hides under a panel, bubbles right-align at the visible edge. Closing
+ *      the pane restores the list. (First attempt was an overlay drawer —
+ *      rejected: it covered the chat's right side, bubbles vanished under it.)
+ * D2 — below 1000px (info pane closed) the fixed 400px chat list yields to
+ *      the chat column.
  */
 
 @container waroot (max-width: 1259px) {
   .wa-root .wac.is-with-info {
-    grid-template-columns: 400px 1fr;
-    position: relative;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
   }
-  .wa-root .wac.is-with-info .wac__info {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(400px, 88cqw);
-    z-index: 40;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: -24px 0 48px rgba(0, 0, 0, 0.5);
+  .wa-root .wac.is-with-info .wac__sidebar {
+    display: none;
   }
 }
 
 @container waroot (max-width: 999px) {
-  .wa-root .wac {
-    grid-template-columns: minmax(300px, 38cqw) 1fr;
-  }
-  .wa-root .wac.is-with-info {
+  .wa-root .wac:not(.is-with-info) {
     grid-template-columns: minmax(300px, 38cqw) 1fr;
   }
 }
