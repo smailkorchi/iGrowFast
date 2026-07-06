@@ -2243,7 +2243,7 @@ export function EmptyState() {
       <div className="wac__empty-illu" aria-hidden>
         <IconUsers size={92} />
       </div>
-      <h1 className="wac__empty-title">WhatsApp Mancer</h1>
+      <h1 className="wac__empty-title">WhatsApp</h1>
       <p className="wac__empty-sub">
         Sélectionnez une discussion pour afficher l'historique, répondre aux messages et gérer
         l'attribution. Les actions sont enregistrées dans le journal d'audit.

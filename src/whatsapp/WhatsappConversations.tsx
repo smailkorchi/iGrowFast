@@ -11,7 +11,16 @@ import './styles/whatsapp.css'
 export default function WhatsappConversations() {
   return (
     <WaShell>
-      <div className="wa-root">
+      {/* Host-integration seam (#6): WA's shell gave the inbox a definite-height,
+          non-scrolling box (`:root[data-route="conversations"] .layout__main` =
+          calc(100vh - 28px) + overflow hidden). IGF's AppLayout wraps pages in
+          p-4 md:p-6 with auto height, so we recreate that exact contract here:
+          viewport minus the wrapper padding (2×16px / 2×24px). .wac itself is
+          height:100% and brings its own rounding + overflow:hidden. */}
+      <div
+        className="wa-root h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] overflow-hidden"
+        style={{ overscrollBehavior: 'none' }}
+      >
         <Conversations />
       </div>
     </WaShell>
