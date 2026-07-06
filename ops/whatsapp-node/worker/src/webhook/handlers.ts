@@ -65,6 +65,12 @@ async function captureJidMapping(
       `SELECT whatsapp.upsert_jid_mapping($1, $2, $3, $4)`,
       [instanceId, lid, phoneJid, 'message_alt'],
     )
+    // IGF HARDENING (2026-07-06): drop the presence resolver's negative-cache
+    // entry the moment a pair is learned. Before this, every resolve failure
+    // pre-learn cached phoneJid=null for LID_RESOLVE_TTL_MS (10 min) — a fresh
+    // contact's typing stayed dark for up to 10 minutes AFTER their first
+    // message taught us the mapping. Donor has the same latent blackout.
+    lidResolveCache.delete(`${instanceId}:${lid}`)
     // Contact Bible: this is a DETERMINISTIC same-source (lid, phone) pair — the
     // engine itself stated both address ONE contact (same message envelope, or
     // the same group-roster row), NOT a temporal guess (the removed presence
@@ -385,26 +391,44 @@ async function ingestMessage(instanceId: string, m: WAMessageData): Promise<void
   // --- JID mapping: capture LID↔phone from Alt fields on every message ---
   // Baileys gives the two forms of the SAME contact as {jid, jidAlt}. We must
   // capture BOTH addressing directions, else presence (which always arrives
-  // @lid) can't resolve to a phone-keyed conversation:
-  //   • addressingMode 'lid'  → remoteJid is @lid, remoteJidAlt is the phone.
-  //   • addressingMode 'pn'   → remoteJid is the phone (known contact), the
-  //                             @lid is in remoteJidAlt. Without capturing this
-  //                             reverse pair, jid_mapping stays empty for every
-  //                             address-book contact → their typing never shows.
-  if (m.key?.addressingMode === 'lid') {
-    if (m.key.remoteJidAlt && remoteJid.endsWith('@lid')) {
-      void captureJidMapping(instanceId, remoteJid, m.key.remoteJidAlt, pushName)
+  // @lid) can't resolve to a phone-keyed conversation.
+  //
+  // IGF HARDENING (2026-07-06, supersedes the WA Mancer mode-keyed branches):
+  // capture by pair SHAPE, not by key.addressingMode. Proven on the live wire
+  // (tcpdump vs Evolution's own DB): stock Evolution 2.3.7 normalizes
+  // lid-addressed envelopes before sendDataWebhook (remoteJid := remoteJidAlt)
+  // — pre-patch-002 it DESTROYED the @lid half entirely (remoteJid ===
+  // remoteJidAlt === phone, zero learnable pair); with Evolution patch 002 the
+  // pair survives as (phone, @lid) while addressingMode still reads 'lid',
+  // which the donor's mode-keyed branches never match (mode 'lid' expected
+  // remoteJid @lid). Shape-keying handles every orientation; the deterministic
+  // same-envelope guarantee is unchanged. WA Mancer prod carries the same
+  // latent gap for lid-addressed peers (its live learning only worked for
+  // pn-addressed address-book contacts, which the normalization skips).
+  {
+    const keyAlt = m.key?.remoteJidAlt
+    if (keyAlt && keyAlt !== remoteJid) {
+      if (remoteJid.endsWith('@lid') && keyAlt.endsWith('@s.whatsapp.net')) {
+        void captureJidMapping(instanceId, remoteJid, keyAlt, pushName)
+      } else if (remoteJid.endsWith('@s.whatsapp.net') && keyAlt.endsWith('@lid')) {
+        void captureJidMapping(instanceId, keyAlt, remoteJid, pushName)
+      }
     }
-    if (m.key.participantAlt && m.key.participant?.endsWith('@lid')) {
-      void captureJidMapping(instanceId, m.key.participant, m.key.participantAlt, pushName)
+    // Evolution patch 002 parks the pre-normalization @lid here (additive
+    // field; stock consumers untouched). This is the ONLY wire carrier of the
+    // pair for lid-addressed envelopes — alt arrives as phone===remoteJid.
+    const keyLid = (m.key as unknown as Record<string, unknown> | undefined)?.['remoteJidLid'] as string | undefined
+    if (keyLid?.endsWith('@lid') && remoteJid.endsWith('@s.whatsapp.net') && keyLid !== remoteJid) {
+      void captureJidMapping(instanceId, keyLid, remoteJid, pushName)
     }
-  } else {
-    // Phone-primary (addressingMode 'pn' or legacy/undefined): the @lid is the Alt.
-    if (m.key?.remoteJidAlt?.endsWith('@lid') && remoteJid.endsWith('@s.whatsapp.net')) {
-      void captureJidMapping(instanceId, m.key.remoteJidAlt, remoteJid, pushName)
-    }
-    if (m.key?.participantAlt?.endsWith('@lid') && m.key.participant?.endsWith('@s.whatsapp.net')) {
-      void captureJidMapping(instanceId, m.key.participantAlt, m.key.participant, pushName)
+    const part = m.key?.participant
+    const partAlt = m.key?.participantAlt
+    if (part && partAlt && part !== partAlt) {
+      if (part.endsWith('@lid') && partAlt.endsWith('@s.whatsapp.net')) {
+        void captureJidMapping(instanceId, part, partAlt, pushName)
+      } else if (part.endsWith('@s.whatsapp.net') && partAlt.endsWith('@lid')) {
+        void captureJidMapping(instanceId, partAlt, part, pushName)
+      }
     }
   }
 
