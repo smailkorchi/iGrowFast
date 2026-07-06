@@ -93,7 +93,11 @@ import OwnerEmailTemplates from "./pages/owner/EmailTemplates";
 import OwnerProfile from "./pages/owner/Profile";
 import OwnerBackups from "./pages/owner/Backups";
 import MediaBuyerProfile from "./pages/mediabuyer/Profile";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
+
+// WhatsApp inbox — isolated module, lazy-loaded (own CSS/bundle; not shipped to
+// non-WhatsApp users). Page 1a: Numbers + pairing.
+const WhatsappNumbers = lazy(() => import("@/whatsapp/WhatsappNumbers"));
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import SuspensionOverlay from "./components/layout/SuspensionOverlay";
@@ -285,6 +289,7 @@ const App = () => (
                     <Route path="/trash" element={<Trash />} />
                     <Route path="/transactions" element={<Transactions />} />
                     <Route path="/products" element={<Products />} />
+                    <Route path="/whatsapp/numbers" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappNumbers /></Suspense>} />
                     <Route path="/accessories" element={<Accessories />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/google-analytics" element={<GoogleAnalyticsPage />} />

@@ -1,0 +1,60 @@
+/* WA Mancer src/index.css, scoped under .wa-root so the module's brand tokens +
+ * base element styling apply ONLY inside the WhatsApp UI subtree and never leak
+ * into / override IGF's Tailwind base. Class-based sheets (app.css, Numbers.css)
+ * ride these tokens. Font @import stays global (harmless).
+ * ------------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap');
+
+.wa-root {
+  --color-ink: #141413;
+  --color-canvas: #faf9f5;
+  --color-muted: #b0aea5;
+  --color-surface: #e8e6dc;
+  --color-accent-warm: #d97757;
+  --color-accent-cool: #6a9bcc;
+  --color-accent-natural: #788c5d;
+
+  --font-heading: 'Poppins', Arial, sans-serif;
+  --font-body: 'Lora', Georgia, serif;
+
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  background-color: var(--color-canvas);
+  min-height: 100%;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.wa-root * { box-sizing: border-box; }
+
+.wa-root :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.wa-root a { color: var(--color-accent-warm); text-decoration: none; }
+.wa-root a:hover { text-decoration: underline; }
+
+.wa-root button {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  background-color: var(--color-ink);
+  color: var(--color-canvas);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.wa-root button:hover { opacity: 0.85; }
+.wa-root button:focus,
+.wa-root button:focus-visible { outline: 2px solid var(--color-accent-cool); outline-offset: 2px; }

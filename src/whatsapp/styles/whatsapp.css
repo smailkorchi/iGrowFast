@@ -1,0 +1,4 @@
+/* Single entry for the isolated WhatsApp module's styles. Import once at the
+ * module root; wrap the rendered tree in <div className="wa-root">. */
+@import './whatsapp-base.css';
+@import './app.css';
