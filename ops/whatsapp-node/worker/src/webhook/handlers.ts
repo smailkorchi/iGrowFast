@@ -1776,7 +1776,15 @@ interface EvolutionInstanceSummary {
   profilePicUrl?: string | null
 }
 
-async function refreshInstanceProfile(instanceId: string): Promise<void> {
+// Delayed re-refresh schedule (seconds) for the WA display name. On a FRESH
+// pair Baileys hasn't received the owner's own profileName yet — Evolution
+// returns null for a while after connect (the code below tolerates that). The
+// one-shot on-connect refresh therefore left wa_profile_name NULL until a
+// manual Restart forced a reconnect. These backoff ticks re-probe until the
+// name lands, so a fresh pair fills in the name on its own.
+const NAME_REFRESH_BACKOFF_S = [8, 20, 45, 90]
+
+async function refreshInstanceProfile(instanceId: string, attempt = 0): Promise<void> {
   const lookup = await pool.query<{ name: string }>(
     'SELECT evolution_instance_name AS name FROM whatsapp.whatsapp_instances WHERE id = $1',
     [instanceId],
@@ -1860,7 +1868,35 @@ async function refreshInstanceProfile(instanceId: string): Promise<void> {
     has_pic:  !!profilePicUrl,
     has_name: !!profileName,
     owner_jid: ownerJid,
+    attempt,
   })
+
+  // If the WA display name still hasn't arrived (Baileys populates it late on a
+  // fresh pair), re-probe on a backoff instead of waiting for a manual Restart.
+  // Guarded: only while connected, only if the DB name is still empty, bounded
+  // by the backoff array. profilePicUrl/status land early; the name is the
+  // straggler, so this keys on the name alone.
+  if (!profileName && attempt < NAME_REFRESH_BACKOFF_S.length) {
+    const delayMs = NAME_REFRESH_BACKOFF_S[attempt]! * 1000
+    setTimeout(() => {
+      void (async () => {
+        // Bail if the row was deleted or the name already filled (a later
+        // connect/manual push may have won the race).
+        const chk = await pool.query<{ status: string; wa_profile_name: string | null }>(
+          'SELECT status, wa_profile_name FROM whatsapp.whatsapp_instances WHERE id = $1',
+          [instanceId],
+        ).catch(() => null)
+        const row = chk?.rows[0]
+        if (!row || row.status !== 'connected' || row.wa_profile_name) return
+        await refreshInstanceProfile(instanceId, attempt + 1).catch((err) =>
+          log.warn('webhook.profile.name_retry_failed', {
+            instance_id: instanceId, attempt: attempt + 1,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        )
+      })()
+    }, delayMs)
+  }
 }
 
 // ---- qrcode.updated -------------------------------------------------------

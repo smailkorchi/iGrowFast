@@ -1010,7 +1010,6 @@ function WaBehaviorCard({ instance }: { instance: WhatsappInstance }) {
 // ─── Card 8: WA Profile push ──────────────────────────────────────────────
 
 function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
-  const set = useSetInstanceSettings(instance.id)
   const push = usePushWaProfile(instance.id)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [pickError, setPickError] = useState<string | null>(null)
@@ -1043,20 +1042,11 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
       title="Profil visible par les contacts"
       eyebrow="CE QUE VOIENT LES CONTACTS"
       accent="natural"
-      help="Le nom, le statut et l'avatar visibles par toute personne qui contacte ce numéro."
+      help="La photo de profil visible par toute personne qui contacte ce numéro. Le changement est appliqué immédiatement."
     >
       <Row>
         <RowLabel>Nom affiché</RowLabel>
         <span className="text-[12px] text-ant-mid text-right">{instance.wa_profile_name ?? '—'}</span>
-      </Row>
-      <Row>
-        <RowLabel>À propos</RowLabel>
-        <input
-          defaultValue={instance.wa_profile_status ?? ''}
-          placeholder="Ce que les contacts voient sous le nom"
-          onBlur={(e) => set.mutate({ wa_profile_status: e.currentTarget.value || null })}
-          className="w-60 px-3 py-2 rounded-lg border border-ant-ink/15 bg-white text-[13px] text-ant-ink outline-none focus:border-ant-green/50"
-        />
       </Row>
       <Row>
         <RowLabel>Photo de profil</RowLabel>
@@ -1122,19 +1112,10 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
                 : instance.profile_pic_url ? 'Changer la photo' : 'Choisir une photo'}
             </button>
             {pickError && <span className="text-[11px] text-ant-rose">{pickError}</span>}
+            {push.isSuccess && !push.isPending && !pickError && <span className="text-[11px] text-ant-green">Photo mise à jour</span>}
           </span>
         </span>
       </Row>
-      <div className="mt-2 pt-4 border-t border-ant-line/60 flex justify-end">
-        <button
-          type="button"
-          onClick={() => push.mutate({ fields: ['name', 'status', 'picture'] })}
-          disabled={push.isPending}
-          className={btnPush}
-        >
-          {push.isPending ? 'Envoi…' : push.isSuccess ? 'Envoyé' : 'Envoyer le profil à WhatsApp'}
-        </button>
-      </div>
     </Card>
   )
 }
