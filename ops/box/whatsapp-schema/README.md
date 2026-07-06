@@ -65,7 +65,7 @@ Empirically on this box:
 | 10c | `migrations/whatsapp_010c_send_ingest.sql` | APPLIED 2026-07-05 (pre-apply LSN 6/C80000F8) — 24 send/ingest/message-op RPCs + _canonical_remote_jid helper |
 | 11 | `migrations/whatsapp_011_collab.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/10141278) — tags/conversation_tags/conversation_notes/scheduled_messages (1:1+L1) + quick_replies/message_templates (business ADAPT) |
 | 12a | `migrations/whatsapp_012a_telemetry_tables.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/1A0D0ED0) — 9 logs/telemetry tables (structure only, empty), fleet is_owner RLS |
-| 12b | pending — 9 telemetry ingest/snapshot/cache fns (workflow wf_5189c085-d9b) | |
+| 12b | `migrations/whatsapp_012b_telemetry_fns.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/1D02FEA0) — 9 ingest/snapshot/cache fns |
 | 13–14 | per plan §7 | pending |
 
 ## Wave 12 (logs/telemetry)
