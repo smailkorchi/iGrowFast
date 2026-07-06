@@ -1019,6 +1019,11 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
   // fast client-side rather than after a wasted round trip.
   const MAX_BYTES = 5 * 1024 * 1024
 
+  // NOTE: picture push REQUIRES the IGF-patched Evolution build
+  // (igf-wa/evolution-api:2.3.7-igf1+). Stock 2.3.7's updateProfilePicture
+  // ends with reloadConnection() — a second socket spawns while the first is
+  // alive, they fight (conflict:replaced) and WhatsApp unlinks the device.
+  // The patch removes that reload (see box stack/evolution-src IGF PATCH).
   const onPick = (file: File) => {
     setPickError(null)
     if (!file.type.startsWith('image/')) { setPickError('Choisissez un fichier image'); return }
