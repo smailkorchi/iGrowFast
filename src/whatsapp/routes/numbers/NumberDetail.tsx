@@ -1023,18 +1023,43 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
   // ends with reloadConnection() — a second socket spawns while the first is
   // alive, they fight (conflict:replaced) and WhatsApp unlinks the device.
   // The patch removes that reload (see box stack/evolution-src IGF PATCH).
+  //
+  // SQUARE-CROP INVARIANT (2026-07-06): every avatar URL in the WA UI is
+  // assumed SQUARE (WA Mancer's avatars always came from WhatsApp's CDN,
+  // which stores a 640×640 center crop — Baileys crops on upload). Our edge
+  // fn persists the EXACT picked bytes to R2, so a portrait file used to land
+  // uncropped and squashed in every renderer without object-fit (voice-note
+  // bubbles, sidebar instance avatar). Center-crop to 640×640 here, BEFORE
+  // the push — also WYSIWYG with what WhatsApp itself will show.
+  const squareCrop = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file)
+      const img = new Image()
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const side = Math.min(img.naturalWidth, img.naturalHeight)
+        const sx = (img.naturalWidth - side) / 2
+        const sy = (img.naturalHeight - side) / 2
+        const out = Math.min(side, 640)
+        const canvas = document.createElement('canvas')
+        canvas.width = out
+        canvas.height = out
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('canvas')); return }
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, out, out)
+        resolve(canvas.toDataURL('image/jpeg', 0.92))
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')) }
+      img.src = url
+    })
+
   const onPick = (file: File) => {
     setPickError(null)
     if (!file.type.startsWith('image/')) { setPickError('Choisissez un fichier image'); return }
     if (file.size > MAX_BYTES) { setPickError('Image trop volumineuse (max 5 Mo)'); return }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = reader.result
-      if (typeof dataUrl !== 'string') { setPickError('Impossible de lire le fichier'); return }
-      push.mutate({ fields: ['picture'], pictureDataUrl: dataUrl })
-    }
-    reader.onerror = () => setPickError('Impossible de lire le fichier')
-    reader.readAsDataURL(file)
+    squareCrop(file)
+      .then((dataUrl) => push.mutate({ fields: ['picture'], pictureDataUrl: dataUrl }))
+      .catch(() => setPickError('Impossible de lire le fichier'))
   }
 
   return (
