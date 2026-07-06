@@ -4,9 +4,12 @@
 // keeps WA Mancer's own look: the .wa-root wrapper activates the scoped WA
 // design tokens (whatsapp.css -> whatsapp-base.css + app.css) that
 // conversations.css consumes. Do NOT re-theme anything under this mount.
+// CSS ORDER CONTRACT: the donor loaded its global base (index.css) BEFORE
+// conversations.css. Import whatsapp.css (the scoped base) BEFORE the page
+// module so equal-specificity collisions resolve the same way they did there.
+import './styles/whatsapp.css'
 import WaShell from './WaShell'
 import Conversations from './routes/admin/Conversations'
-import './styles/whatsapp.css'
 
 export default function WhatsappConversations() {
   return (
