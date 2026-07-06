@@ -99,6 +99,8 @@ import { useEffect, useState, lazy, Suspense } from "react";
 // non-WhatsApp users). Page 1a: Numbers + pairing. Page 1b: Number detail.
 const WhatsappNumbers = lazy(() => import("@/whatsapp/WhatsappNumbers"));
 const WhatsappNumberDetail = lazy(() => import("@/whatsapp/WhatsappNumberDetail"));
+// Page 2: the inbox — WA-verbatim tier (own scoped WA CSS under .wa-root).
+const WhatsappConversations = lazy(() => import("@/whatsapp/WhatsappConversations"));
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import SuspensionOverlay from "./components/layout/SuspensionOverlay";

@@ -29,6 +29,7 @@ import {
     Calculator,
     Wrench,
     MessageSquare,
+    Inbox,
     Puzzle,
     Briefcase,
     LayoutDashboard,
@@ -81,6 +82,7 @@ const navigation: NavSection[] = [
         icon: FaWhatsapp,
         isNew: true,
         items: [
+            { icon: Inbox, label: 'Inbox', path: '/whatsapp/conversations' },
             { icon: MessageSquare, label: 'Numbers', path: '/whatsapp/numbers' },
         ],
     },
