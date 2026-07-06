@@ -20,15 +20,18 @@ export function InstanceAvatar({ size = 40, url, displayName }: Props) {
 
   if (url) {
     return (
-      <span className="instance-avatar" style={{ width: size, height: size }}>
-        <img src={url} alt={displayName} className="instance-avatar__img" />
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded-full overflow-hidden bg-ant-line"
+        style={{ width: size, height: size }}
+      >
+        <img src={url} alt={displayName} className="w-full h-full object-cover" />
       </span>
     )
   }
 
   return (
     <span
-      className="instance-avatar instance-avatar--initials"
+      className="inline-flex shrink-0 items-center justify-center rounded-full overflow-hidden text-white font-display font-semibold select-none"
       style={{
         width: size, height: size,
         background: `linear-gradient(135deg, ${color}, ${color}dd)`,
