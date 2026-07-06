@@ -66,7 +66,24 @@ Empirically on this box:
 | 11 | `migrations/whatsapp_011_collab.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/10141278) — tags/conversation_tags/conversation_notes/scheduled_messages (1:1+L1) + quick_replies/message_templates (business ADAPT) |
 | 12a | `migrations/whatsapp_012a_telemetry_tables.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/1A0D0ED0) — 9 logs/telemetry tables (structure only, empty), fleet is_owner RLS |
 | 12b | `migrations/whatsapp_012b_telemetry_fns.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/1D02FEA0) — 9 ingest/snapshot/cache fns |
-| 13–14 | per plan §7 | pending |
+| 13a | `migrations/whatsapp_013a_instance_secrets.sql` | APPLIED 2026-07-06 (LSN 7/2B000088) — reveal/set instance token+webhook secret |
+| 13b | `migrations/whatsapp_013b_admin_dashboards.sql` | APPLIED 2026-07-06 (pre-apply LSN 7/5107A350) — 54 admin/dashboard/stats/monitor RPCs + 4 cache-compute shims (hybrid gating) |
+| 14 | per plan §7 | pending |
+
+## Wave 13 (admin/dashboard/stats — hybrid multi-tenant)
+Owner-decision: HYBRID. Fleet fns (monitor_*, db_metrics_*, stats_fleet, dashboard_overview, admin_log_facets,
+admin_audit_chain_status) = is_owner. Per-instance (admin_*, instance_stats, set_instance_settings, tag colors) =
+is_wa_admin(p_instance). Dual (stats_*(p_instance), admin_query_logs) = instance? is_wa_admin : is_owner —
+VERIFIED a business admin cannot pass NULL instance to reach fleet scope (forbidden). Agent (agent_*) = auth.uid().
+impl fns ungated (called via cache_get_or_compute). +4 _compute_* shims (dashboard_activity/instance_stats/latency/
+worker) the wrappers reference. Manual adaptation fixes: profiles.full_name->users.name; dropped public.invitations
+metric (invites_expired) neutralized to 0; stats_overview_impl fleet_connected/fleet_total scoped by p_instance.
+DROPPED admin_apply_auto_assign_backlog (used users.last_auto_assigned_at which doesn't exist; needs rebuild vs
+agent_assign_cursor). NOT ported (IDENTITY layer): is_admin, bootstrap_admin, has_role, admin_set_user_*, invitation_*,
+_on_auth_user_created, _on_invitation_*, _on_profile_role_changed, validate_avatar_config.
+RESIDUAL follow-ups (info-leak-only, read analytics): agent_performance team/weekrank + dashboard_overview
+inactive_users span all businesses (fleet-wide) — acceptable for owner, revisit if per-business analytics needed.
+Also 13-fix: whatsapp.consolidate_lid ported (was a live dangling ref from consolidate_contact).
 
 ## Wave 12 (logs/telemetry)
 Port the observability stack STRUCTURE ONLY (WA Mancer's 490MB metric_samples / 658MB system_logs data NOT migrated —
