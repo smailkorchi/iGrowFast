@@ -211,7 +211,18 @@ export async function handleEvent(
       // server-side trigger on messages will update conversation timestamps.
       // Also record real sync progress/completion so the pairing modal can wait
       // for a GENUINE finish instead of guessing from message rate.
-      void recordSyncProgress(instanceId, envelope.data)
+      //
+      // FIX over WA Mancer: Evolution's webhook controller spreads the
+      // messaging-history batch flags (`extra: {isLatest, progress}`) at the
+      // ROOT of the POST body — NOT inside `data` (which is just the message
+      // array). Passing only envelope.data meant recordSyncProgress never saw
+      // a flag, history_synced_at never stamped, and the pairing modal waited
+      // until MAX_SYNCING_SECONDS forever (verified: WA Mancer prod has
+      // history_synced_at NULL / sync_progress 0 for the same reason). Pass
+      // the whole envelope — recordSyncProgress's tolerant scan reads the
+      // root-level flags, and still handles item-level flags if Evolution
+      // ever moves them.
+      void recordSyncProgress(instanceId, envelope)
       return handleMessagesUpsert(instanceId, envelope.data)
     case 'connection.update':
       return handleConnectionUpdate(instanceId, envelope.data as ConnectionUpdateData)
