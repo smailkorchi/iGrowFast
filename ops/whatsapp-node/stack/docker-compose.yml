@@ -1,0 +1,199 @@
+# iGrowFast WhatsApp node 1 (.67) — Evolution stack. Adapted 1:1 from WA Mancer's proven compose,
+# MINUS caddy (blueprint: tailnet-private, no public ingress — Evolution reachable only via
+# 127.0.0.1 + `tailscale serve`). Worker service added when the worker port lands.
+# Apply from /opt/igf-wa/stack/:  docker compose up -d
+#
+# Harvested gotchas honored here:
+#  - Evolution built from source at tag 2.3.7 (Docker Hub stopped at 2.2.3; 2.3.3+ has the CVE fix).
+#  - Evolution ignores *_FILE secrets → single env_file (0600) at /opt/igf-wa/secrets/evolution.env.
+#  - DEL_INSTANCE=false + DEL_TEMP_INSTANCES=true (never auto-delete paired numbers on disconnect).
+#  - All DATABASE_SAVE_* true → Baileys creds survive restarts in Postgres.
+#  - redis command is ONE LINE (folded block silently drops flags → passwordless redis).
+
+name: igf-wa
+
+services:
+  evolution-api:
+    build:
+      context: https://github.com/evolution-foundation/evolution-api.git#2.3.7
+    image: igf-wa/evolution-api:2.3.7
+    container_name: igf-wa-evolution
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - /opt/igf-wa/secrets/evolution.env
+    environment:
+      SERVER_URL: "http://100.112.39.73:8080"   # tailnet address of this node
+      DATABASE_PROVIDER: "postgresql"
+
+      # --- Persistence guarantees (belt-and-suspenders against restart-disconnects) ---
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "true"
+      DATABASE_SAVE_DATA_HISTORIC: "true"
+      DATABASE_SAVE_IS_ON_WHATSAPP: "true"
+      DATABASE_SAVE_IS_ON_WHATSAPP_DAYS: "7"
+
+      # --- Cache: local (WA Mancer runs redis in-stack but Evolution cache OFF; kept 1:1) ---
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_REDIS_PREFIX_KEY: "igfwa"
+      CACHE_REDIS_TTL: "604800"
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "true"
+
+      # --- Lifecycle guards ---
+      DEL_INSTANCE: "false"
+      DEL_TEMP_INSTANCES: "true"
+
+      LANGUAGE: "en"
+      CONFIG_SESSION_PHONE_CLIENT: "macOS"
+      CONFIG_SESSION_PHONE_NAME: "Chrome"
+      QRCODE_LIMIT: "30"
+      QRCODE_COLOR: "#141413"
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      LOG_LEVEL: "ERROR"
+      LOG_COLOR: "false"
+      LOG_BAILEYS: "error"
+      TELEMETRY: "false"
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+    ports:
+      - "127.0.0.1:8080:8080"   # loopback only; tailnet via `tailscale serve --tcp 8080`
+    volumes:
+      - /opt/igf-wa/data/evolution:/evolution/instances
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/", "-O", "/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: igf-wa-postgres
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_USER: "evolution"
+      POSTGRES_DB: "evolution"
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_password
+    volumes:
+      - /opt/igf-wa/data/postgres:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
+
+  redis:
+    image: redis:7-alpine
+    container_name: igf-wa-redis
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # ONE LINE on purpose — a folded `command: >` block newline-terminates exec BEFORE the flags and
+    # redis silently starts passwordless (WA Mancer production bug, do not "clean this up").
+    command:
+      - sh
+      - -c
+      - 'REDIS_PASSWORD="$$(cat /run/secrets/redis_password)"; exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory-policy noeviction --save 60 1 --appendonly yes --appendfsync everysec'
+    secrets:
+      - redis_password
+    volumes:
+      - /opt/igf-wa/data/redis:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
+
+  worker:
+    # iGrowFast outbound dispatcher + Evolution webhook receiver (ported from WA Mancer,
+    # see ops/whatsapp-node/worker/). Receives Evolution webhooks on internal :8090 —
+    # NOT published to the host. Reaches Evolution via docker DNS `evolution-api`.
+    build:
+      context: ./worker
+    image: igf-wa/worker:latest
+    container_name: igf-wa-worker
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    env_file:
+      # DATABASE_URL (supavisor SESSION via tailnet), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+      # EVOLUTION_GLOBAL_API_KEY, WORKER_ID, R2_MEDIA_*. Mode 0600 root:root.
+      - /opt/igf-wa/secrets/worker.env
+    environment:
+      EVOLUTION_API_URL: "http://evolution-api:8080"
+      WEBHOOK_PORT: "8090"
+      HOSTNAME: "igf-wa-worker"
+    networks:
+      - internal
+    depends_on:
+      evolution-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/healthz", "-O", "/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
+
+networks:
+  internal:
+    name: igf-wa-internal
+    driver: bridge
+
+secrets:
+  postgres_password:
+    file: /opt/igf-wa/secrets/postgres_password
+  redis_password:
+    file: /opt/igf-wa/secrets/redis_password
