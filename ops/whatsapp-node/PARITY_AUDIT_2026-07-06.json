@@ -1,0 +1,877 @@
+{
+  "summary": "Audit every layer of the iGrowFast WhatsApp deployment against the WA Mancer VPS + local repo (source of truth); flag any unsanctioned deviation",
+  "agentCount": 8,
+  "logs": [],
+  "result": [
+    {
+      "area": "stack-compose",
+      "checks": [
+        {
+          "name": "Service inventory (caddy + edge network + cloudflare_api_token secret dropped)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "wa-mancer: services caddy/evolution-api/postgres/worker/redis, networks edge+internal, secrets cloudflare_api_token+postgres_password+redis_password. igf-wa: same minus caddy, minus edge network, minus cloudflare_api_token. Matches sanctioned deviation 4 (no caddy on .67, tailnet-private via tailscale serve)."
+        },
+        {
+          "name": "Naming renames (project, containers, images, HOSTNAME, paths, cache prefix)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "name: wa-mancer→igf-wa; containers wa-mancer-{evolution,postgres,redis,worker}→igf-wa-*; images wa-mancer/*→igf-wa/*; HOSTNAME wa-mancer-worker→igf-wa-worker; /opt/wa-mancer/{secrets,data}→/opt/igf-wa/*; CACHE_REDIS_PREFIX_KEY wamancer→igfwa. All covered by sanctioned deviation 3. Applying these substitutions to the wa-mancer file and diffing yields zero residual differences in postgres and redis blocks."
+        },
+        {
+          "name": "evolution-api build source + version pin",
+          "verdict": "PASS",
+          "evidence": "Both: build context https://github.com/evolution-foundation/evolution-api.git#2.3.7, image tag :2.3.7 (source-built, carries the 2.3.3 path-traversal CVE fix)."
+        },
+        {
+          "name": "evolution-api SERVER_URL",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "wa-mancer: SERVER_URL \"https://api.welcomdeal.ma\"; igf-wa: \"http://100.112.39.73:8080\". Exactly matches sanctioned deviation 4 (SERVER_URL=http://100.112.39.73:8080)."
+        },
+        {
+          "name": "evolution-api port publication added (loopback only)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "wa-mancer evolution-api publishes NO ports (caddy fronts it on the internal network); igf-wa adds ports: \"127.0.0.1:8080:8080\" with comment 'loopback only; tailnet via tailscale serve --tcp 8080'. Consequence of dropping caddy per sanctioned deviation 4; bind is loopback-only, not public. Runtime confirms: docker port igf-wa-evolution → 8080/tcp -> 127.0.0.1:8080 only."
+        },
+        {
+          "name": "evolution-api env flag parity (persistence, cache, lifecycle, logging, telemetry)",
+          "verdict": "PASS",
+          "evidence": "Identical on both: DATABASE_PROVIDER=postgresql; all 9 DATABASE_SAVE_* flags true (+IS_ON_WHATSAPP_DAYS=7); CACHE_REDIS_ENABLED=false, CACHE_REDIS_TTL=604800, CACHE_REDIS_SAVE_INSTANCES=false, CACHE_LOCAL_ENABLED=true; DEL_INSTANCE=false, DEL_TEMP_INSTANCES=true; LANGUAGE=en, CONFIG_SESSION_PHONE_CLIENT=macOS, CONFIG_SESSION_PHONE_NAME=Chrome, QRCODE_LIMIT=30, QRCODE_COLOR=#141413, WEBHOOK_GLOBAL_ENABLED=false, LOG_LEVEL=ERROR, LOG_COLOR=false, LOG_BAILEYS=error, TELEMETRY=false, AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=false."
+        },
+        {
+          "name": "evolution-api hardening + wiring (caps, env_file, volume, depends_on, healthcheck, logging)",
+          "verdict": "PASS",
+          "evidence": "Identical: restart unless-stopped; cap_drop [ALL]; no-new-privileges:true; env_file from secrets dir (Evolution ignores *_FILE convention — combined env_file pattern preserved); volume data/evolution:/evolution/instances; depends_on postgres+redis condition service_healthy; healthcheck wget http://127.0.0.1:8080/ 30s/5s/5 retries/start_period 30s; logging journald tag {{.Name}}."
+        },
+        {
+          "name": "postgres service",
+          "verdict": "PASS",
+          "evidence": "Byte-identical after sanctioned renames: postgres:17-alpine; cap_drop ALL + cap_add CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID; no-new-privileges; POSTGRES_USER=evolution, POSTGRES_DB=evolution, POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password, PGDATA=/var/lib/postgresql/data/pgdata; pg_isready healthcheck 15s/5s/5/20s; journald logging."
+        },
+        {
+          "name": "redis service (one-line command, flags, auth healthcheck)",
+          "verdict": "PASS",
+          "evidence": "Byte-identical after renames: redis:7-alpine; command exec-list sh -c one-liner 'REDIS_PASSWORD=\"$$(cat /run/secrets/redis_password)\"; exec redis-server --requirepass ... --maxmemory-policy noeviction --save 60 1 --appendonly yes --appendfsync everysec' — the harvested folded-block gotcha (silent passwordless redis) is honored and documented in a comment; healthcheck redis-cli -a <secret> ping|grep PONG 15s/5s/5/10s; cap_drop ALL; journald. The normalized diff showed redis as moved (worker/redis order swapped) with identical content — ordering has no compose semantics."
+        },
+        {
+          "name": "worker service shape",
+          "verdict": "PASS",
+          "evidence": "Identical: build context ./worker, image */worker:latest; cap_drop [ALL], no-new-privileges, read_only:true, tmpfs /tmp:size=16m; env_file secrets/worker.env (0600 pattern); WEBHOOK_PORT=8090 not published to host; depends_on evolution-api service_healthy; healthcheck wget http://127.0.0.1:8090/healthz 15s/5s/3/10s; journald logging. Runtime: igf-wa-worker Up (healthy)."
+        },
+        {
+          "name": "worker EVOLUTION_API_URL uses service-name DNS instead of container-name DNS",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "wa-mancer: EVOLUTION_API_URL \"http://wa-mancer-evolution:8080\" (container_name alias); igf-wa: \"http://evolution-api:8080\" (compose service name). Both resolve on the shared bridge network — functionally equivalent; consequence of the sanctioned container rename (deviation 3). Worker is healthy at runtime, confirming resolution works."
+        },
+        {
+          "name": "networks block: explicit 'internal: false' omitted",
+          "verdict": "PASS",
+          "evidence": "wa-mancer: internal network declares 'internal: false  # set to true once outbound allowlist is enforced'; igf-wa omits the key. Compose default for networks.*.internal is false — identical behavior. Both bridge driver, named <project>-internal."
+        },
+        {
+          "name": "secrets wiring (postgres_password, redis_password)",
+          "verdict": "PASS",
+          "evidence": "Identical mechanism both sides: top-level file-based secrets postgres_password + redis_password from <root>/secrets/, mounted /run/secrets/<name>, consumed via POSTGRES_PASSWORD_FILE and $(cat /run/secrets/redis_password). Only path prefix renamed (sanctioned). No secret values inspected."
+        },
+        {
+          "name": "igf-wa runtime conformance to compose",
+          "verdict": "PASS",
+          "evidence": "docker ps on igf-wa: igf-wa-worker/evolution/postgres/redis all Up (healthy), images match compose (igf-wa/evolution-api:2.3.7, igf-wa/worker:latest, postgres:17-alpine, redis:7-alpine); evolution bound 127.0.0.1:8080 only. wa-mancer runtime not verifiable (docker socket permission denied over ssh) — compose file used as its evidence base."
+        },
+        {
+          "name": "Extra container on igf-wa node: docker-socket-proxy (outside the stack compose)",
+          "verdict": "UNSANCTIONED_DEVIATION",
+          "evidence": "igf-wa runs tecnativa/docker-socket-proxy:latest (v0.4.2), restart unless-stopped, /var/run/docker.sock:ro, default bridge network, NO compose project labels (started outside compose). Absent from both compose files and from the sanctioned-deviations list. Likely deliberate host infra (matches the toolbox-box socket-proxy pattern) but on the default bridge it is reachable from other bridge containers and grants read access to the Docker API; wa-mancer runtime could not be checked for an equivalent. Needs a ruling: either sanction it (and document why it runs un-composed on the default bridge) or move it into a declared stack on an isolated network."
+        }
+      ],
+      "summary": "Stack compose parity is effectively 1:1. After applying the sanctioned renames (wa-mancer→igf-wa names/paths/images, wamancer→igfwa cache prefix), a comment-stripped structural diff of ssh wa-mancer:/opt/wa-mancer/stack/docker-compose.yml vs ssh igf-wa:/opt/igf-wa/stack/docker-compose.yml leaves only: (1) caddy service + edge network + cloudflare_api_token secret dropped, (2) SERVER_URL https://api.welcomdeal.ma → http://100.112.39.73:8080, (3) evolution-api gains a loopback-only 127.0.0.1:8080 port publish for tailscale serve, (4) worker EVOLUTION_API_URL uses the compose service name instead of the container name (functionally equivalent DNS), (5) worker/redis block ordering swapped (no semantics). All are covered by sanctioned deviations 3 and 4. Postgres and redis blocks are byte-identical post-rename, including the load-bearing one-line redis command that prevents the silent-passwordless-redis regression, all 9 DATABASE_SAVE_* flags, DEL_INSTANCE=false/DEL_TEMP_INSTANCES=true, the 2.3.7 source-built pin, per-service healthchecks, cap_drop ALL hardening, and journald logging with {{.Name}} tags. Runtime on igf-wa matches the compose (all four containers healthy, evolution loopback-only). ONE FLAG: an un-composed tecnativa/docker-socket-proxy v0.4.2 container runs on the igf-wa host (docker.sock:ro, default bridge, no compose labels) — not in either compose file and not on the sanctioned list; needs explicit sanctioning or relocation into a declared, network-isolated stack. Cosmetic note: the igf-wa compose header comment still says the worker service will be 'added when the worker port lands' although the worker service is present and healthy — stale comment worth fixing."
+    },
+    {
+      "area": "evolution-runtime",
+      "checks": [
+        {
+          "name": "Image built from Evolution tag 2.3.7 (both sides)",
+          "verdict": "PASS",
+          "evidence": "Both compose files pin build context https://github.com/evolution-foundation/evolution-api.git#2.3.7. wa-mancer: image wa-mancer/evolution-api:2.3.7 (/opt/wa-mancer/stack/docker-compose.yml; docker socket not readable non-root, compose is the source). igf-wa: image igf-wa/evolution-api:2.3.7 confirmed RUNNING via docker inspect (sha256:747a05f5fcfe..., created 2026-07-06). Image name rename wa-mancer/*->igf-wa/* is sanctioned naming."
+        },
+        {
+          "name": "DATABASE_SAVE_* persistence set (9 flags)",
+          "verdict": "PASS",
+          "evidence": "Identical on both: DATABASE_SAVE_DATA_INSTANCE=true, DATABASE_SAVE_DATA_NEW_MESSAGE=true, DATABASE_SAVE_MESSAGE_UPDATE=true, DATABASE_SAVE_DATA_CONTACTS=true, DATABASE_SAVE_DATA_CHATS=true, DATABASE_SAVE_DATA_LABELS=true, DATABASE_SAVE_DATA_HISTORIC=true, DATABASE_SAVE_IS_ON_WHATSAPP=true, DATABASE_SAVE_IS_ON_WHATSAPP_DAYS=7. Verified in wa-mancer compose env block and live igf-wa-evolution container env."
+        },
+        {
+          "name": "DEL_INSTANCE lifecycle guard",
+          "verdict": "PASS",
+          "evidence": "DEL_INSTANCE=false on both (never auto-delete on disconnect)."
+        },
+        {
+          "name": "DEL_TEMP_INSTANCES lifecycle guard",
+          "verdict": "PASS",
+          "evidence": "DEL_TEMP_INSTANCES=true on both (sweep never-paired instances only)."
+        },
+        {
+          "name": "CACHE_REDIS_ENABLED",
+          "verdict": "PASS",
+          "evidence": "CACHE_REDIS_ENABLED=false on both; redis service exists in-stack on both but Evolution redis cache is off, kept 1:1."
+        },
+        {
+          "name": "CACHE_REDIS_TTL",
+          "verdict": "PASS",
+          "evidence": "CACHE_REDIS_TTL=604800 on both."
+        },
+        {
+          "name": "CACHE_REDIS_SAVE_INSTANCES",
+          "verdict": "PASS",
+          "evidence": "CACHE_REDIS_SAVE_INSTANCES=false on both."
+        },
+        {
+          "name": "CACHE_LOCAL_ENABLED",
+          "verdict": "PASS",
+          "evidence": "CACHE_LOCAL_ENABLED=true on both."
+        },
+        {
+          "name": "CACHE_REDIS_PREFIX_KEY rename",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "wa-mancer: CACHE_REDIS_PREFIX_KEY=wamancer; ours: igfwa. Naming-only rename (sanctioned deviation 3); key is inert while CACHE_REDIS_ENABLED=false."
+        },
+        {
+          "name": "CACHE_REDIS_URI presence",
+          "verdict": "UNSANCTIONED_DEVIATION",
+          "evidence": "wa-mancer sets a Redis URI in its secrets env_file (docs/stack-deployment.md:273 lists evolution.env = 'API_KEY, DB URI, REDIS URI'; secrets/evolution_redis_uri.sops exists). igf-wa-evolution live env has NO CACHE_REDIS_URI variable at all. Zero behavior impact today (CACHE_REDIS_ENABLED=false on both), but if the redis cache is ever enabled our node falls back to Evolution's default localhost URI and breaks while WA Mancer would work. Fix: add CACHE_REDIS_URI (redis://:...@redis:6379) to /opt/igf-wa/secrets/evolution.env."
+        },
+        {
+          "name": "CONFIG_SESSION_PHONE_CLIENT",
+          "verdict": "PASS",
+          "evidence": "CONFIG_SESSION_PHONE_CLIENT=macOS on both."
+        },
+        {
+          "name": "CONFIG_SESSION_PHONE_NAME",
+          "verdict": "PASS",
+          "evidence": "CONFIG_SESSION_PHONE_NAME=Chrome on both."
+        },
+        {
+          "name": "QRCODE_LIMIT",
+          "verdict": "PASS",
+          "evidence": "QRCODE_LIMIT=30 on both."
+        },
+        {
+          "name": "QRCODE_COLOR",
+          "verdict": "PASS",
+          "evidence": "QRCODE_COLOR=#141413 on both."
+        },
+        {
+          "name": "WEBHOOK_GLOBAL_ENABLED",
+          "verdict": "PASS",
+          "evidence": "WEBHOOK_GLOBAL_ENABLED=false on both (per-instance webhooks only)."
+        },
+        {
+          "name": "LOG_LEVEL",
+          "verdict": "PASS",
+          "evidence": "LOG_LEVEL=ERROR on both."
+        },
+        {
+          "name": "LOG_COLOR",
+          "verdict": "PASS",
+          "evidence": "LOG_COLOR=false on both."
+        },
+        {
+          "name": "LOG_BAILEYS",
+          "verdict": "PASS",
+          "evidence": "LOG_BAILEYS=error on both."
+        },
+        {
+          "name": "TELEMETRY",
+          "verdict": "PASS",
+          "evidence": "TELEMETRY=false on both."
+        },
+        {
+          "name": "AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES",
+          "verdict": "PASS",
+          "evidence": "AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=false on both (API keys not leaked in fetchInstances)."
+        },
+        {
+          "name": "LANGUAGE",
+          "verdict": "PASS",
+          "evidence": "LANGUAGE=en on both."
+        },
+        {
+          "name": "DATABASE_PROVIDER",
+          "verdict": "PASS",
+          "evidence": "DATABASE_PROVIDER=postgresql on both; both back Evolution with in-stack postgres:17-alpine."
+        },
+        {
+          "name": "SERVER_URL topology",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "wa-mancer: SERVER_URL=https://api.welcomdeal.ma (behind caddy). ours: SERVER_URL=http://100.112.39.73:8080 (tailnet-private, no caddy, loopback publish 127.0.0.1:8080 + tailscale serve). Exactly sanctioned deviation 4."
+        },
+        {
+          "name": "Secrets mechanism + AUTHENTICATION_API_KEY / DATABASE_CONNECTION_URI (names only, values redacted)",
+          "verdict": "PASS",
+          "evidence": "Same mechanism both sides: single env_file (wa-mancer /opt/wa-mancer/secrets/evolution.env 0600; ours /opt/igf-wa/secrets/evolution.env 0600 per compose header comment). Live igf-wa container has AUTHENTICATION_API_KEY set (48 chars) and DATABASE_CONNECTION_URI set (postgres user 'evolution', db 'evolution', in-stack host, ?schema=public) — mirrors wa-mancer's documented evolution.env contents. Values not reproduced here."
+        },
+        {
+          "name": "DATABASE_CONNECTION_CLIENT_NAME added",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "ours adds DATABASE_CONNECTION_CLIENT_NAME=igf-wa-evolution (not set in wa-mancer compose or its 3-key evolution.env). Observability-only pg client_name label; consistent with sanctioned naming layer (igf-wa-*, application_name conventions)."
+        },
+        {
+          "name": "Deployed compose == local port source (ops/whatsapp-node/stack)",
+          "verdict": "PASS",
+          "evidence": "Evolution env block in /opt/igf-wa/stack/docker-compose.yml matches ops/whatsapp-node/stack/docker-compose.yml lines 16-79 flag-for-flag, and the LIVE container env (docker inspect) matches both — no drift between repo, box compose, and running container."
+        }
+      ],
+      "summary": "Evolution runtime is at full behavior-critical parity with WA Mancer: all 21 flags in the audited set (DATABASE_SAVE_* x9, DEL_INSTANCE/DEL_TEMP_INSTANCES, CACHE_* x4, CONFIG_SESSION_PHONE_* x2, QRCODE_* x2, WEBHOOK_GLOBAL_ENABLED, LOG_* x3, TELEMETRY, AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES, LANGUAGE) are value-identical, and both images are built from evolution-foundation/evolution-api tag 2.3.7 (ours verified running via docker inspect; wa-mancer via compose since its docker socket is root-only). Sanctioned deviations only for SERVER_URL topology, CACHE_REDIS_PREFIX_KEY naming, image name, and an added DATABASE_CONNECTION_CLIENT_NAME. One unsanctioned but currently inert gap: CACHE_REDIS_URI exists in WA Mancer's evolution.env (evolution_redis_uri.sops) but is entirely absent from our container env — harmless while CACHE_REDIS_ENABLED=false, latent breakage if the redis cache is ever enabled; add it to /opt/igf-wa/secrets/evolution.env. Repo port source, box compose, and live container are drift-free."
+    },
+    {
+      "area": "worker-source",
+      "checks": [
+        {
+          "name": "Truth baseline integrity: local WA Mancer repo vs live wa-mancer VPS",
+          "verdict": "PASS",
+          "evidence": "md5sum of all files in wa-mancer:/opt/wa-mancer/stack/worker/src vs local 'WhatsApp Mancer/worker/src' — full set identical (TRUTH-BASELINE-IDENTICAL)."
+        },
+        {
+          "name": "Tree shape: file inventory truth vs ported",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "diff -rq: 22 ported files, 10 byte-identical (media-variation.ts, pacing.ts, types.ts, evolution/client.ts, logger.ts, r2/avatar.ts, r2/client.ts, r2MetricsPull.ts, webhook/server.ts, webhook/types.ts), 12 differ, 1 only-in-truth: platformLogPull.ts (sanctioned #5 drop). No files added."
+        },
+        {
+          "name": "Schema rename public.* -> whatsapp.* across all SQL/RPC/realtime",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "All hunks in loop.ts, media-ingest.ts, snapshot.ts, heartbeat.ts, backfill-avatars.ts, webhook/handlers.ts (~60 hunks), webhook/verify.ts, instance-manager.ts are pure public.->whatsapp. qualifier swaps; realtime sub instance-manager.ts:560 `{ event: '*', schema: 'whatsapp', table: 'whatsapp_instances' }`; logSink.ts:151 `supabase.schema('whatsapp').rpc('ingest_system_logs', ...)`. grep for remaining 'public.' in ported src: zero hits. Sanctioned #1."
+        },
+        {
+          "name": "Naming: application_name and R2 bucket default",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "db.ts:35 `application_name: \\`igf-wa-worker/${config.workerVersion}\\`` (was wa-mancer-worker); config.ts r2MediaBucket default 'wamancer-media'->'whatsapp-media'; container env confirms R2_MEDIA_BUCKET=whatsapp-media. Sanctioned #3."
+        },
+        {
+          "name": "Orphan reaper observe-only gate (WORKER_REAP_ORPHANS)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "config.ts:49 `reapOrphans: optional('WORKER_REAP_ORPHANS', 'false') === 'true'`; instance-manager.ts:299-302 gate sits after ORPHAN_MIN_AGE_MS check and before deleteEvolutionInstance: `if (!config.reapOrphans) { log.warn('instance.orphan.detected', {... action: 'observe-only (WORKER_REAP_ORPHANS!=true)'}); continue }`. Wiring coherent (config imported at instance-manager.ts:27). Running container: WORKER_REAP_ORPHANS=false. Sanctioned #5."
+        },
+        {
+          "name": "platformLogPull removal complete (no dangling refs)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "platformLogPull.ts absent from ported tree; index.ts drops the import line, startPlatformLogPull() call, and stopPlatformLogPull() in shutdown; grep -r 'platformLogPull|PlatformLogPull|platform_log' across worker *.ts/*.js/*.json = 0 hits. Sanctioned #5."
+        },
+        {
+          "name": "unhandledRejection handler added",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "index.ts (after shutdown()): `process.on('unhandledRejection', (reason) => { log.error('worker.unhandled_rejection', { error: ..., stack: ... }) })` — logs loudly, does not exit; placed alongside existing SIGTERM/SIGINT handlers. Sanctioned #5."
+        },
+        {
+          "name": "No unsanctioned source changes",
+          "verdict": "PASS",
+          "evidence": "Every diff hunk in all 12 differing files maps to sanctioned items #1/#3/#5; remaining 10 files byte-identical. No logic, ordering, pacing, retry, or payload-contract changes found."
+        },
+        {
+          "name": "Residual 'wa-mancer' strings in ported source are truth-identical (parity, not our edits)",
+          "verdict": "PASS",
+          "evidence": "config.ts:39 WORKER_ID default 'wa-mancer-worker-1', webhook/verify.ts:19 SECRET_HEADER 'x-wa-mancer-secret', verify.ts:5 + r2/client.ts:64 comments — all byte-identical to truth. Runtime override: container WORKER_ID=igf-wa1-worker-1 (compose), so the default is inert; header constant is the shared webhook protocol name, unchanged on both sides."
+        },
+        {
+          "name": "Deployed matches ported (igf-wa:/opt/igf-wa/stack/worker/src)",
+          "verdict": "PASS",
+          "evidence": "All 22 files md5-identical between local ops/whatsapp-node/worker/src and deployed tree; index.ts = 88da279357df51a9d525a5bd3a90647b on both; config.ts 2805c72e..., webhook/handlers.ts 25b691ee..., full set matched 22/22."
+        }
+      ],
+      "summary": "Worker source is a clean 1:1 port. Truth baseline verified (local repo == live wa-mancer VPS byte-for-byte). Of 22 ported files, 10 are byte-identical to truth; the 12 differing files contain ONLY sanctioned hunks: public.->whatsapp. schema qualification everywhere (SQL, RPCs, realtime channel, supabase-js .schema('whatsapp')), naming (application_name igf-wa-worker, bucket default whatsapp-media), and the three sanctioned worker deltas (platformLogPull dropped with zero dangling references, WORKER_REAP_ORPHANS observe-only gate correctly wired before deleteEvolutionInstance with runtime env=false, unhandledRejection log-only handler added). Zero unsanctioned deviations, zero leftover public.* references, and the deployed tree on igf-wa is md5-identical to the ported tree across all 22 files. Residual 'wa-mancer' literals (WORKER_ID default, x-wa-mancer-secret header, two comments) are byte-identical to truth and inert or protocol-consistent at runtime (WORKER_ID overridden to igf-wa1-worker-1 via compose)."
+    },
+    {
+      "area": "db-schema",
+      "checks": [
+        {
+          "name": "Table inventory (WA Mancer public=35 vs ours whatsapp=36)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "33 tables identical by name. Missing in ours: profiles, invitations (sanctioned #2 identity drop). Added in ours: wa_nodes (sanctioned #6 grants/fleet), agent_assign_cursor (sanctioned #6 auto-assign design), encryption_keys (sanctioned #6 key_id crypto seam)."
+        },
+        {
+          "name": "View inventory",
+          "verdict": "PASS",
+          "evidence": "3=3, identical names both sides: conversations_decrypted, messages_decrypted, worker_health_status."
+        },
+        {
+          "name": "Enum inventory + per-enum value lists (13 vs 12)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "12 shared enums with char-identical value lists (conversation_status, identifier_kind, identifier_source, instance_lifecycle_state, instance_status, log_level, log_source[14 values incl platform_*], message_direction, message_kind, outbound_action_status, outbound_action_type, outbound_origin). Missing in ours: user_role=admin,user — sanctioned identity drop."
+        },
+        {
+          "name": "Trigger inventory (32 vs 28+1)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "27 triggers match 1:1 (table|trigger|function). Missing: invitations_created_audit, invitations_revoked_audit, profiles_role_audit, profiles_updated_at (all sanctioned identity drops). profiles_release_dms_on_deactivate is NOT lost — remapped to public.users|whatsapp_release_dms_on_deactivation|whatsapp._release_dms_on_profile_deactivation (sanctioned profiles→public.users). Added: conversation_assignments_guard|_guard_assignment_business (sanctioned L1 multi-tenant)."
+        },
+        {
+          "name": "RLS policy counts per table",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "26 shared tables have identical counts (e.g. conversations=4, messages=1, message_templates=4, quick_replies=4, whatsapp_instances=4, tags=4, worker_*=1). Missing: invitations=2, profiles=2 (sanctioned). Added: db_metrics_history/host_metrics/metric_samples/r2_metrics each +1 '*_owner_select|SELECT|authenticated|qual=is_owner()' where WA Mancer has RLS-on+0-policies (sanctioned #6 hybrid analytics gating fleet=is_owner); wa_nodes_owner_select is_owner() (sanctioned). New tables agent_assign_cursor/encryption_keys: RLS on, 0 policies (deny-all, consistent posture)."
+        },
+        {
+          "name": "RLS enabled flags",
+          "verdict": "PASS",
+          "evidence": "Identical pattern both sides: every table relrowsecurity=true except _cron_ingest_state=false on BOTH (WA Mancer public and ours whatsapp)."
+        },
+        {
+          "name": "Function set — sanctioned identity/deferred drops",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Confirmed absent in ours, all on sanctioned list: is_admin (public+private), has_role (public+private), bootstrap_admin, admin_set_user_active/admin_set_user_role (public+private), invitation_claim/finalize/rollback/status, _on_auth_user_created, _on_invitation_inserted, _on_invitation_revoked, _on_profile_role_changed, validate_avatar_config, admin_apply_auto_assign_backlog. Replacements present: is_wa_admin(p_instance_id uuid), is_wa_admin_conv(p_conversation_id uuid)."
+        },
+        {
+          "name": "Function set — WA Mancer 'private' schema flattened into whatsapp",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "WA Mancer splits public (wrappers) + private (impls). All ported into single whatsapp schema: _compute_dashboard_activity, _compute_instance_stats, _compute_stats_{breakdowns,by_agent,fleet,heatmap,latency_series,message_series,overview,worker_series}, _on_jid_mapping_resolved, cache_janitor, cache_quantize, cache_warm, merge_conversations(p_source_id,p_target_id) — all present, signatures match. Dual wrapper/impl pairs public.audit→private.audit and public.set_instance_token→private.set_instance_token collapsed to single functions with identical identity signatures (audit(text,text,text,jsonb); set_instance_token(uuid,text)) — consequence of schema consolidation (#1), no callable surface lost."
+        },
+        {
+          "name": "Function set — unsanctioned drops (dead code in source)",
+          "verdict": "UNSANCTIONED_DEVIATION",
+          "evidence": "Three WA Mancer functions absent in ours and NOT on the sanctioned list, but all three are orphans in WA Mancer itself: (1) public._on_conversation_tag_change — zero triggers reference it (conversation_tags has no triggers in either DB) and zero prosrc references; (2) private.conversation_is_resolved(p_conv_id uuid) — zero references in any public/private function body or policy qual/with_check; (3) fail_media_fetch(p_job_id bigint, p_error text) 2-arg overload — redundant, since the retained overload is fail_media_fetch(p_job_id bigint, p_error text, p_terminal boolean DEFAULT false), so 2-arg calls still resolve identically. Zero functional impact; flag for the build-plan ledger only."
+        },
+        {
+          "name": "Overloads parity: ingest_message",
+          "verdict": "PASS",
+          "evidence": "Both sides carry both overloads (p_reply_to text and p_reply_to uuid variants of the 11-arg signature)."
+        },
+        {
+          "name": "Spot-check: conversations.is_group generated expression",
+          "verdict": "PASS",
+          "evidence": "Identical on both sides: attgenerated='s' (GENERATED ALWAYS STORED), expr=(remote_jid ~~ '%@g.us'::text). WA Mancer's column is also generated — exact 1:1, not even a deviation."
+        },
+        {
+          "name": "Spot-check: key_id columns on messages/conversations",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Ours: conversations.key_id and messages.key_id exist (plus messages.idempotency_key, messages.media_storage_key matching WA Mancer). WA Mancer has NO key_id on either table (single envelope key). Sanctioned #6 key_id crypto seam; encryption_keys table backs it."
+        },
+        {
+          "name": "Spot-check: number_pacing_state defaults",
+          "verdict": "PASS",
+          "evidence": "Column-for-column identical: number_id uuid NOT NULL no-default; last_dispatched_at/last_completed_at/last_send_at/last_refill_at timestamptz NULL no-default; last_send_conversation_id uuid NULL no-default; tokens numeric NULL no-default; updated_at timestamptz NOT NULL DEFAULT now() — same on both sides."
+        }
+      ],
+      "summary": "DB schema is a faithful 1:1 port. 33/35 tables, 3/3 views, 12/13 enums (value lists char-identical), 27 triggers, 26 RLS policy-count rows, and ~150 function names match exactly; every gap maps to a sanctioned drop/adapt (identity layer, wa_nodes/agent_assign_cursor/encryption_keys additions, is_owner analytics policies, private-schema flattening, profiles trigger remapped to public.users). All three spot-checks hold: is_group is GENERATED STORED with the identical (remote_jid ~~ '%@g.us') expression on both sides, key_id exists on messages+conversations (sanctioned crypto seam), number_pacing_state defaults match exactly. Only findings outside the sanctioned list: three dropped functions (_on_conversation_tag_change, private.conversation_is_resolved, the 2-arg fail_media_fetch overload) — all verified dead/orphaned in WA Mancer itself with zero trigger/policy/function references, so zero functional impact; worth adding to the build-plan ledger as documented intentional drops."
+    },
+    {
+      "area": "edge-fns",
+      "checks": [
+        {
+          "name": "instance-disconnect index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "instance-pair index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "instance-restart index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "instance-status index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "group-update-participants index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "group-update-picture index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "group-update-subject index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "check-whatsapp index.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo (diff empty)."
+        },
+        {
+          "name": "instance-create index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Two hunk classes, both sanctioned: (a) .schema('whatsapp') on insert/delete of whatsapp_instances and on set_instance_token/set_instance_webhook_secret RPCs; (b) the sanctioned L1 business_id/node placement block — queries whatsapp.wa_nodes (is_active=true), computes least-loaded node with max_instances headroom, returns 503 no_node_available/fleet_at_capacity, and inserts business_id: caller.businessId + node_id: nodeId. No other logic changes."
+        },
+        {
+          "name": "instance-delete index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "3 hunks: R2_BUCKET fallback 'wamancer-media'→'whatsapp-media' (sanctioned #3); .schema('whatsapp') on admin_instance_delete_preflight RPC and on whatsapp_instances delete. Nothing else."
+        },
+        {
+          "name": "instance-presence index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": ".schema('whatsapp') on set_instance_settings RPC and whatsapp_instances select only."
+        },
+        {
+          "name": "instance-wa-profile index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Single hunk: .schema('whatsapp') added before .from('whatsapp_instances')."
+        },
+        {
+          "name": "instance-wa-settings index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Single hunk: .schema('whatsapp') added before .from('whatsapp_instances')."
+        },
+        {
+          "name": "instance-webhook-resync index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Single hunk: admin.rpc('reveal_instance_webhook_secret')→admin.schema('whatsapp').rpc(...). WORKER_WEBHOOK_URL_BASE fallback 'http://wa-mancer-worker:8090/webhook' kept 1:1 from source; inert because box edge env sets WORKER_WEBHOOK_URL_BASE=http://igf-wa-worker:8090/webhook."
+        },
+        {
+          "name": "group-create index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": ".schema('whatsapp') on conversations select/insert/re-select and conversation_assignments upsert; logic identical."
+        },
+        {
+          "name": "group-leave index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": ".schema('whatsapp') on conversations update (left_at), whatsapp_instances select, group_participants delete; logic identical."
+        },
+        {
+          "name": "media-sign index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": ".schema('whatsapp') on messages_decrypted select and audit RPC; RLS-gate mechanics unchanged."
+        },
+        {
+          "name": "media-upload index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "R2_BUCKET fallback →'whatsapp-media'; .schema('whatsapp') on whatsapp_instances/conversations(x2)/messages_decrypted selects and audit RPC. TTL/MAX_BYTES/mime gates unchanged."
+        },
+        {
+          "name": "og-fetch index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": ".schema('whatsapp') on og_cache select and upsert only."
+        },
+        {
+          "name": "conversation-cleanup index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "R2_BUCKET fallback →'whatsapp-media'; .schema('whatsapp') on conversations select/delete and admin_conversation_purge_preflight + admin_conversation_clear RPCs."
+        },
+        {
+          "name": "client-log index.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Single hunk: admin.rpc('ingest_system_logs')→admin.schema('whatsapp').rpc(...)."
+        },
+        {
+          "name": "_shared/cors.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo."
+        },
+        {
+          "name": "_shared/evolution.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo, including webhook header name 'x-wa-mancer-secret' (line 112) — deliberate 1:1 protocol constant; deployed worker port (ops/whatsapp-node/worker/src/webhook/verify.ts:19) expects the same SECRET_HEADER = 'x-wa-mancer-secret'."
+        },
+        {
+          "name": "_shared/random.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo."
+        },
+        {
+          "name": "_shared/sanitizeLog.ts",
+          "verdict": "PASS",
+          "evidence": "Byte-identical to repo."
+        },
+        {
+          "name": "_shared/instance.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Single hunk: .schema('whatsapp') before .from('whatsapp_instances') in withInstance lookup."
+        },
+        {
+          "name": "_shared/groupEvents.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": ".schema('whatsapp') on contacts/group_participants/whatsapp_instances selects and append_group_system_event RPC; name-resolution + dedup logic identical."
+        },
+        {
+          "name": "_shared/logError.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Single hunk: ingest_system_logs RPC schema-qualified to whatsapp."
+        },
+        {
+          "name": "_shared/admin.ts",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Identity rewrite per sanctioned #2: requireAdmin's caller.rpc('is_admin') replaced by select role, active, \"DigiCom Business\" from public.users (default-schema client) requiring active + role in ('super admin','admin') + non-null businessId; return type gains businessId (consumed by instance-create). Header comment documents it as the only change; requireAuth and client construction identical; residual 'is_admin' strings are comments only."
+        },
+        {
+          "name": "Cross-check: repo-only functions absent from box",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "admin-delete-user, check-invitation, consume-invitation, create-invitations (identity layer, sanctioned #6) and admin-platform-logs (deferred, sanctioned #6) exist in repo but are not deployed. All other 21 WA slugs present."
+        },
+        {
+          "name": "Cross-check: _shared/validate.ts absent from box",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Repo _shared/validate.ts is imported only by check-invitation/consume-invitation/create-invitations — all sanctioned drops; no deployed WA fn references it. Box _shared's extra emailVerify.ts is iGrowFast-native, not a WA file."
+        },
+        {
+          "name": "Cross-check: schema qualification completeness",
+          "verdict": "PASS",
+          "evidence": "29/29 .from() calls on WA tables (whatsapp_instances, conversations, contacts, group_participants, messages_decrypted, wa_nodes, og_cache, conversation_assignments) have .schema('whatsapp') within the same chain; zero unqualified .rpc() calls remain (grep of all box copies). The lone unqualified .from('users') in admin.ts is the intentional public.users identity read."
+        },
+        {
+          "name": "Cross-check: file inventory per function dir",
+          "verdict": "PASS",
+          "evidence": "Recursive listing comparison of all 21 function dirs: identical file sets repo vs box (index.ts only; no extra or missing files)."
+        },
+        {
+          "name": "Cross-check: fallback env constants vs runtime env",
+          "verdict": "PASS",
+          "evidence": "Unchanged source fallbacks (wa-mancer-worker hostname, wamancer bucket where applicable) are overridden at runtime: supabase-edge-functions container env has WORKER_WEBHOOK_URL_BASE=http://igf-wa-worker:8090/webhook and R2_MEDIA_BUCKET=whatsapp-media."
+        }
+      ],
+      "summary": "All 21 deployed WA edge fns and 8 _shared files audited against WA Mancer repo. 8 fns + 4 shared files byte-identical; the remaining 13 fns + 4 shared files differ only by sanctioned transforms: .schema('whatsapp') qualification (29/29 table reads + all RPCs verified qualified), bucket rename wamancer-media→whatsapp-media (instance-delete, media-upload, conversation-cleanup), the sanctioned instance-create business_id/node least-loaded placement block, and the admin.ts identity rewrite (is_admin RPC → public.users active business-admin check returning businessId). Repo-only fns (4 invitation/admin-delete + deferred admin-platform-logs) and _shared/validate.ts correctly absent. Source fallback constants (wa-mancer-worker URL) are 1:1 and overridden by container env (WORKER_WEBHOOK_URL_BASE=http://igf-wa-worker:8090/webhook, R2_MEDIA_BUCKET=whatsapp-media); the x-wa-mancer-secret header contract is preserved on both edge and worker sides. Zero UNSANCTIONED_DEVIATION, zero FAIL."
+    },
+    {
+      "area": "queue-dispatch-semantics",
+      "checks": [
+        {
+          "name": "queue_claim_next definition parity",
+          "verdict": "PASS",
+          "evidence": "pg_get_functiondef byte-identical after stripping schema qualifiers (public.<->whatsapp.). Same pause/ban gate (worker_paused=true OR lifecycle_state='banned' -> RETURN NULL), same passive-action array [mark_read,typing_start,typing_stop], same ORDER BY (passive-last CASE, 30s conversation-recency subquery ASC NULLS FIRST, priority ASC, seq ASC), same claim UPDATE (status='dispatching', dispatched_at=now(), attempts+1 guarded by status='queued'). RETURNS rendering differs only as 'outbound_queue' vs 'whatsapp.outbound_queue' (search_path visibility artifact of pg_get_functiondef, same rowtype)."
+        },
+        {
+          "name": "queue_mark_sent definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: guard 'status=dispatching' else RAISE EXCEPTION; v_is_content 7-action list; number_pacing_state update (last_completed_at, conditional last_send_at/last_send_conversation_id); messages -> SERVER_ACK only when delivery_status IN (PENDING,FAILED,ERROR), msg_id non-null, evolution id non-null and NOT LIKE 'local:%'; invalid_text_representation -> RAISE WARNING; audit('message.dispatched') payload incl duration_ms identical."
+        },
+        {
+          "name": "queue_mark_failed definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: requeue to 'queued' with not_before=now()+make_interval(secs=>p_retry_in_seconds) (default 30), dispatched_at=dispatched_at preserved, guard status='dispatching' else EXCEPTION, pacing last_completed_at=now(), audit('message.failed') with retry_in_seconds — all lines match."
+        },
+        {
+          "name": "queue_mark_dead definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: accepts status IN ('dispatching','queued'), sets dead/completed_at/error; messages -> FAILED unless delivery_status IN (DELIVERY_ACK,READ,PLAYED,DELETED,CANCELLED); delete_message rollback (revoked_at/revoked_by=NULL WHERE revoked_by='us'); audit('message.dead') identical."
+        },
+        {
+          "name": "pacing_take_token definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: rate floor GREATEST(COALESCE(rate,10),1), cap GREATEST(COALESCE(cap,5),1), FOR UPDATE row lock, ON CONFLICT DO NOTHING bootstrap, refill LEAST(cap, tokens + epoch*rate/60.0), debt clamp GREATEST(v_refill,-1), wait ms CEIL((-v_refill)/(rate/60.0)*1000.0) — identical."
+        },
+        {
+          "name": "dispatch_gate_check definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: STABLE SECURITY DEFINER, 7-action content array, 'sent'-status counts over 24h/1h windows on dispatched_at, resume_at = oldest+window, reasons instance_not_found/hourly_send_cap/daily_send_cap — identical."
+        },
+        {
+          "name": "worker_heartbeat definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: same 9-param signature (p_last_dispatch_at default NULL, p_notes default '{}'), INSERT ... ON CONFLICT (worker_id) DO UPDATE over identical column set into worker_health."
+        },
+        {
+          "name": "worker_claim_instance_leases definition parity",
+          "verdict": "PASS",
+          "evidence": "Byte-identical modulo schema qualifiers: NOT EXISTS insert with ON CONFLICT (instance_id) DO NOTHING, steal-on-expiry UPDATE (leased_until<now() -> lease_seq+1, acquired_at/renewed_at=now()), RETURN QUERY of rows owned by p_worker_id — identical, incl. p_lease_secs DEFAULT 60."
+        },
+        {
+          "name": "Aggregate diff of all 8 dispatch functions",
+          "verdict": "PASS",
+          "evidence": "diff -u of full pg_get_functiondef dumps (WA Mancer public.* via MCP vs whatsapp.* via ssh igf/docker exec supabase-db) after sed-stripping 'public.'/'whatsapp.' -> zero differences (364 lines each). All 8 are SECURITY DEFINER, SET search_path TO ''."
+        },
+        {
+          "name": "outbound_enqueued trigger function (_outbound_queue_notify)",
+          "verdict": "PASS",
+          "evidence": "Semantically identical: PERFORM pg_notify('outbound_enqueued', NEW.number_id::text); RETURN NEW; SECURITY DEFINER, search_path ''. Only difference is keyword case in body (ours lowercase 'begin/perform/return/end', Mancer uppercase) — zero behavioral delta."
+        },
+        {
+          "name": "outbound_enqueued trigger definitions on outbound_queue",
+          "verdict": "PASS",
+          "evidence": "Identical modulo schema qualifiers. INS: 'AFTER INSERT ... FOR EACH ROW WHEN ((new.status = ''queued''::outbound_action_status)) EXECUTE FUNCTION _outbound_queue_notify()'. UPD: 'AFTER UPDATE OF status ... WHEN (((old.status <> ''queued'') AND (new.status = ''queued'')))'. Both present both sides; outbound_queue_dead_audit trigger also present both sides."
+        },
+        {
+          "name": "media_fetch_ready emitter (enqueue_media_fetch)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Logic identical (INSERT media_fetch_jobs ON CONFLICT (message_id) WHERE completed_at IS NULL DO NOTHING; set media_pending=true; pg_notify('media_fetch_ready', p_message_id::text)) except bucket literal: Mancer coalesce(media_storage_bucket,'wamancer-media') vs ours coalesce(media_storage_bucket,'whatsapp-media') — sanctioned rename #3. No trigger on media_fetch_jobs on either side; channel fired from this function on both — architecture parity."
+        },
+        {
+          "name": "Other outbound_enqueued emitters (force_dispatch_now, admin_requeue_dead)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "Both sides have exactly the same 4 emitters of the two channels. force_dispatch_now: is_admin() -> is_wa_admin(v_msg.instance_id) (sanctioned identity #2), rest byte-identical incl. pg_notify('outbound_enqueued', v_msg.instance_id::text). admin_requeue_dead: is_admin() -> is_wa_admin((select number_id from whatsapp.outbound_queue where id=p_queue_id)), rest identical. Minor side-effect of the sanctioned guard: a nonexistent p_queue_id now yields 'forbidden' (is_wa_admin(NULL)) instead of 'queue_row_not_dead_or_missing' — within the identity-layer adaptation, no dispatch impact."
+        },
+        {
+          "name": "EXECUTE grants on dispatch functions",
+          "verdict": "PASS",
+          "evidence": "proacl identical on all 10 checked functions (8 dispatch + enqueue_media_fetch + _outbound_queue_notify) both sides: {postgres=X/postgres,service_role=X/postgres}."
+        }
+      ],
+      "summary": "Queue-dispatch semantics are at full parity. All 8 dispatch-critical functions (queue_claim_next, queue_mark_sent, queue_mark_failed, queue_mark_dead, pacing_take_token, dispatch_gate_check, worker_heartbeat, worker_claim_instance_leases) are byte-identical between WA Mancer public.* and our whatsapp.* after normalizing schema qualifiers — a clean diff over the full 364-line pg_get_functiondef dump. NOTIFY plumbing matches: _outbound_queue_notify body and both outbound_queue notify triggers (INSERT when status='queued'; UPDATE when old<>'queued' AND new='queued') are identical; media_fetch_ready is emitted from enqueue_media_fetch on both sides (no trigger on media_fetch_jobs anywhere). Only two deviations found, both sanctioned: bucket literal wamancer-media -> whatsapp-media in enqueue_media_fetch (naming #3) and is_admin() -> is_wa_admin(instance) in the two admin-path emitters force_dispatch_now/admin_requeue_dead (identity #2, with a trivial error-message reorder for nonexistent queue ids in admin_requeue_dead). EXECUTE ACLs identical (postgres + service_role). No unsanctioned deviations, no failures."
+    },
+    {
+      "area": "crons-realtime",
+      "checks": [
+        {
+          "name": "pg_cron job inventory (WA jobs present, none missing, none extra)",
+          "verdict": "PASS",
+          "evidence": "WA Mancer cron.job = 16 jobs. Our box cron.job = 33 jobs total; exactly 16 are WhatsApp jobs (14 identical names + wa-cache-warm/wa-cache-janitor) and the remaining 17 are iGrowFast's own out-of-scope jobs (check-expired-licenses, generate-recurring-charges, invitations-auto-reminder/revoke, mediabuyer_month_close, mediabuyer_open_ticket_refresh, order-status-history-retention-weekly, ozon/quicklivraison/vitex-poll-webhook, purge-soft-deleted-orders, seller_month_close, seller_open_ticket_refresh, sheets-sync-poll, tracking-sync-every-15min, tracking-sync-runs-retention-weekly, webhook-logs-retention-weekly) — count matches the expected 17 exactly. No WA Mancer job is missing; no unexpected extra WA job exists."
+        },
+        {
+          "name": "pg_cron schedules 1:1",
+          "verdict": "PASS",
+          "evidence": "All 16 schedules identical: consolidate_split_conversations '* * * * *', cron_ingest_runs_minute '* * * * *', lifecycle_auto_promote_daily '0 4 * * *', monitor_r2_prune_daily '17 3 * * *', outbound_queue_cleanup_daily '30 3 * * *', outbound_queue_reclaim_dispatching_minute '* * * * *', prune_host_metrics_hourly '17 * * * *', prune_system_logs_daily '15 3 * * *', purge-metric-samples '17 3 * * *', scheduled_messages_drain_minute '* * * * *', snapshot_db_metrics_minute '* * * * *', snapshot_worker_health_minute '* * * * *', unpin_expired_messages_minute '* * * * *', worker_health_stale_alert_minute '* * * * *', cache-janitor/wa-cache-janitor '*/5 * * * *', cache-warm/wa-cache-warm '30 seconds' (sub-minute interval preserved)."
+        },
+        {
+          "name": "Cache job naming (wa- prefix)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "WA Mancer 'cache-warm'/'cache-janitor' → ours 'wa-cache-warm'/'wa-cache-janitor'. Explicitly sanctioned (deviation #3: job names wa-cache-warm/wa-cache-janitor)."
+        },
+        {
+          "name": "Cron command bodies (function targets)",
+          "verdict": "SANCTIONED_DEVIATION",
+          "evidence": "All 16 commands call the same function names with only the sanctioned schema rename: 14 jobs 'public._cron_*()' → 'whatsapp._cron_*()' (e.g. WA Mancer 'SELECT public._cron_consolidate_split_conversations()' vs ours 'SELECT whatsapp._cron_consolidate_split_conversations()'). Cache jobs: WA Mancer 'select private.cache_janitor();'/'select private.cache_warm();' → ours 'select whatsapp.cache_janitor();'/'select whatsapp.cache_warm();' — WA Mancer's private schema is consolidated into the whatsapp schema per the near-total 1:1 port plan (deviation #1). Only other textual delta: unpin_expired_messages_minute gained a trailing semicolon (WA Mancer ' SELECT public._cron_unpin_expired_messages() ' vs ours '...();') — functionally identical."
+        },
+        {
+          "name": "Cron active flags",
+          "verdict": "PASS",
+          "evidence": "All 16 WA Mancer jobs active=true; all 16 corresponding jobs on our box active=t."
+        },
+        {
+          "name": "Realtime publication table set (supabase_realtime)",
+          "verdict": "PASS",
+          "evidence": "WA Mancer publishes 14 public.* tables: audit_log, conversation_assignments, conversation_notes, conversation_tags, conversations, dispatcher_snapshot, message_templates, messages, quick_replies, scheduled_messages, system_logs, tags, whatsapp_instances, worker_health. Our supabase_realtime publishes the identical 14 tables under whatsapp.* (sanctioned schema rename #1). Zero missing, zero extra WA tables. Our publication additionally carries 9 pre-existing iGrowFast public.* tables (accessories, campaign_source_locks, company_parcels, courier_notifications, courier_parcels, orders, products, tracking_sync_runs, webhook_logs) — iGrowFast's own realtime on the shared box, out of scope."
+        },
+        {
+          "name": "Publication operation flags",
+          "verdict": "PASS",
+          "evidence": "Both sides: supabase_realtime pubinsert=t, pubupdate=t, pubdelete=t, pubtruncate=t."
+        },
+        {
+          "name": "Replica identity of whatsapp_instances",
+          "verdict": "PASS",
+          "evidence": "WA Mancer public.whatsapp_instances relreplident='f' (FULL); ours whatsapp.whatsapp_instances relreplident='f' (FULL). Exact match."
+        },
+        {
+          "name": "Replica identity of remaining 13 published WA tables",
+          "verdict": "PASS",
+          "evidence": "Both sides identical: all 13 non-instance published tables (audit_log, conversation_assignments, conversation_notes, conversation_tags, conversations, dispatcher_snapshot, message_templates, messages, quick_replies, scheduled_messages, system_logs, tags, worker_health) have relreplident='d' (default/PK) on WA Mancer and on our box; whatsapp_instances is the only FULL table on both."
+        }
+      ],
+      "summary": "Full parity in the crons-realtime area. All 16 WA Mancer pg_cron jobs exist on the iGrowFast box with identical schedules (including the sub-minute '30 seconds' cache-warm), identical active flags, and command bodies that differ only by the sanctioned schema rename (public./private. → whatsapp.) and the sanctioned wa- prefix on the two cache jobs; the box's other 17 jobs are iGrowFast's own, matching the expected count exactly, with no name collisions (verified via command bodies). The supabase_realtime publication carries the identical 14-table WA set (whatsapp.* vs public.*), publication flags are insert/update/delete/truncate on both, whatsapp_instances is REPLICA IDENTITY FULL on both, and every other published WA table is default replica identity on both. No unsanctioned deviations, no failures."
+    },
+    {
+      "area": "runtime-health",
+      "checks": [
+        {
+          "name": "igf-wa containers healthy (docker ps)",
+          "verdict": "PASS",
+          "evidence": "ssh igf-wa docker ps: igf-wa-worker Up 25m (healthy), igf-wa-evolution Up 26m (healthy), igf-wa-postgres Up 26m (healthy), igf-wa-redis Up 26m (healthy). All 4 igf-wa containers healthy; docker-socket-proxy also Up (9m, no healthcheck, out of scope)."
+        },
+        {
+          "name": "Worker journal clean since boot (journalctl -t igf-wa-worker)",
+          "verdict": "PASS",
+          "evidence": "Last 30 lines all lvl=info: worker.boot v0.1.0 → pg.connected (PostgreSQL 17.6) → listen.ready outbound_enqueued + media_fetch_ready → media_ingest.started (bucket whatsapp-media, concurrency 8) → heartbeat.started 5000ms → worker.ready → webhook.server.listening 8090 → instance.realtime_status SUBSCRIBED. Full-journal grep since boot (03:02:58Z) for lvl warn/error/fatal, unhandled, ECONNREFUSED, ETIMEDOUT: zero matches. Only activity: one instance f7f22b07 reconciled (pending/warming) then instance.deleted — expected test-instance lifecycle, not an error."
+        },
+        {
+          "name": "Evolution API 200 on loopback (igf-wa)",
+          "verdict": "PASS",
+          "evidence": "curl http://127.0.0.1:8080/ → 200, body: {\"status\":200,\"message\":\"Welcome to the Evolution API, it is working!\",\"version\":\"2.3.7\",\"clientName\":\"igf-wa-evolution\",...}."
+        },
+        {
+          "name": "Evolution API reachable via tailnet from igf (SERVER_URL path)",
+          "verdict": "PASS",
+          "evidence": "From ssh igf: curl http://100.112.39.73:8080/ → 200, same v2.3.7 body with manager URL http://100.112.39.73:8080/manager. Tailnet-private topology (no caddy) is sanctioned deviation 4; endpoint itself answers correctly, so PASS."
+        },
+        {
+          "name": "whatsapp.worker_health_status = healthy",
+          "verdict": "PASS",
+          "evidence": "select * from whatsapp.worker_health_status → worker_id igf-wa1-worker-1, hostname igf-wa-worker, version 0.1.0, last_heartbeat_at 2026-07-06 03:29:09Z, seconds_since_heartbeat 1, health='healthy', queue_depth 0, dispatching_count 0."
+        },
+        {
+          "name": "Whatsapp cron jobs last 30min: zero failures",
+          "verdict": "PASS",
+          "evidence": "cron.job_run_details joined on 16 whatsapp jobs: 0 failed across all. Per-minute jobs 30/30 succeeded (consolidate_split_conversations, cron_ingest_runs_minute, outbound_queue_reclaim_dispatching_minute, scheduled_messages_drain_minute, snapshot_db_metrics_minute, snapshot_worker_health_minute, unpin_expired_messages_minute, worker_health_stale_alert_minute), wa-cache-warm 60 succeeded, wa-cache-janitor 6 succeeded, hourly/daily jobs (monitor_r2_prune_daily, prune_host_metrics_hourly, prune_system_logs_daily, purge-metric-samples) 1/1 succeeded; lifecycle_auto_promote_daily and outbound_queue_cleanup_daily had no runs in window (daily schedule, expected)."
+        },
+        {
+          "name": "Edge fn smoke: og-fetch unauthenticated returns 401",
+          "verdict": "PASS",
+          "evidence": "curl -X POST https://api.igrowfast.com/functions/v1/og-fetch → 401, body {\"msg\":\"Error: Missing authorization header\"}. Self-hosted edge fns on .102 serving (sanctioned deviation 4)."
+        },
+        {
+          "name": "Supavisor session path open (tailnet 5432 → supavisor → box DB)",
+          "verdict": "PASS",
+          "evidence": "ssh igf tailscale serve status: tcp://100.112.89.69:5432 (TLS over TCP, tailnet only) → tcp://127.0.0.1:5432; ss shows tailscaled listening 100.112.89.69:5432 and docker-proxy on 127.0.0.1:5432 (session) + 127.0.0.1:6543 (transaction). Path proven live end-to-end: worker journal pg.connected server_version PostgreSQL 17.6 == box DB 'show server_version' 17.6, and whatsapp.worker_health heartbeat 1s stale. Note: pg_stat_activity shows the worker backends under application_name 'Supavisor'/usename postgres from the supavisor container (172.18.0.2) — supavisor session pooling masks the client-set application_name igf-wa-worker at the DB backend; connection health unaffected."
+        }
+      ],
+      "summary": "Runtime health is fully green. All 4 igf-wa containers report docker-healthy; the worker booted clean (pg.connected to the box DB over the tailnet supavisor session path, realtime SUBSCRIBED, webhook listener on 8090) with zero warn/error/fatal lines in the journal since boot. Evolution API v2.3.7 answers 200 on loopback and via tailnet from igf (clientName igf-wa-evolution). On the box, whatsapp.worker_health_status shows health='healthy' with a 1-second-old heartbeat; all 16 whatsapp cron jobs ran with 0 failures in the last 30 minutes (per-minute jobs 30/30, wa-cache-warm 60/60). Edge fn smoke on og-fetch returns the expected 401 Missing authorization header. Supavisor session path confirmed open: tailscale serve tcp 5432 (tailnet-only TLS) forwards to supavisor session port, and the worker's live heartbeat plus matching server_version 17.6 prove end-to-end connectivity. One benign observation: supavisor session pooling masks the worker's application_name at the DB backend (shows 'Supavisor', not igf-wa-worker) — not a defect, config parity for that env var belongs to another audit area."
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Audit"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "audit:stack-compose",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "adaedf4223b78ce70",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308306218,
+      "queuedAt": 1783308304601,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "stack-compose",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308475897,
+      "tokens": 63483,
+      "toolCalls": 9,
+      "durationMs": 169678,
+      "resultPreview": "{\"area\":\"stack-compose\",\"checks\":[{\"name\":\"Service inventory (caddy + edge network + cloudflare_api_token secret dropped)\",\"verdict\":\"SANCTIONED_DEVIATION\",\"evidence\":\"wa-mancer: services caddy/evolution-api/postgres/worker/redis, networks edge+internal, secrets cloudflare_api_token+postgres_password+redis_password. igf-wa: same minus caddy, minus edge network, minus cloudflare_api_token. Matches …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "audit:evolution-runtime",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a7eaff3a51e68995b",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308306336,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "evolution-runtime",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308467617,
+      "tokens": 60738,
+      "toolCalls": 9,
+      "durationMs": 161281,
+      "resultPreview": "{\"area\":\"evolution-runtime\",\"checks\":[{\"name\":\"Image built from Evolution tag 2.3.7 (both sides)\",\"verdict\":\"PASS\",\"evidence\":\"Both compose files pin build context https://github.com/evolution-foundation/evolution-api.git#2.3.7. wa-mancer: image wa-mancer/evolution-api:2.3.7 (/opt/wa-mancer/stack/docker-compose.yml; docker socket not readable non-root, compose is the source). igf-wa: image igf-wa/…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "audit:worker-source",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a9334b47467864ddd",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308306825,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "worker-source",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308544638,
+      "tokens": 84083,
+      "toolCalls": 23,
+      "durationMs": 237813,
+      "resultPreview": "{\"area\":\"worker-source\",\"checks\":[{\"name\":\"Truth baseline integrity: local WA Mancer repo vs live wa-mancer VPS\",\"verdict\":\"PASS\",\"evidence\":\"md5sum of all files in wa-mancer:/opt/wa-mancer/stack/worker/src vs local 'WhatsApp Mancer/worker/src' — full set identical (TRUTH-BASELINE-IDENTICAL).\"},{\"name\":\"Tree shape: file inventory truth vs ported\",\"verdict\":\"SANCTIONED_DEVIATION\",\"evidence\":\"diff -…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "audit:db-schema",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a46fd967046bacb27",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308306612,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "db-schema",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308686806,
+      "tokens": 87922,
+      "toolCalls": 20,
+      "durationMs": 380194,
+      "resultPreview": "{\"area\":\"db-schema\",\"checks\":[{\"name\":\"Table inventory (WA Mancer public=35 vs ours whatsapp=36)\",\"verdict\":\"SANCTIONED_DEVIATION\",\"evidence\":\"33 tables identical by name. Missing in ours: profiles, invitations (sanctioned #2 identity drop). Added in ours: wa_nodes (sanctioned #6 grants/fleet), agent_assign_cursor (sanctioned #6 auto-assign design), encryption_keys (sanctioned #6 key_id crypto sea…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "audit:edge-fns",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "acfda526761f9312f",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308306321,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "edge-fns",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308544530,
+      "tokens": 76865,
+      "toolCalls": 17,
+      "durationMs": 238208,
+      "resultPreview": "{\"area\":\"edge-fns\",\"checks\":[{\"name\":\"instance-disconnect index.ts\",\"verdict\":\"PASS\",\"evidence\":\"Byte-identical to repo (diff empty).\"},{\"name\":\"instance-pair index.ts\",\"verdict\":\"PASS\",\"evidence\":\"Byte-identical to repo (diff empty).\"},{\"name\":\"instance-restart index.ts\",\"verdict\":\"PASS\",\"evidence\":\"Byte-identical to repo (diff empty).\"},{\"name\":\"instance-status index.ts\",\"verdict\":\"PASS\",\"eviden…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "audit:queue-dispatch-semantics",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a9552f3f1e82749c2",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308306513,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "queue-dispatch-semantics",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308543028,
+      "tokens": 83328,
+      "toolCalls": 15,
+      "durationMs": 236515,
+      "resultPreview": "{\"area\":\"queue-dispatch-semantics\",\"checks\":[{\"name\":\"queue_claim_next definition parity\",\"verdict\":\"PASS\",\"evidence\":\"pg_get_functiondef byte-identical after stripping schema qualifiers (public.<->whatsapp.). Same pause/ban gate (worker_paused=true OR lifecycle_state='banned' -> RETURN NULL), same passive-action array [mark_read,typing_start,typing_stop], same ORDER BY (passive-last CASE, 30s con…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "audit:crons-realtime",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "ab93451b614d3220d",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308475725,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crons-realtime",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308626441,
+      "tokens": 61040,
+      "toolCalls": 13,
+      "durationMs": 150715,
+      "resultPreview": "{\"area\":\"crons-realtime\",\"checks\":[{\"name\":\"pg_cron job inventory (WA jobs present, none missing, none extra)\",\"verdict\":\"PASS\",\"evidence\":\"WA Mancer cron.job = 16 jobs. Our box cron.job = 33 jobs total; exactly 16 are WhatsApp jobs (14 identical names + wa-cache-warm/wa-cache-janitor) and the remaining 17 are iGrowFast's own out-of-scope jobs (check-expired-licenses, generate-recurring-charges, i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "audit:runtime-health",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a3d8a987afa246214",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783308480662,
+      "queuedAt": 1783308304602,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "runtime-health",
+      "promptPreview": "You are auditing the iGrowFast WhatsApp deployment for 1:1 parity with WhatsApp Mancer (the proven source of truth).\nSOURCES OF TRUTH (read-only): (a) live WA Mancer VPS: `ssh wa-mancer` (stack at /opt/wa-mancer/stack; secrets dir NOT readable — never try);\n(b) local repo /Users/ismailelqorchi/Desktop/WhatsApp Mancer (full source); (c) WA Mancer DB via MCP: ToolSearch \"select:mcp__supabase-whatsap…",
+      "lastProgressAt": 1783308662568,
+      "tokens": 57565,
+      "toolCalls": 16,
+      "durationMs": 181905,
+      "resultPreview": "{\"area\":\"runtime-health\",\"checks\":[{\"name\":\"igf-wa containers healthy (docker ps)\",\"verdict\":\"PASS\",\"evidence\":\"ssh igf-wa docker ps: igf-wa-worker Up 25m (healthy), igf-wa-evolution Up 26m (healthy), igf-wa-postgres Up 26m (healthy), igf-wa-redis Up 26m (healthy). All 4 igf-wa containers healthy; docker-socket-proxy also Up (9m, no healthcheck, out of scope).\"},{\"name\":\"Worker journal clean since…"
+    }
+  ],
+  "totalTokens": 575024,
+  "totalToolCalls": 122
+}
