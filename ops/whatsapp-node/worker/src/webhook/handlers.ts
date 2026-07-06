@@ -1751,9 +1751,15 @@ async function handleConnectionUpdate(
            -- Stamp THIS connect (not coalesced) + reset the sync markers, so the
            -- pairing modal waits for a genuine history-sync completion of the
            -- CURRENT connect and a stale prior completion can't fast-pass it.
-           last_connect_at   = CASE WHEN $2::instance_status = 'connected' THEN now() ELSE last_connect_at END,
-           history_synced_at = CASE WHEN $2::instance_status = 'connected' THEN NULL ELSE history_synced_at END,
-           sync_progress     = CASE WHEN $2::instance_status = 'connected' THEN 0 ELSE sync_progress END,
+           -- IGF FIX (2026-07-06): TRANSITION-guarded (old status <> connected).
+           -- Evolution emits DUPLICATE 'open' connection.updates; the donor's
+           -- unguarded reset let a dup arriving AFTER recordSyncProgress's
+           -- stamp WIPE history_synced_at — the pairing modal then waited out
+           -- MAX_SYNCING_SECONDS every time the race lost. (Latent in WA
+           -- Mancer: its stamp path was dead, so the reset never raced.)
+           last_connect_at   = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' THEN now() ELSE last_connect_at END,
+           history_synced_at = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' THEN NULL ELSE history_synced_at END,
+           sync_progress     = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' THEN 0 ELSE sync_progress END,
            -- Clear the QR on any terminal state, not just 'connected'. A dead
            -- QR (loop ended → disconnected/error) must not linger in the DB and
            -- render as if it were still scannable.
