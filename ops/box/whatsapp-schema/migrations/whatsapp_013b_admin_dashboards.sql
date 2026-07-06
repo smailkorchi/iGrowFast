@@ -224,7 +224,7 @@ BEGIN
     'tags',
       (SELECT count(*) FROM whatsapp.tags WHERE instance_id = p_instance_id),
     'quick_replies',
-      (SELECT count(*) FROM whatsapp.quick_replies WHERE instance_id = p_instance_id),
+      0, -- iGrowFast L1: quick_replies are BUSINESS-scoped (wave 11 ADAPT) and survive instance deletion
     'media_fetch_jobs',
       (SELECT count(*) FROM whatsapp.media_fetch_jobs WHERE instance_id = p_instance_id),
     'group_participants',
@@ -248,16 +248,8 @@ BEGIN
    WHERE instance_id = p_instance_id
      AND media_storage_key IS NOT NULL;
 
-  WITH qr_keys AS (
-    SELECT jsonb_array_elements(coalesce(steps, '[]'::jsonb))->>'r2_key' AS k
-    FROM whatsapp.quick_replies
-    WHERE instance_id = p_instance_id
-  )
-  SELECT array_cat(v_keys, COALESCE(array_agg(k), '{}'::text[]))
-    INTO v_keys
-    FROM qr_keys
-    WHERE k IS NOT NULL;
-
+  -- iGrowFast L1: quick_replies are BUSINESS-scoped (wave 11 ADAPT); their media outlives any
+  -- single instance and MUST NOT be included in the instance's R2 wipe list.
   RETURN jsonb_build_object(
     'instance_id', p_instance_id,
     'counts',      v_counts,
