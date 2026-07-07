@@ -2642,15 +2642,27 @@ export function ChatPane(p: ChatPaneProps) {
     }
     // Pass 2: group_participants bridge — for each participant LID, attach
     // either (a) its phone-side contact row if known, or (b) its own
-    // push_name + pic as a fallback. Never overwrite a richer contacts-row
-    // entry that's already keyed under the LID.
+    // push_name + pic as a fallback.
+    // IGF FIX (2026-07-07, donor-latent): MERGE per-field instead of skipping
+    // an already-keyed LID. A frozen-merge split leaves a HOLLOW lid-shell
+    // contact (identifier owned, no names) that Pass 1 seeds under the LID;
+    // the donor's `continue` let that hollow entry SHADOW the roster bridge,
+    // so group senders rendered as raw LID digits — and raced the two queries
+    // into a resolve-then-revert flash on reload. (Donor prod carries 14 such
+    // shells today — same latent symptom.) Richer existing fields still win.
     for (const pp of participantsQ.data ?? []) {
-      if (m.has(pp.participant_jid)) continue
       const phoneEntry = pp.phone_jid ? m.get(pp.phone_jid) : undefined
-      m.set(pp.participant_jid, phoneEntry ?? {
+      const bridge = phoneEntry ?? {
         pushName: pp.push_name,
         pic: pp.profile_pic,
         bookName: null,
+      }
+      const existing = m.get(pp.participant_jid)
+      if (!existing) { m.set(pp.participant_jid, bridge); continue }
+      m.set(pp.participant_jid, {
+        pushName: existing.pushName ?? bridge.pushName,
+        pic: existing.pic ?? bridge.pic,
+        bookName: existing.bookName ?? bridge.bookName,
       })
     }
     // Pass 3: owner LID always renders as "Vous".
