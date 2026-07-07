@@ -7,6 +7,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { AuthBackground } from '@/components/auth/AuthBackground';
+import { CaptchaGate, type CaptchaGateHandle } from '@/components/auth/CaptchaGate';
+import { useRef } from 'react';
 import { requestPasswordReset } from '@/lib/credentialChange';
 import { describePasskeyError, listOwnPasskeys, registerOwnPasskey } from '@/lib/selfSecurity';
 import { EyePasswordToggle } from '@/components/ui/EyePasswordToggle';
@@ -19,10 +21,25 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+// Cloudflare Turnstile gate — key is publishable; absence disables the gate
+// (e.g. an env without the var) so login can never be locked out by config.
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+
 const Auth = () => {
     const [loading, setLoading] = useState(false);
     const [showPw, setShowPw] = useState(false);
     const [view, setView] = useState<'login' | 'forgot'>('login');
+    // ── Human gate (Turnstile) ────────────────────────────────────────────
+    // gatePassed drives the crossfade; captchaToken rides every password
+    // sign-in (GoTrue enforces server-side). Tokens are single-use: a failed
+    // login resets the widget to silently mint a fresh one.
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+    const [gatePassed, setGatePassed] = useState(!TURNSTILE_SITE_KEY);
+    const gateRef = useRef<CaptchaGateHandle>(null);
+    const handleCaptchaToken = (t: string | null) => {
+        setCaptchaToken(t);
+        if (t) setTimeout(() => setGatePassed(true), 650); // let "Vérifié" breathe
+    };
     const [resetId, setResetId] = useState('');
     const [resetSent, setResetSent] = useState(false);
     const [resetBusy, setResetBusy] = useState(false);
@@ -135,6 +152,7 @@ const Auth = () => {
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password: values.password,
+                options: captchaToken ? { captchaToken } : undefined,
             });
 
             if (error) throw error;
@@ -171,6 +189,12 @@ const Auth = () => {
                 description: (error as Error).message,
                 variant: 'destructive',
             });
+            // The token was consumed by the attempt — mint a fresh one silently
+            // (managed Turnstile re-passes without interaction for trusted visitors).
+            if (TURNSTILE_SITE_KEY) {
+                setCaptchaToken(null);
+                gateRef.current?.reset();
+            }
         } finally {
             setLoading(false);
         }
@@ -208,6 +232,25 @@ const Auth = () => {
         <div className="relative min-h-[100svh] w-full overflow-hidden">
             <AuthBackground />
 
+            {/* Human gate — full-screen glass layer over the same background;
+                fades out on pass (kept mounted so failed logins can silently
+                re-verify). The auth content below crossfades in. */}
+            {TURNSTILE_SITE_KEY && (
+                <CaptchaGate
+                    ref={gateRef}
+                    siteKey={TURNSTILE_SITE_KEY}
+                    passed={gatePassed}
+                    onToken={handleCaptchaToken}
+                />
+            )}
+
+            <div
+                aria-hidden={!gatePassed}
+                className={
+                    'transition-opacity duration-700 ease-out ' +
+                    (gatePassed ? 'opacity-100' : 'opacity-0 invisible')
+                }
+            >
             {showPasskeyPrompt ? (
               /* Passkey setup nudge — centered glass modal, form hidden, background kept */
               <div className="relative z-10 min-h-[100svh] w-full flex items-center justify-center px-5 py-8 pointer-events-none">
@@ -433,13 +476,18 @@ const Auth = () => {
 
                                 <button
                                     type="submit"
-                                    disabled={loading}
+                                    disabled={loading || (!!TURNSTILE_SITE_KEY && !captchaToken)}
                                     className="w-full h-12 rounded-full bg-white hover:bg-white/95 disabled:opacity-70 disabled:cursor-not-allowed text-ant-ink text-[13px] font-semibold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors active:scale-[0.99]"
                                 >
                                     {loading ? (
                                         <>
                                             <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
                                             Connexion…
+                                        </>
+                                    ) : (!!TURNSTILE_SITE_KEY && !captchaToken) ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
+                                            Vérification…
                                         </>
                                     ) : (
                                         <>
@@ -467,6 +515,7 @@ const Auth = () => {
                 </div>
             </div>
             )}
+            </div>
         </div>
     );
 };
