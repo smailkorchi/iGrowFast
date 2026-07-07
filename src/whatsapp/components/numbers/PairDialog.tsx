@@ -29,7 +29,7 @@ import {
   useDeleteInstance,
   type InstanceSyncMetrics,
 } from '../../lib/queries/instances'
-import ImportContactsModal from './ImportContactsModalStub'
+import ImportContactsModal from '../contacts/ImportContactsModal'
 import { normalizeError } from '../../lib/toast/store'
 import { InstanceAvatar } from './InstanceAvatar'
 import { Button } from '@/components/ui/button'

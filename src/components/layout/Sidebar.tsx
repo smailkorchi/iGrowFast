@@ -85,6 +85,7 @@ const navigation: NavSection[] = [
             { icon: Inbox, label: 'Inbox', path: '/whatsapp/conversations' },
             { icon: MessageSquare, label: 'Numbers', path: '/whatsapp/numbers' },
             { icon: UserCheck, label: 'Assignment', path: '/whatsapp/assignment' },
+            { icon: UsersRound, label: 'Contacts', path: '/whatsapp/contacts' },
         ],
     },
     {

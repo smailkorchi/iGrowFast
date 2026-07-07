@@ -1,0 +1,268 @@
+/* Builds on .aamodal-scrim + .aamodal__btn from Assignment.css. */
+
+.impmodal {
+  width: 100%;
+  max-width: 540px;
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 36px 80px -24px rgba(20, 20, 19, 0.45);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+}
+.impmodal__inner { display: flex; flex-direction: column; min-height: 0; }
+.impmodal__inner--center {
+  padding: 32px 22px 24px;
+  text-align: center;
+  align-items: center;
+  gap: 12px;
+}
+
+.impmodal__head { padding: 22px 22px 16px; border-bottom: 1px solid rgba(20, 20, 19, 0.06); display: flex; flex-direction: column; gap: 6px; }
+.impmodal__eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-accent-warm);
+}
+.impmodal__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+.impmodal__lede {
+  margin: 4px 0 0;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: rgba(20, 20, 19, 0.6);
+}
+.impmodal__lede--small { font-size: 0.82rem; }
+.impmodal__lede code {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.82rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(20, 20, 19, 0.06);
+}
+.impmodal__lede strong { color: var(--color-ink); font-weight: 600; }
+
+.impmodal__body { padding: 16px 22px; overflow-y: auto; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.impmodal__section { display: flex; flex-direction: column; gap: 8px; }
+.impmodal__section-title {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(20, 20, 19, 0.55);
+}
+
+/* Instance picker (re-style) */
+.impmodal__inst-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(20, 20, 19, 0.06);
+  border-radius: 14px;
+  background: rgba(20, 20, 19, 0.015);
+}
+.impmodal__inst-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid rgba(20, 20, 19, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.18s;
+}
+.impmodal__inst-card:hover { border-color: rgba(20, 20, 19, 0.2); background: rgba(20, 20, 19, 0.02); }
+.impmodal__inst-card.is-active {
+  border-color: rgba(106, 155, 204, 0.45);
+  background: rgba(106, 155, 204, 0.08);
+  box-shadow: 0 1px 0 rgba(20, 20, 19, 0.02), 0 10px 20px -14px rgba(106, 155, 204, 0.45);
+}
+.impmodal__inst-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.impmodal__inst-avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent-warm);
+  color: #fff;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.impmodal__inst-name {
+  font-family: var(--font-heading);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.impmodal__inst-tick { color: var(--color-accent-cool); font-weight: 700; }
+
+.impmodal__inst-locked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(106, 155, 204, 0.08);
+  border: 1px solid rgba(106, 155, 204, 0.3);
+  border-radius: 12px;
+}
+.impmodal__inst-locked-tag {
+  margin-left: auto;
+  font-family: var(--font-heading);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(106, 155, 204, 0.18);
+  color: var(--color-accent-cool);
+}
+
+/* Drop zone */
+.impmodal__drop {
+  border: 2px dashed rgba(20, 20, 19, 0.18);
+  border-radius: 14px;
+  padding: 22px 16px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.18s, background 0.18s;
+}
+.impmodal__drop:hover,
+.impmodal__drop.is-drag {
+  border-color: var(--color-accent-warm);
+  background: rgba(217, 119, 87, 0.06);
+}
+.impmodal__drop.has-file {
+  border-style: solid;
+  border-color: var(--color-accent-natural);
+  background: rgba(120, 140, 93, 0.08);
+}
+.impmodal__drop-name {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.impmodal__drop-hint {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: rgba(20, 20, 19, 0.55);
+}
+
+/* Diff tiles */
+.impmodal__diff { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.impmodal__diff-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(20, 20, 19, 0.04);
+  border: 1px solid rgba(20, 20, 19, 0.06);
+  text-align: center;
+}
+.impmodal__diff-tile--new {
+  background: rgba(120, 140, 93, 0.1);
+  border-color: rgba(120, 140, 93, 0.3);
+}
+.impmodal__diff-tile--upd {
+  background: rgba(217, 119, 87, 0.1);
+  border-color: rgba(217, 119, 87, 0.3);
+}
+.impmodal__diff-num {
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.impmodal__diff-label {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(20, 20, 19, 0.55);
+}
+
+/* Footer */
+.impmodal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 22px;
+  border-top: 1px solid rgba(20, 20, 19, 0.06);
+  background: rgba(20, 20, 19, 0.02);
+}
+.impmodal__foot-stat {
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  color: rgba(20, 20, 19, 0.6);
+}
+.impmodal__foot-actions { display: inline-flex; gap: 8px; }
+
+/* Progress bar */
+.impmodal__progress {
+  width: 100%;
+  max-width: 320px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(20, 20, 19, 0.08);
+  overflow: hidden;
+}
+.impmodal__progress-fill {
+  height: 100%;
+  background: var(--color-accent-warm);
+  transition: width 0.18s ease;
+}
+
+.impmodal__error {
+  padding: 10px 12px;
+  background: rgba(217, 119, 87, 0.1);
+  border: 1px solid rgba(217, 119, 87, 0.3);
+  border-radius: 10px;
+  color: var(--color-accent-warm);
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+}
+
+.impmodal__empty {
+  padding: 16px;
+  text-align: center;
+  font-family: var(--font-body);
+  color: rgba(20, 20, 19, 0.5);
+  background: rgba(20, 20, 19, 0.025);
+  border: 1px dashed rgba(20, 20, 19, 0.12);
+  border-radius: 12px;
+}
+
+.impmodal__spinner { display: inline-flex; align-items: center; justify-content: center; }
+.impmodal__check { display: inline-flex; align-items: center; justify-content: center; }
