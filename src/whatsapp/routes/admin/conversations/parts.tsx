@@ -1788,10 +1788,26 @@ function DialPadView({
     setBusy(true)
     setNotice(null)
     try {
+      // IGF FIX (2026-07-07, donor gap): the donor keyed the conversation by
+      // the RAW typed digits — a number in local format (e.g. 0762…, no
+      // country code) produced a malformed JID that Evolution 400s on every
+      // send (dead-lettered queue rows). Validate + CANONICALIZE through the
+      // donor's own checkWhatsApp (Evolution onWhatsApp) — the same call
+      // NewContactView already makes — and key the conversation by the JID
+      // WhatsApp returns.
+      const resp = await checkWhatsApp(instanceId, [digits])
+      const entry = Array.isArray(resp.result) ? resp.result.find((r) => r.exists && r.jid) : undefined
+      if (!entry?.jid) {
+        setNotice("Ce numéro n'est pas sur WhatsApp — vérifiez l'indicatif pays (ex. 212 6…).")
+        return
+      }
+      const canonicalJid = entry.jid
+      const existingCanonical = rows.find((c) => c.remote_jid === canonicalJid)
+      if (existingCanonical) { onPickConversation(existingCanonical); return }
       const { ensureConversation } = await import('../../../lib/conversationCreate')
       const id = await ensureConversation({
         instanceId,
-        remoteJid: `${digits}@s.whatsapp.net`,
+        remoteJid: canonicalJid,
       })
       onCreatedConversation(id)
     } catch (e) {
