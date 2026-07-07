@@ -8,9 +8,17 @@
 // Reference: docs/whatsapp-web-style-reference.md (every measurement, color,
 // state, and animation in here traces back to a section of that document).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useSidebarCollapse } from '../../components/AppLayout'
+import { parseJid } from '../../lib/jid'
+
+// IGF ADDITION (e-commerce seam): chat-header cart → admin create-order
+// dialog (mirror of the admin Orders page create flow, incl. exchange split).
+// Lazy — loaded on first cart open, then kept MOUNTED so the draft survives.
+const AdminChatCartOrderDialog = lazy(() =>
+  import('@/components/orders/AdminChatCartOrderDialog').then((m) => ({ default: m.AdminChatCartOrderDialog })),
+)
 import {
   useFlattenedConversations,
   useConversation,
@@ -268,6 +276,20 @@ export default function AdminConversations() {
 
   const activeQ = useConversation(activeId)
   const activeConv: ConversationDecrypted | null = activeQ.data ?? null
+
+  // IGF ADDITION (e-commerce seam): cart state — dialog mounts on first open
+  // and STAYS mounted (its form instance is the draft store); dot = onDraftChange.
+  const [cartOpen, setCartOpen] = useState(false)
+  const [cartMounted, setCartMounted] = useState(false)
+  const [cartDraft, setCartDraft] = useState(false)
+  const cartPrefill = useMemo(() => {
+    if (!activeConv) return undefined
+    const parsed = parseJid(activeConv.remote_jid ?? '')
+    return {
+      name: activeConv.contact_book_name ?? activeConv.peer_display_name ?? undefined,
+      phone: parsed.kind === 'phone' ? parsed.user : undefined,
+    }
+  }, [activeConv])
 
   // ─── thread ────────────────────────────────────────────────────────────────
   const thread = useFlattenedThread(activeId)
@@ -608,6 +630,8 @@ export default function AdminConversations() {
             } catch { /* no-op */ }
           }}
           onOpenConversation={(id) => { setActiveId(id); void convs.refetch?.() }}
+          onOpenCart={() => { setCartMounted(true); setCartOpen(true) }}
+          cartBadge={cartDraft}
         />
       ) : (
         <EmptyState />
@@ -653,6 +677,19 @@ export default function AdminConversations() {
           onConfirm={confirmSendSequence}
           onCancel={() => setPendingQr(null)}
         />
+      )}
+      {/* IGF ADDITION (e-commerce seam): mounted after first open, never
+          unmounted — the dialog's form instance IS the draft. Radix portals it
+          to document.body, outside .wa-root, so it renders IGF-native. */}
+      {cartMounted && (
+        <Suspense fallback={null}>
+          <AdminChatCartOrderDialog
+            open={cartOpen}
+            onOpenChange={setCartOpen}
+            onDraftChange={setCartDraft}
+            prefill={cartPrefill}
+          />
+        </Suspense>
       )}
     </div>
   )
