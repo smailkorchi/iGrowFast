@@ -44,6 +44,7 @@ import {
   type Filter,
 } from './conversations/parts'
 import { QuickRepliesPanel } from './conversations/QuickRepliesPanel'
+import { SyncingGate, syncGateBypassKey } from './conversations/SyncingGate'
 import { QuickReplyConfirm } from './conversations/NodeSequenceBuilder'
 import { TagsPanel } from './conversations/TagsPanel'
 import { ScheduledMessagesPanel } from './conversations/ScheduledMessagesPanel'
@@ -116,6 +117,11 @@ export default function AdminConversations() {
     setPickedInstanceId(id)
     try { localStorage.setItem(ACTIVE_INSTANCE_KEY, id) } catch { /* noop */ }
   }, [])
+
+  // IGF DELTA D3: manual escape for the chat-sync gate (mirrors PairDialog's
+  // "Continuer quand même"). Keyed per instance+connect in sessionStorage so
+  // it survives remounts but not a genuine re-pair.
+  const [syncGateBypassTick, setSyncGateBypassTick] = useState(0)
 
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
@@ -430,6 +436,35 @@ export default function AdminConversations() {
         />
       </div>
     )
+  }
+
+  // ─── IGF DELTA D3: chat-sync gate ─────────────────────────────────────────
+  // Take over the surface while the ACTIVE instance's history dump is still
+  // streaming (history_synced_at not yet stamped for THIS connect). Removes
+  // the mid-sync artifact where history slices flash at the bottom of open
+  // threads out of date order. Media back-fills after and is NOT gated.
+  if (activeInstance && activeInstance.status === 'connected') {
+    const historySynced = !!activeInstance.history_synced_at
+      && (!activeInstance.last_connect_at
+        || new Date(activeInstance.history_synced_at).getTime() >= new Date(activeInstance.last_connect_at).getTime())
+    let bypassed = false
+    try { bypassed = sessionStorage.getItem(syncGateBypassKey(activeInstance.id, activeInstance.last_connect_at)) === '1' } catch { /* noop */ }
+    void syncGateBypassTick // re-render dependency for the bypass button
+    if (!historySynced && !bypassed) {
+      return (
+        <div className="wac wac--gate">
+          <SyncingGate
+            instanceId={activeInstance.id}
+            name={activeInstance.display_name || activeInstance.wa_profile_name || activeInstance.phone_number || 'ce numéro'}
+            syncProgress={activeInstance.sync_progress ?? null}
+            onContinueAnyway={() => {
+              try { sessionStorage.setItem(syncGateBypassKey(activeInstance.id, activeInstance.last_connect_at), '1') } catch { /* noop */ }
+              setSyncGateBypassTick((t) => t + 1)
+            }}
+          />
+        </div>
+      )
+    }
   }
 
   return (
