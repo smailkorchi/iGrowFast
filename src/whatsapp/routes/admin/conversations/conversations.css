@@ -1425,6 +1425,15 @@
   position: relative;
 }
 
+/* IGF FIX (donor-latent): the grid above has 3 rows (header / thread /
+   composer) but PinnedBar mounts as a 4th child right after the header —
+   it landed in the 1fr row, swallowed the pane, and the thread collapsed
+   to the bottom. Donor css is byte-identical → same defect on donor prod
+   whenever a message is pinned. Give the bar its own row only when present. */
+.wac__chat:has(> .wac__pinned-bar) {
+  grid-template-rows: auto auto 1fr auto;
+}
+
 .wac__chat::before {
   content: '';
   position: absolute;
