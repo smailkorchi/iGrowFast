@@ -5,6 +5,7 @@ import {
     ShoppingBag,
     CreditCard,
     MessageSquare,
+    Inbox,
     LogOut,
     PanelLeftClose,
     Loader2,
@@ -39,6 +40,7 @@ const baseNavigation: NavItem[] = [
     { icon: Repeat, label: 'Return notes', path: '/seller/return-note' },
     { icon: CreditCard, label: 'Payments', path: '/seller/payments' },
     { icon: MessageSquare, label: 'Demands', path: '/seller/demands' },
+    { icon: Inbox, label: 'WhatsApp', path: '/seller/whatsapp' },
     { icon: Package, label: 'Products', path: '/seller/products' },
     { icon: Puzzle, label: 'Accessories', path: '/seller/accessories' },
 ];

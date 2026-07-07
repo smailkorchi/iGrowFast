@@ -105,6 +105,8 @@ const WhatsappConversations = lazy(() => import("@/whatsapp/WhatsappConversation
 const WhatsappAssignment = lazy(() => import("@/whatsapp/WhatsappAssignment"));
 // Page 4: contacts directory — management tier (donor light chrome).
 const WhatsappContacts = lazy(() => import("@/whatsapp/WhatsappContacts"));
+// Page 3: seller (agent) inbox — WA-verbatim tier, assignment-scoped via RLS.
+const WhatsappSellerInbox = lazy(() => import("@/whatsapp/WhatsappSellerInbox"));
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import SuspensionOverlay from "./components/layout/SuspensionOverlay";
@@ -268,6 +270,7 @@ const App = () => (
                   <Route path="demands" element={<SellerDemands />} />
                   <Route path="delivery-note" element={<SellerDeliveryNote />} />
                   <Route path="return-note" element={<SellerReturnNote />} />
+                  <Route path="whatsapp" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappSellerInbox /></Suspense>} />
                   <Route path="help" element={<SellerHelp />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
