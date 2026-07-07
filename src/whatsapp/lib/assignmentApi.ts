@@ -62,12 +62,24 @@ export async function listInstanceAssignments(instanceId: string): Promise<Assig
   const ids = (convs ?? []).map((c) => c.id)
   if (ids.length === 0) return []
 
-  const { data, error } = await supabase
-    .schema('whatsapp').from('conversation_assignments')
-    .select('*')
-    .in('conversation_id', ids)
-  if (error) throw new Error(error.message)
-  return (data ?? []) as AssignmentRow[]
+  // IGF FIX (donor-latent scale bug): the donor sent ONE .in() with every
+  // conversation id — at ~600 conversations that's a ~25KB request URL, which
+  // the self-host proxy (nginx 8k header buffer) rejects before PostgREST,
+  // surfacing as a CORS/ERR_FAILED wall. Chunk to 150 ids (~5.5KB/URL).
+  const CHUNK = 150
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK))
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const { data, error } = await supabase
+        .schema('whatsapp').from('conversation_assignments')
+        .select('*')
+        .in('conversation_id', chunk)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as AssignmentRow[]
+    }),
+  )
+  return results.flat()
 }
 
 // ─── writes — single-conversation (preferred for UI) ────────────────────────

@@ -123,11 +123,17 @@ export function useDeleteContacts() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (params: { ids: string[]; instanceId: string }) => {
-      const { error } = await supabase
-        .schema('whatsapp').from('contacts')
-        .delete()
-        .in('id', params.ids)
-      if (error) throw new Error(error.message)
+      // IGF FIX (donor-latent scale bug): "Tout sélectionner" can delete
+      // hundreds of ids — one .in() URL overflows the self-host proxy's 8k
+      // header buffer. Chunk to 150 ids (~5.5KB/URL).
+      const CHUNK = 150
+      for (let i = 0; i < params.ids.length; i += CHUNK) {
+        const { error } = await supabase
+          .schema('whatsapp').from('contacts')
+          .delete()
+          .in('id', params.ids.slice(i, i + CHUNK))
+        if (error) throw new Error(error.message)
+      }
     },
     onSuccess: (_d, v) => {
       void qc.invalidateQueries({ queryKey: contactKeys.list(v.instanceId) })

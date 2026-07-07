@@ -113,16 +113,23 @@ export default function ImportContactsModal({
 
   async function computeDiff(rows: PhoneBookEntry[], inst: string) {
     // Fetch existing contacts for this instance once, classify locally.
+    // IGF FIX (donor-latent scale bug): one .in() with every phone from a big
+    // VCF/CSV overflows the self-host proxy's URL limit (nginx 8k header
+    // buffer) → chunk to 300 phones per request (~4KB/URL).
     const phones = rows.map((r) => r.phone)
-    const { data, error: e } = await supabase
-      .from('contacts')
-      .select('phone_number, book_name')
-      .eq('instance_id', inst)
-      .in('phone_number', phones)
-    if (e) { setError(normalizeError(e)); return }
     const existing = new Map<string, string | null>()
-    for (const row of data ?? []) {
-      if (row.phone_number) existing.set(row.phone_number, row.book_name ?? null)
+    const CHUNK = 300
+    for (let i = 0; i < phones.length; i += CHUNK) {
+      const { data, error: e } = await supabase
+        .schema('whatsapp')
+        .from('contacts')
+        .select('phone_number, book_name')
+        .eq('instance_id', inst)
+        .in('phone_number', phones.slice(i, i + CHUNK))
+      if (e) { setError(normalizeError(e)); return }
+      for (const row of data ?? []) {
+        if (row.phone_number) existing.set(row.phone_number, row.book_name ?? null)
+      }
     }
     const out: DiffRow[] = rows.map((r) => {
       const ex = existing.get(r.phone)
