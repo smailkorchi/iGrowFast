@@ -1799,9 +1799,10 @@ async function handleConnectionUpdate(
   // First time we see 'connected', stamp paired_at and bind phone_number
   // from the wuid (e.g. "212600000000:XX@s.whatsapp.net" → "+212600000000").
   const phoneNumber = extractPhoneFromWuid(data.wuid)
-  const { rows: statusRows } = await pool.query<{ old_status: string | null }>(
+  const { rows: statusRows } = await pool.query<{ old_status: string | null; was_pairing: boolean | null }>(
     `WITH prev AS (
-       SELECT status::text AS old_status FROM whatsapp.whatsapp_instances WHERE id = $1
+       SELECT status::text AS old_status, (qr_code IS NOT NULL) AS was_pairing
+         FROM whatsapp.whatsapp_instances WHERE id = $1
      )
      UPDATE whatsapp.whatsapp_instances
        SET status = $2::instance_status,
@@ -1818,24 +1819,31 @@ async function handleConnectionUpdate(
            -- stamp WIPE history_synced_at — the pairing modal then waited out
            -- MAX_SYNCING_SECONDS every time the race lost. (Latent in WA
            -- Mancer: its stamp path was dead, so the reset never raced.)
-           last_connect_at   = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' THEN now() ELSE last_connect_at END,
-           history_synced_at = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' THEN NULL ELSE history_synced_at END,
-           sync_progress     = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' THEN 0 ELSE sync_progress END,
+           -- IGF FIX (2026-07-07): ALSO gated on a QR having been pending
+           -- (qr_code here reads the PRE-update value): WhatsApp streams
+           -- history ONLY after a fresh QR pair — a plain session RECONNECT
+           -- sends no messages.set at all, so resetting the markers there
+           -- left the sync gate + PairDialog waiting forever on a dump that
+           -- will never come. New sync cycle == transition WITH QR pending.
+           last_connect_at   = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN now() ELSE last_connect_at END,
+           history_synced_at = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN NULL ELSE history_synced_at END,
+           sync_progress     = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN 0 ELSE sync_progress END,
            -- Clear the QR on any terminal state, not just 'connected'. A dead
            -- QR (loop ended → disconnected/error) must not linger in the DB and
            -- render as if it were still scannable.
            qr_code = CASE WHEN $2::instance_status IN ('connected','disconnected','error') THEN NULL ELSE qr_code END
      WHERE id = $1
-     RETURNING (SELECT old_status FROM prev) AS old_status`,
+     RETURNING (SELECT old_status FROM prev) AS old_status, (SELECT was_pairing FROM prev) AS was_pairing`,
     [instanceId, newStatus, data.statusReason ? String(data.statusReason) : null, phoneNumber],
   )
   const wasConnected = statusRows[0]?.old_status === 'connected'
+  const wasPairing = statusRows[0]?.was_pairing === true
 
-  // Genuine (re)connect transition → a NEW history-sync cycle begins: clear
-  // the settle state so a stale flag from the previous connect can't stamp
-  // this one. Dup 'open' events (wasConnected) must NOT touch it — clearing
-  // mid-sync would eat the flag and force the dialog's 120s degrade.
-  if (newStatus === 'connected' && !wasConnected) resetSyncSettle(instanceId)
+  // Genuine PAIRING connect (transition + QR pending) → a NEW history-sync
+  // cycle begins: clear the settle state so a stale flag from the previous
+  // connect can't stamp this one. Dup 'open' events (wasConnected) and plain
+  // session reconnects (no QR ⇒ no history dump) must NOT touch it.
+  if (newStatus === 'connected' && !wasConnected && wasPairing) resetSyncSettle(instanceId)
 
   log.info('webhook.connection.updated', {
     instance_id: instanceId, state, mapped: newStatus, phone: phoneNumber,
