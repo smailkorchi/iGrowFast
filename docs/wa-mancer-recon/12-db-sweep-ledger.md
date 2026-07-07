@@ -87,12 +87,42 @@ Expected effect: kills the #1 CPU statement (RLS), the #4 statement + 86 k row
 updates + 2,880 cron runs/day (cache_warm), and the bloat. WAL rate drops with it
 (realtime's wal2json poll — #2 CPU — scales with WAL volume).
 
-### Wave 1 — worker code (.67 redeploy), needs owner go (deviates from donor 1:1)
+### Wave 0.5 — the amputation (`whatsapp_020`) — APPLIED 2026-07-08
+**OWNER RULING 2026-07-08, supersedes the 2026-07-05 keep-verbatim ruling:** the
+metrics/logs stack is dropped; the product surface is the 4 admin pages
+(Numbers, Inbox, Assignment, Contacts) + seller inbox. Dashboard / Statistics /
+Log / Monitor pages are CUT permanently, and their data layer went with them:
+
+- **Dropped tables (7):** system_logs, db_metrics_history, worker_health_history,
+  host_metrics, r2_metrics, metric_samples, _cron_ingest_state
+- **Dropped functions (53):** monitor_*, db_metrics_*, admin_query_logs,
+  admin_log_facets, dashboard_overview/activity, agent_performance, all
+  stats_*(+impl) except instance_stats, all _compute_stats_* except
+  _compute_instance_stats, cache_warm, cache_quantize, ingest_host/prom/
+  platform/r2 feeds, the 7 observability cron fns
+- **Unscheduled crons (7):** 43/44/47/48/49/50/52 — 8 remain, all operational
+- **Dropped enums:** log_source, log_level
+- **Stubbed:** `ingest_system_logs` → no-op returning 0 (live callers: worker
+  logSink 4 s flush, edge logError, client-log — all fire-and-forget; wave 1
+  removes the callers, then the stub can go)
+- Schema: 36 → 29 tables, 16 MB → 10 MB. Worker verified healthy after.
+
+KEPT despite the ruling's letter, because the 4 pages / core read them:
+`audit_log` (NumberDetail timeline + realtime sub + reconnects_7d +
+lifecycle_auto_promote reads message.dead 7 d + 25 RPC writers), `app_cache`
+(instance_stats), `og_cache` (inbox link previews), `worker_health` (Numbers
+tiles + stale alert), `dispatcher_snapshot` (live gauges).
+
+Gray items (unused by the 4 pages, feature-class — owner call, not dropped):
+`message_templates` (0 rows, 0 src refs, donor inbox feature never ported),
+`merge_review` (143 rows, absorption pending per deferred registry).
+
+### Wave 1 — worker code (.67 redeploy), needs owner go
 | # | Action | Class |
 |---|---|---|
-| 1.1 | `r2MetricsPull.ts`: add `Content-Profile: whatsapp` header (or move to pg pool like heartbeat) — restores r2_metrics feed | bug fix |
-| 1.2 | Age-gate `enqueue_media_fetch` for history-sync media older than ~13 d: mark `media_failed_at` directly, skip the guaranteed-fail Evolution round-trip | sanctioned deviation |
-| 1.3 | Stop double-logging expired-CDN media: demote the `evolution.http_error` twin for `getBase64FromMediaMessage` (keep `media.ingest.fail`); demote `dispatcher.spawn.already_running` warn→debug | sanctioned deviation |
+| 1.1 | Remove `logSink` DB persistence + `r2MetricsPull` from the worker (their sinks no longer exist; today they no-op/404 harmlessly) — worker logs live in journald/docker logs with rotation | cleanup |
+| 1.2 | Age-gate `enqueue_media_fetch` for history-sync media older than ~13 d: mark `media_failed_at` directly, skip the guaranteed-fail Evolution round-trip (86 % of media jobs during syncs) | sanctioned deviation |
+| 1.3 | Drop the `ingest_system_logs` stub + undeploy `client-log` edge fn once 1.1 ships | cleanup |
 
 ### Wave 2 — audit-noise policy (owner decisions, per item)
 | # | Decision | Trade-off |
