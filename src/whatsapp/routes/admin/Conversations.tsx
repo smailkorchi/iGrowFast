@@ -444,19 +444,34 @@ export default function AdminConversations() {
   // the mid-sync artifact where history slices flash at the bottom of open
   // threads out of date order. Media back-fills after and is NOT gated.
   if (activeInstance && activeInstance.status === 'connected') {
-    const historySynced = !!activeInstance.history_synced_at
-      && (!activeInstance.last_connect_at
-        || new Date(activeInstance.history_synced_at).getTime() >= new Date(activeInstance.last_connect_at).getTime())
+    const isSynced = (i: NonNullable<typeof activeInstance>) => !!i.history_synced_at
+      && (!i.last_connect_at
+        || new Date(i.history_synced_at).getTime() >= new Date(i.last_connect_at).getTime())
     let bypassed = false
     try { bypassed = sessionStorage.getItem(syncGateBypassKey(activeInstance.id, activeInstance.last_connect_at)) === '1' } catch { /* noop */ }
     void syncGateBypassTick // re-render dependency for the bypass button
-    if (!historySynced && !bypassed) {
+    if (!isSynced(activeInstance) && !bypassed) {
+      // A freshly-paired number gates while it syncs; numbers that are both
+      // connected AND already synced stay one click away (same switch pills
+      // as the disconnected gate).
+      const readyAlternatives = (instances ?? [])
+        .filter((i) => i.id !== activeInstance.id && i.status === 'connected' && isSynced(i))
+        .map((i) => ({
+          id: i.id,
+          display_name: i.display_name,
+          wa_profile_name: i.wa_profile_name,
+          profile_pic_url: i.profile_pic_url,
+          status: i.status,
+          status_detail: i.status_detail,
+        }))
       return (
         <div className="wac wac--gate">
           <SyncingGate
             instanceId={activeInstance.id}
             name={activeInstance.display_name || activeInstance.wa_profile_name || activeInstance.phone_number || 'ce numéro'}
             syncProgress={activeInstance.sync_progress ?? null}
+            alternatives={readyAlternatives}
+            onSwitchInstance={onSwitchInstance}
             onContinueAnyway={() => {
               try { sessionStorage.setItem(syncGateBypassKey(activeInstance.id, activeInstance.last_connect_at), '1') } catch { /* noop */ }
               setSyncGateBypassTick((t) => t + 1)

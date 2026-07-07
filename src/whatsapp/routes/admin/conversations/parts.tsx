@@ -2297,7 +2297,7 @@ function GateInstanceAvatar({ ins, size = 30 }: { ins: ConnectionGateInstance; s
 // Smart "switch to a connected number" control. One connected alt → a single
 // pill. Many → a pill for the first plus a chevron that drops the rest, so it
 // stays compact no matter how many numbers are online.
-function GateSwitchPill({
+export function GateSwitchPill({ // IGF SEAM: exported for SyncingGate (delta D3) — body untouched
   alternatives, onSwitch,
 }: {
   alternatives: ConnectionGateInstance[]

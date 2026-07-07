@@ -15,6 +15,7 @@
 // continue there must not hit a wall here (remembered per instance+connect
 // for this browser session).
 import { useInstanceSyncMetrics } from '../../../lib/queries/instances'
+import { GateSwitchPill, type ConnectionGateInstance } from './parts'
 import { IconLock } from './icons'
 
 const nf = new Intl.NumberFormat('fr-MA')
@@ -27,12 +28,17 @@ export function SyncingGate({
   instanceId,
   name,
   syncProgress,
+  alternatives,
+  onSwitchInstance,
   onContinueAnyway,
 }: {
   instanceId: string
   name: string
   /** whatsapp_instances.sync_progress — capped at 99 until the settle stamp. */
   syncProgress: number | null
+  /** Other numbers that are connected AND already synced — usable right now. */
+  alternatives: ConnectionGateInstance[]
+  onSwitchInstance?: (id: string) => void
   onContinueAnyway: () => void
 }) {
   const { data: m } = useInstanceSyncMetrics(instanceId, true)
@@ -60,6 +66,17 @@ export function SyncingGate({
           )}
         </li>
       </ul>
+
+      {alternatives.length > 0 && onSwitchInstance && (
+        <div className="wac__gate-alts">
+          <span className="wac__gate-alts-label">
+            {alternatives.length > 1
+              ? 'Utiliser un autre numéro en attendant'
+              : "Utiliser l'autre numéro en attendant"}
+          </span>
+          <GateSwitchPill alternatives={alternatives} onSwitch={onSwitchInstance} />
+        </div>
+      )}
 
       <button type="button" className="wac__gate-btn wac__gate-btn--ghost" onClick={onContinueAnyway}>
         Continuer quand même
