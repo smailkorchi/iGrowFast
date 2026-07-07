@@ -469,11 +469,18 @@ export default function AdminAssignment() {
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <section className="page assignment-page">
-      <header className="page-hero">
-        <div className="page-hero__text">
-          <span className="page__eyebrow">Admin · Acheminement</span>
-          <h1 className="page__title">Affectation</h1>
-          <p className="page__subtitle">
+      {/* IGF ADAPTATION: donor .page-hero masthead swapped for the IGF header
+          used by every WhatsApp management page (Numbers pattern). */}
+      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+            Admin · Acheminement
+          </div>
+          <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+            Affectation
+          </h1>
+          <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
             Acheminez les conversations vers les agents. Action groupée possible. Les DM sont en 1:1, les groupes peuvent avoir plusieurs agents.
           </p>
         </div>
