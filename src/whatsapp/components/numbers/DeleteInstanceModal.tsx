@@ -97,7 +97,18 @@ export default function DeleteInstanceModal({
       setSummary(r.summary)
       setPhase('done')
     } catch (e) {
-      setError(normalizeError(e))
+      const msg = normalizeError(e)
+      // Idempotent-delete UX: a rich instance (tens of thousands of rows +
+      // R2 sweep + Evolution logout) can outlive the client deadline — the
+      // server keeps wiping. A retry (or the timed-out call itself) coming
+      // back not_found means the wipe ALREADY SUCCEEDED: render success,
+      // not "Élément introuvable".
+      if (/instance_not_found|not_found|introuvable/i.test(msg)) {
+        setSummary(null)
+        setPhase('done')
+        return
+      }
+      setError(msg)
       setPhase('error')
     }
   }
