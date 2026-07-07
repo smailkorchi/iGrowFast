@@ -7302,7 +7302,7 @@ function Composer({
   // reply. Frontend-only realtime; auto-clears on idle / unmount / disconnect.
   const { profile } = useAuth()
   const typingSelf = useMemo(
-    () => (profile ? { user_id: profile.id, full_name: profile.full_name, avatar_config: profile.avatar_config as never, email: profile.email } : null),
+    () => (profile ? { user_id: profile.id, full_name: profile.full_name, avatar_config: profile.avatar_config as never, avatar_url: profile.avatar_url ?? null, email: profile.email } : null),
     [profile],
   )
   const { typers: otherTypingAgents, ping: pingAgentTyping, stop: stopAgentTyping } = useAgentTyping(conversationId ?? null, typingSelf)
@@ -7678,6 +7678,7 @@ function Composer({
             <UserAvatar
               key={a.user_id}
               config={a.avatar_config ?? null}
+              url={a.avatar_url ?? null}
               seed={a.email ?? a.user_id}
               size={24}
               className="wac__agent-typing-avatar"
@@ -9390,6 +9391,7 @@ export function InfoPane({
               <div key={p.id} className="wac__members-row wac__assign-row">
                 <UserAvatar
                   config={(p.avatar_config ?? {}) as AvatarConfig}
+                  url={p.avatar_url ?? null}
                   seed={p.id}
                   size={48}
                 />
@@ -9655,6 +9657,7 @@ export function InfoPane({
                   <div key={p.id} className="wac__assign-row">
                     <UserAvatar
                       config={(p.avatar_config ?? {}) as AvatarConfig}
+                      url={p.avatar_url ?? null}
                       seed={p.id}
                       size={40}
                     />
@@ -9910,6 +9913,7 @@ function AssignUserPicker({
               >
                 <UserAvatar
                   config={(p.avatar_config ?? {}) as AvatarConfig}
+                  url={p.avatar_url ?? null}
                   seed={p.id}
                   size={40}
                 />
@@ -9957,6 +9961,7 @@ interface DirectoryProfileLite {
   email: string
   full_name: string | null
   avatar_config: unknown
+  avatar_url?: string | null
 }
 
 // ── Danger-zone confirm modal (clear/delete conversation) ───────────────────

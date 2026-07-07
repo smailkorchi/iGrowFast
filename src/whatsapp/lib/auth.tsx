@@ -16,6 +16,8 @@
 //                    parity with public.current_user_is_business_admin())
 //   is_active    <- users.active
 //   avatar_config passthrough (public.users.avatar_config jsonb)
+//   avatar_url   passthrough (public.users.avatar_url — uploaded photo; IGF
+//                 precedence photo → config → fallback, see UserAvatar.tsx)
 //
 // No provider needed: session comes from the single IGF GoTrue client, the
 // profile row through TanStack Query (WaShell's waQueryClient). Consumers all
@@ -40,6 +42,7 @@ function mapUsersRow(row: {
   role: string | null
   active: boolean | null
   avatar_config: unknown
+  avatar_url: string | null
   created_at: string | null
 }): Profile {
   return {
@@ -49,6 +52,7 @@ function mapUsersRow(row: {
     role: row.role === 'super admin' || row.role === 'admin' ? 'admin' : 'user',
     is_active: row.active ?? true,
     avatar_config: (row.avatar_config ?? null) as Profile['avatar_config'],
+    avatar_url: row.avatar_url ?? null,
     created_at: row.created_at ?? '',
     last_auto_assigned_at: null,
     updated_at: row.created_at ?? '',
@@ -58,7 +62,7 @@ function mapUsersRow(row: {
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, email, role, active, avatar_config, created_at')
+    .select('id, name, email, role, active, avatar_config, avatar_url, created_at')
     .eq('id', userId)
     .maybeSingle()
   if (error) {

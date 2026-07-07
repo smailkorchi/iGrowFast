@@ -17,6 +17,7 @@ export interface TypingAgent {
   user_id: string
   full_name: string | null
   avatar_config?: AvatarConfig | null
+  avatar_url?: string | null
   email?: string | null
 }
 
@@ -78,7 +79,7 @@ export function useAgentTyping(
     lastPingRef.current = now
     void ch.send({
       type: 'broadcast', event: 'agent_typing',
-      payload: { user_id: s.user_id, full_name: s.full_name, avatar_config: s.avatar_config ?? null, email: s.email ?? null },
+      payload: { user_id: s.user_id, full_name: s.full_name, avatar_config: s.avatar_config ?? null, avatar_url: s.avatar_url ?? null, email: s.email ?? null },
     })
   }, [])
 
@@ -97,7 +98,7 @@ export function useAgentTyping(
 // Every authenticated session track()s itself on the shared `presence:org`
 // channel (mounted globally in AppLayout). Keyed by user_id so multiple tabs of
 // the same person collapse to one. The admin Dashboard reads the member list.
-export interface OnlineAgent { user_id: string; full_name: string | null; avatar_config?: AvatarConfig | null; email?: string | null; role?: string | null }
+export interface OnlineAgent { user_id: string; full_name: string | null; avatar_config?: AvatarConfig | null; avatar_url?: string | null; email?: string | null; role?: string | null }
 type OrgSelf = TypingAgent & { role?: string | null }
 
 // Single shared `presence:org` channel for the whole tab. Multiple callers
@@ -110,7 +111,7 @@ let orgTrackedUid: string | null = null
 const orgListeners = new Set<() => void>()
 
 function trackPayload(self: OrgSelf) {
-  return { user_id: self.user_id, full_name: self.full_name, avatar_config: self.avatar_config ?? null, email: self.email ?? null, role: self.role ?? null }
+  return { user_id: self.user_id, full_name: self.full_name, avatar_config: self.avatar_config ?? null, avatar_url: self.avatar_url ?? null, email: self.email ?? null, role: self.role ?? null }
 }
 
 function ensureOrgChannel(self: OrgSelf): void {

@@ -12,6 +12,7 @@ export interface CreatorProfile {
   full_name: string | null
   role: string
   avatar_config: unknown
+  avatar_url?: string | null
 }
 
 /** Build an id -> profile map once; pass to <CreatorBadge profile=...>. */
@@ -27,7 +28,7 @@ export function CreatorBadge({ profile }: { profile: CreatorProfile | undefined 
   const name = profile.full_name || profile.email || 'Inconnu'
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, minWidth: 0 }}>
-      <Avatar config={profile.avatar_config as AvatarConfig} size={16} seed={profile.email ?? profile.id} />
+      <Avatar config={profile.avatar_config as AvatarConfig} url={profile.avatar_url ?? null} size={16} seed={profile.email ?? profile.id} />
       <span
         style={{
           fontSize: 11,

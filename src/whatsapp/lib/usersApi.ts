@@ -9,21 +9,22 @@
 // badges, unassign-scheduled safety modal).
 //
 // listProfiles reads whatsapp.profiles — a business-scoped view over
-// public.users mirroring WA's profiles contract 1:1 (7 columns, same
-// admin-sees-all / agent-sees-self asymmetry, agents = 'commercial' role).
+// public.users mirroring WA's profiles contract (same admin-sees-all /
+// agent-sees-self asymmetry, agents = 'commercial' role) plus avatar_url,
+// the IGF photo avatar WA Mancer never had (precedence photo → config).
 import { supabase } from './supabase'
 import type { Profile } from './database.types'
 
 export type DirectoryProfile = Pick<
   Profile,
-  'id' | 'email' | 'full_name' | 'role' | 'is_active' | 'avatar_config' | 'created_at'
+  'id' | 'email' | 'full_name' | 'role' | 'is_active' | 'avatar_config' | 'avatar_url' | 'created_at'
 >
 
 export async function listProfiles(): Promise<DirectoryProfile[]> {
   const { data, error } = await supabase
     .schema('whatsapp')
     .from('profiles')
-    .select('id, email, full_name, role, is_active, avatar_config, created_at')
+    .select('id, email, full_name, role, is_active, avatar_config, avatar_url, created_at')
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as DirectoryProfile[]
