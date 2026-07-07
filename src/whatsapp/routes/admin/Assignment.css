@@ -1255,3 +1255,11 @@
 .convpane__select-all:hover .check-square:not(.is-on) .check-square__box {
   stroke: var(--color-ink);
 }
+
+/* ═══ IGF ADDITION (donor gap): bulk-unassign toolbar action ═══════════════ */
+.convpane__bulk-unassign {
+  color: #c62828;
+  font-weight: 600;
+}
+.convpane__bulk-unassign:hover { background: rgba(198, 40, 40, 0.08); }
+.convpane__bulk-unassign:disabled { opacity: 0.5; cursor: default; }

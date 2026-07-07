@@ -27,6 +27,7 @@ import {
   useApplyAutoAssignBacklog,
   useAssignmentsRealtime,
   useBulkAssign,
+  useBulkUnassign,
   useInstanceAssignments,
   useSetAutoAssign,
   useSetConversationAssignees,
@@ -263,12 +264,18 @@ export default function AdminAssignment() {
   const setAssignees    = useSetConversationAssignees()
   const unassignOne     = useUnassignConversationUser()
   const bulkAssignMut   = useBulkAssign()
+  const bulkUnassignMut = useBulkUnassign()
   const setAutoAssignMut = useSetAutoAssign()
   const applyBacklogMut  = useApplyAutoAssignBacklog()
   const deleteScheduledMut = useDeleteScheduledMessage()
   // Unassign-with-pending-scheduled-messages warning (same model as the inbox InfoPane).
   const [pendingUnassign, setPendingUnassign] = useState<
     { conversationId: string; userId: string; name: string; ids: string[] } | null
+  >(null)
+  // IGF ADDITION (donor gap): bulk unassign of the whole selection — the donor
+  // shipped admin_unassign_conversations + useBulkUnassign but never wired a UI.
+  const [pendingBulkUnassign, setPendingBulkUnassign] = useState<
+    { pairs: Array<{ userId: string; conversationIds: string[] }>; smRows: Array<{ id: string; conversationId: string }> } | null
   >(null)
 
   async function assignSelectedToUser(targetUserId: string) {
@@ -339,6 +346,72 @@ export default function AdminAssignment() {
         }
       }
       await unassignOne.mutateAsync({ conversationId: up.conversationId, userId: up.userId })
+    } catch (e) { toast.error(normalizeError(e)) }
+  }
+
+  // IGF ADDITION (donor gap): clear EVERY assignee from the selected
+  // conversations. Uses the donor's own admin_unassign_conversations RPC once
+  // per distinct assignee. Same pending-scheduled-messages warning contract as
+  // the single-row path, aggregated into one keep/drop modal for the batch.
+  async function unassignSelected() {
+    if (selectedIds.size === 0) return
+    const byUser = new Map<string, string[]>()
+    for (const convId of selectedIds) {
+      for (const uid of assignmentsByConv.get(convId) ?? []) {
+        const arr = byUser.get(uid) ?? []
+        arr.push(convId)
+        byUser.set(uid, arr)
+      }
+    }
+    if (byUser.size === 0) { clearSelection(); return }
+    const pairs = Array.from(byUser, ([userId, conversationIds]) => ({ userId, conversationIds }))
+    try {
+      const convIds = Array.from(new Set(pairs.flatMap((p) => p.conversationIds)))
+      const sm = supabase.schema('whatsapp').from('scheduled_messages' as never) as unknown as {
+        select: (c: string) => {
+          in: (c2: string, v: string[]) => {
+            eq: (c3: string, v3: string) => Promise<{ data: Array<{ id: string; conversation_id: string; created_by: string | null }> | null }>
+          }
+        }
+      }
+      const smRows: Array<{ id: string; conversationId: string }> = []
+      const CHUNK = 150 // proxy URL limit — same chunking as listInstanceAssignments
+      for (let i = 0; i < convIds.length; i += CHUNK) {
+        const { data } = await sm.select('id, conversation_id, created_by')
+          .in('conversation_id', convIds.slice(i, i + CHUNK))
+          .eq('status', 'pending')
+        for (const r of data ?? []) {
+          if (r.created_by && (assignmentsByConv.get(r.conversation_id) ?? []).includes(r.created_by)) {
+            smRows.push({ id: r.id, conversationId: r.conversation_id })
+          }
+        }
+      }
+      if (smRows.length > 0) {
+        setPendingBulkUnassign({ pairs, smRows })
+        return
+      }
+      await runBulkUnassign(pairs)
+    } catch (e) { toast.error(normalizeError(e)) }
+  }
+
+  async function runBulkUnassign(pairs: Array<{ userId: string; conversationIds: string[] }>) {
+    for (const p of pairs) {
+      await bulkUnassignMut.mutateAsync({ userId: p.userId, conversationIds: p.conversationIds })
+    }
+    clearSelection()
+  }
+
+  async function resolveBulkUnassign(drop: boolean) {
+    const pb = pendingBulkUnassign
+    if (!pb) return
+    setPendingBulkUnassign(null)
+    try {
+      if (drop) {
+        for (const row of pb.smRows) {
+          await deleteScheduledMut.mutateAsync({ id: row.id, conversationId: row.conversationId })
+        }
+      }
+      await runBulkUnassign(pb.pairs)
     } catch (e) { toast.error(normalizeError(e)) }
   }
 
@@ -620,6 +693,20 @@ export default function AdminAssignment() {
               {selectedIds.size > 0 && (
                 <button type="button" className="convpane__bulk-clear" onClick={clearSelection}>Effacer</button>
               )}
+              {/* IGF ADDITION (donor gap): bulk unassign of the selection. */}
+              {(() => {
+                const withAssignees = Array.from(selectedIds).filter((id) => (assignmentsByConv.get(id) ?? []).length > 0).length
+                return withAssignees > 0 ? (
+                  <button
+                    type="button"
+                    className="convpane__bulk-clear convpane__bulk-unassign"
+                    disabled={bulkUnassignMut.isPending}
+                    onClick={() => void unassignSelected()}
+                  >
+                    Désassigner {withAssignees}
+                  </button>
+                ) : null
+              })()}
             </div>
           </div>
 
@@ -760,6 +847,16 @@ export default function AdminAssignment() {
           onCancel={() => setPendingUnassign(null)}
           onKeep={() => resolveUnassign(false)}
           onDrop={() => resolveUnassign(true)}
+        />
+      )}
+      {pendingBulkUnassign && (
+        <UnassignScheduledModal
+          userName="La sélection"
+          count={pendingBulkUnassign.smRows.length}
+          contextLabel="pour ces conversations"
+          onCancel={() => setPendingBulkUnassign(null)}
+          onKeep={() => resolveBulkUnassign(false)}
+          onDrop={() => resolveBulkUnassign(true)}
         />
       )}
     </section>

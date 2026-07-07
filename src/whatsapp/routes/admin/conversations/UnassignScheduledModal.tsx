@@ -9,7 +9,10 @@ import type { CSSProperties } from 'react'
 
 export function UnassignScheduledModal({
   userName, count, onCancel, onKeep, onDrop,
-}: { userName: string; count: number; onCancel: () => void; onKeep: () => void; onDrop: () => void }) {
+  // IGF ADDITION: bulk-unassign on the Assignment page reuses this modal for a
+  // whole selection — the context phrase becomes plural. Default = donor copy.
+  contextLabel = 'pour cette conversation',
+}: { userName: string; count: number; onCancel: () => void; onKeep: () => void; onDrop: () => void; contextLabel?: string }) {
   return (
     <div
       onClick={onCancel}
@@ -39,8 +42,8 @@ export function UnassignScheduledModal({
         <div style={{ padding: '12px 20px 4px' }}>
           <p style={{ margin: 0, color: '#aebac1', lineHeight: 1.5, fontSize: 14 }}>
             <strong style={{ color: '#e9edef' }}>{userName}</strong> a{' '}
-            <strong style={{ color: '#e9edef' }}>{count}</strong> message{count > 1 ? 's' : ''} programmé{count > 1 ? 's' : ''} pour cette
-            conversation. En le désassignant, voulez-vous aussi supprimer ces messages programmés, ou les conserver ?
+            <strong style={{ color: '#e9edef' }}>{count}</strong> message{count > 1 ? 's' : ''} programmé{count > 1 ? 's' : ''} {contextLabel}.
+            En désassignant, voulez-vous aussi supprimer ces messages programmés, ou les conserver ?
             {' '}Conservés, ils seront tout de même envoyés à l'heure prévue.
           </p>
         </div>
