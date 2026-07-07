@@ -5,7 +5,6 @@ import {
     ShoppingBag,
     CreditCard,
     MessageSquare,
-    Inbox,
     LogOut,
     PanelLeftClose,
     Loader2,
@@ -18,6 +17,7 @@ import {
     HelpCircle,
     type LucideIcon,
 } from 'lucide-react';
+import { FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
@@ -35,12 +35,12 @@ const baseNavigation: NavItem[] = [
     { icon: Home, label: 'Dashboard', path: '/seller/dashboard' },
     { icon: BarChart2, label: 'Statistics', path: '/seller/statistics' },
     { icon: Wallet, label: 'My wallet', path: '/seller/wallet' },
+    { icon: FaWhatsapp, label: 'WhatsApp', path: '/seller/whatsapp' },
     { icon: ShoppingBag, label: 'Orders', path: '/seller/orders' },
     { icon: Truck, label: 'Delivery notes', path: '/seller/delivery-note' },
     { icon: Repeat, label: 'Return notes', path: '/seller/return-note' },
     { icon: CreditCard, label: 'Payments', path: '/seller/payments' },
     { icon: MessageSquare, label: 'Demands', path: '/seller/demands' },
-    { icon: Inbox, label: 'WhatsApp', path: '/seller/whatsapp' },
     { icon: Package, label: 'Products', path: '/seller/products' },
     { icon: Puzzle, label: 'Accessories', path: '/seller/accessories' },
 ];
