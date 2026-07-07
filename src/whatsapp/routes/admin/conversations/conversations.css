@@ -9048,3 +9048,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ═══ IGF ADDITION (e-commerce seam): chat-header cart button ═════════════ */
+.wac__cart-btn { position: relative; }
+.wac__cart-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wa-green, #25d366);
+  box-shadow: 0 0 0 2px var(--wa-bg-header, #202c33);
+  pointer-events: none;
+}

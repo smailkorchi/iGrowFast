@@ -54,6 +54,7 @@ import {
   IconImage,
   IconLocationPin,
   IconLock,
+  IconCart,
   IconHeart,
   IconHeartFilled,
   IconMic,
@@ -2497,6 +2498,11 @@ export interface ChatPaneProps {
   instanceId?: string | null
   conversationTagIds?: string[]
   tags?: Tag[]
+  /** IGF ADDITION (e-commerce seam): chat-header cart → create-order dialog.
+   *  Button renders only when the handler is provided; cartBadge shows the
+   *  in-progress-draft dot. */
+  onOpenCart?: () => void
+  cartBadge?: boolean
 }
 
 export interface ComposerState {
@@ -3131,6 +3137,18 @@ export function ChatPane(p: ChatPaneProps) {
           </div>
         </div>
         <div className="wac__chathead-actions">
+          {/* IGF ADDITION (e-commerce seam): cart → create-order dialog. */}
+          {p.onOpenCart && (
+            <button
+              className="wac__icon-btn wac__cart-btn"
+              aria-label="Créer une commande"
+              title="Créer une commande"
+              onClick={p.onOpenCart}
+            >
+              <IconCart size={20} />
+              {p.cartBadge && <span className="wac__cart-dot" aria-hidden />}
+            </button>
+          )}
           <button
             className="wac__icon-btn"
             aria-label="Rechercher"

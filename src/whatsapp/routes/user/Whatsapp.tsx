@@ -5,9 +5,17 @@
 // shared from admin/conversations/ — DO NOT fork it. User-side restrictions
 // belong in THIS file (the wrapper), not the shared components.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useSidebarCollapse } from '../../components/AppLayout'
+import { parseJid } from '../../lib/jid'
+
+// IGF ADDITION (e-commerce seam): chat-header cart → seller create-order
+// dialog (mirror of the seller Orders page create flow). Lazy — loaded on
+// first cart open, then kept MOUNTED so the draft survives close.
+const SellerChatCartOrderDialog = lazy(() =>
+  import('@/components/orders/SellerChatCartOrderDialog').then((m) => ({ default: m.SellerChatCartOrderDialog })),
+)
 import {
   useFlattenedConversations,
   useConversation,
@@ -347,6 +355,20 @@ export default function UserWhatsapp() {
     })
   }
 
+  // IGF ADDITION (e-commerce seam): cart state — dialog mounts on first open
+  // and STAYS mounted (its form instance is the draft store); dot = onDraftChange.
+  const [cartOpen, setCartOpen] = useState(false)
+  const [cartMounted, setCartMounted] = useState(false)
+  const [cartDraft, setCartDraft] = useState(false)
+  const cartPrefill = useMemo(() => {
+    if (!activeConv) return undefined
+    const parsed = parseJid(activeConv.remote_jid ?? '')
+    return {
+      name: activeConv.contact_book_name ?? activeConv.peer_display_name ?? undefined,
+      phone: parsed.kind === 'phone' ? parsed.user : undefined,
+    }
+  }, [activeConv])
+
   const [viewerMsg, setViewerMsg] = useState<MessageDecrypted | null>(null)
   useEffect(() => { setViewerMsg(null) }, [activeId])
   const mediaMessages = useMemo(
@@ -518,6 +540,8 @@ export default function UserWhatsapp() {
             // Tell the agent instead of silently doing nothing.
             toast.error('Cette conversation ne vous est pas assignée.')
           }}
+          onOpenCart={() => { setCartMounted(true); setCartOpen(true) }}
+          cartBadge={cartDraft}
         />
       ) : (
         <EmptyState />
@@ -563,6 +587,19 @@ export default function UserWhatsapp() {
           onConfirm={confirmSendSequence}
           onCancel={() => setPendingQr(null)}
         />
+      )}
+      {/* IGF ADDITION (e-commerce seam): mounted after first open, never
+          unmounted — the dialog's form instance IS the draft. Radix portals it
+          to document.body, outside .wa-root, so it renders IGF-native. */}
+      {cartMounted && (
+        <Suspense fallback={null}>
+          <SellerChatCartOrderDialog
+            open={cartOpen}
+            onOpenChange={setCartOpen}
+            onDraftChange={setCartDraft}
+            prefill={cartPrefill}
+          />
+        </Suspense>
       )}
     </div>
   )

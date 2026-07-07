@@ -303,6 +303,18 @@ export function IconHeartFilled(p: IconProps) {
   )
 }
 
+/* IGF ADDITION (e-commerce seam): chat-header cart button — opens the
+   create-order dialog with a per-role draft. Not a donor icon. */
+export function IconCart(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="20" r="1.4" fill="currentColor" stroke="none" />
+      <path d="M3 4h2l2.4 11.2a1.6 1.6 0 0 0 1.57 1.3h7.65a1.6 1.6 0 0 0 1.56-1.22L20.6 8H6" />
+    </Svg>
+  )
+}
+
 export function IconTrash(p: IconProps) {
   return (
     <Svg {...p}>
