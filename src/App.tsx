@@ -101,6 +101,8 @@ const WhatsappNumbers = lazy(() => import("@/whatsapp/WhatsappNumbers"));
 const WhatsappNumberDetail = lazy(() => import("@/whatsapp/WhatsappNumberDetail"));
 // Page 2: the inbox — WA-verbatim tier (own scoped WA CSS under .wa-root).
 const WhatsappConversations = lazy(() => import("@/whatsapp/WhatsappConversations"));
+// Page 5: assignment routing console — management tier (donor light chrome).
+const WhatsappAssignment = lazy(() => import("@/whatsapp/WhatsappAssignment"));
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import SuspensionOverlay from "./components/layout/SuspensionOverlay";
@@ -295,6 +297,7 @@ const App = () => (
                     <Route path="/whatsapp/numbers" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappNumbers /></Suspense>} />
                     <Route path="/whatsapp/numbers/:id" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappNumberDetail /></Suspense>} />
                     <Route path="/whatsapp/conversations" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappConversations /></Suspense>} />
+                    <Route path="/whatsapp/assignment" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><WhatsappAssignment /></Suspense>} />
                     <Route path="/accessories" element={<Accessories />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/google-analytics" element={<GoogleAnalyticsPage />} />
