@@ -540,6 +540,9 @@ export function SellerChatCartOrderDialog(props: {
                     ...blankDefaults(),
                     name: props.prefill?.name ?? '',
                     phone: props.prefill?.phone ?? '',
+                    // Chat-cart context: the order originates from a WhatsApp
+                    // conversation — preselect the source (SALES_SOURCES value).
+                    source_name: 'whatsapp',
                 });
                 props.onDraftChange?.(false);
             }
