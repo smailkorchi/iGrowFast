@@ -120,7 +120,12 @@ async function captureJidMapping(
 // SYNC_SETTLE_MS. Each batch re-arms the timer; the stamp fires once, after
 // the dump goes quiet. If the engine never emits a flag, nothing stamps and
 // the PairDialog's MAX_SYNCING_SECONDS degrade covers it (donor behavior).
-const SYNC_SETTLE_MS = 10_000
+// 180s: a live rich-phone dump showed a 139s WhatsApp-side pause BETWEEN
+// slices (measured via ingest created_at gaps) — any shorter window stamps
+// mid-dump. Cost: PRET lands ~3min after the final batch. Refine once
+// webhook.sync_batch logs reveal whether progress-only is a trustworthy
+// completion flag.
+const SYNC_SETTLE_MS = 180_000
 const syncFlagSeen = new Set<string>()
 const syncSettleTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -180,6 +185,8 @@ async function recordSyncProgress(instanceId: string, data: unknown): Promise<vo
     // batches, not only flagged ones.
     if (isLatest || (typeof progress === 'number' && progress >= 100)) syncFlagSeen.add(instanceId)
     armSyncSettle(instanceId)
+    // Flag-semantics telemetry: what does Evolution actually send per batch?
+    log.info('webhook.sync_batch', { instance_id: instanceId, is_latest: isLatest, progress, n_items: items.length })
     if (progress === null) return                          // no progress figure to persist
     await pool.query(
       `UPDATE whatsapp.whatsapp_instances
