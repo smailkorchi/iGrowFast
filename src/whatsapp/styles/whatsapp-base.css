@@ -1,11 +1,17 @@
-/* WA Mancer src/index.css, scoped under .wa-root so the module's brand tokens +
- * base element styling apply ONLY inside the WhatsApp UI subtree and never leak
- * into / override IGF's Tailwind base. Class-based sheets (app.css, Numbers.css)
- * ride these tokens. Font @import stays global (harmless).
+/* WA Mancer src/index.css, scoped so the module's brand tokens + base element
+ * styling apply ONLY inside the WhatsApp UI subtrees and never leak into /
+ * override IGF's Tailwind base. TWO scopes, one environment:
+ *   .wa-root — the inbox (WA-verbatim tier)
+ *   .wa-mgmt — management-tier donor pages (Assignment, Contacts) that were
+ *              authored against this same donor element base + tokens
+ * Class-based sheets (app.css, Assignment.css) ride these tokens. Token hex
+ * values are identical to IGF's tailwind `ant.*` palette — this IS the IGF
+ * look. Font @import stays global (harmless).
  * ------------------------------------------------------------------------- */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap');
 
-.wa-root {
+.wa-root,
+.wa-mgmt {
   --color-ink: #141413;
   --color-canvas: #faf9f5;
   --color-muted: #b0aea5;
@@ -37,9 +43,9 @@
  * button steamrolled .wac__iconbtn & co; links went accent-orange). `:where()`
  * contributes ZERO specificity → totals stay donor-identical. Never scope
  * element-level base rules any other way. */
-:where(.wa-root) * { box-sizing: border-box; }
+:where(.wa-root, .wa-mgmt) * { box-sizing: border-box; }
 
-:where(.wa-root) :is(h1, h2, h3, h4, h5, h6) {
+:where(.wa-root, .wa-mgmt) :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-heading);
   font-weight: 600;
   line-height: 1.2;
@@ -47,10 +53,10 @@
   margin: 0;
 }
 
-:where(.wa-root) a { color: var(--color-accent-warm); text-decoration: none; }
-:where(.wa-root) a:hover { text-decoration: underline; }
+:where(.wa-root, .wa-mgmt) a { color: var(--color-accent-warm); text-decoration: none; }
+:where(.wa-root, .wa-mgmt) a:hover { text-decoration: underline; }
 
-:where(.wa-root) button {
+:where(.wa-root, .wa-mgmt) button {
   font-family: var(--font-heading);
   font-weight: 500;
   border-radius: 8px;
@@ -62,9 +68,9 @@
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
-:where(.wa-root) button:hover { opacity: 0.85; }
-:where(.wa-root) button:focus,
-:where(.wa-root) button:focus-visible { outline: 2px solid var(--color-accent-cool); outline-offset: 2px; }
+:where(.wa-root, .wa-mgmt) button:hover { opacity: 0.85; }
+:where(.wa-root, .wa-mgmt) button:focus,
+:where(.wa-root, .wa-mgmt) button:focus-visible { outline: 2px solid var(--color-accent-cool); outline-offset: 2px; }
 
 /* ============================================================================
  * WA-UNPREFLIGHT — restores the donor/UA environment under .wa-root.
@@ -84,7 +90,7 @@
 /* counters preflight html { tab-size: 4 } (inherited; donor/UA = 8 — staging
    <pre> tab columns) + host inherited-prop bleed (letter/word-spacing,
    text-transform pinned to donor :root values; classes inside still win). */
-:where(.wa-root) {
+:where(.wa-root, .wa-mgmt) {
   tab-size: 8;
   -moz-tab-size: 8;
   letter-spacing: normal;
@@ -94,34 +100,34 @@
 
 /* counters preflight p, pre { margin: 0 } — bare .wac__empty-sub <p> and the
    staging <pre> relied on UA margin-block 1em; classed/inline margins win. */
-:where(.wa-root) :is(p, pre) { margin: 1em 0; }
+:where(.wa-root, .wa-mgmt) :is(p, pre) { margin: 1em 0; }
 
 /* counters preflight ol, ul, menu { list-style:none; margin:0; padding:0 } —
    donor = UA lists; the one rendered list (.wac__gate-list) self-resets at
    conversations.css:4725 and still wins. Safe: zero Tailwind list utilities
    under .wa-root (verified — DeleteInstanceModal is OUTSIDE .wa-root). */
-:where(.wa-root) :is(ul, ol) { list-style: revert; margin: revert; padding: revert; }
+:where(.wa-root, .wa-mgmt) :is(ul, ol) { list-style: revert; margin: revert; padding: revert; }
 
 /* ---- 2. Typography ------------------------------------------------------ */
 
 /* counters preflight h1-h6 { font-size: inherit } — donor kept Chrome UA scale
    (wa-base heading rule sets no size); .wac__empty-title 30px / .wac__info-title
    16px still win via class. Literal UA values (browser-stable, donor-verified). */
-:where(.wa-root) h1 { font-size: 2em; }
-:where(.wa-root) h2 { font-size: 1.5em; }
-:where(.wa-root) h3 { font-size: 1.17em; }
-:where(.wa-root) h4 { font-size: 1em; }
-:where(.wa-root) h5 { font-size: 0.83em; }
-:where(.wa-root) h6 { font-size: 0.67em; }
+:where(.wa-root, .wa-mgmt) h1 { font-size: 2em; }
+:where(.wa-root, .wa-mgmt) h2 { font-size: 1.5em; }
+:where(.wa-root, .wa-mgmt) h3 { font-size: 1.17em; }
+:where(.wa-root, .wa-mgmt) h4 { font-size: 1em; }
+:where(.wa-root, .wa-mgmt) h5 { font-size: 0.83em; }
+:where(.wa-root, .wa-mgmt) h6 { font-size: 0.67em; }
 
 /* counters preflight b, strong { font-weight: bolder } (→900 in 600 contexts);
    donor UA = bold (700). 8 <strong> rendered. */
-:where(.wa-root) :is(b, strong) { font-weight: bold; }
+:where(.wa-root, .wa-mgmt) :is(b, strong) { font-weight: bold; }
 
 /* counters preflight code/kbd/samp/pre { ui-monospace stack; font-size: 1em } —
    donor UA = monospace @ Blink 13/16 quirk (~13px). Verify ≈13px on the bare
    <code> in the GIF-settings note; fallback: font-size: 0.8125em (see blockers). */
-:where(.wa-root) :is(code, kbd, samp, pre) { font-family: monospace; font-size: revert; }
+:where(.wa-root, .wa-mgmt) :is(code, kbd, samp, pre) { font-family: monospace; font-size: revert; }
 
 /* ---- 3. Form elements --------------------------------------------------- */
 
@@ -129,17 +135,17 @@
    wrapper tracking) — donor UA button = normal/normal; neither the wa-base
    button rule nor the .wac :where(button) neutralizer declares these (that gap
    is exactly this leak). Buttons sized by padding return to donor height. */
-:where(.wa-root) button { line-height: normal; letter-spacing: normal; }
+:where(.wa-root, .wa-mgmt) button { line-height: normal; letter-spacing: normal; }
 
 /* counters preflight :disabled { cursor: default } (0,1,0) — donor's button
    cursor:pointer had no disabled exception; (0,1,1) restores the hand. Class
    :disabled rules (0,2,0) would still win if ever added. */
-:where(.wa-root) button:disabled { cursor: pointer; }
+:where(.wa-root, .wa-mgmt) button:disabled { cursor: pointer; }
 
 /* counters preflight [role="button"] { cursor: pointer } — donor had no such
    rule; 22 [role=button] divs (chat rows) showed the default arrow. Classes
    that set cursor themselves still win. */
-:where(.wa-root) [role="button"] { cursor: revert; }
+:where(.wa-root, .wa-mgmt) [role="button"] { cursor: revert; }
 
 /* counters preflight control reset (margin/padding 0, line-height/letter-spacing
    inherit) — donor fields rode UA metrics (text input padding 1px 2px, textarea
@@ -148,25 +154,25 @@
    so no font restore here (manifest-1's blanket `font: revert` intentionally
    dropped). Component paddings (.wac__cl-input { padding:0 }, modal/composer
    inputs) still win at (0,1,0). */
-:where(.wa-root) :is(input, textarea) { line-height: normal; letter-spacing: normal; }
-:where(.wa-root) input:where(:not([type="radio"], [type="checkbox"], [type="range"])) { padding: 1px 2px; }
+:where(.wa-root, .wa-mgmt) :is(input, textarea) { line-height: normal; letter-spacing: normal; }
+:where(.wa-root, .wa-mgmt) input:where(:not([type="radio"], [type="checkbox"], [type="range"])) { padding: 1px 2px; }
 
 /* counters preflight textarea { resize: vertical } + padding 0 — donor UA:
    resize both, padding 2px (2 bare textareas: parts.tsx:7898, NodeSequenceBuilder
    :546; class paddings still win). */
-:where(.wa-root) textarea { padding: 2px; resize: both; }
+:where(.wa-root, .wa-mgmt) textarea { padding: 2px; resize: both; }
 
 /* counters preflight control margin:0 — the bare pin-duration radio
    (parts.tsx:3975) lost UA margins (~3-5px spacing inside .wac__pin-dur-opt);
    appearance:auto insures against any future appearance-resetting plugin. */
-:where(.wa-root) input:where([type="radio"]) { appearance: auto; margin: 3px 3px 0 5px; }
+:where(.wa-root, .wa-mgmt) input:where([type="radio"]) { appearance: auto; margin: 3px 3px 0 5px; }
 
 /* counters preflight ::placeholder { opacity:1; color:#9ca3af } — donor = UA
    placeholder. (0,0,2) ties preflight's input::placeholder exactly and wins on
    order; component .wac__*::placeholder rules (0,1,1) still win. `revert`
    resolves the #757575-vs-darkgray manifest contradiction by landing on the
    actual local UA value (donor-exact by construction). */
-:where(.wa-root) :is(input, textarea)::placeholder { color: revert; opacity: revert; }
+:where(.wa-root, .wa-mgmt) :is(input, textarea)::placeholder { color: revert; opacity: revert; }
 
 /* ---- 4. Media (CRITICAL — inline flow + baseline restoration) ----------- */
 
@@ -177,14 +183,14 @@
    anyway (unaffected); .wac__ep-cat-btn svg { display:block } is classed and
    still wins. NEVER add width/height here — bare svgs are attribute-sized
    (lucide size prop; conversations.css:4997 documents this bug class). */
-:where(.wa-root) svg { display: inline; vertical-align: baseline; }
+:where(.wa-root, .wa-mgmt) svg { display: inline; vertical-align: baseline; }
 
 /* counters preflight img/video/canvas/audio { display:block; vertical-align:
    middle } + img,video { max-width:100%; height:auto } — donor = UA replaced-
    element defaults incl. presentational width/height attributes (QR codes,
    avatars, emoji imgs in bubble text regain baseline + attribute sizing).
    iframe/embed/object dropped — never rendered. */
-:where(.wa-root) :is(img, video, canvas, audio) { display: revert; vertical-align: revert; max-width: revert; height: revert; }
+:where(.wa-root, .wa-mgmt) :is(img, video, canvas, audio) { display: revert; vertical-align: revert; max-width: revert; height: revert; }
 
 /* ---- 5. Borders ---------------------------------------------------------- */
 
@@ -193,9 +199,9 @@
    audited wa lines use full border shorthands) but removes the landmine of a
    future colorless border longhand painting the light admin token #e8e6dc onto
    the #0A0A0A UI. Zero specificity; wins by load order over index.css:101. */
-:where(.wa-root) *,
-:where(.wa-root) ::before,
-:where(.wa-root) ::after { border-color: currentColor; }
+:where(.wa-root, .wa-mgmt) *,
+:where(.wa-root, .wa-mgmt) ::before,
+:where(.wa-root, .wa-mgmt) ::after { border-color: currentColor; }
 
 /* counters preflight * { border-width:0; border-style:solid } stripping native
    control borders — donor showed UA input/textarea borders on bare fields.
@@ -203,4 +209,4 @@
    controls. The FULL blanket border-style/width restore stays WITHHELD per
    manifest 1 — unnecessary (verified zero Tailwind border/divide utilities
    inside .wa-root) and hostile to any future utility reintroduction. */
-:where(.wa-root) :is(input, textarea) { border: revert; }
+:where(.wa-root, .wa-mgmt) :is(input, textarea) { border: revert; }
