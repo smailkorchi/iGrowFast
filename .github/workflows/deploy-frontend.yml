@@ -1,0 +1,56 @@
+# Frontend deploy — app.igrowfast.com
+#
+# Origin = isolated nginx+cloudflared stack on the toolbox VPS (.211),
+# /opt/igf-frontend. Releases are capistrano-style: rsync into
+# www/releases/<ts>-<sha>, flip the relative symlink www/current (picked up by
+# nginx without restart), prune to the last 5. The deploy user (igf-deploy)
+# owns ONLY /opt/igf-frontend/www — it cannot touch docker or the tunnel.
+# --chmod normalizes permissions (a mac-side rsync once shipped 700 dirs and
+# 403'd the whole site).
+name: Deploy frontend
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: SSH setup
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.TOOLBOX_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.TOOLBOX_HOST_KEY }}" >> ~/.ssh/known_hosts
+
+      - name: Upload release + atomic flip
+        run: |
+          TS="$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          rsync -az --delete \
+            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+            dist/ "igf-deploy@37.60.250.211:/opt/igf-frontend/www/releases/$TS/"
+          ssh igf-deploy@37.60.250.211 \
+            "cd /opt/igf-frontend/www \
+             && ln -sfn releases/$TS current \
+             && ls -dt releases/* | tail -n +6 | xargs -r rm -rf"
+
+      - name: Verify live
+        run: |
+          sleep 3
+          curl -sfI https://app.igrowfast.com | head -1
