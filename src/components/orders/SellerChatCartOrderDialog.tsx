@@ -135,6 +135,8 @@ const orderSchema = z.object({
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
+/** Draft snapshot type for the per-conversation cart map kept by the host page. */
+export type SellerCartOrderDraft = OrderFormValues;
 
 // --- Provider-type helpers --- (Orders.tsx L255-322)
 function orderCompanyIsColiaty(
@@ -220,7 +222,13 @@ function productNameLabel(p: { name?: unknown; code?: string | null; id?: string
 export function SellerChatCartOrderDialog(props: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onDraftChange?: (hasDraft: boolean) => void;
+    /** Per-conversation draft owned by the host page. When set, opening loads
+     *  it INSTEAD of the prefill; the form is re-baselined on every open so a
+     *  draft from one client can never leak into another. */
+    draft?: OrderFormValues | null;
+    /** Fired when the draft lifecycle changes: values = keep as this
+     *  conversation's draft (plain close), null = cleared (Annuler / saved). */
+    onSnapshot?: (values: OrderFormValues | null) => void;
     prefill?: { name?: string; phone?: string };
     onSaved?: () => void;
 }) {
@@ -530,12 +538,26 @@ export function SellerChatCartOrderDialog(props: {
         delvoexpress_old_tracking: ''
     } as OrderFormValues), [defaultNewOrderStatusId]);
 
-    // DELTA 4: on open with a PRISTINE form, apply prefill via full reset so the
-    // prefill becomes the new "clean" baseline. A dirty form is never touched.
+    // DELTA 4: every open RE-BASELINES the form for the conversation it was
+    // opened from: its saved draft when the host passes one, else a fresh
+    // prefill — a draft from one client can never leak into another (the host
+    // keeps drafts in a per-conv map).
     const prevOpenRef = useRef(false);
+    const hadDraftRef = useRef(false);
+    // "Has the user changed anything?" — RHF isDirty is UNRELIABLE here: the
+    // dialog's pickers (city/provider/status/product) write via form.setValue
+    // without shouldDirty, so picker-only edits read as pristine. Instead we
+    // capture a JSON baseline at every re-baseline point and deep-compare on
+    // close. Solid for both typed and picked changes.
+    const baselineRef = useRef('');
+    const captureBaseline = () => { baselineRef.current = JSON.stringify(form.getValues()); };
     useEffect(() => {
         if (props.open && !prevOpenRef.current) {
-            if (!form.formState.isDirty) {
+            if (props.draft) {
+                hadDraftRef.current = true;
+                form.reset(props.draft);
+            } else {
+                hadDraftRef.current = false;
                 form.reset({
                     ...blankDefaults(),
                     name: props.prefill?.name ?? '',
@@ -544,8 +566,8 @@ export function SellerChatCartOrderDialog(props: {
                     // conversation — preselect the source (SALES_SOURCES value).
                     source_name: 'whatsapp',
                 });
-                props.onDraftChange?.(false);
             }
+            captureBaseline();
         }
         prevOpenRef.current = props.open;
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -555,8 +577,10 @@ export function SellerChatCartOrderDialog(props: {
     // once it resolves (the page does this at button-click time instead).
     useEffect(() => {
         if (!defaultNewOrderStatusId) return;
-        if (!form.formState.isDirty && !form.getValues('order_status_id')) {
+        // Re-capture the baseline so the patch itself never reads as a user change.
+        if (JSON.stringify(form.getValues()) === baselineRef.current && !form.getValues('order_status_id')) {
             form.setValue('order_status_id', defaultNewOrderStatusId);
+            captureBaseline();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [defaultNewOrderStatusId]);
@@ -847,12 +871,14 @@ export function SellerChatCartOrderDialog(props: {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
-            // DELTA 3: close, reset to blank defaults, report draft cleared, notify saved.
+            // DELTA 3: close, reset to blank defaults, clear this conv's draft, notify saved.
             props.onOpenChange(false);
+            props.onSnapshot?.(null);
+            hadDraftRef.current = false;
             // Defer form.reset so Radix completes its close cycle first.
             setTimeout(() => {
                 form.reset(blankDefaults());
-                props.onDraftChange?.(false);
+                captureBaseline();
             }, 0);
             props.onSaved?.();
             toast({ title: "Order Created", description: "Successfully logged new order." });
@@ -862,13 +888,15 @@ export function SellerChatCartOrderDialog(props: {
         }
     });
 
-    // DELTA 2: explicit discard (Annuler) — resets the draft, closes.
+    // DELTA 2: explicit discard (Annuler) — clears this conv's draft, closes.
     const handleDiscard = () => {
         props.onOpenChange(false);
+        props.onSnapshot?.(null);
+        hadDraftRef.current = false;
         // Defer form.reset so Radix completes its close cycle first.
         setTimeout(() => {
             form.reset(blankDefaults());
-            props.onDraftChange?.(false);
+            captureBaseline();
         }, 0);
     };
 
@@ -879,9 +907,15 @@ export function SellerChatCartOrderDialog(props: {
                 open={props.open}
                 onOpenChange={(v) => {
                     if (!v) {
-                        // DELTA 1: close WITHOUT resetting — the draft survives.
+                        // DELTA 1: close WITHOUT resetting — snapshot the values
+                        // as this conversation's draft. Kept when values differ
+                        // from the open baseline (deep compare — NOT RHF isDirty,
+                        // which misses setValue-driven pickers) or when the cart
+                        // was opened FROM a draft.
                         props.onOpenChange(false);
-                        props.onDraftChange?.(form.formState.isDirty);
+                        const values = form.getValues();
+                        const changed = JSON.stringify(values) !== baselineRef.current;
+                        props.onSnapshot?.(changed || hadDraftRef.current ? values : null);
                     }
                 }}
             >

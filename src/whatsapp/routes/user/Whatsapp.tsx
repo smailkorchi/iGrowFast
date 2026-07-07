@@ -16,6 +16,7 @@ import { parseJid } from '../../lib/jid'
 const SellerChatCartOrderDialog = lazy(() =>
   import('@/components/orders/SellerChatCartOrderDialog').then((m) => ({ default: m.SellerChatCartOrderDialog })),
 )
+import type { SellerCartOrderDraft } from '@/components/orders/SellerChatCartOrderDialog'
 import {
   useFlattenedConversations,
   useConversation,
@@ -356,10 +357,14 @@ export default function UserWhatsapp() {
   }
 
   // IGF ADDITION (e-commerce seam): cart state — dialog mounts on first open
-  // and STAYS mounted (its form instance is the draft store); dot = onDraftChange.
+  // and STAYS mounted. Drafts are PER CONVERSATION: a Map convId → snapshot,
+  // written by the dialog's onSnapshot on close; the dot lights only on the
+  // conversation the draft belongs to.
   const [cartOpen, setCartOpen] = useState(false)
   const [cartMounted, setCartMounted] = useState(false)
-  const [cartDraft, setCartDraft] = useState(false)
+  const cartDraftsRef = useRef(new Map<string, SellerCartOrderDraft>())
+  const [cartDraftIds, setCartDraftIds] = useState<ReadonlySet<string>>(new Set())
+  const cartConvIdRef = useRef<string | null>(null)
   const cartPrefill = useMemo(() => {
     if (!activeConv) return undefined
     const parsed = parseJid(activeConv.remote_jid ?? '')
@@ -540,8 +545,8 @@ export default function UserWhatsapp() {
             // Tell the agent instead of silently doing nothing.
             toast.error('Cette conversation ne vous est pas assignée.')
           }}
-          onOpenCart={() => { setCartMounted(true); setCartOpen(true) }}
-          cartBadge={cartDraft}
+          onOpenCart={() => { cartConvIdRef.current = activeId; setCartMounted(true); setCartOpen(true) }}
+          cartBadge={!!activeId && cartDraftIds.has(activeId)}
         />
       ) : (
         <EmptyState />
@@ -596,7 +601,14 @@ export default function UserWhatsapp() {
           <SellerChatCartOrderDialog
             open={cartOpen}
             onOpenChange={setCartOpen}
-            onDraftChange={setCartDraft}
+            draft={cartConvIdRef.current ? cartDraftsRef.current.get(cartConvIdRef.current) ?? null : null}
+            onSnapshot={(values) => {
+              const cid = cartConvIdRef.current
+              if (!cid) return
+              if (values) cartDraftsRef.current.set(cid, values)
+              else cartDraftsRef.current.delete(cid)
+              setCartDraftIds(new Set(cartDraftsRef.current.keys()))
+            }}
             prefill={cartPrefill}
           />
         </Suspense>
