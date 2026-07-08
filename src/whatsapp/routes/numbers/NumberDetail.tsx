@@ -129,7 +129,7 @@ export default function NumberDetail() {
             <div className="space-y-1.5">
               <span className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
                 <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                Connexion
+                Votre numéro
               </span>
               <h1 className="font-display text-[28px] md:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">{instance.display_name}</h1>
               <div className="flex flex-wrap items-center gap-2">
@@ -143,7 +143,7 @@ export default function NumberDetail() {
           <div className="flex flex-col items-stretch lg:items-end gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {(instance.status === 'pending' || instance.status === 'disconnected' || instance.status === 'error') && (
-                <button type="button" className={btnPrimary} onClick={() => setPairOpen(true)}>Appairer le numéro</button>
+                <button type="button" className={btnPrimary} onClick={() => setPairOpen(true)}>Connecter le numéro</button>
               )}
               {isConnected && (
                 <button type="button" className={btnGhost} onClick={() => setConfirmDisconnect(true)} disabled={disconnect.isPending}>
@@ -176,7 +176,7 @@ export default function NumberDetail() {
               </header>
               <div className="mt-3">
                 <p className="text-[13px] leading-relaxed text-ant-ink/70 m-0">
-                  La déconnexion <strong>dissocie</strong> cet appareil de WhatsApp — il faudra <strong>réappairer (scanner le QR)</strong> pour le réactiver. Elle ne fait pas que suspendre la connexion.
+                  La déconnexion <strong>dissocie</strong> cet appareil de WhatsApp — il faudra <strong>rescanner le QR code</strong> pour le reconnecter. Elle ne fait pas que suspendre la connexion.
                 </p>
                 <p className="text-[12px] text-ant-mid mt-2.5 m-0">
                   Pour reconnecter <strong>sans</strong> réappairer, utilisez plutôt <strong>Redémarrer</strong>.
@@ -197,29 +197,44 @@ export default function NumberDetail() {
           </div>
         )}
 
-        {/* CADENCE — tier + protection profile ----------------------------- */}
-        <SectionBlock title="Cadence" sub="À quel rythme ce numéro envoie">
-          <div className="space-y-4">
+        {/* ── The guided dossier — four chapters, ordered the way a shop
+               owner thinks: the storefront, the opening hours, the human
+               touch, the number's safety. ─────────────────────────────── */}
+        <div className="space-y-12 pt-4 pb-8">
+          <Chapter
+            n="01"
+            title="Votre vitrine"
+            story="La première impression : la photo que vos clients voient, et l'accueil réservé à ceux qui appellent."
+          >
+            <WaProfileCard instance={instance} />
+            <WaBehaviorCard instance={instance} />
+          </Chapter>
+
+          <Chapter
+            n="02"
+            title="Vos horaires"
+            story="Comme une boutique, ce numéro peut avoir des heures d'ouverture — en dehors, les messages attendent sagement."
+          >
+            <ScheduleCard instance={instance} />
+          </Chapter>
+
+          <Chapter
+            n="03"
+            title="Une présence humaine"
+            story="Votre numéro écrit « en train d'écrire… », prend le temps de taper, et lit les messages comme une vraie personne."
+          >
+            <HumanizationCard instance={instance} />
+          </Chapter>
+
+          <Chapter
+            n="04"
+            title="La protection du numéro"
+            story="WhatsApp se méfie des envois de robot. Ces deux réglages font passer votre numéro pour ce qu'il est : une équipe qui travaille."
+          >
             <OperationalCard instance={instance} />
             <PacingCard instance={instance} />
-          </div>
-        </SectionBlock>
-
-        {/* HUMAN BEHAVIOR — how the number appears to customers ------------ */}
-        <SectionBlock title="Comportement humain" sub="Comment le numéro apparaît aux clients">
-          <div className="space-y-4">
-            <HumanizationCard instance={instance} />
-            <ScheduleCard instance={instance} />
-          </div>
-        </SectionBlock>
-
-        {/* WHATSAPP ACCOUNT — peer-visible profile + call behavior -------- */}
-        <SectionBlock title="Compte WhatsApp" sub="Profil visible par les contacts & appels">
-          <div className="space-y-4">
-            <WaBehaviorCard instance={instance} />
-            <WaProfileCard instance={instance} />
-          </div>
-        </SectionBlock>
+          </Chapter>
+        </div>
       </div>
 
       {deleteOverlay}
@@ -237,19 +252,31 @@ const btnPush    = 'inline-flex items-center justify-center h-10 px-5 rounded-fu
 
 // ─── Section wrapper ──────────────────────────────────────────────────────
 
-function SectionBlock({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
+// A numbered chapter of the dossier: ghost numeral in the left margin
+// (editorial mark, stacks above on mobile), a short orange rule, the chapter
+// title, and ONE serif-italic story sentence that explains the section to a
+// non-technical reader before any control appears.
+function Chapter({ n, title, story, children }: {
+  n: string; title: string; story: string; children: React.ReactNode
+}) {
   return (
-    <section className="space-y-3">
-      <header className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
-        <h2 className="font-display text-[19px] tracking-tight text-ant-ink">{title}</h2>
-        <span className="font-serif italic text-[12px] text-ant-mid">{sub}</span>
-      </header>
-      {children}
+    <section className="grid lg:grid-cols-[84px_minmax(0,1fr)] gap-x-6 gap-y-2">
+      <div aria-hidden className="select-none leading-none -mb-2 lg:mb-0 lg:pt-1 lg:text-right">
+        <span className="font-display text-[44px] lg:text-[56px] font-semibold tracking-[-0.05em] text-ant-ink/[0.09]">
+          {n}
+        </span>
+      </div>
+      <div className="space-y-4 min-w-0">
+        <header className="space-y-2 max-w-2xl">
+          <div className="h-[2px] w-10 rounded-full bg-ant-orange" />
+          <h2 className="font-display text-[21px] tracking-[-0.01em] text-ant-ink">{title}</h2>
+          <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid m-0">{story}</p>
+        </header>
+        {children}
+      </div>
     </section>
   )
 }
-
-// ─── Hero: auto-reconnect watchdog toggle ─────────────────────────────────
 //
 // ─── Card 1: Cadence tier ─────────────────────────────────────────────────
 // (IGF trim 2026-07-08: the Répartiteur pause toggle and the hero
@@ -262,9 +289,9 @@ function OperationalCard({ instance }: { instance: WhatsappInstance }) {
   return (
     <Card
       title="Palier de cadence"
-      eyebrow="MATURITÉ DU NUMÉRO"
+      eyebrow="L'ÂGE DU NUMÉRO"
       accent="warm"
-      help="Le palier détermine la prudence d'envoi : un numéro en chauffe envoie moins vite qu'un numéro établi."
+      help="Un numéro récent doit commencer doucement, comme un nouvel employé. Laissez « En chauffe » pendant le premier mois, passez à « Établi » ensuite. « En refroidissement » sert à reposer un numéro qui a trop envoyé."
     >
       <Row>
         <RowLabel>Palier de cadence</RowLabel>
@@ -307,10 +334,10 @@ function PacingCard({ instance }: { instance: WhatsappInstance }) {
 
   return (
     <Card
-      title="Protection d'envoi"
-      eyebrow="ENVELOPPE DE RISQUE DE BANNISSEMENT"
+      title="Profil d'envoi"
+      eyebrow="CONTRE LE BANNISSEMENT"
       accent="warm"
-      help="Un agent qui parle à un seul contact envoie toujours instantanément. Ces limites ne s'activent que lorsque des agents envoient à différents contacts en même temps, ou lorsque le volume soutenu approche du plafond."
+      help="La vitesse maximale d'envoi quand plusieurs vendeurs écrivent en même temps. Un vendeur seul avec son client n'est jamais ralenti. Dans le doute : Équilibré."
     >
       <Row>
         <RowLabel>Profil</RowLabel>
@@ -329,10 +356,11 @@ function PacingCard({ instance }: { instance: WhatsappInstance }) {
 
       <div className="mt-1.5 rounded-xl border border-ant-orange/20 bg-ant-orange/5 px-3.5 py-2.5">
         <div className="text-[13px] text-ant-ink">
-          ≈ <strong>{rate} messages/min</strong> sur l'ensemble des agents avant que le numéro ne ralentisse de lui-même.
+          Environ <strong>{rate} messages par minute</strong>, tous vendeurs confondus — au-delà, le numéro
+          espace les envois tout seul.
         </div>
-        <div className="font-mono text-[12px] text-ant-mid mt-0.5">
-          rafale {burst} · plafonds {hourly}/h · {daily}/jour
+        <div className="text-[12px] text-ant-mid mt-0.5">
+          Jusqu'à {burst} d'un coup · maximum {hourly}/heure · {daily}/jour
           {mode !== 'custom' && <> · <span className="text-ant-mid/70">{presetDefault.blurb}</span></>}
         </div>
       </div>
@@ -344,12 +372,17 @@ function PacingCard({ instance }: { instance: WhatsappInstance }) {
 
 function HumanizationCard({ instance }: { instance: WhatsappInstance }) {
   const set = useSetInstanceSettings(instance.id)
+  const receiptCaption: Record<'off'|'on_open'|'on_dispatch', string> = {
+    off:         "Les coches bleues ne s'affichent jamais chez le client.",
+    on_open:     "Coches bleues dès qu'un vendeur ouvre la conversation.",
+    on_dispatch: "Coches bleues seulement au moment où un vendeur répond.",
+  }
   return (
     <Card
       title="Humanisation"
-      eyebrow="SAISIE & ACCUSÉS DE LECTURE"
+      eyebrow="ÉCRIRE COMME UNE PERSONNE"
       accent="cool"
-      help="L'apparence du point de contrôle quand il agit — pré-saisie + moment où les coches bleues se déclenchent."
+      help="Avant chaque message, le client voit « en train d'écrire… » pendant un temps réaliste : un temps de base, plus un petit délai par caractère tapé, sans jamais dépasser le plafond. Les durées sont en millisecondes : 1000 ms = 1 seconde."
     >
       <Row>
         <RowLabel>Pré-saisie</RowLabel>
@@ -381,6 +414,9 @@ function HumanizationCard({ instance }: { instance: WhatsappInstance }) {
           disabled={set.isPending}
         />
       </Row>
+      <div className="text-[12px] text-ant-mid text-right -mt-1">
+        {receiptCaption[instance.read_receipts_mode as 'off'|'on_open'|'on_dispatch'] ?? ''}
+      </div>
     </Card>
   )
 }
@@ -530,7 +566,11 @@ function PacingInput({ label, unit, value, preset, onChange, step, clearable = t
   const isOverridden = value !== null && value !== undefined
   const commit = () => {
     const trimmed = draft.trim()
-    if (trimmed === '') { if (clearable) onChange(null); return }
+    if (trimmed === '') {
+      if (clearable) onChange(null)
+      else setDraft(value !== null && value !== undefined ? String(value) : '')
+      return
+    }
     const n = Number(trimmed)
     if (Number.isFinite(n) && n >= 0) onChange(n)
     else setDraft(value !== null && value !== undefined ? String(value) : '')
@@ -576,9 +616,9 @@ function PacingInput({ label, unit, value, preset, onChange, step, clearable = t
               type="button"
               onClick={() => onChange(null)}
               className="rounded-lg border border-ant-orange/30 bg-ant-orange/[0.08] px-2.5 py-1 text-[11px] font-semibold text-ant-orange whitespace-nowrap cursor-pointer hover:bg-ant-orange/15 transition-colors"
-            >Réinit. · {preset}{unit}</button>
+            >Réinit. · {preset} {unit}</button>
           ) : (
-            <span className="text-[11px] text-ant-mid whitespace-nowrap">défaut {preset}{unit}</span>
+            <span className="text-[11px] text-ant-mid whitespace-nowrap">par défaut : {preset} {unit}</span>
           )}
         </span>
       </span>
@@ -615,21 +655,36 @@ function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
   // Admin toggle: when off, dispatcher dispatches 24/7. Default OFF for new
   // instances. Existing instances backfilled to ON to preserve behavior.
   const enabled = ((instance as unknown as { business_hours_enabled?: boolean }).business_hours_enabled ?? false)
-  const locked = !enabled
+  // Also locked while a save is in flight: business_hours is written as ONE
+  // object spread from cache — a second edit before the refetch would
+  // silently revert the first.
+  const locked = !enabled || set.isPending
 
   const inputCls = (w: string) => cn(
     w, 'px-3 py-2 rounded-lg border border-ant-ink/15 bg-white text-[13px] text-ant-ink outline-none focus:border-ant-blue/50',
     locked && 'opacity-55 cursor-not-allowed',
   )
 
+  // Curated timezone choices — a raw IANA text field is a trap for
+  // non-technical admins. The current value is always present so nothing
+  // stored ever disappears from the select.
+  const TZ_LABELS: Record<string, string> = {
+    'Africa/Casablanca': 'Casablanca (Maroc)',
+    'Europe/Paris':      'Paris (France)',
+    'Europe/Madrid':     'Madrid (Espagne)',
+    'UTC':               'Heure internationale (UTC)',
+  }
+  const TZ_CHOICES = Object.keys(TZ_LABELS)
+  const tzOptions = TZ_CHOICES.includes(bh.tz) ? TZ_CHOICES : [bh.tz, ...TZ_CHOICES]
+
   return (
     <Card
       title="Horaire"
-      eyebrow="FENÊTRE D'ACTIVITÉ"
+      eyebrow="HEURES D'OUVERTURE"
       accent="cool"
       help={enabled
-        ? "Le point de contrôle cesse d'envoyer en dehors de ces heures. Désactivez pour un envoi 24h/24 et 7j/7."
-        : 'Horaire désactivé — le répartiteur envoie 24h/24 et 7j/7. Activez pour imposer une fenêtre quotidienne.'}
+        ? "En dehors de ces heures, les envois sont mis en attente — rien n'est perdu, tout part à l'ouverture."
+        : 'Horaire désactivé — le numéro envoie 24h/24 et 7j/7. Activez pour définir des heures d\'ouverture.'}
     >
       <Row>
         <RowLabel>Appliquer l'horaire</RowLabel>
@@ -643,12 +698,14 @@ function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
       </Row>
       <Row>
         <RowLabel>Fuseau horaire</RowLabel>
-        <input
-          defaultValue={bh.tz}
+        <select
+          value={bh.tz}
           disabled={locked}
-          onBlur={(e) => { const v = e.currentTarget.value.trim(); if (v && v !== bh.tz) set.mutate({ business_hours: { ...bh, tz: v } }) }}
-          className={inputCls('w-40')}
-        />
+          onChange={(e) => { const v = e.currentTarget.value; if (v && v !== bh.tz) set.mutate({ business_hours: { ...bh, tz: v } }) }}
+          className={inputCls('w-48 cursor-pointer')}
+        >
+          {tzOptions.map((tz) => <option key={tz} value={tz}>{TZ_LABELS[tz] ?? tz}</option>)}
+        </select>
       </Row>
       <Row>
         <RowLabel>Ouverture</RowLabel>
@@ -691,7 +748,7 @@ function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
           {overrideActive ? (
             <>
               <span className="text-[12px] font-semibold text-ant-green text-right">
-                Active jusqu'au {new Date(override!).toLocaleString()}
+                Active jusqu'au {new Date(override!).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}
               </span>
               <button
                 type="button"
@@ -702,6 +759,7 @@ function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
           ) : (
             <select
               defaultValue=""
+              disabled={locked}
               onChange={(e) => {
                 const v = e.currentTarget.value
                 if (!v) return
@@ -710,7 +768,7 @@ function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
                 set.mutate({ quiet_hours_override_until: until })
                 e.currentTarget.value = ''
               }}
-              className="w-44 px-3 py-2 rounded-lg border border-ant-ink/15 bg-white text-[13px] text-ant-ink outline-none cursor-pointer"
+              className={inputCls('w-44 cursor-pointer')}
             >
               <option value="">Ajouter une dérogation…</option>
               <option value="60">+1 heure</option>
@@ -738,9 +796,9 @@ function WaBehaviorCard({ instance }: { instance: WhatsappInstance }) {
   return (
     <Card
       title="Appels"
-      eyebrow="COMPORTEMENT CÔTÉ CONTACT"
+      eyebrow="QUAND UN CLIENT APPELLE"
       accent="natural"
-      help="Le réglage enregistre la valeur ; Appliquer l'envoie à WhatsApp."
+      help="Ce numéro sert à écrire, pas à téléphoner. En rejetant les appels, vous pouvez laisser un petit message d'excuse automatique. Réglez, puis « Appliquer à WhatsApp »."
     >
       <Row>
         <RowLabel>Rejeter les appels entrants</RowLabel>
@@ -751,7 +809,7 @@ function WaBehaviorCard({ instance }: { instance: WhatsappInstance }) {
           <RowLabel>Réponse auto sur appel rejeté</RowLabel>
           <input
             defaultValue={instance.wa_call_reply_text ?? ''}
-            placeholder="Désolé, les appels ne sont pas surveillés…"
+            placeholder="Désolé, nous ne prenons pas les appels sur ce numéro — écrivez-nous ici."
             onBlur={(e) => set.mutate({ wa_call_reply_text: e.currentTarget.value || null })}
             className="w-56 px-3 py-2 rounded-lg border border-ant-ink/15 bg-white text-[13px] text-ant-ink outline-none focus:border-ant-green/50"
           />
@@ -823,10 +881,10 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
 
   return (
     <Card
-      title="Profil visible par les contacts"
-      eyebrow="CE QUE VOIENT LES CONTACTS"
+      title="Photo de profil"
+      eyebrow="CE QUE VOIENT LES CLIENTS"
       accent="natural"
-      help="La photo de profil visible par toute personne qui contacte ce numéro. Le changement est appliqué immédiatement."
+      help="La photo qui apparaît chez chaque client, dans sa liste de discussions. Le changement est immédiat pour tout le monde."
     >
       <Row>
         <RowLabel>Photo de profil</RowLabel>
@@ -888,7 +946,7 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
               className="text-[13px] text-ant-orange underline text-left cursor-pointer bg-transparent border-none p-0"
             >
               {push.isPending && push.variables && 'pictureDataUrl' in ((push.variables as PushWaProfileArgs) ?? {})
-                ? 'Téléversement…'
+                ? 'Envoi de la photo…'
                 : instance.profile_pic_url ? 'Changer la photo' : 'Choisir une photo'}
             </button>
             {pickError && <span className="text-[11px] text-ant-rose">{pickError}</span>}
