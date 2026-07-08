@@ -118,7 +118,11 @@ export function createInstance(input: CreateInstanceInput): Promise<EvolutionRes
     alwaysOnline: false,
     readMessages: false,
     readStatus: false,
-    syncFullHistory: true,    // we want the initial history sync to populate
+    // OWNER RULING 2026-07-08 (one-week sync rule): request only WhatsApp's
+    // small initial slice, not the multi-month full dump. The worker's sync
+    // gates (SYNC_WINDOW_DAYS) enforce the window on whatever arrives; this
+    // flag keeps Evolution from even requesting the bulk.
+    syncFullHistory: false,
   })
 }
 

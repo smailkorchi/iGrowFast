@@ -63,6 +63,15 @@ export const config = {
   // --- Operational ---
   heartbeatIntervalMs: optionalNumber('HEARTBEAT_INTERVAL_MS', 5_000),
   logLevel: optional('LOG_LEVEL', 'info') as 'debug' | 'info' | 'warn' | 'error',
+
+  // --- History-sync window (OWNER RULING 2026-07-08) ---
+  // On pairing, ingest ONLY the last N days of history: messages older than the
+  // window are skipped, unresolvable @lid history is skipped, and contact/chat
+  // events never create conversation rows (messages do). Keeps a new number's
+  // sync bounded and every ingested media inside the WhatsApp CDN validity
+  // window (~14d) — the macaron-voiture incident (1,022 shell conversations,
+  // 7k guaranteed-fail media jobs) is the counterfactual.
+  syncWindowDays: optionalNumber('SYNC_WINDOW_DAYS', 7),
 } as const
 
 export type Config = typeof config

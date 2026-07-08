@@ -117,12 +117,44 @@ Gray items (unused by the 4 pages, feature-class — owner call, not dropped):
 `message_templates` (0 rows, 0 src refs, donor inbox feature never ported),
 `merge_review` (143 rows, absorption pending per deferred registry).
 
-### Wave 1 — worker code (.67 redeploy), needs owner go
-| # | Action | Class |
-|---|---|---|
-| 1.1 | Remove `logSink` DB persistence + `r2MetricsPull` from the worker (their sinks no longer exist; today they no-op/404 harmlessly) — worker logs live in journald/docker logs with rotation | cleanup |
-| 1.2 | Age-gate `enqueue_media_fetch` for history-sync media older than ~13 d: mark `media_failed_at` directly, skip the guaranteed-fail Evolution round-trip (86 % of media jobs during syncs) | sanctioned deviation |
-| 1.3 | Drop the `ingest_system_logs` stub + undeploy `client-log` edge fn once 1.1 ships | cleanup |
+### Wave 1 — the one-week sync rule + worker strip — APPLIED 2026-07-08
+**OWNER RULING 2026-07-08 (the pairing rule):** history sync ingests ONLY the
+last `SYNC_WINDOW_DAYS` (7, worker env) and ONLY displayable data. Supersedes
+the donor's "1 contact/chat = 1 conversation, always create the row"
+architecture. Live message flow is untouched. Gates (all in
+`ops/whatsapp-node/worker/src/webhook/handlers.ts`):
+
+1. **Message gate** — `messages.set` items older than the window are skipped;
+   unresolvable @lid history is skipped (`ingestMessage(fromHistorySync)`).
+   Side effect: every ingested media is inside WhatsApp's ~14 d CDN validity —
+   the expired-media storm is structurally impossible.
+2. **Contact gate** — `upsertContactFromSync` is ENRICH-ONLY (thread-ownership
+   check via `holdsContactThread`); the conversation-creating INSERTs in the
+   contacts and chats handlers became UPDATEs (DMs always; groups only during
+   the dump — live group joins still INSERT so `append_group_system_event`
+   has its row).
+3. **Dump-bulk gate** — during sync phase (`history_synced_at IS NULL`, 15 s
+   cache, fail-open), contact events for un-held jids skip BEFORE
+   `cacheAvatar` (no R2 avatar floods); un-held dump groups skip
+   `maybeRefreshGroupInfo` (no findGroupInfos hammering / roster churn).
+4. **Backfill gate** — `backfillContactsFromEvolution` prefilters against held
+   phones+lids before caching avatars (its donor comment claimed "does NOT
+   create conversations"; its `upsertContactFromSync` call did — the main
+   shell factory, now impossible).
+5. **Evolution knob** — `instance-create` now provisions with
+   `syncFullHistory: false` (was true): WhatsApp sends the small initial
+   slice, gates trim the rest.
+
+Strip (same redeploy): `logSink.ts` + `r2MetricsPull.ts` DELETED (worker logs
+→ journald only), `client-log` edge fn undeployed + removed from repo.
+REVISION vs plan: the `ingest_system_logs` no-op stub is KEPT permanently —
+edge `_shared/logError.ts` calls it fire-and-forget from 6 functions; a
+3-line no-op beats churning 6 edge fns.
+
+Deployed: worker image rebuilt on .67 (healthy, 2 dispatchers, leases
+claimed), edge runtime restarted with new `_shared/evolution.ts`.
+REAL TEST = next number pairing: expect dozens of conversations, zero
+`media.ingest.fail`, `contacts.backfill.done` logging `skipped_no_thread`.
 
 ### Wave 2 — audit-noise policy (owner decisions, per item)
 | # | Decision | Trade-off |

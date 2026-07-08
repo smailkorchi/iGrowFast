@@ -3,20 +3,20 @@
 import { config } from './config.js'
 import { log } from './logger.js'
 import { closeDb, listenOn, pool } from './db.js'
-import { startLogSink, stopLogSink } from './logSink.js'
 import { startHeartbeat, stopHeartbeat } from './heartbeat.js'
 import { wakeLoop, refreshQueueDepth, startSelfPresenceLoop, stopSelfPresenceLoop } from './dispatcher/loop.js'
 import { startInstanceManager, stopInstanceManager } from './dispatcher/instance-manager.js'
 import { startMediaIngest, stopMediaIngest, wakeMediaIngest } from './dispatcher/media-ingest.js'
 import { startDispatcherSnapshot, stopDispatcherSnapshot } from './dispatcher/snapshot.js'
-import { startR2MetricsPull, stopR2MetricsPull } from './r2MetricsPull.js'
 import { startWebhookServer } from './webhook/server.js'
 import { startActivePeerWarmup, stopActivePeerWarmup } from './webhook/handlers.js'
 
-async function main(): Promise<void> {
-  // Start the DB log sink first so worker.boot itself is captured.
-  startLogSink()
+// Observability strip (owner ruling 2026-07-08): logSink (DB persistence of
+// worker logs → whatsapp.system_logs) and r2MetricsPull (10min bucket scan →
+// whatsapp.r2_metrics) removed with their DB tables — worker logs live in
+// journald/docker logs only.
 
+async function main(): Promise<void> {
   log.info('worker.boot', {
     version: config.workerVersion,
     hostname: config.hostname,
@@ -55,9 +55,6 @@ async function main(): Promise<void> {
   // frontend's 2s dispatcher poll. Decoupled from the dispatch loops.
   startDispatcherSnapshot(3_000)
 
-  // Sample R2 storage (ListObjects via worker S3 creds) every 10min into r2_metrics.
-  startR2MetricsPull()
-
   // Instance manager: load existing connected instances, spawn dispatchers,
   // subscribe to Realtime for future changes.
   await startInstanceManager()
@@ -91,7 +88,6 @@ async function shutdown(signal: string): Promise<void> {
   stopActivePeerWarmup()
   stopSelfPresenceLoop()
   stopDispatcherSnapshot()
-  stopR2MetricsPull()
   if (webhookCloser) {
     try { await webhookCloser() } catch (err) {
       log.error('worker.shutdown.webhook_close_failed', {
@@ -104,8 +100,6 @@ async function shutdown(signal: string): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
     })
   }
-  // Flush any buffered operational logs before the DB connection closes.
-  try { await stopLogSink() } catch { /* best effort */ }
   try { await closeDb() } catch (err) {
     log.error('worker.shutdown.db_close_failed', {
       error: err instanceof Error ? err.message : String(err),

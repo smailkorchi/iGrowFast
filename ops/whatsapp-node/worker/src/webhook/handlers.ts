@@ -214,6 +214,19 @@ async function upsertContactFromSync(
     const isPhone = jid.endsWith('@s.whatsapp.net')
     if (!isLid && !isPhone) return
 
+    // IGF SYNC GATE (owner ruling 2026-07-08): ENRICH-ONLY. This function no
+    // longer creates anything — conversations are created by MESSAGES
+    // (ingest_message) or explicit user action (New chat / phonebook import),
+    // never by contact metadata events. The donor's "1 contact = 1
+    // conversation immediately" rule filled the inbox and the bible with
+    // thousands of message-less phonebook shells on every pairing (measured:
+    // 2,581 conversations for 969 messages). A contact enters the bible when
+    // it owns a thread; until then its metadata is not our data.
+    if (!(await holdsContactThread(instanceId, jid))) {
+      log.debug('webhook.contact_sync.skipped_no_thread', { instance_id: instanceId, jid })
+      return
+    }
+
     // SINGLE-WRITER rule: whatsapp.contacts AND the contact bible
     // (contact_identifiers) are written ONLY through resolve_identity. The old
     // raw INSERT here was a SECOND contacts writer that bypassed the bible and
@@ -226,27 +239,6 @@ async function upsertContactFromSync(
       `SELECT whatsapp.resolve_identity($1, $2, $3::identifier_kind, 'contacts_upsert', NULL, NULL, $4, $5)`,
       [instanceId, jid, isPhone ? 'phone' : 'lid', pushName, profilePic],
     )
-
-    if (isPhone) {
-      // Architectural rule: 1 contact = 1 conversation. Create the conversation
-      // row for the phone JID even if no message has arrived yet, so the inbox
-      // shows the contact immediately after history sync. The conversations
-      // identity trigger then links contact_id to the SAME bible contact above —
-      // no shell, because the identifier is already registered.
-      await pool.query(
-        `INSERT INTO whatsapp.conversations (instance_id, remote_jid, peer_display_name, peer_profile_pic)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (instance_id, remote_jid) DO UPDATE SET
-           peer_display_name = COALESCE(EXCLUDED.peer_display_name, whatsapp.conversations.peer_display_name),
-           peer_profile_pic  = COALESCE(EXCLUDED.peer_profile_pic,  whatsapp.conversations.peer_profile_pic)`,
-        [instanceId, jid, pushName, profilePic],
-      )
-    }
-    // LID-only: registered in the bible but NO conversation row yet
-    // (architectural rule: 1 RESOLVED contact = 1 conversation). When the lid is
-    // later linked to a phone via a deterministic same_envelope_alt /
-    // group_participants pair, the conversation is created under the canonical
-    // phone JID on the next message.
   } catch (err) {
     log.warn('webhook.contact_sync.upsert_failed', {
       instance_id: instanceId, jid,
@@ -287,7 +279,10 @@ export async function handleEvent(
       // root-level flags, and still handles item-level flags if Evolution
       // ever moves them.
       void recordSyncProgress(instanceId, envelope)
-      return handleMessagesUpsert(instanceId, envelope.data)
+      // IGF SYNC GATE: messages.set is the history dump — flag it so ingest
+      // applies the one-week window + resolvability gates (live upsert never
+      // gated).
+      return handleMessagesUpsert(instanceId, envelope.data, true)
     case 'connection.update':
       return handleConnectionUpdate(instanceId, envelope.data as ConnectionUpdateData)
     case 'qrcode.updated':
@@ -322,13 +317,13 @@ export async function handleEvent(
 
 // ---- messages.upsert -------------------------------------------------------
 
-async function handleMessagesUpsert(instanceId: string, raw: unknown): Promise<void> {
+async function handleMessagesUpsert(instanceId: string, raw: unknown, fromHistorySync = false): Promise<void> {
   // Evolution sends either a single object or an array depending on context.
   const items = Array.isArray(raw) ? raw : [raw]
   for (const m of items) {
     if (!isMessageData(m)) continue
     try {
-      await ingestMessage(instanceId, m)
+      await ingestMessage(instanceId, m, fromHistorySync)
     } catch (err) {
       log.error('webhook.messages_upsert.failed', {
         instance_id: instanceId,
@@ -336,6 +331,47 @@ async function handleMessagesUpsert(instanceId: string, raw: unknown): Promise<v
         error: err instanceof Error ? err.message : String(err),
       })
     }
+  }
+}
+
+// IGF SYNC GATE (owner ruling 2026-07-08): "in sync phase" = the instance has
+// not stamped history_synced_at yet (a genuine QR re-pair resets it to NULL, so
+// a re-dump re-enters the phase). Used where the gate can't key off the event
+// type (chats.upsert arrives identically during the dump and live). 15s cache;
+// fail-open to live behavior — a DB blip must never suppress live surfacing.
+const syncPhaseCache = new Map<string, { v: boolean; exp: number }>()
+
+// "We hold this contact": a phone jid owns a conversation, or a lid is already
+// registered in the contact bible. The ownership test behind every enrich-only
+// contact path.
+async function holdsContactThread(instanceId: string, jid: string): Promise<boolean> {
+  const isPhone = jid.endsWith('@s.whatsapp.net')
+  const { rows } = await pool.query(
+    isPhone
+      ? `SELECT 1 FROM whatsapp.conversations
+          WHERE instance_id = $1 AND remote_jid = $2 LIMIT 1`
+      : `SELECT 1 FROM whatsapp.contact_identifiers ci
+           JOIN whatsapp.contacts c ON c.id = ci.contact_id
+          WHERE c.instance_id = $1 AND ci.identifier = $2 LIMIT 1`,
+    [instanceId, jid],
+  )
+  return rows.length > 0
+}
+
+async function isInSyncPhase(instanceId: string): Promise<boolean> {
+  const c = syncPhaseCache.get(instanceId)
+  if (c && c.exp > Date.now()) return c.v
+  try {
+    const { rows } = await pool.query<{ synced: boolean }>(
+      `SELECT history_synced_at IS NOT NULL AS synced
+         FROM whatsapp.whatsapp_instances WHERE id = $1`,
+      [instanceId],
+    )
+    const v = rows.length > 0 && !rows[0]?.synced
+    syncPhaseCache.set(instanceId, { v, exp: Date.now() + 15_000 })
+    return v
+  } catch {
+    return false
   }
 }
 
@@ -352,7 +388,7 @@ function isIngestableJid(jid: string): boolean {
   return true
 }
 
-async function ingestMessage(instanceId: string, m: WAMessageData): Promise<void> {
+async function ingestMessage(instanceId: string, m: WAMessageData, fromHistorySync = false): Promise<void> {
   const remoteJid = m.key?.remoteJid
   if (!remoteJid) {
     log.warn('webhook.messages_upsert.no_remote_jid', { instance_id: instanceId })
@@ -361,6 +397,35 @@ async function ingestMessage(instanceId: string, m: WAMessageData): Promise<void
   if (!isIngestableJid(remoteJid)) {
     log.debug('webhook.messages_upsert.skipped_non_chat', { instance_id: instanceId, remote_jid: remoteJid })
     return
+  }
+
+  // IGF SYNC GATES (owner ruling 2026-07-08) — history dump (messages.set) only;
+  // live flow is untouched.
+  //   1. WINDOW: skip anything older than SYNC_WINDOW_DAYS (default 7). Bounds
+  //      the pairing cost AND keeps every ingested media inside WhatsApp's
+  //      ~14-day CDN validity, so expired-media fetch storms cannot exist.
+  //   2. RESOLVABILITY: skip @lid history with no known phone mapping — an
+  //      unresolvable @lid would create an invisible shell conversation that
+  //      only the consolidate cron could ever rescue. If the pair is learned
+  //      later (same-envelope alt), captureJidMapping clears the negative
+  //      cache and subsequent history batches resolve.
+  if (fromHistorySync) {
+    const ts = normalizeTimestamp(m.messageTimestamp)
+    if (ts.getTime() < Date.now() - config.syncWindowDays * 86_400_000) {
+      log.debug('webhook.sync_gate.skipped_old', {
+        instance_id: instanceId, remote_jid: remoteJid, whatsapp_ts: ts.toISOString(),
+      })
+      return
+    }
+    if (remoteJid.endsWith('@lid')) {
+      const phone = await resolveLidToPhoneJid(instanceId, remoteJid)
+      if (!phone) {
+        log.debug('webhook.sync_gate.skipped_unresolved_lid', {
+          instance_id: instanceId, remote_jid: remoteJid,
+        })
+        return
+      }
+    }
   }
 
   let { kind, body, mediaMeta } = extractContent(m.message)
@@ -696,6 +761,18 @@ async function handleContactsUpsertOrUpdate(instanceId: string, raw: unknown, is
     if (!jid || !isIngestableJid(jid)) continue
 
     const isGroup = jid.endsWith('@g.us')
+
+    // IGF SYNC GATE (owner ruling 2026-07-08): during the pairing dump, contact
+    // metadata for a jid we hold no thread for is dead weight — skip BEFORE
+    // cacheAvatar so the dump can't flood R2 with avatars of phonebook-only
+    // contacts. Held groups get rosters/pics via maybeRefreshGroupInfo instead.
+    // Live events keep donor behavior (participant jids need profiles for
+    // group-sender rendering).
+    if (!isGroup && (await isInSyncPhase(instanceId)) && !(await holdsContactThread(instanceId, jid))) {
+      log.debug('webhook.contact_sync.skipped_dump_bulk', { instance_id: instanceId, jid })
+      continue
+    }
+
     // Cache the raw (expiring) WA CDN URL into R2 and store the stable URL.
     const pic = await cacheAvatar(instanceId, c.profilePicUrl)
     // Use the same fallback detector as chats.upsert + messages.upsert so all
@@ -782,13 +859,16 @@ async function handleContactsUpsertOrUpdate(instanceId: string, raw: unknown, is
     }
 
     // DMs: pushName is the contact's WA display name — safe to use.
+    // IGF SYNC GATE (owner ruling 2026-07-08): UPDATE-only. Contact metadata
+    // events enrich existing threads; they never create conversation rows
+    // (messages do). Was INSERT..ON CONFLICT — a shell creator during the
+    // pairing dump.
     try {
       await pool.query(
-        `INSERT INTO whatsapp.conversations (instance_id, remote_jid, peer_display_name, peer_profile_pic)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (instance_id, remote_jid) DO UPDATE SET
-           peer_display_name = COALESCE($3::text, whatsapp.conversations.peer_display_name),
-           peer_profile_pic  = COALESCE($4::text, whatsapp.conversations.peer_profile_pic)`,
+        `UPDATE whatsapp.conversations SET
+           peer_display_name = COALESCE($3::text, peer_display_name),
+           peer_profile_pic  = COALESCE($4::text, peer_profile_pic)
+         WHERE instance_id = $1 AND remote_jid = $2`,
         [instanceId, jid, name, pic],
       )
       if (pic) {
@@ -851,28 +931,45 @@ async function handleChatsUpsertOrUpdate(instanceId: string, raw: unknown): Prom
     const usableName =
       rawName && !looksLikeFallbackName(rawName, jid) ? rawName : null
 
-    // Architectural rule: 1 chat = 1 conversation. Always create the row
-    // even when no usable name is known yet — peer_display_name fills in
-    // later from contacts.upsert / maybeRefreshGroupInfo.
+    // IGF SYNC GATE (owner ruling 2026-07-08), replaces the donor's "1 chat =
+    // 1 conversation, always create the row":
+    //   DMs    → UPDATE-only, always. Messages create DM conversations; a
+    //            chats event for a thread we don't hold is dump bulk.
+    //   Groups → live INSERT kept (being added to a group must surface even
+    //            before its first message — append_group_system_event requires
+    //            the row); during the pairing dump groups are created only by
+    //            their own ≤window messages, so old dormant groups never land.
+    let groupHeld = true
     try {
       if (isGroup) {
-        // Groups: COALESCE so we never overwrite a known-good subject from
-        // the Evolution group API with a stale chats.upsert sample.
-        await pool.query(
-          `INSERT INTO whatsapp.conversations (instance_id, remote_jid, peer_display_name)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (instance_id, remote_jid) DO UPDATE SET
-             peer_display_name = COALESCE(whatsapp.conversations.peer_display_name, EXCLUDED.peer_display_name)`,
-          [instanceId, jid, usableName],
-        )
+        if (await isInSyncPhase(instanceId)) {
+          const res = await pool.query(
+            `UPDATE whatsapp.conversations SET
+               peer_display_name = COALESCE(peer_display_name, $3::text)
+             WHERE instance_id = $1 AND remote_jid = $2`,
+            [instanceId, jid, usableName],
+          )
+          // Dump-phase chats event for a group we don't hold (no ≤window
+          // message yet) — also skip the roster/info pull below, else the dump
+          // hammers Evolution findGroupInfos once per historical group.
+          groupHeld = (res.rowCount ?? 0) > 0
+        } else {
+          // Groups: COALESCE so we never overwrite a known-good subject from
+          // the Evolution group API with a stale chats.upsert sample.
+          await pool.query(
+            `INSERT INTO whatsapp.conversations (instance_id, remote_jid, peer_display_name)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (instance_id, remote_jid) DO UPDATE SET
+               peer_display_name = COALESCE(whatsapp.conversations.peer_display_name, EXCLUDED.peer_display_name)`,
+            [instanceId, jid, usableName],
+          )
+        }
       } else {
-        // DMs: pushName is authoritative when present. Insert unconditionally;
-        // only overwrite name when we actually have a new better one.
+        // DMs: pushName is authoritative when present; enrich existing only.
         await pool.query(
-          `INSERT INTO whatsapp.conversations (instance_id, remote_jid, peer_display_name)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (instance_id, remote_jid) DO UPDATE SET
-             peer_display_name = COALESCE(EXCLUDED.peer_display_name, whatsapp.conversations.peer_display_name)`,
+          `UPDATE whatsapp.conversations SET
+             peer_display_name = COALESCE($3::text, peer_display_name)
+           WHERE instance_id = $1 AND remote_jid = $2`,
           [instanceId, jid, usableName],
         )
       }
@@ -885,7 +982,8 @@ async function handleChatsUpsertOrUpdate(instanceId: string, raw: unknown): Prom
     // chats.update on a group is WhatsApp's "subject changed, refetch" signal
     // (it carries no name). Force a fresh group-info pull so the authoritative
     // subject lands AND maybeRefreshGroupInfo can detect+pill the rename.
-    if (isGroup) {
+    // Gated on groupHeld: never pull rosters for dump-phase groups we skipped.
+    if (isGroup && groupHeld) {
       groupRefreshCache.delete(`${instanceId}:${jid}`)
       void maybeRefreshGroupInfo(instanceId, jid)
     }
@@ -2754,13 +2852,12 @@ async function getEvolutionClientForInstance(instanceId: string): Promise<Evolut
   return client
 }
 
-// Pull the FULL contact list from Evolution and ingest it into our contacts
-// table (the bible). The history sync populates Evolution's Contact table in
-// bulk but only forwards a trickle of CONTACTS_UPSERT webhooks, so relying on
-// webhooks alone leaves us with a fraction of the contacts (observed 4 of 45).
-// This closes that gap: every contact Evolution knows lands in our bible.
-// Contacts-table only — does NOT create conversations (avoids empty-shell
-// inbox clutter). Best-effort, idempotent (resolve_identity upserts).
+// Pull the FULL contact list from Evolution and use it to ENRICH the contacts
+// we hold threads for (names/pics arrive here that the CONTACTS_UPSERT webhook
+// trickle misses — observed 4 of 45). IGF rule (owner ruling 2026-07-08): a
+// contact enters our data only when it owns a conversation — phonebook-only
+// contacts are filtered out BEFORE any avatar caching or bible write. Creates
+// nothing; best-effort, idempotent (resolve_identity upserts).
 const backfillInFlight = new Set<string>()
 async function backfillContactsFromEvolution(instanceId: string): Promise<void> {
   if (backfillInFlight.has(instanceId)) return
@@ -2770,17 +2867,45 @@ async function backfillContactsFromEvolution(instanceId: string): Promise<void> 
     if (!client) return
     const raw = await client.findContacts()
     const items = Array.isArray(raw) ? (raw as Array<{ remoteJid?: string; pushName?: string; profilePicUrl?: string | null }>) : []
+
+    // IGF SYNC GATE (owner ruling 2026-07-08): enrich HELD threads only. The
+    // donor comment above claims "does NOT create conversations" but its
+    // upsertContactFromSync call did — every Evolution phonebook contact became
+    // a shell conversation + bible row (donor-latent; the bulk of the 2,581
+    // shells). Prefetch the held sets in two queries so the filter runs before
+    // cacheAvatar (no R2 puts for phonebook-only contacts).
+    const heldPhones = new Set<string>(
+      (await pool.query<{ remote_jid: string }>(
+        `SELECT remote_jid FROM whatsapp.conversations
+          WHERE instance_id = $1 AND is_group = false`,
+        [instanceId],
+      )).rows.map((r) => r.remote_jid),
+    )
+    const heldLids = new Set<string>(
+      (await pool.query<{ identifier: string }>(
+        `SELECT ci.identifier
+           FROM whatsapp.contact_identifiers ci
+           JOIN whatsapp.contacts c ON c.id = ci.contact_id
+          WHERE c.instance_id = $1 AND ci.kind = 'lid'`,
+        [instanceId],
+      )).rows.map((r) => r.identifier),
+    )
+
     let ingested = 0
+    let skipped = 0
     for (const c of items) {
       const jid = c.remoteJid
       if (!jid || !isIngestableJid(jid) || jid.endsWith('@g.us')) continue   // DMs/LIDs only
+      if (!heldPhones.has(jid) && !heldLids.has(jid)) { skipped++; continue }
       const pic = await cacheAvatar(instanceId, c.profilePicUrl ?? null)
       const trimmed = c.pushName?.trim() ?? null
       const name = trimmed && !looksLikeFallbackName(trimmed, jid) ? trimmed : null
-      await upsertContactFromSync(instanceId, jid, name, pic)   // contacts + bible, no conversation
+      await upsertContactFromSync(instanceId, jid, name, pic)   // enrich-only
       ingested++
     }
-    log.info('contacts.backfill.done', { instance_id: instanceId, evolution_total: items.length, ingested })
+    log.info('contacts.backfill.done', {
+      instance_id: instanceId, evolution_total: items.length, ingested, skipped_no_thread: skipped,
+    })
   } catch (err) {
     log.warn('contacts.backfill.failed', {
       instance_id: instanceId, error: err instanceof Error ? err.message : String(err),
