@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
+import { useAuth } from '../auth'
 import type { MessageDecrypted } from '../database.types'
 
 export const messageKeys = {
@@ -87,6 +88,8 @@ export function useFlattenedThread(conversationId: string | null) {
  */
 export function useThreadRealtime(conversationId: string | null) {
   const qc = useQueryClient()
+  const { session } = useAuth()
+  const uid = session?.user.id ?? null
   const lastConvRef = useRef<string | null>(null)
   useEffect(() => {
     if (!conversationId) return
@@ -156,6 +159,52 @@ export function useThreadRealtime(conversationId: string | null) {
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
   }, [conversationId, qc])
+
+  // ADDITIVE (migration 040): private wa:conv:<id> broadcast carrying the DECRYPTED
+  // message — patches the thread with ZERO re-fetch (the postgres_changes path
+  // above re-fetches every event). Runs ALONGSIDE postgres_changes and dedupes by
+  // id (patchInsertNewest skips dupes, patchUpdate is idempotent), so double
+  // delivery is harmless; postgres_changes stays authoritative until it is removed
+  // and messages leaves the realtime publication (the ~62.6% list_changes win).
+  // Separate effect (keyed on uid too) so the postgres_changes channel above is
+  // untouched. Delete-for-me is applied client-side via hidden_for_user_ids.
+  useEffect(() => {
+    if (!conversationId) return
+    const key = messageKeys.thread(conversationId)
+    const patch = (
+      fn: (prev: { pages: ThreadPage[]; pageParams: unknown[] }) => { pages: ThreadPage[]; pageParams: unknown[] },
+    ) => qc.setQueryData<{ pages: ThreadPage[]; pageParams: unknown[] } | undefined>(
+      key, (prev) => prev ? fn(prev) : prev,
+    )
+    const ch = supabase
+      .channel(`wa:conv:${conversationId}`, { config: { private: true } })
+      .on('broadcast', { event: 'msg' }, ({ payload }) => {
+        const p = payload as (MessageDecrypted & { op?: string; deleted?: boolean; hidden_for_user_ids?: string[] }) | null
+        const id = p?.id
+        if (!id) return
+        // Tombstone (cancelled/hard-deleted message).
+        if (p!.deleted) { patch((prev) => patchDelete(prev, id)); return }
+        // Delete-for-me: hidden for THIS agent → drop it from their thread only.
+        if (uid && Array.isArray(p!.hidden_for_user_ids) && p!.hidden_for_user_ids.includes(uid)) {
+          patch((prev) => patchDelete(prev, id)); return
+        }
+        const row = p as MessageDecrypted
+        if (p!.op === 'INSERT') {
+          patch((prev) => patchInsertNewest(prev, row))
+        } else {
+          patch((prev) => patchUpdate(prev, row))
+          void qc.invalidateQueries({ queryKey: ['pinnedBar', conversationId] })
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Private-channel auth failed / socket dropped; postgres_changes above
+          // keeps the thread correct. Surface for diagnostics.
+          console.warn(`[wa-thread] wa:conv:${conversationId} status=${status}`)
+        }
+      })
+    return () => { void supabase.removeChannel(ch) }
+  }, [conversationId, uid, qc])
 }
 
 function patchInsertNewest(
