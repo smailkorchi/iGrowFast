@@ -584,7 +584,15 @@ revoke all on function whatsapp._conversations_resolve_identity() from public;
 grant  execute on function whatsapp._conversations_resolve_identity() to service_role;
 
 -- deferred triggers now buildable (from waves 5 & 6):
+-- NOTE: jid_mapping_resolved is created here to match the donor's schema but is
+-- IMMEDIATELY DISABLED below (whatsapp_026) — the donor permanently disabled it
+-- (phase0, 2026-06-01) because _on_jid_mapping_resolved → merge_conversations
+-- HARD-DELETES conversations off the raw jid_mapping table, ahead of and
+-- defeating the sanctioned soft-tombstone (merged_into) consolidation path. Keep
+-- the CREATE for schema parity; consolidation runs only through consolidate_lid
+-- + _cron_consolidate_split_conversations. Do NOT re-enable.
 create trigger jid_mapping_resolved after insert or update of phone_jid on whatsapp.jid_mapping
   for each row execute function whatsapp._on_jid_mapping_resolved();
+alter table whatsapp.jid_mapping disable trigger jid_mapping_resolved;
 create trigger conversations_resolve_identity after insert on whatsapp.conversations
   for each row execute function whatsapp._conversations_resolve_identity();

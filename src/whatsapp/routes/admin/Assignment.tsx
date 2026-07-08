@@ -75,8 +75,13 @@ export default function AdminAssignment() {
   const assignmentsQ    = useInstanceAssignments(instanceId)
 
   // Roster = active non-admin users only. Admins already have full access
-  // to every conversation via RLS; routing them is meaningless and clutters
-  // both the pool and the assign-to list.
+  // to every conversation via RLS; routing them is meaningless.
+  // KNOWN GAP (deferred): our _guard_assignment_business trigger only permits
+  // role='commercial' as an assignee, but the whatsapp.profiles view collapses
+  // the real role to 'admin'|'user', so we can't filter to commercial here.
+  // If a business ever exposes a non-commercial non-admin role (media buyer,
+  // courier) in this list, assigning to them aborts the batch. Proper fix needs
+  // the profiles view to surface the real role / an is_assignable flag.
   const agents = useMemo(
     () => (allProfiles ?? []).filter((p) => p.is_active && p.role !== 'admin'),
     [allProfiles],
