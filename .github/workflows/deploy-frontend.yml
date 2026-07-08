@@ -30,6 +30,11 @@ jobs:
           cache: npm
 
       - run: npm ci
+      # Typecheck GATE (added 2026-07-08): `npm run build` is vite/esbuild —
+      # it transpiles without type-checking, so a broken TS file would deploy
+      # (this actually happened: a cut import shipped a runtime ReferenceError).
+      # tsc -b is the real check; fail the deploy here instead of in prod.
+      - run: npx tsc -b
       - run: npm run build
 
       - name: SSH setup
