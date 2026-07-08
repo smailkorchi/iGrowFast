@@ -26,7 +26,6 @@ import {
   useConversationsRealtime,
   useConversationsBumpRealtime,
   useInstancesUnread,
-  useInstancesUnreadRealtime,
   useMarkConversationRead,
   type ConversationFilter,
 } from '../../lib/queries/conversations'
@@ -129,12 +128,11 @@ export default function AdminConversations() {
 
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
-  // Live-refresh the per-instance unread badge across ALL numbers (not just the
-  // active one) so the switcher badge appears/clears instantly, not on staleTime.
-  useInstancesUnreadRealtime(instanceIds)
-  // Stage-2 list-bump: admins receive per-instance conversation bumps on a
-  // private broadcast channel (wa:inst:<id>) and patch the loaded list in place —
-  // additive to the postgres_changes invalidate in useConversationsRealtime.
+  // Stage-2 list-bump / Stage C: admins receive per-instance conversation bumps
+  // on a private broadcast channel (wa:inst:<id>). This single hook now drives
+  // BOTH the live list (patched in place) AND the per-instance unread badge
+  // (['instances-unread'] invalidate) — it replaced the retired
+  // useInstancesUnreadRealtime after conversations left the realtime publication.
   const bumpTopics = useMemo(() => instanceIds.map((id) => `wa:inst:${id}`), [instanceIds])
   useConversationsBumpRealtime(bumpTopics)
 

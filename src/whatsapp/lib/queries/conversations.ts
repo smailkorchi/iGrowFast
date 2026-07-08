@@ -206,44 +206,16 @@ export function useInstancesUnread(instanceIds: string[]) {
 }
 
 // ─── per-instance unread live-sync ─────────────────────────────────────────
-// The switcher/navbar unread badge is an aggregate (`instances-unread`) summed
-// across ALL the caller's instances — but `useConversationsRealtime` only
-// subscribes to the ACTIVE instance, so unread changes on OTHER numbers used to
-// surface only on the 5s staleTime / window-focus refetch (the lag). This hook
-// subscribes to EVERY conversations row the caller can see (RLS-scoped: admins
-// = all, agents = assigned) and refreshes the unread map the moment any
-// unread_count changes — badge appears/clears in realtime. Debounced so a burst
-// of inbound messages coalesces into one refetch.
-export function useInstancesUnreadRealtime(instanceIds: string[]) {
-  const qc = useQueryClient()
-  // Stable key so re-renders with the same instance set don't re-subscribe.
-  const key = [...instanceIds].sort().join(',')
-  useEffect(() => {
-    const ids = key ? key.split(',') : []
-    if (ids.length === 0) return
-    let t: ReturnType<typeof setTimeout> | null = null
-    const bump = () => {
-      if (t) clearTimeout(t)
-      t = setTimeout(() => { void qc.invalidateQueries({ queryKey: ['instances-unread'] }) }, 150)
-    }
-    // ENTERPRISE AUDIT: was ONE unfiltered subscription to conversations, so
-    // Realtime RLS-checked EVERY conversations change (all tenants) against this
-    // subscriber for a badge count — O(all subscribers) per event at scale. Now
-    // one server-side-filtered binding per the caller's OWN instances: a change
-    // to another tenant's conversation never matches, so it never fires here and
-    // never costs an RLS eval for this session.
-    let channel = supabase.channel('instances-unread-rt')
-    for (const id of ids) {
-      channel = channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${id}` },
-        bump,
-      )
-    }
-    channel.subscribe()
-    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
-  }, [qc, key])
-}
+// RETIRED at Stage C (2026-07-08). The switcher/navbar unread badge aggregate
+// (['instances-unread']) was refreshed by a postgres_changes subscription on
+// whatsapp.conversations. That table was dropped from the supabase_realtime
+// publication (the ~89% WAL / list_changes choke-point fix), so the badge is now
+// driven off the SAME private bump broadcast that drives the list: applyBump
+// (via useConversationsBumpRealtime) calls scheduleUnreadInvalidate on every bump
+// (admins get wa:inst:<id> per instance; agents get wa:user:<uid>), and
+// scheduleBumpReconcile refetches it on (re)connect. Coverage is equivalent — any
+// unread_count change fires a conversation bump — with none of the conversations
+// WAL decode + per-subscriber RLS cost.
 
 // ─── mark-read (optimistic) ────────────────────────────────────────────────
 // Returns a callback that clears a conversation's unread INSTANTLY across every
@@ -387,21 +359,18 @@ export function useConversationsRealtime(instanceId: string | null) {
         void qc.invalidateQueries({ queryKey: ['instances'] })
       }, 250)
     }
+    // Stage C (2026-07-08): the conversations `*` and messages INSERT bindings
+    // were REMOVED — the conversation-bump firehose now rides the private bump
+    // broadcast (useConversationsBumpRealtime patches the list in place), and
+    // whatsapp.conversations was dropped from the supabase_realtime publication
+    // (the list_changes WAL choke-point fix). What remains here are the two
+    // low-churn signals that stay on postgres_changes (still published tables):
+    //   • conversation_assignments — an assignment DELETE can revoke an agent's
+    //     access (→ empty state); the bump trigger does not fire on assignment.
+    //   • conversation_tags — tag chips on list rows; not a conversations write,
+    //     so no bump fires for it.
     const channel = supabase
       .channel(`conv-page-${instanceId}`)
-      // conversations UPDATE covers unread_count / last_message_at bumps; the
-      // per-instance unread badge is refreshed by the dedicated (debounced)
-      // useInstancesUnreadRealtime — no redundant ['instances-unread'] invalidate.
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${instanceId}` },
-        bumpList,
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'whatsapp', table: 'messages', filter: `instance_id=eq.${instanceId}` },
-        bumpList,
-      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'whatsapp', table: 'conversation_assignments' },
@@ -461,6 +430,63 @@ function scheduleNewConvAdmit(qc: QueryClient, instanceId: string): void {
   }, 300))
 }
 
+// Per-instance unread badge (['instances-unread']) is a SUM the bump payload's
+// absolute per-conversation unread_count can't maintain by itself, so drive it by
+// a debounced INVALIDATE (refetch the aggregate) on any bump — same effect the
+// retired useInstancesUnreadRealtime had, now sourced from the bump instead of a
+// conversations postgres_changes subscription. One global timer (single query key).
+let _unreadInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleUnreadInvalidate(qc: QueryClient): void {
+  if (_unreadInvalidateTimer) clearTimeout(_unreadInvalidateTimer)
+  _unreadInvalidateTimer = setTimeout(() => {
+    _unreadInvalidateTimer = null
+    void qc.invalidateQueries({ queryKey: ['instances-unread'] })
+  }, 150)
+}
+
+// Reconciliation backstop. Broadcast is at-most-once, so anything missed while the
+// socket was disconnected is caught by one full list+badge refetch when a bump
+// channel (re)subscribes. Within a live connection, bumps carry the ABSOLUTE row
+// so any dropped bump self-heals on that conversation's next bump. Debounced so
+// an admin's N channels resubscribing coalesce into one refetch.
+let _reconcileTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleBumpReconcile(qc: QueryClient): void {
+  if (_reconcileTimer) clearTimeout(_reconcileTimer)
+  _reconcileTimer = setTimeout(() => {
+    _reconcileTimer = null
+    void qc.invalidateQueries({ queryKey: ['conversations', 'list'] })
+    void qc.invalidateQueries({ queryKey: ['instances-unread'] })
+  }, 300)
+}
+
+// Filter-membership signature: the columns that decide which list tab(s) a row
+// belongs to (mirrors the useConversations server predicates: is_archived, status
+// in open/pending, is_group, unread_count>0). If this differs between the cached
+// row and the bump payload, the row may have crossed a filter boundary and needs
+// the server predicate (a refetch) rather than an in-place patch.
+function membershipSig(r: {
+  is_archived?: boolean | null; status?: unknown; is_group?: boolean | null; unread_count?: number | null
+}): string {
+  return `${r.is_archived ?? false}|${String(r.status ?? '')}|${r.is_group ?? false}|${(r.unread_count ?? 0) > 0}`
+}
+
+// Evict a conversation id from every loaded list cache + drop its single-conv
+// cache. Used for a delete tombstone (conversations is no longer in the realtime
+// publication, so a hard DELETE has no other removal signal).
+function removeConversationFromCaches(qc: QueryClient, id: string): void {
+  qc.setQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] }, (old) => {
+    if (!old?.pages) return old
+    let touched = false
+    const pages = old.pages.map((pg) => {
+      if (!pg.rows.some((r) => r.id === id)) return pg
+      touched = true
+      return { ...pg, rows: pg.rows.filter((r) => r.id !== id) }
+    })
+    return touched ? { ...old, pages } : old
+  })
+  qc.removeQueries({ queryKey: conversationKeys.one(id) })
+}
+
 function applyBump(qc: QueryClient, rawPayload: unknown): void {
   // Envelope: realtime.send delivers the jsonb directly as `payload`. Tolerate a
   // nested {record} too; no-op if neither carries an id (never throws / breaks).
@@ -474,47 +500,65 @@ function applyBump(qc: QueryClient, rawPayload: unknown): void {
   const row = candidate as unknown as ConversationListRow | null
   if (!row?.id) return
 
-  // Pre-scan loaded lists: is this conversation already present, and is its
-  // instance's list loaded at all?
+  // Delete tombstone {id, deleted:true} (whatsapp_037). conversations left the
+  // realtime publication, so this is the ONLY removal signal — evict everywhere.
+  if ((row as { deleted?: unknown }).deleted === true) {
+    removeConversationFromCaches(qc, row.id)
+    scheduleUnreadInvalidate(qc)
+    return
+  }
+
+  // Pre-scan loaded lists: is this conversation present, is its instance's list
+  // loaded, and did its FILTER MEMBERSHIP change vs the cached copy?
   let found = false
   let hasInstanceList = false
+  let membershipChanged = false
+  const newSig = membershipSig(row)
   const lists = qc.getQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] })
   for (const [qkey, data] of lists) {
     if (Array.isArray(qkey) && qkey[2] === row.instance_id) hasInstanceList = true
     for (const pg of data?.pages ?? []) {
-      if (pg.rows.some((r) => r.id === row.id)) found = true
+      const cached = pg.rows.find((r) => r.id === row.id)
+      if (cached) { found = true; if (membershipSig(cached) !== newSig) membershipChanged = true }
     }
   }
 
-  // 1) Patch every loaded LIST cache (all instance/filter variants).
-  qc.setQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] }, (old) => {
-    if (!old?.pages) return old
-    let touched = false
-    const pages = old.pages.map((pg) => {
-      let pageTouched = false
-      let resort = false
-      const rows = pg.rows.map((r) => {
-        if (r.id !== row.id) return r
-        pageTouched = true
-        touched = true
-        if ((r.is_pinned ?? false) !== (row.is_pinned ?? false) ||
-            (r.last_message_at ?? null) !== (row.last_message_at ?? null)) resort = true
-        // spread existing FIRST so client-only assigned_user_ids/tags survive
-        return { ...r, ...row }
+  // 1) LIST. A membership change (resolve / archive / snooze / read-flip / group)
+  //    or a belongs-but-not-loaded row needs the SERVER predicate to place or drop
+  //    it — fall back to a debounced instance-list refetch (exactly what the
+  //    retired conversations postgres_changes invalidate did). A same-membership
+  //    bump (new message / preview / unread++) is patched IN PLACE (no refetch).
+  if ((membershipChanged || !found) && row.instance_id && hasInstanceList) {
+    scheduleNewConvAdmit(qc, row.instance_id)
+  } else if (found) {
+    qc.setQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] }, (old) => {
+      if (!old?.pages) return old
+      let touched = false
+      const pages = old.pages.map((pg) => {
+        let pageTouched = false
+        let resort = false
+        const rows = pg.rows.map((r) => {
+          if (r.id !== row.id) return r
+          pageTouched = true
+          touched = true
+          if ((r.is_pinned ?? false) !== (row.is_pinned ?? false) ||
+              (r.last_message_at ?? null) !== (row.last_message_at ?? null)) resort = true
+          // spread existing FIRST so client-only assigned_user_ids/tags survive
+          return { ...r, ...row }
+        })
+        if (!pageTouched) return pg
+        return { ...pg, rows: resort ? [...rows].sort(cmpConversationRow) : rows }
       })
-      if (!pageTouched) return pg
-      return { ...pg, rows: resort ? [...rows].sort(cmpConversationRow) : rows }
+      return touched ? { ...old, pages } : old
     })
-    return touched ? { ...old, pages } : old
-  })
+  }
 
-  // 2) Patch the single-conversation cache IF it exists (open thread header).
+  // 2) Single-conversation cache (open thread header) always reflects freshest row.
   qc.setQueryData<ConversationDecrypted | null>(conversationKeys.one(row.id), (oldOne) =>
     oldOne ? { ...oldOne, ...row } : oldOne)
 
-  // 3) Brand-new conversation not yet in cache → debounced admit (only if that
-  //    instance's list is loaded). Membership/order handled by the refetch.
-  if (!found && row.instance_id && hasInstanceList) scheduleNewConvAdmit(qc, row.instance_id)
+  // 3) Per-instance unread badge aggregate (debounced refetch).
+  scheduleUnreadInvalidate(qc)
 }
 
 // Subscribe to private bump broadcasts and patch the list caches in place.
@@ -527,19 +571,33 @@ export function useConversationsBumpRealtime(topics: string[]) {
   useEffect(() => {
     const list = key ? key.split('|') : []
     if (list.length === 0) return
-    const channels = list.map((topic) =>
-      supabase
+    const channels = list.map((topic) => {
+      // Reconcile only on a RE-subscribe (after this channel errored/dropped),
+      // not on the cold mount — list + badge already fetch on mount, so a first-
+      // SUBSCRIBED refetch would be redundant. PER-CHANNEL flag so a late-
+      // reconnecting channel still triggers its own reconcile (a shared flag lets
+      // the first channel's reconcile suppress the others').
+      let hadError = false
+      return supabase
         .channel(topic, { config: { private: true } })
         .on('broadcast', { event: 'bump' }, ({ payload }) => applyBump(qc, payload))
         .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            // Private-channel authorization failed or the socket dropped. The
-            // retained postgres_changes invalidate keeps the list correct; log
-            // for diagnostics (Realtime fails closed, never silently opens).
+          if (status === 'SUBSCRIBED') {
+            if (hadError) {
+              // Reconnected → catch any bump missed while the socket was down
+              // (broadcast = at-most-once): one debounced list + badge refetch.
+              hadError = false
+              scheduleBumpReconcile(qc)
+            }
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Private-channel authorization failed or the socket dropped. Surface
+            // for diagnostics (Realtime fails closed, never silently opens); the
+            // on-reconnect reconcile keeps the list correct.
+            hadError = true
             console.warn(`[wa-bump] channel ${topic} status=${status}`)
           }
-        }),
-    )
+        })
+    })
     return () => { channels.forEach((ch) => { void supabase.removeChannel(ch) }) }
   }, [qc, key])
 }
