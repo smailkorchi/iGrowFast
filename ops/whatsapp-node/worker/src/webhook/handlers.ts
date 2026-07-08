@@ -698,6 +698,14 @@ async function ingestMessage(instanceId: string, m: WAMessageData, fromHistorySy
     )
   }
 
+  // Real-WhatsApp parity: the peer just sent an inbound DM, so they are no longer
+  // typing — clear the "typing…" indicator immediately instead of waiting on an
+  // unreliable Baileys `paused` or the frontend TTL. DMs only (group typing is
+  // per-participant and keyed differently).
+  if (direction === 'inbound' && !remoteJid.endsWith('@g.us')) {
+    void broadcastPeerStoppedTyping(instanceId, remoteJid)
+  }
+
   // Patch peer_display_name / peer_profile_pic on the conversation.
   //
   // DMs   → use the inbound message's pushName (the sender's WA display
@@ -2806,6 +2814,40 @@ async function handlePresenceUpdate(instanceId: string, data: PresenceUpdateData
           error: err instanceof Error ? err.message : String(err),
         })
       }
+    }
+  }
+}
+
+// Real-WhatsApp parity: a peer who just sent a message is no longer typing.
+// Baileys does NOT reliably emit a `paused` presence on send — the last-known
+// presence can stay `composing` and even get re-broadcast, refreshing the
+// frontend's typing TTL, so the "typing…" indicator lingers after the message
+// already landed. Emit a synthetic `paused` for the peer the instant we ingest
+// an inbound DM so the indicator clears immediately. Broadcast under both the
+// raw and resolved-phone JID (mirrors the presence broadcaster) so it matches
+// whichever form the conversation row was keyed under. Idempotent: clearing an
+// already-cleared peer is a no-op on the frontend.
+async function broadcastPeerStoppedTyping(instanceId: string, remoteJid: string): Promise<void> {
+  let conversationJid = remoteJid
+  if (remoteJid.endsWith('@lid')) {
+    const resolved = await resolveLidToPhoneJid(instanceId, remoteJid)
+    if (resolved) conversationJid = resolved
+  }
+  const jids = conversationJid === remoteJid ? [conversationJid] : [conversationJid, remoteJid]
+  const ch = getPresenceChannel(instanceId)
+  const at_ms = Date.now()
+  for (const jid of jids) {
+    try {
+      await ch.send({
+        type: 'broadcast',
+        event: 'presence',
+        payload: { remote_jid: jid, participant_jid: null, presence: 'paused', at_ms },
+      })
+    } catch (err) {
+      log.warn('presence.stop_typing_failed', {
+        instance_id: instanceId, remote_jid: jid,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 }
