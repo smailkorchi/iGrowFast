@@ -271,6 +271,47 @@ export function useSetAutoAssign() {
 
 // ─── realtime ───────────────────────────────────────────────────────────────
 
+/**
+ * ALWAYS-ON per-agent assignment sync (IGF 2026-07-08).
+ *
+ * An agent's instances (wi_select) and conversations (RLS) exist ONLY while
+ * they hold an assignment. The per-instance useConversationsRealtime can't
+ * cover the transition INTO/OUT OF the empty state: when the agent has zero
+ * instances, activeInstanceId is null and that hook doesn't subscribe — so a
+ * newly-granted assignment could never arrive live (needed a refresh).
+ *
+ * This subscription is mounted at the seller-shell provider, keyed on the
+ * agent's OWN user_id (server-side filter), so it is live even from the empty
+ * state. Realtime delivers the agent their own INSERT/DELETE (replica identity
+ * = PK incl. user_id; ca_select keys on user_id=auth.uid()). On any change it
+ * invalidates the instance list (→ wi_select re-runs → number appears/vanishes)
+ * and conversations. Debounced so a bulk (un)assign's per-row burst coalesces.
+ */
+export function useMyAssignmentsRealtime(userId: string | null) {
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!userId) return
+    let t: ReturnType<typeof setTimeout> | null = null
+    const reconcile = () => {
+      if (t) clearTimeout(t)
+      t = setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: ['instances'] })
+        void qc.invalidateQueries({ queryKey: ['conversations'] })
+        void qc.invalidateQueries({ queryKey: ['instances-unread'] })
+      }, 200)
+    }
+    const channel = supabase
+      .channel(`my-assignments-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'whatsapp', table: 'conversation_assignments', filter: `user_id=eq.${userId}` },
+        reconcile,
+      )
+      .subscribe()
+    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
+  }, [userId, qc])
+}
+
 export function useAssignmentsRealtime(instanceId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {

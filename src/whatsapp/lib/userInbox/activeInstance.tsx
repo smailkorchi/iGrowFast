@@ -13,6 +13,8 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useInstances } from '../queries/instances'
 import { useInstancesUnread, useInstancesUnreadRealtime } from '../queries/conversations'
+import { useMyAssignmentsRealtime } from '../queries/assignments'
+import { useAuth } from '../auth'
 import type { WhatsappInstance } from '../database.types'
 
 const ACTIVE_INSTANCE_KEY = 'wam.cv.user.active_instance'
@@ -35,6 +37,13 @@ export function useActiveInstance(): ActiveInstanceValue {
 
 export function ActiveInstanceProvider({ children }: { children: ReactNode }) {
   const { data: instances, isLoading: instancesLoading } = useInstances()
+
+  // ALWAYS-ON per-agent assignment sync — mounted here (the seller shell is
+  // always present, even at the empty state) so a newly-granted assignment
+  // makes a number appear live, and losing the last assignment drops to the
+  // empty state live, without a refresh. Keyed on the agent's own user id.
+  const { session } = useAuth()
+  useMyAssignmentsRealtime(session?.user.id ?? null)
 
   // User-picked active instance survives a reload. Namespaced separately from
   // admin so a browser session that toggles roles doesn't cross-pollute.
