@@ -75,26 +75,24 @@ export function useConversations(instanceId: string | null, filter: Conversation
         q = q.in('status', ['open', 'pending'])
       }
 
-      // assignment filters require an inner join — use a separate query path
-      if (filter === 'assigned_to_me') {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { rows: [], nextOffset: null }
-        const { data: assigned, error: assignedErr } = await supabase
-          .schema('whatsapp').from('conversation_assignments')
-          .select('conversation_id')
-          .eq('user_id', user.id)
-        if (assignedErr) throw new Error(assignedErr.message)
-        const ids = (assigned ?? []).map((r) => r.conversation_id)
-        if (ids.length === 0) return { rows: [], nextOffset: null }
-        q = q.in('id', ids)
-      }
-      if (filter === 'unassigned') {
-        // For DMs only — group conversations are always considered "assignable to many"
-        const { data: assignedConvs } = await supabase
-          .schema('whatsapp').from('conversation_assignments')
-          .select('conversation_id')
-        const ids = (assignedConvs ?? []).map((r) => r.conversation_id)
-        if (ids.length > 0) q = q.not('id', 'in', `(${ids.join(',')})`)
+      // IGF FIX 2026-07-08: the assignment filters (assigned_to_me / unassigned)
+      // used to fetch the assignment id set to the client and .in()/.not-in() it
+      // into this query — which BOTH capped at PGRST 1000 rows (wrong filter) AND
+      // put every id in the request URL (nginx 8k limit → the query fails once
+      // there are >~200 assignments). Both modes now run the join+filter
+      // SERVER-SIDE via admin_list_conversations_by_assignment (offset-paged,
+      // same order), so no id list ever crosses the wire.
+      if (filter === 'assigned_to_me' || filter === 'unassigned') {
+        const from = pageParam as number
+        const { data, error } = await supabase.schema('whatsapp').rpc('admin_list_conversations_by_assignment', {
+          p_instance_id: instanceId,
+          p_mode: filter,
+          p_limit: PAGE_SIZE,
+          p_offset: from,
+        })
+        if (error) throw new Error(error.message)
+        const rows = (data ?? []) as unknown as ConversationListRow[]
+        return { rows, nextOffset: rows.length === PAGE_SIZE ? from + PAGE_SIZE : null }
       }
 
       const from = pageParam as number
