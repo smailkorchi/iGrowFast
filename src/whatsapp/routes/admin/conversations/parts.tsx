@@ -24,7 +24,7 @@ import { useContacts, type Contact } from '../../../lib/queries/contacts'
 import { buildContactCard, buildContactShare, type ContactCardData } from '../../../lib/vCardBuilder'
 import { useWaPeerPresence } from '../../../lib/queries/waPresence'
 import { TypingIndicator } from '../../../components/conversations/TypingIndicator'
-import { supabase } from '../../../lib/supabase'
+import { supabase, fetchAllWa } from '../../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -2600,16 +2600,18 @@ export function ChatPane(p: ChatPaneProps) {
     msg: MessageDecrypted
   } | null>(null)
 
-  // Fetch contacts for group sender avatars + names
+  // Fetch contacts for group sender avatars + names. Paginated (PGRST 1000-row
+  // cap): instances already exceed 1000 contacts, so an unpaginated read would
+  // drop sender names/avatars for members beyond the first 1000.
   const contactsQ = useQuery({
     queryKey: ['contacts-map', p.conv.instance_id],
     enabled: isGroup && !!p.conv.instance_id,
     queryFn: async () => {
-      const { data } = await supabase
-        .schema('whatsapp').from('contacts')
-        .select('phone_jid, lid, push_name, profile_pic, book_name')
-        .eq('instance_id', p.conv.instance_id!)
-      return data ?? []
+      return await fetchAllWa<{ phone_jid: string | null; lid: string | null; push_name: string | null; profile_pic: string | null; book_name: string | null }>(
+        (s) => s.schema('whatsapp').from('contacts')
+          .select('id, phone_jid, lid, push_name, profile_pic, book_name')
+          .eq('instance_id', p.conv.instance_id!),
+      )
     },
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,

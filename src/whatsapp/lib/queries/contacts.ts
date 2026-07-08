@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../supabase'
+import { supabase, fetchAllWa } from '../supabase'
 
 export interface Contact {
   id: string
@@ -27,14 +27,16 @@ export function useContactBookMap(instanceId: string | null) {
     queryKey: contactKeys.bookMap(instanceId ?? '_'),
     queryFn: async () => {
       if (!instanceId) return new Map()
-      const { data, error } = await supabase
-        .schema('whatsapp').from('contacts')
-        .select('phone_jid, lid, book_name')
-        .eq('instance_id', instanceId)
-        .not('book_name', 'is', null)
-      if (error) throw new Error(error.message)
+      // Paginated (PGRST 1000-row cap): a large imported phonebook would
+      // otherwise truncate the name map.
+      const rows = await fetchAllWa<{ phone_jid: string | null; lid: string | null; book_name: string | null }>(
+        (s) => s.schema('whatsapp').from('contacts')
+          .select('id, phone_jid, lid, book_name')
+          .eq('instance_id', instanceId)
+          .not('book_name', 'is', null),
+      )
       const m = new Map<string, string>()
-      for (const row of data ?? []) {
+      for (const row of rows) {
         if (!row.book_name) continue
         if (row.phone_jid) m.set(row.phone_jid, row.book_name)
         if (row.lid) m.set(row.lid, row.book_name)
@@ -51,14 +53,17 @@ export function useContacts(instanceId: string | null) {
     queryKey: contactKeys.list(instanceId ?? '_'),
     queryFn: async () => {
       if (!instanceId) return []
-      const { data, error } = await supabase
-        .schema('whatsapp').from('contacts')
-        .select('*')
-        .eq('instance_id', instanceId)
-        .eq('is_resolved', true)
-        .order('updated_at', { ascending: false })
-      if (error) throw new Error(error.message)
-      return (data ?? []) as Contact[]
+      // Paginated (PGRST 1000-row cap): both live numbers already exceed 1000
+      // resolved contacts, so an unpaginated select silently hid ~30-40 each.
+      // Page by id (stable), then present most-recently-updated first.
+      const rows = await fetchAllWa<Contact>(
+        (s) => s.schema('whatsapp').from('contacts')
+          .select('*')
+          .eq('instance_id', instanceId)
+          .eq('is_resolved', true),
+      )
+      rows.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
+      return rows
     },
     enabled: !!instanceId,
   })
