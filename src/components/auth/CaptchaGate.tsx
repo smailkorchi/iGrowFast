@@ -13,6 +13,34 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { Check, Loader2 } from 'lucide-react';
 import { SiCloudflare } from 'react-icons/si';
 
+declare global {
+    interface Window {
+        turnstile?: {
+            render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+            reset: (id?: string) => void;
+            remove: (id: string) => void;
+        };
+    }
+}
+
+const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+let scriptPromise: Promise<void> | null = null;
+
+function loadTurnstile(): Promise<void> {
+    if (window.turnstile) return Promise.resolve();
+    if (!scriptPromise) {
+        scriptPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = SCRIPT_SRC;
+            s.async = true;
+            s.onload = () => resolve();
+            s.onerror = () => { scriptPromise = null; reject(new Error('turnstile script failed')); };
+            document.head.appendChild(s);
+        });
+    }
+    return scriptPromise;
+}
+
 export interface CaptchaGateHandle {
     /** Mint a fresh token (silent for trusted visitors). Used after a failed
      *  login attempt — the previous token was consumed by GoTrue. */
