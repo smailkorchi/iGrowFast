@@ -112,6 +112,9 @@ interface RunningLoop {
    *  others are suppressed until it sends, stops, or the slot expires. */
   typingHolderConvId: string | null
   typingHolderUntil: number
+  /** Last time the focused peer's presence subscription was refreshed. Gates the
+   *  refresh to ~45s (not every 10s self-presence tick) — see drivePresence. */
+  lastPeerRefreshAt: number
   /** Last canned (quick_reply/scheduled) media send — drives human burst
    *  spacing across a multi-attachment reply to one contact. */
   lastCannedConvId: string | null
@@ -152,6 +155,7 @@ export function spawnDispatcher(instance: InstanceConfig): void {
     ownerJid: undefined,
     typingHolderConvId: null,
     typingHolderUntil: 0,
+    lastPeerRefreshAt: 0,
     lastCannedConvId: null,
     lastCannedKind: null,
     lastCannedAt: 0,
@@ -1082,6 +1086,11 @@ function msUntilNextMinute(now: Date): number {
 // survives a Baileys reconnect even when nothing else changes.
 const SELF_PRESENCE_REAFFIRM_MS = 60_000
 
+// Refresh the focused peer's presence subscription at most this often. Decoupled
+// from the 10s self-presence tick — matches the WA peer-subscription lifetime and
+// keeps forced 'available' packets sparse (ban-safe, and no typing stomp).
+const PEER_REFRESH_MIN_INTERVAL_MS = 45_000
+
 async function getOwnerJid(r: RunningLoop): Promise<string | null> {
   if (r.ownerJid) return r.ownerJid              // cached (stable once paired)
   try {
@@ -1150,9 +1159,19 @@ async function drivePresence(r: RunningLoop): Promise<void> {
       return
     }
   }
-  // While online, keep the focused peer subscription warm (sub-50s cadence via
-  // the self-presence timer) so WhatsApp keeps pushing its typing events.
-  if (desired === 'available') refreshActiveOpenPeer(r.instance.id)
+  // While online, keep the focused peer subscription warm — but at a ~45s cadence
+  // (NOT every 10s self-presence tick, which was 5x the intended "sub-50s" and a
+  // presence-subscribe flood), and NEVER while an outbound composing/recording
+  // window is in flight: a peer 'available' refresh would OVERWRITE the customer's
+  // "typing…" via WhatsApp last-writer-wins (audit 2026-07-08 root cause).
+  if (
+    desired === 'available' &&
+    now >= r.typingHolderUntil &&
+    now - r.lastPeerRefreshAt > PEER_REFRESH_MIN_INTERVAL_MS
+  ) {
+    r.lastPeerRefreshAt = now
+    refreshActiveOpenPeer(r.instance.id)
+  }
 }
 
 // ---- Independent self-presence timer ---------------------------------------

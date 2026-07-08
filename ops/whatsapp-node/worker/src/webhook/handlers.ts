@@ -2872,6 +2872,14 @@ async function broadcastPeerStoppedTyping(instanceId: string, remoteJid: string)
 
 const PEER_SUBSCRIBE_TTL_MS = 30 * 60 * 1000 // re-subscribe at most every 30 min
 const peerSubscribeCache = new Map<string, number>() // key: `${instanceId}:${peerJid}` → expiresAt
+// Even a FORCED re-subscribe must not storm a peer. A peer-subscribe sends
+// sendPresence{presence:'available'} to the peer — which OVERWRITES an in-flight
+// outbound 'composing' (WhatsApp presence is last-writer-wins) and, at volume, is
+// a bot fingerprint. Realtime reconnect 'open' re-emits + the self-presence tick
+// could otherwise fire forced subscribes ~1/s. Collapse forces to 1 per peer per
+// this window (independent of the 30-min normal throttle).
+const FORCE_SUBSCRIBE_COOLDOWN_MS = 20_000
+const forceSubscribeCooldown = new Map<string, number>() // key → cooldownUntil
 
 // (Contact Truth Phase 0) The presence temporal-correlation guesser
 // (pendingLidCorrelations + record/consumePendingLidCorrelation) was removed:
@@ -2983,7 +2991,14 @@ function ensurePeerPresenceSubscribed(
   if (!peerJid.endsWith('@s.whatsapp.net') && !peerJid.endsWith('@lid')) return
   const key = `${instanceId}:${peerJid}`
   const now = Date.now()
-  if (!opts?.force) {
+  if (opts?.force) {
+    // Force bypasses the 30-min throttle, but NOT the short anti-storm cooldown:
+    // a burst of 'open' re-emits / 10s ticks collapses to one 'available' packet
+    // per FORCE_SUBSCRIBE_COOLDOWN_MS so it can't flood WhatsApp or stomp typing.
+    const cooldownUntil = forceSubscribeCooldown.get(key)
+    if (cooldownUntil && cooldownUntil > now) return
+    forceSubscribeCooldown.set(key, now + FORCE_SUBSCRIBE_COOLDOWN_MS)
+  } else {
     const expiresAt = peerSubscribeCache.get(key)
     if (expiresAt && expiresAt > now) return
   }
@@ -2999,8 +3014,9 @@ function ensurePeerPresenceSubscribed(
       await evo.sendPresence({ number: peerJid, presence: 'available', delay: 0 })
       log.info('presence.peer_subscribed', { instance_id: instanceId, peer_jid: peerJid })
     } catch (err) {
-      // Drop the throttle so the next inbound retries.
+      // Drop the throttle + cooldown so the next inbound/force retries.
       peerSubscribeCache.delete(key)
+      forceSubscribeCooldown.delete(key)
       log.warn('presence.peer_subscribe_failed', {
         instance_id: instanceId, peer_jid: peerJid,
         error: err instanceof Error ? err.message : String(err),
@@ -3061,9 +3077,6 @@ function purgePeerSubscriptionsForInstance(instanceId: string): void {
 // somehow misses the connection.update purge.
 
 const ACTIVE_PEER_WARMUP_INTERVAL_MS = 20 * 60 * 1000 // 20 min
-const ACTIVE_PEER_WARMUP_LOOKBACK = '24 hours'
-const ACTIVE_PEER_WARMUP_BATCH = 25            // peers per concurrency batch
-const ACTIVE_PEER_WARMUP_BATCH_GAP_MS = 500    // gap between batches
 
 let warmupTimer: NodeJS.Timeout | null = null
 let warmupRunning = false
@@ -3072,34 +3085,20 @@ async function runActivePeerWarmup(): Promise<void> {
   if (warmupRunning) return
   warmupRunning = true
   try {
-    const { rows } = await pool.query<{ instance_id: string; remote_jid: string }>(
-      `SELECT c.instance_id, c.remote_jid
-         FROM whatsapp.conversations c
-         JOIN whatsapp.whatsapp_instances i ON i.id = c.instance_id
-        WHERE i.status = 'connected'
-          AND COALESCE(i.lifecycle_state, 'warming') <> 'banned'
-          AND c.is_group = false
-          AND c.last_inbound_at IS NOT NULL
-          AND c.last_inbound_at >= now() - $1::interval`,
-      [ACTIVE_PEER_WARMUP_LOOKBACK],
-    )
-    if (rows.length === 0) {
-      log.debug('presence.warmup.no_active_peers')
-      return
-    }
-
+    // BAN-SAFETY (audit 2026-07-08): the old warmup force-subscribed EVERY
+    // 24h-active DM peer of every connected instance — mass presenceSubscribe to
+    // contacts nobody has open, which is a bot fingerprint AND floods 'available'
+    // packets that stomp outbound 'composing'. A real client only subscribes to
+    // the chat it has open. So warm ONLY the currently-focused peer of each
+    // ATTENDED instance (the self-presence loop already refreshes these at ~45s;
+    // this is a low-frequency backstop, and the force cooldown collapses repeats).
     let scheduled = 0
-    for (let i = 0; i < rows.length; i += ACTIVE_PEER_WARMUP_BATCH) {
-      const batch = rows.slice(i, i + ACTIVE_PEER_WARMUP_BATCH)
-      for (const r of batch) {
-        ensurePeerPresenceSubscribed(r.instance_id, r.remote_jid, { force: true })
-        scheduled++
-      }
-      if (i + ACTIVE_PEER_WARMUP_BATCH < rows.length) {
-        await new Promise((resolve) => setTimeout(resolve, ACTIVE_PEER_WARMUP_BATCH_GAP_MS))
-      }
+    for (const [instanceId, peerJid] of activeOpenPeer.entries()) {
+      if (!peerJid || !isInstanceAttended(instanceId)) continue
+      ensurePeerPresenceSubscribed(instanceId, peerJid, { force: true })
+      scheduled++
     }
-    log.info('presence.warmup.completed', { active_peers: rows.length, scheduled })
+    log.info('presence.warmup.completed', { scheduled })
   } catch (err) {
     log.warn('presence.warmup.failed', {
       error: err instanceof Error ? err.message : String(err),

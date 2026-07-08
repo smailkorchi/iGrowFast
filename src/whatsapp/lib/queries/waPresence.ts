@@ -32,6 +32,13 @@ export interface PeerTypingState {
 }
 
 const TYPING_TTL_MS = 8_000
+// Min interval between 'open' re-announcements for the SAME focused peer. An
+// 'open' makes the worker force-subscribe to that peer's presence (a WhatsApp
+// presenceSubscribe = 'available' toward the peer, which stomps outbound typing
+// and, at volume, is a bot fingerprint). Re-emitting on every Realtime
+// resubscribe caused a peer-subscribe storm (audit 2026-07-08). One 'open' per
+// real focus change; re-prime the same peer at most this often across reconnects.
+const OPEN_MIN_INTERVAL_MS = 30_000
 const EMPTY_MAP: Map<string, PeerTypingState> = new Map()
 
 // ─── Shared per-instance presence store ─────────────────────────────────────
@@ -54,6 +61,7 @@ interface InstanceStore {
   sweep: ReturnType<typeof setInterval>
   isSubscribed: boolean
   lastOpenSent: string | null
+  lastOpenSentAt: number
   sendOpen: (jid: string | null | undefined) => void
   // Inbox-attendance heartbeat (online-while-attended). viewerId is unique per
   // (tab, instance) so the worker refcounts viewers correctly across multi-tab
@@ -86,6 +94,7 @@ function acquireStore(instanceId: string): InstanceStore {
     refcount: 1,
     isSubscribed: false,
     lastOpenSent: null,
+    lastOpenSentAt: 0,
     sweep: setInterval(() => {
       if (store.presenceMap.size === 0) return
       const now = Date.now()
@@ -97,8 +106,15 @@ function acquireStore(instanceId: string): InstanceStore {
       if (mutated) { store.presenceMap = next; notify(store) }
     }, 1_000),
     sendOpen: (jid) => {
-      if (!jid || !store.isSubscribed || jid === store.lastOpenSent) return
+      if (!jid || !store.isSubscribed) return
+      // Rate-limit per focused peer: a real focus change (new jid) sends
+      // immediately; the SAME peer re-announces at most once per
+      // OPEN_MIN_INTERVAL_MS — so a burst of Realtime resubscribes can't re-flood
+      // the worker's peer-subscribe (which stomps outbound typing / floods WA).
+      const now = Date.now()
+      if (jid === store.lastOpenSent && now - store.lastOpenSentAt < OPEN_MIN_INTERVAL_MS) return
       store.lastOpenSent = jid
+      store.lastOpenSentAt = now
       void channel.send({ type: 'broadcast', event: 'open', payload: { remote_jid: jid } })
     },
     viewerId:
@@ -159,10 +175,11 @@ function acquireStore(instanceId: string): InstanceStore {
   channel.subscribe((status) => {
     store.isSubscribed = status === 'SUBSCRIBED'
     if (store.isSubscribed && store.lastOpenSent) {
-      // re-announce the focused conv after (re)subscribe
-      const jid = store.lastOpenSent
-      store.lastOpenSent = null
-      store.sendOpen(jid)
+      // Re-announce the focused conv after a (re)subscribe, but do NOT reset the
+      // dedupe — sendOpen's per-peer rate limit collapses reconnect bursts to at
+      // most one 'open' per OPEN_MIN_INTERVAL_MS (fixes the peer-subscribe storm),
+      // while still re-priming after a genuinely long gap.
+      store.sendOpen(store.lastOpenSent)
     }
     // Re-register attendance after a Realtime (re)subscribe so a dropped/
     // reconnected socket doesn't let the worker age out our viewer.
