@@ -24,6 +24,7 @@ import {
   useFlattenedConversations,
   useConversation,
   useConversationsRealtime,
+  useConversationsBumpRealtime,
   useInstancesUnread,
   useInstancesUnreadRealtime,
   useMarkConversationRead,
@@ -131,6 +132,11 @@ export default function AdminConversations() {
   // Live-refresh the per-instance unread badge across ALL numbers (not just the
   // active one) so the switcher badge appears/clears instantly, not on staleTime.
   useInstancesUnreadRealtime(instanceIds)
+  // Stage-2 list-bump: admins receive per-instance conversation bumps on a
+  // private broadcast channel (wa:inst:<id>) and patch the loaded list in place —
+  // additive to the postgres_changes invalidate in useConversationsRealtime.
+  const bumpTopics = useMemo(() => instanceIds.map((id) => `wa:inst:${id}`), [instanceIds])
+  useConversationsBumpRealtime(bumpTopics)
 
   // ─── lists + favourites (localStorage) ─────────────────────────────────────
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(activeInstanceId))

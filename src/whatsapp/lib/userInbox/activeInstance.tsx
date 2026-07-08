@@ -12,7 +12,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useInstances } from '../queries/instances'
-import { useInstancesUnread, useInstancesUnreadRealtime } from '../queries/conversations'
+import { useInstancesUnread, useInstancesUnreadRealtime, useConversationsBumpRealtime } from '../queries/conversations'
 import { useMyAssignmentsRealtime } from '../queries/assignments'
 import { useAuth } from '../auth'
 import type { WhatsappInstance } from '../database.types'
@@ -67,6 +67,14 @@ export function ActiveInstanceProvider({ children }: { children: ReactNode }) {
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
   // Realtime per-instance unread so the agent navbar badge is instant.
   useInstancesUnreadRealtime(instanceIds)
+  // Stage-2 list-bump: the agent receives bumps for their assigned conversations
+  // on a private per-user channel (wa:user:<uid>) and patches the list in place.
+  // Keyed on uid so it stays live across the zero-assignment empty state.
+  const bumpTopics = useMemo(
+    () => (session?.user.id ? [`wa:user:${session.user.id}`] : []),
+    [session?.user.id],
+  )
+  useConversationsBumpRealtime(bumpTopics)
 
   const value = useMemo<ActiveInstanceValue>(
     () => ({ instances, instancesLoading, activeInstanceId, switchInstance, unreadByInstance }),

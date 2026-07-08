@@ -5,7 +5,7 @@
 // + messages INSERT (latter only to refresh ordering when a new inbound lands).
 
 import { useCallback, useEffect, useMemo } from 'react'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
 import { markConversationRead } from '../conversationsApi'
 import type { ConversationDecrypted, ConversationStatus } from '../database.types'
@@ -415,6 +415,133 @@ export function useConversationsRealtime(instanceId: string | null) {
       .subscribe()
     return () => { if (listT) clearTimeout(listT); if (asgT) clearTimeout(asgT); void supabase.removeChannel(channel) }
   }, [instanceId, qc])
+}
+
+// ─── bump broadcast consumer (Stage-2 list-bump cutover) ────────────────────
+// The DB trigger whatsapp._broadcast_conversation_bump (migration 036) publishes
+// to_jsonb(conversations_decrypted) as a 'bump' broadcast on PRIVATE topics:
+//   wa:inst:<instance_id>  → business-admins of that instance
+//   wa:user:<user_id>      → each assigned agent
+// This consumer patches the loaded list caches IN PLACE (no PostgREST refetch) —
+// the point of moving the conversation-bump firehose off postgres_changes.
+//
+// ADDITIVE + fail-safe: it runs ALONGSIDE useConversationsRealtime's 250ms
+// invalidate, which stays the reconciler / global-order + membership + new-conv
+// backstop. So an out-of-order edge, a membership change, or even a wrong-shaped
+// payload can never break the list — the invalidate refetch converges to truth
+// within 250ms. The overlay is ABSOLUTE (from the payload) with a `touched`
+// guard, so double delivery is idempotent. The retained invalidate is removed
+// only at the gated Stage C, once this path is verified live.
+
+// Exact parity with the server ORDER BY (useConversations: is_pinned DESC, then
+// last_message_at DESC NULLS LAST). A page is re-sorted after a bump changes
+// either key; global cross-page order is left to the invalidate backstop.
+function cmpConversationRow(a: ConversationListRow, b: ConversationListRow): number {
+  const pa = a.is_pinned ? 1 : 0
+  const pb = b.is_pinned ? 1 : 0
+  if (pa !== pb) return pb - pa
+  const ta = a.last_message_at
+  const tb = b.last_message_at
+  if (ta == null && tb == null) return 0
+  if (ta == null) return 1
+  if (tb == null) return -1
+  return ta < tb ? 1 : ta > tb ? -1 : 0
+}
+
+// Debounced per-instance invalidate for a bump whose conversation is NOT in any
+// loaded page (a brand-new conversation): a patch can't place it, so admit it via
+// a light refetch. Keyed per instance so bursts coalesce.
+const _newConvTimers = new Map<string, ReturnType<typeof setTimeout>>()
+function scheduleNewConvAdmit(qc: QueryClient, instanceId: string): void {
+  const prev = _newConvTimers.get(instanceId)
+  if (prev) clearTimeout(prev)
+  _newConvTimers.set(instanceId, setTimeout(() => {
+    _newConvTimers.delete(instanceId)
+    void qc.invalidateQueries({ queryKey: ['conversations', 'list', instanceId] })
+  }, 300))
+}
+
+function applyBump(qc: QueryClient, rawPayload: unknown): void {
+  // Envelope: realtime.send delivers the jsonb directly as `payload`. Tolerate a
+  // nested {record} too; no-op if neither carries an id (never throws / breaks).
+  const p = rawPayload as { id?: unknown; record?: unknown } | null
+  const candidate =
+    p && typeof p === 'object' && 'id' in p && p.id
+      ? p
+      : p && typeof p === 'object' && p.record && typeof p.record === 'object'
+        ? (p.record as Record<string, unknown>)
+        : null
+  const row = candidate as unknown as ConversationListRow | null
+  if (!row?.id) return
+
+  // Pre-scan loaded lists: is this conversation already present, and is its
+  // instance's list loaded at all?
+  let found = false
+  let hasInstanceList = false
+  const lists = qc.getQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] })
+  for (const [qkey, data] of lists) {
+    if (Array.isArray(qkey) && qkey[2] === row.instance_id) hasInstanceList = true
+    for (const pg of data?.pages ?? []) {
+      if (pg.rows.some((r) => r.id === row.id)) found = true
+    }
+  }
+
+  // 1) Patch every loaded LIST cache (all instance/filter variants).
+  qc.setQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] }, (old) => {
+    if (!old?.pages) return old
+    let touched = false
+    const pages = old.pages.map((pg) => {
+      let pageTouched = false
+      let resort = false
+      const rows = pg.rows.map((r) => {
+        if (r.id !== row.id) return r
+        pageTouched = true
+        touched = true
+        if ((r.is_pinned ?? false) !== (row.is_pinned ?? false) ||
+            (r.last_message_at ?? null) !== (row.last_message_at ?? null)) resort = true
+        // spread existing FIRST so client-only assigned_user_ids/tags survive
+        return { ...r, ...row }
+      })
+      if (!pageTouched) return pg
+      return { ...pg, rows: resort ? [...rows].sort(cmpConversationRow) : rows }
+    })
+    return touched ? { ...old, pages } : old
+  })
+
+  // 2) Patch the single-conversation cache IF it exists (open thread header).
+  qc.setQueryData<ConversationDecrypted | null>(conversationKeys.one(row.id), (oldOne) =>
+    oldOne ? { ...oldOne, ...row } : oldOne)
+
+  // 3) Brand-new conversation not yet in cache → debounced admit (only if that
+  //    instance's list is loaded). Membership/order handled by the refetch.
+  if (!found && row.instance_id && hasInstanceList) scheduleNewConvAdmit(qc, row.instance_id)
+}
+
+// Subscribe to private bump broadcasts and patch the list caches in place.
+// Topic-agnostic: the admin shell passes wa:inst:<id> per in-scope instance; the
+// agent shell passes [wa:user:<uid>]. One private channel per topic.
+export function useConversationsBumpRealtime(topics: string[]) {
+  const qc = useQueryClient()
+  // Stable key: element order irrelevant → the same set doesn't re-subscribe.
+  const key = [...topics].sort().join('|')
+  useEffect(() => {
+    const list = key ? key.split('|') : []
+    if (list.length === 0) return
+    const channels = list.map((topic) =>
+      supabase
+        .channel(topic, { config: { private: true } })
+        .on('broadcast', { event: 'bump' }, ({ payload }) => applyBump(qc, payload))
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Private-channel authorization failed or the socket dropped. The
+            // retained postgres_changes invalidate keeps the list correct; log
+            // for diagnostics (Realtime fails closed, never silently opens).
+            console.warn(`[wa-bump] channel ${topic} status=${status}`)
+          }
+        }),
+    )
+    return () => { channels.forEach((ch) => { void supabase.removeChannel(ch) }) }
+  }, [qc, key])
 }
 
 // ─── flatten infinite query for consumers ──────────────────────────────────
