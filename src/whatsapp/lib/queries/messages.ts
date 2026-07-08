@@ -7,7 +7,7 @@
 // Realtime: subscribe to messages INSERT + UPDATE filtered by conversation_id;
 // patch the cache in place rather than refetching (smooth thread experience).
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
 import { useAuth } from '../auth'
@@ -82,92 +82,25 @@ export function useFlattenedThread(conversationId: string | null) {
 }
 
 /**
- * Realtime subscription for INSERT + UPDATE on messages for this conversation.
- * INSERT → prepend to the newest page if not already present.
- * UPDATE → in-place patch (delivery_status / reactions / is_starred etc.).
+ * Realtime for a single thread via the private wa:conv:<id> BROADCAST (the worker
+ * DB trigger publishes the decrypted message; messages left the postgres_changes
+ * publication). INSERT → prepend to the newest page; UPDATE → in-place patch;
+ * DELETE/tombstone → drop; delete-for-me → drop for that agent only.
  */
 export function useThreadRealtime(conversationId: string | null) {
   const qc = useQueryClient()
   const { session } = useAuth()
   const uid = session?.user.id ?? null
-  const lastConvRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!conversationId) return
-    lastConvRef.current = conversationId
-    const channel = supabase
-      .channel(`thread-${conversationId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'whatsapp', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        async (payload) => {
-          // Re-fetch the single row through messages_decrypted to get the
-          // decrypted body (the realtime payload only carries the raw row).
-          const id = (payload.new as { id?: string }).id
-          if (!id) return
-          const { data } = await supabase
-            .schema('whatsapp').from('messages_decrypted').select('*').eq('id', id).maybeSingle()
-          if (!data) return
-          qc.setQueryData<{ pages: ThreadPage[]; pageParams: unknown[] } | undefined>(
-            messageKeys.thread(conversationId),
-            (prev) => prev ? patchInsertNewest(prev, data as MessageDecrypted) : prev,
-          )
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'whatsapp', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        async (payload) => {
-          const id = (payload.new as { id?: string }).id
-          if (!id) return
-          const { data } = await supabase
-            .schema('whatsapp').from('messages_decrypted').select('*').eq('id', id).maybeSingle()
-          if (!data) {
-            // The row is no longer visible to THIS agent through the view —
-            // i.e. they just "deleted for me" (hidden_for_user_ids now contains
-            // their uid). Drop it from their thread. Other agents' re-fetch
-            // still returns the row (not hidden for them) and patches normally.
-            qc.setQueryData<{ pages: ThreadPage[]; pageParams: unknown[] } | undefined>(
-              messageKeys.thread(conversationId),
-              (prev) => prev ? patchDelete(prev, id) : prev,
-            )
-            return
-          }
-          qc.setQueryData<{ pages: ThreadPage[]; pageParams: unknown[] } | undefined>(
-            messageKeys.thread(conversationId),
-            (prev) => prev ? patchUpdate(prev, data as MessageDecrypted) : prev,
-          )
-          // Keep the pinned-bar (which queries pinned rows directly, incl. those
-          // outside the loaded window) in sync on pin/unpin for every agent.
-          void qc.invalidateQueries({ queryKey: ['pinnedBar', conversationId] })
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'whatsapp', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        (payload) => {
-          // A cancelled (never-dispatched) message is hard-deleted server-side.
-          // Drop the bubble from the thread. DELETE payloads carry only the
-          // primary key in `old`.
-          const id = (payload.old as { id?: string }).id
-          if (!id) return
-          qc.setQueryData<{ pages: ThreadPage[]; pageParams: unknown[] } | undefined>(
-            messageKeys.thread(conversationId),
-            (prev) => prev ? patchDelete(prev, id) : prev,
-          )
-        },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [conversationId, qc])
-
-  // ADDITIVE (migration 040): private wa:conv:<id> broadcast carrying the DECRYPTED
-  // message — patches the thread with ZERO re-fetch (the postgres_changes path
-  // above re-fetches every event). Runs ALONGSIDE postgres_changes and dedupes by
-  // id (patchInsertNewest skips dupes, patchUpdate is idempotent), so double
-  // delivery is harmless; postgres_changes stays authoritative until it is removed
-  // and messages leaves the realtime publication (the ~62.6% list_changes win).
-  // Separate effect (keyed on uid too) so the postgres_changes channel above is
-  // untouched. Delete-for-me is applied client-side via hidden_for_user_ids.
+  // Thread realtime rides the private wa:conv:<id> broadcast (migration 040): the
+  // DB trigger publishes the DECRYPTED message directly, so the thread patches
+  // with ZERO re-fetch. This REPLACED the postgres_changes subscription so
+  // whatsapp.messages could leave the supabase_realtime publication (the ~62.6%
+  // list_changes WAL win). op mirrors INSERT/UPDATE; a {deleted} tombstone drops a
+  // cancelled/hard-deleted bubble; delete-for-me is applied client-side via
+  // hidden_for_user_ids. Reconciliation (broadcast = at-most-once): on a
+  // (re)subscribe AFTER a drop, refetch the thread to catch anything missed while
+  // disconnected; React Query's window-focus refetch of the infinite query (and
+  // remount on reopen) are the other backstops.
   useEffect(() => {
     if (!conversationId) return
     const key = messageKeys.thread(conversationId)
@@ -176,6 +109,7 @@ export function useThreadRealtime(conversationId: string | null) {
     ) => qc.setQueryData<{ pages: ThreadPage[]; pageParams: unknown[] } | undefined>(
       key, (prev) => prev ? fn(prev) : prev,
     )
+    let hadError = false
     const ch = supabase
       .channel(`wa:conv:${conversationId}`, { config: { private: true } })
       .on('broadcast', { event: 'msg' }, ({ payload }) => {
@@ -197,9 +131,18 @@ export function useThreadRealtime(conversationId: string | null) {
         }
       })
       .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // Private-channel auth failed / socket dropped; postgres_changes above
-          // keeps the thread correct. Surface for diagnostics.
+        if (status === 'SUBSCRIBED') {
+          if (hadError) {
+            // Reconnected → refetch the thread to catch messages/updates missed
+            // while the socket was down (broadcast is at-most-once).
+            hadError = false
+            void qc.invalidateQueries({ queryKey: messageKeys.thread(conversationId) })
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Private-channel auth failed / socket dropped. Surface for diagnostics;
+          // the reconnect reconcile above + window-focus refetch keep the thread
+          // correct now that postgres_changes is gone.
+          hadError = true
           console.warn(`[wa-thread] wa:conv:${conversationId} status=${status}`)
         }
       })
