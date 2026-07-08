@@ -57,23 +57,51 @@ async function call<T = unknown>(path: string, body: unknown, timeoutMs = 25_000
 
 // ---------- Direct table reads via supabase-js ----------------------------
 
+// SECURITY (enterprise audit): never select('*') on whatsapp_instances — that
+// shipped the plaintext pairing qr_code + the two ciphertext secret columns to
+// every assigned agent. Explicit allow-list of exactly the UI-rendered columns;
+// the 3 secret columns (qr_code, evolution_api_token_ct, webhook_secret_ct) are
+// EXCLUDED and REVOKED from `authenticated` (whatsapp_033). The QR is fetched
+// only by admins via admin_get_instance_qr (getInstanceQr below).
+const INSTANCE_COLS =
+  'id, display_name, phone_number, evolution_instance_name, status, status_detail, ' +
+  'last_seen_at, created_by, created_at, updated_at, lifecycle_state, worker_paused, ' +
+  'pacing_config, business_hours, paired_at, profile_pic_url, wa_profile_name, wa_owner_jid, ' +
+  'recent_tag_colors, auto_assign_enabled, auto_assign_strategy, auto_assign_user_pool, ' +
+  'pacing_floor_ms, pacing_jitter_median_ms, pacing_jitter_spread, pacing_per_conv_floor_ms, ' +
+  'pacing_read_to_reply_min_ms, typing_base_ms, typing_per_char_ms, typing_cap_ms, typing_enabled, ' +
+  'read_receipts_mode, quiet_hours_override_until, manual_presence, wa_reject_calls, wa_call_reply_text, ' +
+  'wa_always_online, wa_auto_read_inbound, wa_read_status, wa_ignore_groups, wa_sync_full_history, ' +
+  'wa_profile_status, daily_send_cap, hourly_send_cap, minute_burst_cap, pacing_mode, ' +
+  'business_hours_enabled, auto_reconnect, send_rate_per_min, identity_merge_enabled, last_connect_at, ' +
+  'history_synced_at, sync_progress, business_id, node_id, key_id'
+
 export async function listInstances(): Promise<WhatsappInstance[]> {
   const { data, error } = await supabase
     .schema('whatsapp').from('whatsapp_instances')
-    .select('*')
+    .select(INSTANCE_COLS)
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data ?? []) as WhatsappInstance[]
+  return (data ?? []) as unknown as WhatsappInstance[]
 }
 
 export async function getInstance(id: string): Promise<WhatsappInstance | null> {
   const { data, error } = await supabase
     .schema('whatsapp').from('whatsapp_instances')
-    .select('*')
+    .select(INSTANCE_COLS)
     .eq('id', id)
     .maybeSingle()
   if (error) throw new Error(error.message)
-  return (data as WhatsappInstance | null) ?? null
+  return (data as unknown as WhatsappInstance | null) ?? null
+}
+
+/** Admin-only live pairing QR (admin_get_instance_qr RPC, is_wa_admin-gated).
+ *  Kept off the instance row select so qr_code can be REVOKED from agents. */
+export async function getInstanceQr(id: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .schema('whatsapp').rpc('admin_get_instance_qr', { p_instance_id: id })
+  if (error) throw new Error(error.message)
+  return (data as string | null) ?? null
 }
 
 // ---------- Edge functions -------------------------------------------------

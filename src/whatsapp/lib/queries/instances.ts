@@ -9,6 +9,7 @@ import {
   deleteInstance,
   disconnectInstance,
   getInstance,
+  getInstanceQr,
   instanceDeletePreflight,
   listInstances,
   pairInstance,
@@ -91,6 +92,19 @@ export function useInstanceCapacityStatus(instanceId: string | null) {
       if (error) throw new Error(error.message)
       return data as InstanceCapacityStatus
     },
+  })
+}
+
+// Admin-only live pairing QR poll. The QR is no longer on the instance row
+// (revoked from agents), so the PairDialog polls this while the QR is showing.
+export function useInstanceQr(instanceId: string | null, enabled: boolean, refetchMs = 2500) {
+  return useQuery<string | null>({
+    queryKey: ['instance-qr', instanceId ?? '_'],
+    enabled:  !!instanceId && enabled,
+    queryFn:  () => (instanceId ? getInstanceQr(instanceId) : Promise.resolve(null)),
+    refetchInterval: enabled ? refetchMs : false,
+    refetchOnWindowFocus: false,
+    gcTime: 0,   // never cache a QR beyond the dialog
   })
 }
 

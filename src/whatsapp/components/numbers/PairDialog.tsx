@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import {
   useInstance,
+  useInstanceQr,
   useInstanceSyncMetrics,
   usePairInstance,
   useDeleteInstance,
@@ -93,6 +94,11 @@ export function PairDialog({ instanceId, onClose }: Props) {
     : status === 'connected' ? 'syncing'
     : 'qr'
 
+  // Live QR now comes from the admin-gated RPC (qr_code was revoked from the
+  // instance row so agents can't read the pairing secret). Poll only while the
+  // QR is on screen.
+  const { data: liveQr } = useInstanceQr(instanceId, phase === 'qr')
+
   // Kick pair on open / Refresh
   useEffect(() => {
     if (!instanceId) return
@@ -132,7 +138,7 @@ export function PairDialog({ instanceId, onClose }: Props) {
   // qrcode.updated, and cleared on terminal states) over the one-shot connect
   // response, which is captured once and goes stale. Fall back to the connect
   // body only for the brief window before the first webhook lands.
-  const qr = instance?.qr_code ?? pair.data?.qr?.base64 ?? null
+  const qr = liveQr ?? pair.data?.qr?.base64 ?? null
 
   return (
     <>
