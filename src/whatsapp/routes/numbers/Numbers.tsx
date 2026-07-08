@@ -1,22 +1,23 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useInstances, useInstancesRealtime, useWorkerHealth } from '../../lib/queries/instances'
+import { useInstances, useInstancesRealtime } from '../../lib/queries/instances'
 import { CreateInstanceDialog } from '../../components/numbers/CreateInstanceDialog'
 import { InstanceCard, InstanceCardSkeleton } from '../../components/numbers/InstanceCard'
-import { MetricsTiles } from '../../components/numbers/MetricsTiles'
 import { NumbersEmptyState } from '../../components/numbers/EmptyState'
 import { PairDialog } from '../../components/numbers/PairDialog'
+
+// IGF simplification (owner ruling 2026-07-08): the worker-health KPI strip
+// (MetricsTiles — queue depth, drain rate, heartbeat, dispatch host) was
+// fleet-operator telemetry; removed from the admin surface.
 
 export default function AdminNumbers() {
   useInstancesRealtime()
   const { data: instances, isLoading } = useInstances()
-  const { data: workerHealth } = useWorkerHealth()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [pairId, setPairId] = useState<string | null>(null)
 
-  const primaryWorker = workerHealth?.[0] ?? null
   const hasNone = !isLoading && (instances?.length ?? 0) === 0
 
   return (
@@ -32,7 +33,7 @@ export default function AdminNumbers() {
               Numéros
             </h1>
             <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
-              Appairez des numéros WhatsApp Business, surveillez leur santé en temps réel, contrôlez la cadence.
+              Appairez des numéros WhatsApp Business et réglez leur comportement.
             </p>
           </div>
           {!hasNone && (
@@ -45,8 +46,6 @@ export default function AdminNumbers() {
             </Button>
           )}
         </header>
-
-        <MetricsTiles worker={primaryWorker} />
 
         <section className="space-y-4">
           <header className="flex items-center justify-between">

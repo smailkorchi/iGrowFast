@@ -15,14 +15,12 @@ import {
   pairInstance,
   pushWaProfile,
   pushWaSettings,
-  resyncWebhookSubscription,
   restartInstance,
-  setInstancePresence,
   type InstanceDeletePreflight,
   type PushWaProfileArgs,
   type WaProfileField,
 } from '../instancesApi'
-import type { WhatsappInstance, WorkerHealthStatus } from '../database.types'
+import type { WhatsappInstance } from '../database.types'
 import { supabase } from '../supabase'
 
 export const instanceKeys = {
@@ -30,7 +28,6 @@ export const instanceKeys = {
   list:   ['instances', 'list'] as const,
   one:    (id: string) => ['instances', 'one', id] as const,
   status: (id: string) => ['instances', 'status', id] as const,
-  worker: ['worker', 'health'] as const,
 }
 
 // ---------- List + single ---------------------------------------------------
@@ -103,167 +100,6 @@ export function useInstanceLiveStatus(id: string | null) {
     enabled:  !!id,
     staleTime: 30_000,
     refetchInterval: 30_000,
-  })
-}
-
-export interface InstanceStats {
-  conversations_total: number
-  conversations_groups: number
-  conversations_dms: number
-  conversations_unread: number
-  conversations_active_24h: number
-  contacts_total: number
-  messages_total: number
-  messages_inbound_24h: number
-  messages_outbound_24h: number
-  messages_7d: number
-  queue_queued: number
-  queue_dispatching: number
-  queue_dead_24h: number
-  reconnects_7d: number
-  last_inbound_at: string | null
-  last_outbound_at: string | null
-}
-
-export function useInstanceStats(id: string | null) {
-  return useQuery<InstanceStats | null>({
-    queryKey: ['instances', 'stats', id ?? '_'],
-    queryFn: async () => {
-      if (!id) return null
-      const { data, error } = await supabase.schema('whatsapp').rpc('instance_stats', { p_instance_id: id })
-      if (error) throw new Error(error.message)
-      return (data as unknown) as InstanceStats
-    },
-    enabled: !!id,
-    // 15s polling is a fallback for Realtime gaps; focus + mount refetch
-    // are handled by the global defaults.
-    refetchInterval: 15_000,
-  })
-}
-
-/**
- * Live-sync hook for the detail page. Subscribes to:
- *   - messages INSERT for this instance → invalidate stats + recent conversations
- *   - conversations UPDATE for this instance → patch list + invalidate stats
- *
- * Without this, the UI shows stale numbers between the 15s poll ticks. Pair
- * this with useInstancesRealtime (which keeps the whatsapp_instances row
- * live) for a fully reactive detail page.
- */
-export function useInstanceLiveSync(instanceId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!instanceId) return
-    const channel = supabase
-      .channel(`numbers-detail-${instanceId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'whatsapp', table: 'messages', filter: `instance_id=eq.${instanceId}` },
-        () => {
-          void qc.invalidateQueries({ queryKey: ['instances', 'stats', instanceId] })
-          void qc.invalidateQueries({ queryKey: ['instances', 'recent_conversations', instanceId] })
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${instanceId}` },
-        () => {
-          void qc.invalidateQueries({ queryKey: ['instances', 'stats', instanceId] })
-          void qc.invalidateQueries({ queryKey: ['instances', 'recent_conversations', instanceId] })
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${instanceId}` },
-        () => {
-          void qc.invalidateQueries({ queryKey: ['instances', 'stats', instanceId] })
-          void qc.invalidateQueries({ queryKey: ['instances', 'recent_conversations', instanceId] })
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'whatsapp', table: 'audit_log', filter: `target_id=eq.${instanceId}` },
-        () => {
-          void qc.invalidateQueries({ queryKey: ['instances', 'audit', instanceId] })
-        },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [instanceId, qc])
-}
-
-interface RecentConversation {
-  id: string
-  remote_jid: string
-  is_group: boolean
-  peer_display_name: string | null
-  peer_profile_pic: string | null
-  last_message_at: string | null
-  unread_count: number
-  contact_book_name: string | null
-}
-
-export function useRecentConversations(instanceId: string | null, limit = 8) {
-  return useQuery<RecentConversation[]>({
-    queryKey: ['instances', 'recent_conversations', instanceId ?? '_'],
-    queryFn: async () => {
-      if (!instanceId) return []
-      const { data, error } = await supabase
-        .schema('whatsapp').from('conversations_decrypted')
-        .select('id, remote_jid, is_group, peer_display_name, peer_profile_pic, last_message_at, unread_count, contact_book_name')
-        .eq('instance_id', instanceId)
-        .not('remote_jid', 'like', '%@broadcast')
-        .not('remote_jid', 'like', '%@newsletter')
-        .order('last_message_at', { ascending: false, nullsFirst: false })
-        .limit(limit)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as RecentConversation[]
-    },
-    enabled: !!instanceId,
-    refetchInterval: 20_000,
-  })
-}
-
-interface AuditEvent {
-  id: number
-  occurred_at: string
-  event_type: string
-  payload: Record<string, unknown>
-}
-
-export function useInstanceAudit(instanceId: string | null, limit = 12) {
-  return useQuery<AuditEvent[]>({
-    queryKey: ['instances', 'audit', instanceId ?? '_'],
-    queryFn: async () => {
-      if (!instanceId) return []
-      const { data, error } = await supabase
-        .schema('whatsapp').from('audit_log')
-        .select('id, occurred_at, event_type, payload')
-        .eq('target_type', 'instance')
-        .eq('target_id', instanceId)
-        .order('occurred_at', { ascending: false })
-        .limit(limit)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as unknown as AuditEvent[]
-    },
-    enabled: !!instanceId,
-    refetchInterval: 30_000,
-  })
-}
-
-export function useWorkerHealth() {
-  return useQuery<WorkerHealthStatus[]>({
-    queryKey: instanceKeys.worker,
-    queryFn:  async () => {
-      const { data, error } = await supabase
-        .schema('whatsapp').from('worker_health_status')
-        .select('*')
-        .order('last_heartbeat_at', { ascending: false })
-      if (error) throw new Error(error.message)
-      return (data ?? []) as WorkerHealthStatus[]
-    },
-    staleTime: 5_000,
-    refetchInterval: 10_000,
   })
 }
 
@@ -398,11 +234,6 @@ export function useSetInstanceSettings(instanceId: string | null) {
   })
 }
 
-// ─── Manual presence override ─────────────────────────────────────────────
-//
-// Calls the instance-presence edge function which both persists the
-// `manual_presence` column AND broadcasts the presence via Evolution.
-
 /** Pushes the WA peer-side flag columns from our DB to Evolution. */
 export function usePushWaSettings(instanceId: string | null) {
   const qc = useQueryClient()
@@ -440,101 +271,6 @@ export function usePushWaProfile(instanceId: string | null) {
 }
 
 /** Re-sync the canonical webhook event-list on Evolution for an existing instance. */
-export function useResyncWebhookSubscription(instanceId: string | null) {
-  return useMutation({
-    mutationFn: async () => {
-      if (!instanceId) throw new Error('no_instance')
-      return await resyncWebhookSubscription(instanceId)
-    },
-  })
-}
-
-export function useSetInstancePresence(instanceId: string | null) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (state: 'auto' | 'online' | 'offline') => {
-      if (!instanceId) throw new Error('no_instance')
-      return await setInstancePresence(instanceId, state)
-    },
-    onSuccess: () => {
-      if (!instanceId) return
-      void qc.invalidateQueries({ queryKey: instanceKeys.one(instanceId) })
-    },
-  })
-}
-
-// ─── Dispatcher live state (per-number pacing snapshot + queue depth) ────
-//
-// Polls every 2s while the page is open. Returns: last dispatched/completed
-// timestamps from number_pacing_state, plus the queued/dispatching/dead
-// counts already computed by instance_stats.
-
-export interface DispatcherState {
-  last_dispatched_at: string | null
-  last_completed_at:  string | null
-  last_send_at:       string | null
-  /** Content sends completed in the last rolling 60s — drives the live meter. */
-  sends_last_min:     number
-  queue_queued:       number
-  queue_dispatching:  number
-  queue_dead_24h:     number
-}
-
-const ZERO_DISPATCH: DispatcherState = {
-  last_dispatched_at: null, last_completed_at: null, last_send_at: null,
-  sends_last_min: 0, queue_queued: 0, queue_dispatching: 0, queue_dead_24h: 0,
-}
-const mapSnapshot = (r: Record<string, unknown>): DispatcherState => ({
-  last_dispatched_at: (r.last_dispatched_at as string | null) ?? null,
-  last_completed_at:  (r.last_completed_at  as string | null) ?? null,
-  last_send_at:       (r.last_send_at       as string | null) ?? null,
-  sends_last_min:     Number(r.sends_last_min ?? 0),
-  queue_queued:       Number(r.queue_queued ?? 0),
-  queue_dispatching:  Number(r.queue_dispatching ?? 0),
-  queue_dead_24h:     Number(r.queue_dead_24h ?? 0),
-})
-
-// Realtime-driven: the worker UPSERTs public.dispatcher_snapshot on a throttled cadence and we
-// subscribe per-viewed-instance (mount/unmount) — replaces the old 2s/3-read poll. A slow 30s
-// fallback fetch covers first paint and dropped channels. Concurrent channels track active
-// viewers, not number count.
-export function useDispatcherState(instanceId: string | null) {
-  const qc = useQueryClient()
-  const SEL = 'last_dispatched_at,last_completed_at,last_send_at,sends_last_min,queue_queued,queue_dispatching,queue_dead_24h'
-
-  useEffect(() => {
-    if (!instanceId) return
-    const key = ['dispatcher-state', instanceId] as const
-    const channel = supabase
-      .channel(`dispatcher-snapshot-${instanceId}`)
-      .on('postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'dispatcher_snapshot', filter: `instance_id=eq.${instanceId}` },
-        (payload) => {
-          const row = payload.new as Record<string, unknown> | null
-          if (row && row.instance_id) qc.setQueryData(key, mapSnapshot(row))
-        })
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [instanceId, qc])
-
-  return useQuery<DispatcherState | null>({
-    queryKey: ['dispatcher-state', instanceId ?? '_'],
-    enabled: !!instanceId,
-    queryFn: async () => {
-      if (!instanceId) return null
-      // dispatcher_snapshot isn't in the generated types yet → cast (same pattern as the rpc casts).
-      const from = supabase.schema('whatsapp').from as unknown as (t: string) => {
-        select: (s: string) => { eq: (c: string, v: string) => {
-          maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> } } }
-      const { data, error } = await from('dispatcher_snapshot').select(SEL).eq('instance_id', instanceId).maybeSingle()
-      if (error) throw new Error(error.message)
-      return data ? mapSnapshot(data) : ZERO_DISPATCH
-    },
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-  })
-}
-
 export function useDeleteInstance() {
   const qc = useQueryClient()
   return useMutation({

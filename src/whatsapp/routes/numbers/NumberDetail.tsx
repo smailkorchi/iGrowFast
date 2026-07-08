@@ -1,30 +1,26 @@
-// /whatsapp/numbers/:id — chokepoint cockpit for one WhatsApp instance.
-// Logic 1:1 from WA Mancer; presentation re-skinned to the IGF design system.
+// /whatsapp/numbers/:id — CONFIG page for one WhatsApp instance.
 //
-// Architecture: this number is a per-instance OUTBOUND CHOKEPOINT. Many
-// agents may type/send/react in parallel; the server serializes everything
-// into a single human-looking stream. This page is the operator's cockpit
-// for that serializer: pause, lifecycle tier, pacing overrides, business
-// hours, typing-pre-roll behavior, read-receipts policy, presence override,
-// plus live observability on what the dispatcher is doing right now.
+// IGF simplification (owner ruling 2026-07-08): the donor's "chokepoint
+// cockpit" (live dispatcher state, rate meter, KPI grids, library/reliability
+// stats, watchdog, presence override, custom pacing, ops rescue tools) is
+// fleet-operator territory — stripped from the admin surface. What remains is
+// exactly the admin-controllable config: cadence tier, protection profile
+// (named presets only), humanization, activity window, call rejection, and
+// the profile photo — plus the lifecycle actions (pair / disconnect /
+// restart / delete). Send mechanics are untouched: every removed control
+// keeps its DB column and worker behavior; it just isn't admin-visible.
 
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   useDisconnectInstance,
-  useDispatcherState,
   useInstance,
-  useInstanceLiveSync,
-  useInstanceStats,
   useInstancesRealtime,
   usePushWaProfile,
   usePushWaSettings,
-  useResyncWebhookSubscription,
   useRestartInstance,
-  useSetInstancePresence,
   useSetInstanceSettings,
 } from '../../lib/queries/instances'
-import { formatRelative } from '../../lib/relativeTime'
 import { cn } from '@/lib/utils'
 import { InstanceAvatar } from '../../components/numbers/InstanceAvatar'
 import { LifecycleBadge } from '../../components/numbers/LifecycleBadge'
@@ -56,11 +52,8 @@ const PROTECTION_PRESETS: Record<'conservative'|'balanced'|'aggressive', Protect
 export default function NumberDetail() {
   useInstancesRealtime()
   const { id } = useParams<{ id: string }>()
-  useInstanceLiveSync(id ?? null)
   const nav = useNavigate()
   const { data: instance, isLoading } = useInstance(id ?? null)
-  const { data: stats } = useInstanceStats(id ?? null)
-  const { data: live } = useDispatcherState(id ?? null)
 
   const disconnect = useDisconnectInstance()
   const restart    = useRestartInstance()
@@ -148,7 +141,6 @@ export default function NumberDetail() {
             </div>
           </div>
           <div className="flex flex-col items-stretch lg:items-end gap-3">
-            <WatchdogToggle instance={instance} />
             <div className="flex flex-wrap items-center gap-2">
               {(instance.status === 'pending' || instance.status === 'disconnected' || instance.status === 'error') && (
                 <button type="button" className={btnPrimary} onClick={() => setPairOpen(true)}>Appairer le numéro</button>
@@ -205,19 +197,8 @@ export default function NumberDetail() {
           </div>
         )}
 
-        {/* HEADLINE KPIs ------------------------------------------------- */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-          <Kpi label="Entrants 24h"  value={stats?.messages_inbound_24h ?? 0}  tone="cool" />
-          <Kpi label="Sortants 24h" value={stats?.messages_outbound_24h ?? 0} tone="natural" />
-          <Kpi label="Conversations actives 24h" value={stats?.conversations_active_24h ?? 0} />
-          <Kpi label="Non lus" value={stats?.conversations_unread ?? 0} tone={stats && stats.conversations_unread > 0 ? 'warm' : undefined} />
-        </div>
-
-        {/* LIVE STATE — what the dispatcher is doing right now (prominent) -- */}
-        <LiveStateCard live={live ?? null} instance={instance} />
-
-        {/* DISPATCH CONTROLS — how the chokepoint sends -------------------- */}
-        <SectionBlock title="Contrôles de répartition" sub="Comment le point de contrôle envoie">
+        {/* CADENCE — tier + protection profile ----------------------------- */}
+        <SectionBlock title="Cadence" sub="À quel rythme ce numéro envoie">
           <div className="space-y-4">
             <OperationalCard instance={instance} />
             <PacingCard instance={instance} />
@@ -227,39 +208,16 @@ export default function NumberDetail() {
         {/* HUMAN BEHAVIOR — how the number appears to customers ------------ */}
         <SectionBlock title="Comportement humain" sub="Comment le numéro apparaît aux clients">
           <div className="space-y-4">
-            <PresenceCard instance={instance} />
             <HumanizationCard instance={instance} />
             <ScheduleCard instance={instance} />
           </div>
         </SectionBlock>
 
-        {/* WHATSAPP ACCOUNT — peer-visible profile + connection behavior -- */}
-        <SectionBlock title="Compte WhatsApp" sub="Profil visible par les contacts & comportement de connexion">
+        {/* WHATSAPP ACCOUNT — peer-visible profile + call behavior -------- */}
+        <SectionBlock title="Compte WhatsApp" sub="Profil visible par les contacts & appels">
           <div className="space-y-4">
             <WaBehaviorCard instance={instance} />
             <WaProfileCard instance={instance} />
-          </div>
-        </SectionBlock>
-
-        <OpsCard instance={instance} />
-
-        {/* LIBRARY + RELIABILITY (existing) ------------------------------ */}
-        <SectionBlock title="Bibliothèque" sub="Tout ce qui est rattaché à ce numéro.">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-            <MetricTile eyebrow="Conversations" value={stats?.conversations_total ?? 0} sub={`${stats?.conversations_dms ?? 0} DM · ${stats?.conversations_groups ?? 0} groupes`} />
-            <MetricTile eyebrow="Contacts" value={stats?.contacts_total ?? 0} sub="contacts DM distincts" />
-            <MetricTile eyebrow="Groupes" value={stats?.conversations_groups ?? 0} sub="rejoints" />
-            <MetricTile eyebrow="Messages 7j" value={stats?.messages_7d ?? 0} />
-            <MetricTile eyebrow="Messages au total" value={stats?.messages_total ?? 0} />
-            <MetricTile eyebrow="Vu" value={formatRelative(instance.last_seen_at)} />
-          </div>
-        </SectionBlock>
-
-        <SectionBlock title="Fiabilité" sub="Santé opérationnelle de ce numéro.">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-            <MetricTile eyebrow="Reconnexions 7j" value={stats?.reconnects_7d ?? 0} />
-            <MetricTile eyebrow="Appairé" value={instance.paired_at ? formatRelative(instance.paired_at) : 'Pas encore'} />
-            <MetricTile eyebrow="Détail du statut" value={instance.status_detail ?? '—'} />
           </div>
         </SectionBlock>
       </div>
@@ -293,67 +251,21 @@ function SectionBlock({ title, sub, children }: { title: string; sub: string; ch
 
 // ─── Hero: auto-reconnect watchdog toggle ─────────────────────────────────
 //
-// Flips the per-instance auto_reconnect flag. The worker's status poll reads
-// it and restarts a genuinely-down number (with backoff + caps + terminal
-// detection). Prominent in the hero so the admin owns the decision per number.
-
-function WatchdogToggle({ instance }: { instance: WhatsappInstance }) {
-  const set = useSetInstanceSettings(instance.id)
-  const on = (instance as unknown as { auto_reconnect?: boolean }).auto_reconnect ?? false
-  const needsRepair = (instance.status_detail ?? '').startsWith('needs_repair')
-  return (
-    <div className={cn(
-      'flex items-center gap-3 rounded-2xl border px-4 py-3',
-      on ? 'border-ant-green/30 bg-ant-green/5' : 'border-ant-line bg-ant-paper',
-    )}>
-      <span className={cn('shrink-0', on ? 'text-ant-green' : 'text-ant-mid')} aria-hidden>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 3l7 3v5c0 4.4-2.9 7.9-7 9-4.1-1.1-7-4.6-7-9V6l7-3z" />
-          <path d="M9 12l2 2 4-4" />
-        </svg>
-      </span>
-      <span className="flex flex-col min-w-0">
-        <span className="text-[12px] font-semibold text-ant-ink">Reconnexion auto</span>
-        <span className="text-[11px] text-ant-mid truncate">
-          {needsRepair
-            ? 'Arrêtée — réappairage requis (scanner le QR)'
-            : on
-              ? 'Surveillance active — redémarre un lien interrompu'
-              : 'Désactivée — reconnexion manuelle uniquement'}
-        </span>
-      </span>
-      <Toggle
-        checked={on}
-        onChange={(v) => set.mutate({ auto_reconnect: v })}
-        disabled={set.isPending}
-        tone="natural"
-      />
-    </div>
-  )
-}
-
-// ─── Card 1: Operational ──────────────────────────────────────────────────
+// ─── Card 1: Cadence tier ─────────────────────────────────────────────────
+// (IGF trim 2026-07-08: the Répartiteur pause toggle and the hero
+// WatchdogToggle left the admin surface — worker_paused / auto_reconnect
+// stay honored server-side.)
 
 function OperationalCard({ instance }: { instance: WhatsappInstance }) {
   const set = useSetInstanceSettings(instance.id)
   const lifecycle = instance.lifecycle_state as 'warming' | 'established' | 'cooling' | 'banned'
   return (
     <Card
-      title="Exploitation"
-      eyebrow="POINT DE CONTRÔLE · COMMANDES PRINCIPALES"
+      title="Palier de cadence"
+      eyebrow="MATURITÉ DU NUMÉRO"
       accent="warm"
-      help="Activez/désactivez le répartiteur et choisissez le palier de cadence que le worker doit utiliser."
+      help="Le palier détermine la prudence d'envoi : un numéro en chauffe envoie moins vite qu'un numéro établi."
     >
-      <Row>
-        <RowLabel>Répartiteur</RowLabel>
-        <Toggle
-          checked={!instance.worker_paused}
-          onChange={(v) => set.mutate({ worker_paused: !v })}
-          disabled={set.isPending}
-          rightLabel={instance.worker_paused ? 'En pause' : 'Actif'}
-          tone={instance.worker_paused ? 'warm' : 'natural'}
-        />
-      </Row>
       <Row>
         <RowLabel>Palier de cadence</RowLabel>
         <Segmented
@@ -371,59 +283,19 @@ function OperationalCard({ instance }: { instance: WhatsappInstance }) {
   )
 }
 
-// ─── Card 2: Presence ─────────────────────────────────────────────────────
-
-function PresenceCard({ instance }: { instance: WhatsappInstance }) {
-  const setPresence = useSetInstancePresence(instance.id)
-  const current = instance.manual_presence
-  return (
-    <Card
-      title="Présence"
-      eyebrow="VISIBILITÉ EN LIGNE"
-      accent="cool"
-      help="AUTO (recommandé) : le numéro reste hors ligne et n'apparaît en ligne qu'un instant pendant qu'un agent répond activement — comme une vraie personne. EN LIGNE : le numéro est affiché en permanence en ligne pour tout le monde."
-    >
-      <div className="flex py-1">
-        <Segmented
-          value={current === 'online' ? 'online' : 'auto'}
-          options={[
-            { value: 'auto',    label: 'Auto' },
-            { value: 'online',  label: 'Toujours en ligne' },
-          ]}
-          onChange={(v) => setPresence.mutate(v as 'auto'|'online')}
-          disabled={setPresence.isPending}
-          size="lg"
-        />
-      </div>
-      <Row>
-        <RowLabel>Effectif</RowLabel>
-        {current === 'online' ? (
-          <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-ant-green">
-            <span aria-hidden className="h-2 w-2 rounded-full bg-ant-green ring-[3px] ring-ant-green/20" />
-            Toujours en ligne
-          </span>
-        ) : (
-          <span className="text-[12px] text-ant-mid text-right">
-            Hors ligne · brièvement en ligne pendant la réponse
-          </span>
-        )}
-      </Row>
-    </Card>
-  )
-}
-
-// ─── Card 3: Sending protection (preset + rate/burst/ceilings) ────────────
+// ─── Card 2: Sending protection (named presets only) ──────────────────────
 //
-// The single knob that matters. A named profile sets all four numbers and
-// locks them; Custom unlocks per-number tuning. Solo / single-contact sending
-// is never slowed — these only engage under cross-contact concurrency
-// (the cross-contact micro-gap) or sustained volume (the token bucket + caps).
+// IGF trim 2026-07-08: the 'Personnalisé' mode + per-number tuning inputs
+// left the admin surface — named profiles only. The server-side CASE in
+// whatsapp.set_instance_settings still accepts 'custom' (untouched); a
+// legacy 'custom' instance simply shows no selected profile until the admin
+// picks one. Solo / single-contact sending is never slowed — these limits
+// only engage under cross-contact concurrency or sustained volume.
 
 function PacingCard({ instance }: { instance: WhatsappInstance }) {
   const set = useSetInstanceSettings(instance.id)
   const mode = ((instance as unknown as { pacing_mode?: string }).pacing_mode ?? 'balanced') as
     'conservative' | 'balanced' | 'aggressive' | 'custom'
-  const isCustom = mode === 'custom'
   const presetDefault = PROTECTION_PRESETS[mode === 'custom' ? 'balanced' : mode]
 
   // Effective live values. Under a named preset the server keeps these columns
@@ -448,9 +320,8 @@ function PacingCard({ instance }: { instance: WhatsappInstance }) {
             { value: 'conservative', label: 'Conservateur' },
             { value: 'balanced',     label: 'Équilibré' },
             { value: 'aggressive',   label: 'Agressif' },
-            { value: 'custom',       label: 'Personnalisé' },
           ]}
-          onChange={(v) => set.mutate({ pacing_mode: v as 'conservative'|'balanced'|'aggressive'|'custom' })}
+          onChange={(v) => set.mutate({ pacing_mode: v as 'conservative'|'balanced'|'aggressive' })}
           disabled={set.isPending}
           size="sm"
         />
@@ -462,22 +333,9 @@ function PacingCard({ instance }: { instance: WhatsappInstance }) {
         </div>
         <div className="font-mono text-[12px] text-ant-mid mt-0.5">
           rafale {burst} · plafonds {hourly}/h · {daily}/jour
-          {!isCustom && <> · <span className="text-ant-mid/70">{presetDefault.blurb}</span></>}
+          {mode !== 'custom' && <> · <span className="text-ant-mid/70">{presetDefault.blurb}</span></>}
         </div>
       </div>
-
-      <PacingInput
-        label="Cadence" unit="msgs/min" value={rate} preset={presetDefault.rate} disabled={!isCustom} clearable={false}
-        onChange={(v) => set.mutate({ send_rate_per_min: v ?? presetDefault.rate })} />
-      <PacingInput
-        label="Rafale" unit="msgs" value={burst} preset={presetDefault.burst} disabled={!isCustom} clearable={false}
-        onChange={(v) => set.mutate({ minute_burst_cap: v ?? presetDefault.burst })} />
-      <PacingInput
-        label="Plafond horaire" unit="msgs/h" value={hourly} preset={presetDefault.hourly} disabled={!isCustom} clearable={false}
-        onChange={(v) => set.mutate({ hourly_send_cap: v ?? presetDefault.hourly })} />
-      <PacingInput
-        label="Plafond quotidien" unit="msgs/jour" value={daily} preset={presetDefault.daily} disabled={!isCustom} clearable={false}
-        onChange={(v) => set.mutate({ daily_send_cap: v ?? presetDefault.daily })} />
     </Card>
   )
 }
@@ -524,65 +382,6 @@ function HumanizationCard({ instance }: { instance: WhatsappInstance }) {
         />
       </Row>
     </Card>
-  )
-}
-
-// ─── Card 5: Live State (full-width below the KPI grid) ───────────────────
-
-function LiveStateCard({ live, instance }: {
-  live: { last_dispatched_at: string|null; last_completed_at: string|null; last_send_at: string|null;
-          sends_last_min: number; queue_queued: number; queue_dispatching: number; queue_dead_24h: number } | null
-  instance: WhatsappInstance
-}) {
-  // Tiny ticker so "x s ago" updates without refetching.
-  const [, force] = useState(0)
-  useEffect(() => { const id = setInterval(() => force((n) => n + 1), 1000); return () => clearInterval(id) }, [])
-
-  const idle = (live?.queue_queued ?? 0) === 0 && (live?.queue_dispatching ?? 0) === 0
-  return (
-    <SectionBlock title="État en direct" sub="Instantané à la seconde de ce que fait le point de contrôle en ce moment.">
-      <RateMeter sendsLastMin={live?.sends_last_min ?? 0} instance={instance} />
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-        <MetricTile eyebrow="Dernière distribution" value={live?.last_dispatched_at ? formatRelative(live.last_dispatched_at) : '—'} />
-        <MetricTile eyebrow="Dernier achèvement" value={live?.last_completed_at ? formatRelative(live.last_completed_at) : '—'} />
-        <MetricTile eyebrow="Dernier envoi" value={live?.last_send_at ? formatRelative(live.last_send_at) : '—'} />
-        <MetricTile eyebrow="En file"      value={live?.queue_queued      ?? 0} tone={live && live.queue_queued      > 0 ? 'cool'   : undefined} />
-        <MetricTile eyebrow="En distribution" value={live?.queue_dispatching ?? 0} tone={live && live.queue_dispatching > 0 ? 'warm'   : undefined} />
-        <MetricTile eyebrow="Abandonnés 24h"    value={live?.queue_dead_24h    ?? 0} tone={live && live.queue_dead_24h    > 0 ? 'warm'   : undefined} />
-      </div>
-      {idle && (
-        <div className="text-[13px] text-ant-mid">
-          Inactif — dernier achèvement {live?.last_completed_at ? formatRelative(live.last_completed_at) : 'jamais'} ; prêt pour le prochain envoi.
-        </div>
-      )}
-    </SectionBlock>
-  )
-}
-
-// Live "rate this minute vs cap" gauge. Makes the gate visible: green while
-// under the per-minute rate, warm as it approaches, so an admin can SEE
-// whether the protection is even engaging when they tune the profile.
-function RateMeter({ sendsLastMin, instance }: { sendsLastMin: number; instance: WhatsappInstance }) {
-  const rate = (instance as unknown as { send_rate_per_min?: number }).send_rate_per_min ?? 10
-  const pct = Math.min(100, Math.round((sendsLastMin / Math.max(rate, 1)) * 100))
-  const barColor = pct >= 100 ? 'bg-ant-rose' : pct >= 70 ? 'bg-ant-orange' : 'bg-ant-green'
-  return (
-    <div className="rounded-2xl border border-ant-line bg-ant-paper px-4 py-3">
-      <div className="flex items-baseline justify-between mb-2">
-        <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
-          Cadence cette minute
-        </span>
-        <span className="font-mono text-[13px] text-ant-ink tabular-nums">
-          {sendsLastMin} / {rate} par min
-        </span>
-      </div>
-      <div className="h-2 rounded-full bg-ant-ink/[0.08] overflow-hidden">
-        <div className={cn('h-full rounded-full transition-all duration-500', barColor)} style={{ width: `${pct}%` }} />
-      </div>
-      <div className="mt-1.5 text-[11px] text-ant-mid">
-        {pct >= 100 ? 'Au plafond — les envois supplémentaires sont étalés pour rester humains.' : 'Sous le plafond — les envois passent directement.'}
-      </div>
-    </div>
   )
 }
 
@@ -787,36 +586,7 @@ function PacingInput({ label, unit, value, preset, onChange, step, clearable = t
   )
 }
 
-// ─── KPI / MetricTile ─────────────────────────────────────────────────────
-
-const TILE_TONE: Record<'warm'|'cool'|'natural', string> = {
-  warm: 'text-ant-orange', cool: 'text-ant-blue', natural: 'text-ant-green',
-}
-
-function Kpi({ label, value, tone }: { label: string; value: string | number; tone?: 'warm' | 'cool' | 'natural' }) {
-  return (
-    <div className="bg-ant-paper p-4">
-      <p className={cn('font-display text-[24px] font-semibold tabular-nums', tone ? TILE_TONE[tone] : 'text-ant-ink')}>
-        {typeof value === 'number' ? value.toLocaleString('fr-MA') : value}
-      </p>
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ant-mid mt-1">{label}</p>
-    </div>
-  )
-}
-
-function MetricTile({ eyebrow, value, sub, tone }: { eyebrow: string; value: string | number; sub?: string; tone?: 'warm' | 'cool' | 'natural' }) {
-  return (
-    <div className="bg-ant-paper p-4">
-      <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-ant-mid">{eyebrow}</div>
-      <div className={cn('font-display text-[18px] font-semibold tabular-nums mt-1.5 truncate', tone ? TILE_TONE[tone] : 'text-ant-ink')}>
-        {typeof value === 'number' ? value.toLocaleString('fr-MA') : value}
-      </div>
-      {sub && <div className="text-[11px] text-ant-mid mt-0.5 truncate">{sub}</div>}
-    </div>
-  )
-}
-
-// ─── Card 6: Schedule (business hours + quiet hours override) ─────────────
+// ─── Card 4: Schedule (business hours + quiet hours override) ─────────────
 
 function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
   const set = useSetInstanceSettings(instance.id)
@@ -955,17 +725,22 @@ function ScheduleCard({ instance }: { instance: WhatsappInstance }) {
   )
 }
 
-// ─── Card 7: WA Behavior (Evolution /settings/set) ────────────────────────
+// ─── Card 5: WA Behavior (Evolution /settings/set) ────────────────────────
+// IGF trim 2026-07-08: only call rejection is admin-facing. The other
+// Evolution flags (auto-read, read-status, ignore-groups, sync-full-history)
+// left the surface — their columns + push path are untouched. Removing the
+// full-history toggle also protects the one-week sync rule from being
+// re-enabled per instance.
 
 function WaBehaviorCard({ instance }: { instance: WhatsappInstance }) {
   const set = useSetInstanceSettings(instance.id)
   const push = usePushWaSettings(instance.id)
   return (
     <Card
-      title="Comportement WhatsApp"
-      eyebrow="OPTIONS CÔTÉ CONTACT"
+      title="Appels"
+      eyebrow="COMPORTEMENT CÔTÉ CONTACT"
       accent="natural"
-      help="Comment ce numéro se comporte du côté WhatsApp. Le réglage enregistre la valeur ; Appliquer l'envoie à Evolution."
+      help="Le réglage enregistre la valeur ; Appliquer l'envoie à WhatsApp."
     >
       <Row>
         <RowLabel>Rejeter les appels entrants</RowLabel>
@@ -982,22 +757,6 @@ function WaBehaviorCard({ instance }: { instance: WhatsappInstance }) {
           />
         </Row>
       )}
-      <Row>
-        <RowLabel>Lecture auto des entrants</RowLabel>
-        <Toggle checked={instance.wa_auto_read_inbound} onChange={(v) => set.mutate({ wa_auto_read_inbound: v })} disabled={set.isPending} rightLabel={instance.wa_auto_read_inbound ? 'Activée' : 'Désactivée'} />
-      </Row>
-      <Row>
-        <RowLabel>Marquer les statuts comme vus</RowLabel>
-        <Toggle checked={instance.wa_read_status} onChange={(v) => set.mutate({ wa_read_status: v })} disabled={set.isPending} rightLabel={instance.wa_read_status ? 'Activé' : 'Désactivé'} />
-      </Row>
-      <Row>
-        <RowLabel>Ignorer entièrement les groupes</RowLabel>
-        <Toggle checked={instance.wa_ignore_groups} onChange={(v) => set.mutate({ wa_ignore_groups: v })} disabled={set.isPending} rightLabel={instance.wa_ignore_groups ? 'Activé' : 'Désactivé'} tone="warm" />
-      </Row>
-      <Row>
-        <RowLabel>Synchroniser tout l'historique à la resynchro</RowLabel>
-        <Toggle checked={instance.wa_sync_full_history} onChange={(v) => set.mutate({ wa_sync_full_history: v })} disabled={set.isPending} rightLabel={instance.wa_sync_full_history ? 'Activé' : 'Désactivé'} />
-      </Row>
       <div className="mt-2 pt-4 border-t border-ant-line/60 flex justify-end">
         <button type="button" onClick={() => push.mutate()} disabled={push.isPending} className={btnPush}>
           {push.isPending ? 'Application…' : push.isSuccess ? 'Appliqué' : 'Appliquer à WhatsApp'}
@@ -1070,10 +829,6 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
       help="La photo de profil visible par toute personne qui contacte ce numéro. Le changement est appliqué immédiatement."
     >
       <Row>
-        <RowLabel>Nom affiché</RowLabel>
-        <span className="text-[12px] text-ant-mid text-right">{instance.wa_profile_name ?? '—'}</span>
-      </Row>
-      <Row>
         <RowLabel>Photo de profil</RowLabel>
         <span className="inline-flex items-center gap-2.5">
           <input
@@ -1145,17 +900,3 @@ function WaProfileCard({ instance }: { instance: WhatsappInstance }) {
   )
 }
 
-// ─── Ops tools — webhook re-sync (full-width) ─────────────────────────────
-
-function OpsCard({ instance }: { instance: WhatsappInstance }) {
-  const resync = useResyncWebhookSubscription(instance.id)
-  return (
-    <SectionBlock title="Outils d'exploitation" sub="Boutons de secours opérationnels.">
-      <div className="flex gap-3 flex-wrap">
-        <button type="button" onClick={() => resync.mutate()} disabled={resync.isPending} className={btnPush}>
-          {resync.isPending ? 'Resynchronisation…' : resync.isSuccess ? 'Resynchronisé' : 'Resynchroniser l\'abonnement webhook'}
-        </button>
-      </div>
-    </SectionBlock>
-  )
-}

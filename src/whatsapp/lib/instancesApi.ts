@@ -112,19 +112,6 @@ export function restartInstance(id: string): Promise<{ ok: true }> {
   return call('/instance-restart', { instance_id: id })
 }
 
-export type ManualPresence = 'auto' | 'online' | 'offline'
-
-export interface PresenceResp {
-  ok: true
-  state: ManualPresence
-  note?: string
-  evolution_status?: number
-}
-
-export function setInstancePresence(id: string, state: ManualPresence): Promise<PresenceResp> {
-  return call<PresenceResp>('/instance-presence', { instance_id: id, state })
-}
-
 /** Push the per-instance WA peer-side flag columns to Evolution /settings/set. */
 export function pushWaSettings(id: string): Promise<{ ok: true; evolution_status: number }> {
   return call('/instance-wa-settings', { instance_id: id })
@@ -147,11 +134,6 @@ export function pushWaProfile(id: string, args?: PushWaProfileArgs): Promise<WaP
     fields: args?.fields,
     picture_data_url: args?.pictureDataUrl,
   })
-}
-
-/** Push the canonical webhook subscription list to Evolution /webhook/set. */
-export function resyncWebhookSubscription(id: string): Promise<{ ok: true; events: string[] }> {
-  return call('/instance-webhook-resync', { instance_id: id })
 }
 
 export interface InstanceDeletePreflight {
