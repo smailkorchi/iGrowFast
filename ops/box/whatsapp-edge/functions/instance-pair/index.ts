@@ -32,17 +32,17 @@ function hasQr(body: unknown): boolean {
 Deno.serve((req) =>
   withInstance(req, async (ctx) => {
     // 1. Already connected? Do not restart — that would drop a live session.
-    const st = await connectionState(ctx.evolutionInstanceName)
+    const st = await connectionState(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
     if (st.ok && readState(st.body) === 'open') {
       return json({ ok: true, connected: true, qr: { state: 'open' } }, { status: 200 })
     }
 
     // 2. Force a fresh Baileys socket + QR loop. Tolerate a restart failure
     //    (e.g. instance never connected yet) and fall through to connect.
-    await restartInstance(ctx.evolutionInstanceName)
+    await restartInstance(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
 
     // 3. Pull the first code of the new loop.
-    const evo = await connectInstance(ctx.evolutionInstanceName)
+    const evo = await connectInstance(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
     if (!evo.ok) {
       return json({
         ok: false, reason: 'evolution_connect_failed',

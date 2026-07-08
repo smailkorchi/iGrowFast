@@ -45,7 +45,8 @@ async function sendOnce(): Promise<void> {
        p_dispatching_count => $6,
        p_drain_rate_1m => $7,
        p_last_dispatch_at => $8,
-       p_notes => $9::jsonb
+       p_notes => $9::jsonb,
+       p_node_id => $10
      )`,
     [
       config.workerId,
@@ -57,6 +58,7 @@ async function sendOnce(): Promise<void> {
       drainRate,
       lastDispatchAt,
       '{}',
+      config.nodeId,
     ],
   )
 }

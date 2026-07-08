@@ -16,8 +16,8 @@ import { withInstance } from '../_shared/instance.ts'
 Deno.serve((req) =>
   withInstance(req, async (ctx) => {
     const [state, detail] = await Promise.all([
-      connectionState(ctx.evolutionInstanceName),
-      fetchInstanceDetail(ctx.evolutionInstanceName),
+      connectionState(ctx.evolutionBaseUrl, ctx.evolutionInstanceName),
+      fetchInstanceDetail(ctx.evolutionBaseUrl, ctx.evolutionInstanceName),
     ])
     return json({
       ok: true,

@@ -14,12 +14,18 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4
 import { admin, requireAdmin, requireUser } from './admin.ts'
 import { json, preflight } from './cors.ts'
 import { logError } from './logError.ts'
+import { resolveNodeBaseUrl } from './node-routing.ts'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface InstanceCtx {
   instanceId: string
   evolutionInstanceName: string
+  /** Evolution base URL of the NODE this instance lives on (fleet sharding).
+   *  Pass as the first arg to every _shared/evolution.ts call so the lifecycle
+   *  op hits the right node's Evolution. Falls back to env EVOLUTION_API_URL for
+   *  null-node instances (identical to pre-sharding behavior). */
+  evolutionBaseUrl: string
   callerUid: string
   /** Supabase client scoped to the admin caller's JWT. Use this when invoking
    *  RPCs that gate on is_admin()/auth.uid(); the service-role `admin`
@@ -61,17 +67,21 @@ export async function withInstance(
   const { data: row, error } = await admin
     .schema('whatsapp')
     .from('whatsapp_instances')
-    .select('id, evolution_instance_name')
+    .select('id, evolution_instance_name, node_id')
     .eq('id', instanceId)
     .maybeSingle()
 
   if (error) return json({ ok: false, reason: 'lookup_failed', error: error.message }, { status: 500 })
   if (!row)  return json({ ok: false, reason: 'not_found' }, { status: 404 })
 
+  // Resolve the node's Evolution base URL once; every handler routes through it.
+  const evolutionBaseUrl = await resolveNodeBaseUrl((row as { node_id: number | null }).node_id)
+
   try {
     return await handler({
       instanceId: row.id as string,
       evolutionInstanceName: row.evolution_instance_name as string,
+      evolutionBaseUrl,
       callerUid: caller.uid,
       callerClient: caller.client,
       body: (raw ?? {}) as Record<string, unknown>,

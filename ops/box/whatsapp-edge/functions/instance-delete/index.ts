@@ -195,10 +195,10 @@ Deno.serve((req) =>
     // here is what stranded `h-x3n7fobv` (DB row gone, Evolution instance left).
     // On persistent failure we still delete the DB row (never strand local
     // state); the worker's orphan reaper sweeps the leftover Evolution instance.
-    let evo = await evolutionDeleteInstance(ctx.evolutionInstanceName)
+    let evo = await evolutionDeleteInstance(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
     for (let attempt = 1; attempt < 3 && !evo.ok && evo.status !== 404; attempt++) {
       await new Promise((r) => setTimeout(r, 800 * attempt))
-      evo = await evolutionDeleteInstance(ctx.evolutionInstanceName)
+      evo = await evolutionDeleteInstance(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
     }
     let evolutionStatus: 'deleted' | 'already_gone' | 'failed'
     let evolutionError: unknown = null

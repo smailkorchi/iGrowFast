@@ -20,7 +20,7 @@ Deno.serve((req) =>
       return json({ ok: false, reason: 'invalid_numbers' }, { status: 400 })
     }
 
-    const evo = await checkWhatsApp(ctx.evolutionInstanceName, numbers as string[])
+    const evo = await checkWhatsApp(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, numbers as string[])
     if (!evo.ok) {
       return json({
         ok: false, reason: 'evolution_check_failed',

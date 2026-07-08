@@ -9,10 +9,13 @@
 // token returned by /instance/create is stored in DB and used later by the
 // worker for messaging.
 
-const BASE_URL = (Deno.env.get('EVOLUTION_API_URL') ?? '').replace(/\/$/, '')
+// Node-aware (fleet sharding): every exported fn takes the target node's Evolution
+// base URL as its FIRST arg. Callers resolve it via resolveNodeBaseUrl(node_id)
+// (_shared/node-routing.ts) — withInstance exposes it as ctx.evolutionBaseUrl, and
+// instance-create resolves it from the node it places on. There is no module-level
+// BASE_URL anymore: routing a lifecycle call to the wrong node was the whole bug.
 const GLOBAL_KEY = Deno.env.get('EVOLUTION_GLOBAL_API_KEY') ?? ''
 
-if (!BASE_URL) console.warn('EVOLUTION_API_URL not set')
 if (!GLOBAL_KEY) console.warn('EVOLUTION_GLOBAL_API_KEY not set')
 
 const DEFAULT_EVENTS = [
@@ -64,6 +67,7 @@ export interface EvolutionResult {
 }
 
 async function call(
+  baseUrl: string,
   method: 'GET' | 'POST' | 'DELETE',
   path: string,
   body?: unknown,
@@ -71,7 +75,7 @@ async function call(
   // results. Most lifecycle ops use the global key.
   apiKeyOverride?: string,
 ): Promise<EvolutionResult> {
-  const url = `${BASE_URL}${path}`
+  const url = `${baseUrl.replace(/\/$/, '')}${path}`
   const controller = new AbortController()
   const t = setTimeout(() => controller.abort(), 30_000)
   try {
@@ -97,8 +101,8 @@ async function call(
 
 // ---- Instance lifecycle ---------------------------------------------------
 
-export function createInstance(input: CreateInstanceInput): Promise<EvolutionResult> {
-  return call('POST', '/instance/create', {
+export function createInstance(baseUrl: string, input: CreateInstanceInput): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', '/instance/create', {
     instanceName: input.instanceName,
     integration: 'WHATSAPP-BAILEYS',
     token: input.token,
@@ -126,35 +130,35 @@ export function createInstance(input: CreateInstanceInput): Promise<EvolutionRes
   })
 }
 
-export function connectInstance(name: string): Promise<EvolutionResult> {
-  return call('GET', `/instance/connect/${encodeURIComponent(name)}`)
+export function connectInstance(baseUrl: string, name: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'GET', `/instance/connect/${encodeURIComponent(name)}`)
 }
 
-export function connectionState(name: string): Promise<EvolutionResult> {
-  return call('GET', `/instance/connectionState/${encodeURIComponent(name)}`)
+export function connectionState(baseUrl: string, name: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'GET', `/instance/connectionState/${encodeURIComponent(name)}`)
 }
 
-export function restartInstance(name: string): Promise<EvolutionResult> {
-  return call('POST', `/instance/restart/${encodeURIComponent(name)}`)
+export function restartInstance(baseUrl: string, name: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/instance/restart/${encodeURIComponent(name)}`)
 }
 
-export function logoutInstance(name: string): Promise<EvolutionResult> {
-  return call('DELETE', `/instance/logout/${encodeURIComponent(name)}`)
+export function logoutInstance(baseUrl: string, name: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'DELETE', `/instance/logout/${encodeURIComponent(name)}`)
 }
 
-export function deleteInstance(name: string): Promise<EvolutionResult> {
-  return call('DELETE', `/instance/delete/${encodeURIComponent(name)}`)
+export function deleteInstance(baseUrl: string, name: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'DELETE', `/instance/delete/${encodeURIComponent(name)}`)
 }
 
-export function fetchInstanceDetail(name: string, instanceApiKey?: string): Promise<EvolutionResult> {
+export function fetchInstanceDetail(baseUrl: string, name: string, instanceApiKey?: string): Promise<EvolutionResult> {
   const url = `/instance/fetchInstances?instanceName=${encodeURIComponent(name)}`
-  return call('GET', url, undefined, instanceApiKey)
+  return call(baseUrl, 'GET', url, undefined, instanceApiKey)
 }
 
 // ---- Chat utilities -------------------------------------------------------
 
-export function checkWhatsApp(name: string, numbers: string[]): Promise<EvolutionResult> {
-  return call('POST', `/chat/whatsappNumbers/${encodeURIComponent(name)}`, { numbers })
+export function checkWhatsApp(baseUrl: string, name: string, numbers: string[]): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/chat/whatsappNumbers/${encodeURIComponent(name)}`, { numbers })
 }
 
 /**
@@ -164,11 +168,12 @@ export function checkWhatsApp(name: string, numbers: string[]): Promise<Evolutio
  * Baileys treats it as the local instance JID when targeting global presence.
  */
 export function setOwnPresence(
+  baseUrl: string,
   name: string,
   ownerJid: string,
   presence: 'available' | 'unavailable',
 ): Promise<EvolutionResult> {
-  return call('POST', `/chat/sendPresence/${encodeURIComponent(name)}`, {
+  return call(baseUrl, 'POST', `/chat/sendPresence/${encodeURIComponent(name)}`, {
     number: ownerJid,
     presence,
     delay: 0,
@@ -190,24 +195,25 @@ export interface InstanceBehaviorSettings {
 /** Pushes behavior flags onto an Evolution instance. Maps directly to the
  *  payload accepted by /settings/set/<name>. */
 export function setInstanceBehavior(
+  baseUrl: string,
   name: string,
   settings: InstanceBehaviorSettings,
 ): Promise<EvolutionResult> {
-  return call('POST', `/settings/set/${encodeURIComponent(name)}`, settings)
+  return call(baseUrl, 'POST', `/settings/set/${encodeURIComponent(name)}`, settings)
 }
 
 // ---- Profile push ---------------------------------------------------------
 
-export function updateWaProfileName(name: string, newName: string): Promise<EvolutionResult> {
-  return call('POST', `/chat/updateProfileName/${encodeURIComponent(name)}`, { name: newName })
+export function updateWaProfileName(baseUrl: string, name: string, newName: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/chat/updateProfileName/${encodeURIComponent(name)}`, { name: newName })
 }
 
-export function updateWaProfileStatus(name: string, status: string): Promise<EvolutionResult> {
-  return call('POST', `/chat/updateProfileStatus/${encodeURIComponent(name)}`, { status })
+export function updateWaProfileStatus(baseUrl: string, name: string, status: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/chat/updateProfileStatus/${encodeURIComponent(name)}`, { status })
 }
 
-export function updateWaProfilePicture(name: string, pictureUrl: string): Promise<EvolutionResult> {
-  return call('POST', `/chat/updateProfilePicture/${encodeURIComponent(name)}`, { picture: pictureUrl })
+export function updateWaProfilePicture(baseUrl: string, name: string, pictureUrl: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/chat/updateProfilePicture/${encodeURIComponent(name)}`, { picture: pictureUrl })
 }
 
 // ---- Webhook subscription -------------------------------------------------
@@ -221,33 +227,34 @@ export interface WebhookConfig {
   headers?: Record<string, string>
 }
 
-export function setInstanceWebhook(name: string, cfg: WebhookConfig): Promise<EvolutionResult> {
-  return call('POST', `/webhook/set/${encodeURIComponent(name)}`, { webhook: cfg })
+export function setInstanceWebhook(baseUrl: string, name: string, cfg: WebhookConfig): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/webhook/set/${encodeURIComponent(name)}`, { webhook: cfg })
 }
 
 // ---- Group management ----------------------------------------------------
 
-export function createGroup(name: string, subject: string, participants: string[]): Promise<EvolutionResult> {
-  return call('POST', `/group/create/${encodeURIComponent(name)}`, { subject, participants })
+export function createGroup(baseUrl: string, name: string, subject: string, participants: string[]): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/group/create/${encodeURIComponent(name)}`, { subject, participants })
 }
 
-export function updateGroupPicture(name: string, groupJid: string, imageBase64: string): Promise<EvolutionResult> {
-  return call('POST', `/group/updateGroupPicture/${encodeURIComponent(name)}`, { groupJid, image: imageBase64 })
+export function updateGroupPicture(baseUrl: string, name: string, groupJid: string, imageBase64: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/group/updateGroupPicture/${encodeURIComponent(name)}`, { groupJid, image: imageBase64 })
 }
 
-export function updateGroupSubject(name: string, groupJid: string, subject: string): Promise<EvolutionResult> {
-  return call('POST', `/group/updateGroupSubject/${encodeURIComponent(name)}?groupJid=${encodeURIComponent(groupJid)}`, { subject })
+export function updateGroupSubject(baseUrl: string, name: string, groupJid: string, subject: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'POST', `/group/updateGroupSubject/${encodeURIComponent(name)}?groupJid=${encodeURIComponent(groupJid)}`, { subject })
 }
 
-export function leaveGroup(name: string, groupJid: string): Promise<EvolutionResult> {
-  return call('DELETE', `/group/leaveGroup/${encodeURIComponent(name)}?groupJid=${encodeURIComponent(groupJid)}`)
+export function leaveGroup(baseUrl: string, name: string, groupJid: string): Promise<EvolutionResult> {
+  return call(baseUrl, 'DELETE', `/group/leaveGroup/${encodeURIComponent(name)}?groupJid=${encodeURIComponent(groupJid)}`)
 }
 
 export function updateGroupParticipants(
+  baseUrl: string,
   name: string,
   groupJid: string,
   action: 'add' | 'remove' | 'promote' | 'demote',
   participants: string[],
 ): Promise<EvolutionResult> {
-  return call('POST', `/group/updateParticipant/${encodeURIComponent(name)}?groupJid=${encodeURIComponent(groupJid)}`, { action, participants })
+  return call(baseUrl, 'POST', `/group/updateParticipant/${encodeURIComponent(name)}?groupJid=${encodeURIComponent(groupJid)}`, { action, participants })
 }

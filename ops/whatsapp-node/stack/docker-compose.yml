@@ -171,6 +171,10 @@ services:
       EVOLUTION_API_URL: "http://evolution-api:8080"
       WEBHOOK_PORT: "8090"
       HOSTNAME: "igf-wa-worker"
+      # Fleet sharding: the whatsapp.wa_nodes.id this box's Evolution serves. The
+      # worker leases + serves ONLY whatsapp_instances with this node_id. REQUIRED
+      # (worker refuses to boot without it). Node 1 = igf-wa1 (this box, .67).
+      NODE_ID: "24"
     networks:
       - internal
     depends_on:

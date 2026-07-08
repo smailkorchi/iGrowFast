@@ -9,7 +9,7 @@ import { withInstance } from '../_shared/instance.ts'
 
 Deno.serve((req) =>
   withInstance(req, async (ctx) => {
-    const evo = await restartInstance(ctx.evolutionInstanceName)
+    const evo = await restartInstance(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
     if (!evo.ok) {
       return json({
         ok: false, reason: 'evolution_restart_failed',

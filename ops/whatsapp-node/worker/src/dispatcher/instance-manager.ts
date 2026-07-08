@@ -79,6 +79,7 @@ async function fetchToken(instanceId: string): Promise<string | null> {
 interface RawInstanceRow {
   id: string
   evolution_instance_name: string
+  node_id: number | null
   status: InstanceStatus
   lifecycle_state: InstanceLifecycleState
   worker_paused: boolean
@@ -140,7 +141,7 @@ async function applyState(row: RawInstanceRow): Promise<void> {
   setActiveNumbers(loopCount())
 }
 
-const INSTANCE_SELECT = `SELECT id, evolution_instance_name, status, lifecycle_state,
+const INSTANCE_SELECT = `SELECT id, evolution_instance_name, node_id, status, lifecycle_state,
        worker_paused, business_hours, business_hours_enabled,
        send_rate_per_min, minute_burst_cap,
        typing_base_ms, typing_per_char_ms, typing_cap_ms, typing_enabled,
@@ -377,9 +378,13 @@ async function runWatchdog(id: string, name: string, state: string): Promise<voi
 
 async function reconcileEvolutionStatuses(): Promise<void> {
   const { rows } = await pool.query<{ id: string; name: string; status: InstanceStatus; auto_reconnect: boolean; lifecycle_state: InstanceLifecycleState }>(
+    // Node-scoped: fetchEvolutionState/watchdog talk to THIS node's local Evolution,
+    // which only hosts this node's sessions — polling another node's instance here
+    // would read 'close'/404 and wrongly flap it disconnected or restart it.
     `SELECT id, evolution_instance_name AS name, status, auto_reconnect, lifecycle_state
        FROM whatsapp.whatsapp_instances
-      WHERE status <> 'pending'`,   // 'pending' = active QR pairing; leave it alone
+      WHERE status <> 'pending' AND node_id = $1`,   // 'pending' = active QR pairing; leave it alone
+    [config.nodeId],
   )
   if (rows.length === 0) return
 
@@ -438,9 +443,12 @@ async function reconcileEvolutionStatuses(): Promise<void> {
 
 async function claimLeases(instanceIds: string[]): Promise<Set<string>> {
   if (instanceIds.length === 0) return new Set()
+  // Node-scoped claim: the RPC refuses any instance whose node_id <> our node,
+  // so even a caller bug can never lease another node's numbers (defense behind
+  // the node-filtered candidate scans below).
   const { rows } = await pool.query<{ out_instance_id: string }>(
-    `SELECT out_instance_id FROM whatsapp.worker_claim_instance_leases($1, $2, $3)`,
-    [config.workerId, instanceIds, LEASE_DURATION_SEC],
+    `SELECT out_instance_id FROM whatsapp.worker_claim_instance_leases($1, $2, $3, $4)`,
+    [config.workerId, instanceIds, LEASE_DURATION_SEC, config.nodeId],
   )
   return new Set(rows.map((r) => r.out_instance_id))
 }
@@ -453,9 +461,11 @@ async function renewLeases(): Promise<void> {
     )
     const stillOwned = new Set(rows.map((r) => r.out_instance_id))
 
-    // Try to claim any unowned instances (a peer worker may have died)
+    // Try to claim any unowned instances ON THIS NODE (a peer worker may have died)
     const allConnected = await pool.query<{ id: string }>(
-      `SELECT id FROM whatsapp.whatsapp_instances WHERE status = 'connected' AND lifecycle_state <> 'banned'`,
+      `SELECT id FROM whatsapp.whatsapp_instances
+        WHERE status = 'connected' AND lifecycle_state <> 'banned' AND node_id = $1`,
+      [config.nodeId],
     )
     const candidateIds = allConnected.rows
       .map((r) => r.id)
@@ -493,8 +503,11 @@ async function renewLeases(): Promise<void> {
 }
 
 async function loadAllAndReconcile(): Promise<void> {
-  const { rows } = await pool.query<RawInstanceRow>(INSTANCE_SELECT)
-  log.info('instance.initial_load', { count: rows.length })
+  // Only instances on THIS node — a worker serves exactly its co-located Evolution.
+  const { rows } = await pool.query<RawInstanceRow>(
+    `${INSTANCE_SELECT} WHERE node_id = $1`, [config.nodeId],
+  )
+  log.info('instance.initial_load', { count: rows.length, node_id: config.nodeId })
 
   // Claim leases for all candidate instances (status filter applied by
   // shouldRun later; the lease layer doesn't care about runnability).
@@ -571,6 +584,16 @@ export async function startInstanceManager(): Promise<void> {
           }
           const row = payload.new as RawInstanceRow | undefined
           if (!row || !row.id) return
+          // Node gate — THIS is the path that bypasses leases (realtime UPDATE spawns
+          // a dispatcher directly). Without it a worker would start a loop for another
+          // node's instance and 404 every send against the wrong Evolution. If an
+          // instance was ours but got reassigned to another node (node_id changed),
+          // stop the loop we were running for it. null node_id = unassigned = no worker.
+          if (row.node_id !== config.nodeId) {
+            await stopDispatcher(row.id).catch(() => undefined)
+            setActiveNumbers(loopCount())
+            return
+          }
           await applyState(row)
           log.info('instance.reconciled', {
             number_id: row.id,

@@ -22,6 +22,13 @@ function optionalNumber(name: string, fallback: number): number {
   return n
 }
 
+function requiredNumber(name: string): number {
+  const v = required(name)
+  const n = Number(v)
+  if (!Number.isInteger(n)) throw new Error(`env ${name} must be an integer, got: ${v}`)
+  return n
+}
+
 export const config = {
   // --- Postgres (Supabase pooler in session mode — preserves LISTEN/NOTIFY
   // and pg_advisory_lock; required for the dispatcher) ---
@@ -39,6 +46,14 @@ export const config = {
   workerId: optional('WORKER_ID', 'wa-mancer-worker-1'),
   workerVersion: optional('WORKER_VERSION', 'dev'),
   hostname: optional('HOSTNAME', 'unknown'),
+
+  // --- Node identity (fleet sharding) — REQUIRED, fail-fast ---
+  // The smallint whatsapp.wa_nodes.id this worker's co-located Evolution serves.
+  // The worker leases + serves ONLY instances whose whatsapp_instances.node_id
+  // matches this. A node-blind worker on a multi-node fleet would lease another
+  // node's numbers and 404 every send against the wrong Evolution, so this must
+  // never default — a worker with no node identity must refuse to boot.
+  nodeId: requiredNumber('NODE_ID'),
 
   // --- Webhook HTTP server (reachable only on the internal docker network) ---
   webhookPort: optionalNumber('WEBHOOK_PORT', 8090),

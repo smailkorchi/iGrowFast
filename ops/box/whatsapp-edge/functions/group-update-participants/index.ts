@@ -35,7 +35,7 @@ Deno.serve((req) =>
     }
 
     const evo = await updateGroupParticipants(
-      ctx.evolutionInstanceName, groupJid, action as typeof ACTIONS[number], participants,
+      ctx.evolutionBaseUrl, ctx.evolutionInstanceName, groupJid, action as typeof ACTIONS[number], participants,
     )
     if (!evo.ok) {
       return json({

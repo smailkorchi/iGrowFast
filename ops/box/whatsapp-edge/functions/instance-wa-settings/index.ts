@@ -28,7 +28,7 @@ Deno.serve((req) =>
     if (error) return json({ ok: false, reason: 'lookup_failed', error: error.message }, { status: 500 })
     if (!row)  return json({ ok: false, reason: 'not_found' }, { status: 404 })
 
-    const evo = await setInstanceBehavior(ctx.evolutionInstanceName, {
+    const evo = await setInstanceBehavior(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, {
       rejectCall:      row.wa_reject_calls,
       msgCall:         row.wa_call_reply_text ?? '',
       alwaysOnline:    row.wa_always_online,

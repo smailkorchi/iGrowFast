@@ -70,7 +70,7 @@ Deno.serve((req) =>
 
     // 4. Fire the Baileys presence update.
     const presence = state === 'online' ? 'available' : 'unavailable'
-    const evo = await setOwnPresence(ctx.evolutionInstanceName, ownerJid, presence)
+    const evo = await setOwnPresence(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, ownerJid, presence)
     if (!evo.ok) {
       // The DB write already succeeded; the Evolution call is best-effort.
       // Surface the failure but return ok so the UI reflects the persisted

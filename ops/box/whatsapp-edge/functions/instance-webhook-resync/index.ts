@@ -47,7 +47,7 @@ Deno.serve((req) =>
     const secret = secretData as string | null
     if (!secret) return json({ ok: false, reason: 'no_webhook_secret' }, { status: 500 })
 
-    const evo = await setInstanceWebhook(ctx.evolutionInstanceName, {
+    const evo = await setInstanceWebhook(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, {
       enabled: true,
       url: `${WORKER_WEBHOOK_URL_BASE}/${ctx.instanceId}`,
       base64: false,

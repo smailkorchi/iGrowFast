@@ -23,7 +23,7 @@ Deno.serve((req) =>
     // Strip a data-URL prefix; Evolution wants bare base64.
     const image = rawImage.replace(/^data:[^;]+;base64,/, '')
 
-    const evo = await updateGroupPicture(ctx.evolutionInstanceName, groupJid, image)
+    const evo = await updateGroupPicture(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, groupJid, image)
     if (!evo.ok) {
       return json({
         ok: false, reason: removing ? 'evolution_remove_picture_unsupported' : 'evolution_update_picture_failed',

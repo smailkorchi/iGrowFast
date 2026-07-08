@@ -10,7 +10,7 @@ import { withInstance } from '../_shared/instance.ts'
 
 Deno.serve((req) =>
   withInstance(req, async (ctx) => {
-    const evo = await logoutInstance(ctx.evolutionInstanceName)
+    const evo = await logoutInstance(ctx.evolutionBaseUrl, ctx.evolutionInstanceName)
     // 404 from Evolution = instance already gone there; treat as success.
     if (!evo.ok && evo.status !== 404) {
       return json({

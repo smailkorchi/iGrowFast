@@ -139,11 +139,11 @@ Deno.serve((req) =>
     const results: Record<Field, 'ok' | 'failed' | 'skipped'> = { name: 'skipped', status: 'skipped', picture: 'skipped' }
 
     if (fields.includes('name') && row.wa_profile_name) {
-      const r = await updateWaProfileName(ctx.evolutionInstanceName, row.wa_profile_name)
+      const r = await updateWaProfileName(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, row.wa_profile_name)
       results.name = r.ok ? 'ok' : 'failed'
     }
     if (fields.includes('status') && row.wa_profile_status !== null && row.wa_profile_status !== undefined) {
-      const r = await updateWaProfileStatus(ctx.evolutionInstanceName, row.wa_profile_status)
+      const r = await updateWaProfileStatus(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, row.wa_profile_status)
       results.status = r.ok ? 'ok' : 'failed'
     }
     if (fields.includes('picture')) {
@@ -154,7 +154,7 @@ Deno.serve((req) =>
         return json({ ok: false, reason: picked.reason }, { status: 400 })
       }
       if (picked) {
-        const r = await updateWaProfilePicture(ctx.evolutionInstanceName, picked.b64)
+        const r = await updateWaProfilePicture(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, picked.b64)
         results.picture = r.ok ? 'ok' : 'failed'
         // On a successful WhatsApp push, persist the new avatar to R2 + DB so
         // every UI surface reflects it immediately (see header note). Best
@@ -172,7 +172,7 @@ Deno.serve((req) =>
           }
         }
       } else if (row.profile_pic_url) {
-        const r = await updateWaProfilePicture(ctx.evolutionInstanceName, row.profile_pic_url)
+        const r = await updateWaProfilePicture(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, row.profile_pic_url)
         results.picture = r.ok ? 'ok' : 'failed'
       }
     }

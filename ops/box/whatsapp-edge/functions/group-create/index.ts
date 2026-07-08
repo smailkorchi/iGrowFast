@@ -27,7 +27,7 @@ Deno.serve((req) =>
 
     const image = (raw as { image?: unknown })?.image
 
-    const evo = await createGroup(ctx.evolutionInstanceName, subject, participants as string[])
+    const evo = await createGroup(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, subject, participants as string[])
     if (!evo.ok) {
       return json({
         ok: false, reason: 'evolution_group_create_failed',
@@ -39,7 +39,7 @@ Deno.serve((req) =>
       ?? (evo.body as { groupJid?: string })?.groupJid
 
     if (typeof image === 'string' && image.length > 0 && groupJid) {
-      const picResult = await updateGroupPicture(ctx.evolutionInstanceName, groupJid, image)
+      const picResult = await updateGroupPicture(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, groupJid, image)
       if (!picResult.ok) {
         return json({ ok: true, result: evo.body, picture_error: picResult.body })
       }

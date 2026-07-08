@@ -20,7 +20,7 @@ Deno.serve((req) =>
       return json({ ok: false, reason: 'invalid_subject' }, { status: 400 })
     }
 
-    const evo = await updateGroupSubject(ctx.evolutionInstanceName, groupJid, subject)
+    const evo = await updateGroupSubject(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, groupJid, subject)
     if (!evo.ok) {
       return json({
         ok: false, reason: 'evolution_update_subject_failed',

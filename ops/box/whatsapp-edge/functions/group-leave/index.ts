@@ -17,7 +17,7 @@ Deno.serve((req) =>
       return json({ ok: false, reason: 'invalid_group_jid' }, { status: 400 })
     }
 
-    const evo = await leaveGroup(ctx.evolutionInstanceName, groupJid)
+    const evo = await leaveGroup(ctx.evolutionBaseUrl, ctx.evolutionInstanceName, groupJid)
     if (!evo.ok) {
       return json({
         ok: false, reason: 'evolution_leave_failed',
