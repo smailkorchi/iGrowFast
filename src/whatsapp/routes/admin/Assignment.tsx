@@ -281,30 +281,55 @@ export default function AdminAssignment() {
   async function assignSelectedToUser(targetUserId: string) {
     if (selectedIds.size === 0) return
     const targets = visibleRows.filter((r) => r.id && selectedIds.has(r.id))
-    // Split: DMs always go through setConversationAssignees (handles
-    // singleton swap atomically); groups can use the cheaper bulk RPC.
     const dms     = targets.filter((c) => !c.is_group)
     const groups  = targets.filter((c) =>  c.is_group)
 
-    try {
-      for (const c of dms) {
-        const cur = assignmentsByConv.get(c.id!) ?? []
-        if (cur[0] === targetUserId) continue   // already assigned
-        await setAssignees.mutateAsync({ conversationId: c.id!, userIds: [targetUserId], instanceId: instanceId ?? undefined, isGroup: false })
-      }
-      if (groups.length > 0) {
-        // Only add to groups that don't already have this user.
-        const ids = groups
-          .filter((g) => !(assignmentsByConv.get(g.id!) ?? []).includes(targetUserId))
-          .map((g) => g.id!)
-        if (ids.length > 0) {
-          await bulkAssignMut.mutateAsync({ userId: targetUserId, conversationIds: ids, instanceId: instanceId ?? undefined, isGroup: true })
-        }
-      }
-      clearSelection()
-    } catch (e) {
-      toast.error(normalizeError(e))
+    // IGF FIX 2026-07-08 (the "29 stick / 21 roll back, retry doesn't help" bug):
+    // the old code assigned DMs in a sequential per-row mutateAsync loop wrapped
+    // in ONE try/catch — a single throw (e.g. a since-merged/deleted conversation
+    // id lingering in the loaded page → conversation_not_found) aborted the whole
+    // batch, leaving every later row unassigned; on retry the succeeded rows were
+    // skipped and the loop hit the same bad row again → identical partial result.
+    //   Fix: route UNOWNED DMs (the whole "Non assignées" pool) through the same
+    //   bulk RPC as groups — one call, ON CONFLICT DO NOTHING, and (migration 025)
+    //   stale/phantom ids are skipped server-side, never abort. Only DMs already
+    //   owned by ANOTHER agent still need the per-row singleton SWAP, and that loop
+    //   is now resilient (one failure is collected, not fatal). A final
+    //   ['conversations'] refetch reconciles the pool from server truth so any
+    //   stale id is purged.
+    const unownedDmIds: string[] = []
+    const swapDms: string[] = []
+    for (const c of dms) {
+      const cur = assignmentsByConv.get(c.id!) ?? []
+      if (cur[0] === targetUserId) continue          // already this agent → nothing to do
+      if (cur.length === 0) unownedDmIds.push(c.id!)  // pool case → bulk
+      else                  swapDms.push(c.id!)       // owned by another → per-row swap
     }
+    const groupIds = groups
+      .filter((g) => !(assignmentsByConv.get(g.id!) ?? []).includes(targetUserId))
+      .map((g) => g.id!)
+
+    let failures = 0
+    // Bulk-assignable ids (unowned DMs + groups) in one server call each.
+    for (const ids of [unownedDmIds, groupIds]) {
+      if (ids.length === 0) continue
+      try {
+        await bulkAssignMut.mutateAsync({ userId: targetUserId, conversationIds: ids, instanceId: instanceId ?? undefined, isGroup: ids === groupIds })
+      } catch (e) { failures += ids.length; toast.error(normalizeError(e)) }
+    }
+    // Reassignment swaps: resilient — one failure never blocks the rest.
+    const swapResults = await Promise.allSettled(
+      swapDms.map((id) => setAssignees.mutateAsync({ conversationId: id, userIds: [targetUserId], instanceId: instanceId ?? undefined, isGroup: false })),
+    )
+    failures += swapResults.filter((r) => r.status === 'rejected').length
+
+    // Reconcile the pool from server truth (drops assigned rows + purges any
+    // stale/merged id that a client-cached page was still holding).
+    void qc.invalidateQueries({ queryKey: ['conversations'] })
+    void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId ?? '_') })
+
+    clearSelection()
+    if (failures > 0) toast.error(`${failures} conversation(s) n'ont pas pu être affectées.`)
   }
 
   async function removeAssignee(conversationId: string, userId: string) {
@@ -395,10 +420,16 @@ export default function AdminAssignment() {
   }
 
   async function runBulkUnassign(pairs: Array<{ userId: string; conversationIds: string[] }>) {
-    for (const p of pairs) {
-      await bulkUnassignMut.mutateAsync({ userId: p.userId, conversationIds: p.conversationIds, instanceId: instanceId ?? undefined })
-    }
+    // Resilient (same fix as assign): one distinct-assignee failure must not
+    // abort the rest of the batch.
+    const results = await Promise.allSettled(
+      pairs.map((p) => bulkUnassignMut.mutateAsync({ userId: p.userId, conversationIds: p.conversationIds, instanceId: instanceId ?? undefined })),
+    )
+    void qc.invalidateQueries({ queryKey: ['conversations'] })
+    void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId ?? '_') })
     clearSelection()
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed > 0) toast.error(`${failed} désaffectation(s) ont échoué.`)
   }
 
   async function resolveBulkUnassign(drop: boolean) {
@@ -422,23 +453,24 @@ export default function AdminAssignment() {
    */
   async function assignSelectedGroupsToAgents(userIds: string[]) {
     if (selectedGroupIds.length === 0 || userIds.length === 0) return
-    try {
-      for (const convId of selectedGroupIds) {
-        const cur = new Set(assignmentsByConv.get(convId) ?? [])
-        const before = cur.size
-        for (const uid of userIds) cur.add(uid)
-        if (cur.size !== before) {
-          await setAssignees.mutateAsync({
-            conversationId: convId,
-            userIds: Array.from(cur),
-            instanceId: instanceId ?? undefined,
-            isGroup: true,
-          })
-        }
-      }
-      clearSelection()
-      setSelectedAgentIds(new Set())
-    } catch (e) { toast.error(normalizeError(e)) }
+    // Resilient per-group swap (a group can have many assignees, so no bulk RPC):
+    // one failure never aborts the rest.
+    const jobs: Array<{ convId: string; userIds: string[] }> = []
+    for (const convId of selectedGroupIds) {
+      const cur = new Set(assignmentsByConv.get(convId) ?? [])
+      const before = cur.size
+      for (const uid of userIds) cur.add(uid)
+      if (cur.size !== before) jobs.push({ convId, userIds: Array.from(cur) })
+    }
+    const results = await Promise.allSettled(
+      jobs.map((j) => setAssignees.mutateAsync({ conversationId: j.convId, userIds: j.userIds, instanceId: instanceId ?? undefined, isGroup: true })),
+    )
+    void qc.invalidateQueries({ queryKey: ['conversations'] })
+    void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId ?? '_') })
+    clearSelection()
+    setSelectedAgentIds(new Set())
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed > 0) toast.error(`${failed} affectation(s) de groupe ont échoué.`)
   }
 
   // ── auto-assign config (per-instance) ─────────────────────────────────────
