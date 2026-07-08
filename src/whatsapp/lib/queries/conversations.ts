@@ -48,6 +48,9 @@ export function useConversations(instanceId: string | null, filter: Conversation
   return useInfiniteQuery({
     queryKey: conversationKeys.list(instanceId ?? '_', filter),
     enabled:  !!instanceId,
+    // Realtime (useConversationsRealtime) keeps this live, so a focus-refetch of
+    // every loaded page on every tab-return is pure redundant load at scale.
+    refetchOnWindowFocus: false,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       if (!instanceId) return { rows: [] as ConversationListRow[], nextOffset: null as number | null }
@@ -345,30 +348,45 @@ export function useConversationsRealtime(instanceId: string | null) {
     // keys on user_id=auth.uid()), so we invalidate BOTH ['conversations'] and
     // ['instances'] here. Debounced so a bulk (un)assign's per-row event burst
     // coalesces into a single refetch instead of one per row.
-    let t: ReturnType<typeof setTimeout> | null = null
+    // DEBOUNCE + NARROW (enterprise-audit Stage 0). The two hottest handlers
+    // (conversations UPDATE + messages INSERT) fire on essentially every message.
+    // Undebounced they refetched the WHOLE ['conversations'] tree — every loaded
+    // infinite page AND the expensive single-conv header (#3 statement) — per
+    // event. Now they coalesce into ONE trailing refetch of the LIST only
+    // (['conversations','list',instanceId] — all filters, NOT the ['one',id]
+    // header, which has its own thread realtime). A tenant receiving 10 msg/s
+    // dropped from ~60-70 req/s per admin to ~4.
+    let listT: ReturnType<typeof setTimeout> | null = null
+    const bumpList = () => {
+      if (listT) clearTimeout(listT)
+      listT = setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: ['conversations', 'list', instanceId] })
+      }, 250)
+    }
+    // Assignment changes also touch instance visibility for agents (revocation →
+    // empty state); keep the debounced ['instances'] invalidate here.
+    let asgT: ReturnType<typeof setTimeout> | null = null
     const onAssignmentChange = () => {
-      if (t) clearTimeout(t)
-      t = setTimeout(() => {
-        void qc.invalidateQueries({ queryKey: ['conversations'] })
+      if (asgT) clearTimeout(asgT)
+      asgT = setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: ['conversations', 'list', instanceId] })
         void qc.invalidateQueries({ queryKey: ['instances'] })
-      }, 200)
+      }, 250)
     }
     const channel = supabase
       .channel(`conv-page-${instanceId}`)
+      // conversations UPDATE covers unread_count / last_message_at bumps; the
+      // per-instance unread badge is refreshed by the dedicated (debounced)
+      // useInstancesUnreadRealtime — no redundant ['instances-unread'] invalidate.
       .on(
         'postgres_changes',
         { event: '*', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${instanceId}` },
-        () => {
-          void qc.invalidateQueries({ queryKey: ['conversations'] })
-          // unread_count changes (incl. mark-read) live here too → keep the
-          // per-instance switcher badge in sync, not just on its 5s staleTime.
-          void qc.invalidateQueries({ queryKey: ['instances-unread'] })
-        },
+        bumpList,
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'whatsapp', table: 'messages', filter: `instance_id=eq.${instanceId}` },
-        () => { void qc.invalidateQueries({ queryKey: ['conversations'] }) },
+        bumpList,
       )
       .on(
         'postgres_changes',
@@ -378,10 +396,10 @@ export function useConversationsRealtime(instanceId: string | null) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'whatsapp', table: 'conversation_tags' },
-        () => { void qc.invalidateQueries({ queryKey: ['conversations'] }) },
+        bumpList,
       )
       .subscribe()
-    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
+    return () => { if (listT) clearTimeout(listT); if (asgT) clearTimeout(asgT); void supabase.removeChannel(channel) }
   }, [instanceId, qc])
 }
 

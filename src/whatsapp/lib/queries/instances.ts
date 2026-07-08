@@ -8,7 +8,6 @@ import {
   createInstance,
   deleteInstance,
   disconnectInstance,
-  fetchStatus,
   getInstance,
   instanceDeletePreflight,
   listInstances,
@@ -27,7 +26,6 @@ export const instanceKeys = {
   all:    ['instances'] as const,
   list:   ['instances', 'list'] as const,
   one:    (id: string) => ['instances', 'one', id] as const,
-  status: (id: string) => ['instances', 'status', id] as const,
 }
 
 // ---------- List + single ---------------------------------------------------
@@ -79,8 +77,11 @@ export function useInstanceCapacityStatus(instanceId: string | null) {
   return useQuery<InstanceCapacityStatus | null>({
     queryKey: ['instance-capacity', instanceId ?? '_'],
     enabled:  !!instanceId,
-    staleTime: 20_000,
-    refetchInterval: 30_000,
+    // Send-budget gauge changes slowly; 60s poll (was 30s) halves the per-open-
+    // conversation request rate at scale. Deduped to one poll per instance.
+    staleTime: 45_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       if (!instanceId) return null
       const { data, error } = await (supabase.schema('whatsapp').rpc as unknown as (fn: string, args: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)(
@@ -90,16 +91,6 @@ export function useInstanceCapacityStatus(instanceId: string | null) {
       if (error) throw new Error(error.message)
       return data as InstanceCapacityStatus
     },
-  })
-}
-
-export function useInstanceLiveStatus(id: string | null) {
-  return useQuery({
-    queryKey: instanceKeys.status(id ?? '_'),
-    queryFn:  () => fetchStatus(id!),
-    enabled:  !!id,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
   })
 }
 
