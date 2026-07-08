@@ -19,8 +19,10 @@
 //                              | 'pending'
 //                              | 'no_media' }
 //
-// Every successful resolve writes a `media_access` row into the hash-chained
-// audit log (actor = caller, target = message id).
+// Audit trim (owner ruling 2026-07-08): the per-resolve `media_access` audit
+// row was removed — one chain row per attachment RENDER grew the append-only
+// hash chain with normal inbox usage (560 rows/2d) and had no reader after the
+// Log page was cut. media_upload_url_issued (media-upload) stays chained.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { json, preflight } from '../_shared/cors.ts'
@@ -97,19 +99,6 @@ Deno.serve(async (req) => {
     const key = msg.media_storage_key as string
     const encodedKey = key.split('/').map(encodeURIComponent).join('/')
     const publicUrl = `https://${R2_PUBLIC_DOMAIN}/${encodedKey}`
-
-    // ── Audit (fire-and-forget; never blocks the response) ──
-    caller.schema('whatsapp').rpc('audit', {
-      p_event_type:  'media_access',
-      p_target_type: 'message',
-      p_target_id:   messageId,
-      p_payload: {
-        key,
-        domain: R2_PUBLIC_DOMAIN,
-      },
-    }).then(({ error }) => {
-      if (error) console.warn('media-sign.audit_failed', error.message)
-    })
 
     const meta = (msg.media_meta ?? {}) as Record<string, unknown>
     const filename = typeof meta.fileName === 'string' ? meta.fileName : null

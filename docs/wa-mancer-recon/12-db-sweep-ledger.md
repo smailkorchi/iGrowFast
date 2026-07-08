@@ -156,12 +156,14 @@ claimed), edge runtime restarted with new `_shared/evolution.ts`.
 REAL TEST = next number pairing: expect dozens of conversations, zero
 `media.ingest.fail`, `contacts.backfill.done` logging `skipped_no_thread`.
 
-### Wave 2 — audit-noise policy (owner decisions, per item)
-| # | Decision | Trade-off |
+### Wave 2 — audit-noise trim (`whatsapp_022`) — APPLIED 2026-07-08
+audit_log is append-only forever, so what enters it must earn permanence:
+
+| # | Applied | Mechanism |
 |---|---|---|
-| 2.1 | `worker_heartbeat_stale` → system_logs instead of the chain | weekend outage = 2,880 permanent chain rows vs weaker attestation |
-| 2.2 | `media_access` (1 row per attachment render) → system_logs | chain grows with normal inbox usage vs tamper-evident access log |
-| 2.3 | Suppress per-row `conversation_assigned` during bulk backlog apply (summary event already exists) | 48 % of chain rows vs per-row audit |
+| 2.1 | Stale-worker alerting LEFT the chain: pg_cron job 38 + `_cron_worker_health_alert` dropped | replaced by box-level `/etc/cron.d/igf-wa-worker-alert` → `/usr/local/bin/igf-wa-worker-alert.sh` → `igf-alert.sh` email, one STALE + one RECOVERED per outage (threshold 120 s, per-worker state in /run). **This also closes the alerting gap — worker death now emails the owner.** |
+| 2.2 | `media_access` removed at the source (media-sign edge fn) | was one permanent chain row per attachment RENDER (560/2 d); `media_upload_url_issued` stays chained |
+| 2.3 | Bulk assignment ops write ONE summary row, not one per conversation (was 48 % of the chain) | txn-local GUC `whatsapp.audit_assign_suppress` honored by the assignment trigger; `admin_apply_auto_assign_backlog` (summary existed), `admin_assign_conversations` / `admin_unassign_conversations` (new `conversations_(un)assigned_bulk` summaries). Single assign/unassign + `_auto_assign_on_inbound` still audit per row. Verified in rollback trials: suppressed = 0 rows, normal = 1. |
 
 ### Wave 3 — deferred to owner Log/Monitor port (PORT_PLAN item 8)
 - host_metrics + metric_samples: port `collector.mjs` re-pointed at the box, or
