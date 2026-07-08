@@ -239,6 +239,15 @@ export function useWaPeerPresence(
  * page being open and visible, exactly as the product requires.
  */
 const ATTEND_HEARTBEAT_MS = 10_000
+// Grace window after the tab is hidden before we mark the number unattended.
+// A hidden tab throttles the heartbeat (~1/min), so we do NOT rely on beats
+// here — we simply hold "attended" for this long (the worker's 80s VIEWER_TTL_MS
+// covers the beat-less window) and only send 'leave' if still hidden at the end.
+// This keeps outbound typing/recording working while the agent briefly switches
+// windows (DevTools, another app) instead of the number flapping offline the
+// instant the tab loses focus. Genuine unmount (leaving the inbox) still leaves
+// immediately.
+const HIDE_GRACE_MS = 60_000
 
 export function useInboxAttendance(instanceId: string | null): void {
   useEffect(() => {
@@ -246,13 +255,23 @@ export function useInboxAttendance(instanceId: string | null): void {
     const store = acquireStore(instanceId)
     store.viewing = true
     let timer: ReturnType<typeof setInterval> | null = null
+    let graceTimer: ReturnType<typeof setTimeout> | null = null
 
+    const clearGrace = () => { if (graceTimer) { clearTimeout(graceTimer); graceTimer = null } }
     const beat = () => { if (document.visibilityState === 'visible') store.sendAttend() }
     const start = () => { if (timer) return; beat(); timer = setInterval(beat, ATTEND_HEARTBEAT_MS) }
     const stop = () => { if (timer) { clearInterval(timer); timer = null } }
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') start()
-      else { stop(); store.sendLeave() }   // hidden tab = unattended (ban-safe)
+      if (document.visibilityState === 'visible') {
+        clearGrace()   // returned within the grace window → stay online, no leave
+        start()        // immediate beat renews the viewer TTL
+      } else {
+        // Hidden: hold "attended" for HIDE_GRACE_MS, then leave. Stop beating
+        // (throttled anyway); the worker TTL keeps the viewer alive meanwhile.
+        stop()
+        clearGrace()
+        graceTimer = setTimeout(() => { graceTimer = null; store.sendLeave() }, HIDE_GRACE_MS)
+      }
     }
 
     document.addEventListener('visibilitychange', onVisibility)
@@ -261,8 +280,9 @@ export function useInboxAttendance(instanceId: string | null): void {
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
       stop()
+      clearGrace()
       store.viewing = false
-      store.sendLeave()
+      store.sendLeave()   // unmount = genuinely leaving the inbox → leave now
       releaseStore(instanceId)
     }
   }, [instanceId])

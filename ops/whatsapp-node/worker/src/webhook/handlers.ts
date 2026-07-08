@@ -2571,7 +2571,11 @@ const presenceChannels = new Map<string, ReturnType<typeof supabase.channel>>()
 // presence driver (loop.ts) keeps the WA number ONLINE so WhatsApp keeps
 // delivering peer typing; when the last viewer leaves/expires we revert to
 // ban-safe offline. TTL-based (never a latch): a crashed/closed tab ages out.
-const VIEWER_TTL_MS = 35_000 // ~3.5 heartbeats (frontend beats every 10s)
+// 80s covers the frontend's 60s hide-grace (during which the tab is hidden and
+// the browser THROTTLES the 10s heartbeat, so no beats arrive) plus the last
+// pre-hide beat's age and margin. A genuinely crashed/closed tab that never
+// sends 'leave' still ages out within 80s — ban-safe (never a latch).
+const VIEWER_TTL_MS = 80_000
 const viewerRegistry = new Map<string, Map<string, number>>() // instanceId -> viewerId -> expiresAt
 // Per-instance currently-open DM peer (phone JID) — the focused chat. Kept
 // warm with a forced re-subscribe so its typing survives the whole session.
