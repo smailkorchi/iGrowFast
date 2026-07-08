@@ -120,52 +120,130 @@ export function useAssignmentCountsByUser(instanceId: string | null) {
 }
 
 // ─── mutations ──────────────────────────────────────────────────────────────
+//
+// OPTIMISTIC-UPDATE CONTRACT (IGF, assignment-audit fix 2026-07-08).
+// The Assignment page renders every pill/chip/count PURELY from the byInstance
+// assignments cache, so before this change the screen could not change until a
+// full invalidate→refetch cycle completed (multi-second at prod scale, and on
+// the inbox filters too). Each mutation now accepts an OPTIONAL `instanceId`:
+//   - present (Assignment page) → patch assignmentKeys.byInstance(instanceId)
+//     synchronously in onMutate (instant UI), roll back onError, and reconcile
+//     with ONE background refetch (the 024 RPC). It does NOT invalidate the
+//     ['conversations'] tree — assignments never change conversation rows, and
+//     the Assignment list doesn't filter by assignment.
+//   - absent (inbox InfoPane) → unchanged donor behavior: invalidate assignment
+//     caches + ['conversations'] so the inbox unassigned/assigned filters move.
+// `assigned_by`/`assigned_at` in an optimistically-added row are placeholders;
+// nothing renders them, and the refetch overwrites them with the true values.
+
+const PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
+
+/** Patch the byInstance cache in place; returns a rollback snapshot. */
+function patchByInstance(
+  qc: ReturnType<typeof useQueryClient>,
+  instanceId: string,
+  mutate: (rows: AssignmentRow[]) => AssignmentRow[],
+): { key: readonly unknown[]; prev: AssignmentRow[] | undefined } {
+  const key = assignmentKeys.byInstance(instanceId)
+  const prev = qc.getQueryData<AssignmentRow[]>(key)
+  qc.setQueryData<AssignmentRow[]>(key, (old) => mutate(old ?? []))
+  return { key, prev }
+}
+
+/** Common onError/onSettled wiring for an optionally-optimistic mutation. */
+function optimisticHandlers(qc: ReturnType<typeof useQueryClient>) {
+  return {
+    onError: (_e: unknown, _v: unknown, ctx: { key: readonly unknown[]; prev: AssignmentRow[] | undefined } | undefined) => {
+      if (ctx?.prev !== undefined) qc.setQueryData(ctx.key, ctx.prev)
+    },
+    onSettled: (_d: unknown, _e: unknown, vars: { instanceId?: string }) => {
+      if (vars.instanceId) {
+        // Reconcile the patched cache from the server; realtime debounce covers
+        // cross-session. Do NOT touch ['conversations'] here.
+        void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(vars.instanceId) })
+      } else {
+        void qc.invalidateQueries({ queryKey: assignmentKeys.all })
+        void qc.invalidateQueries({ queryKey: ['conversations'] })
+      }
+    },
+  }
+}
 
 export function useSetConversationAssignees() {
   const qc = useQueryClient()
+  const h = optimisticHandlers(qc)
   return useMutation({
-    mutationFn: ({ conversationId, userIds }: { conversationId: string; userIds: string[] }) =>
+    mutationFn: ({ conversationId, userIds }: { conversationId: string; userIds: string[]; instanceId?: string; isGroup?: boolean }) =>
       setConversationAssignees(conversationId, userIds),
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: assignmentKeys.all })
-      void qc.invalidateQueries({ queryKey: ['conversations'] })
+    onMutate: ({ conversationId, userIds, instanceId, isGroup }) => {
+      if (!instanceId) return undefined
+      // Replace this conversation's assignees with the new set.
+      return patchByInstance(qc, instanceId, (rows) => [
+        ...rows.filter((r) => r.conversation_id !== conversationId),
+        ...userIds.map((uid) => ({
+          conversation_id: conversationId, user_id: uid,
+          assigned_by: PLACEHOLDER, assigned_at: new Date().toISOString(), is_group: !!isGroup,
+        })),
+      ])
     },
+    ...h,
   })
 }
 
 export function useUnassignConversationUser() {
   const qc = useQueryClient()
+  const h = optimisticHandlers(qc)
   return useMutation({
-    mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string }) =>
+    mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string; instanceId?: string }) =>
       unassignConversationUser(conversationId, userId),
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: assignmentKeys.all })
-      void qc.invalidateQueries({ queryKey: ['conversations'] })
+    onMutate: ({ conversationId, userId, instanceId }) => {
+      if (!instanceId) return undefined
+      return patchByInstance(qc, instanceId, (rows) =>
+        rows.filter((r) => !(r.conversation_id === conversationId && r.user_id === userId)))
     },
+    ...h,
   })
 }
 
 export function useBulkAssign() {
   const qc = useQueryClient()
+  const h = optimisticHandlers(qc)
   return useMutation({
-    mutationFn: ({ userId, conversationIds }: { userId: string; conversationIds: string[] }) =>
+    mutationFn: ({ userId, conversationIds }: { userId: string; conversationIds: string[]; instanceId?: string; isGroup?: boolean }) =>
       bulkAssignConversations(userId, conversationIds),
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: assignmentKeys.all })
-      void qc.invalidateQueries({ queryKey: ['conversations'] })
+    onMutate: ({ userId, conversationIds, instanceId, isGroup }) => {
+      if (!instanceId) return undefined
+      const set = new Set(conversationIds)
+      // ON CONFLICT DO NOTHING: add userId only where absent (matches server).
+      return patchByInstance(qc, instanceId, (rows) => {
+        const has = new Set(rows.filter((r) => r.user_id === userId).map((r) => r.conversation_id))
+        const additions = conversationIds
+          .filter((cid) => !has.has(cid))
+          .map((cid) => ({
+            conversation_id: cid, user_id: userId,
+            assigned_by: PLACEHOLDER, assigned_at: new Date().toISOString(), is_group: isGroup ?? true,
+          }))
+        void set
+        return [...rows, ...additions]
+      })
     },
+    ...h,
   })
 }
 
 export function useBulkUnassign() {
   const qc = useQueryClient()
+  const h = optimisticHandlers(qc)
   return useMutation({
-    mutationFn: ({ userId, conversationIds }: { userId: string; conversationIds: string[] }) =>
+    mutationFn: ({ userId, conversationIds }: { userId: string; conversationIds: string[]; instanceId?: string }) =>
       bulkUnassignConversations(userId, conversationIds),
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: assignmentKeys.all })
-      void qc.invalidateQueries({ queryKey: ['conversations'] })
+    onMutate: ({ userId, conversationIds, instanceId }) => {
+      if (!instanceId) return undefined
+      const set = new Set(conversationIds)
+      return patchByInstance(qc, instanceId, (rows) =>
+        rows.filter((r) => !(r.user_id === userId && set.has(r.conversation_id))))
     },
+    ...h,
   })
 }
 
@@ -197,15 +275,24 @@ export function useAssignmentsRealtime(instanceId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!instanceId) return
+    // DEBOUNCE (IGF audit fix 2026-07-08): a bulk op emits ONE postgres_changes
+    // event per row; undebounced, each cancelled-and-restarted the in-flight
+    // roster refetch (v5 cancelRefetch default), so the UI settled only after
+    // the whole burst drained. One trailing 200ms timer coalesces a burst into
+    // a single reconcile. Narrowed to byInstance (the Assignment page's pills) —
+    // the conversation list here doesn't depend on assignments, and any open
+    // inbox has its OWN conversation_assignments subscription (conversations.ts).
+    let t: ReturnType<typeof setTimeout> | null = null
+    const reconcile = () => {
+      if (t) clearTimeout(t)
+      t = setTimeout(() => { void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId) }) }, 200)
+    }
     const channel = supabase
       .channel(`assignments-page-${instanceId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'whatsapp', table: 'conversation_assignments' },
-        () => {
-          void qc.invalidateQueries({ queryKey: assignmentKeys.all })
-          void qc.invalidateQueries({ queryKey: ['conversations'] })
-        },
+        reconcile,
       )
       .on(
         'postgres_changes',
@@ -213,6 +300,6 @@ export function useAssignmentsRealtime(instanceId: string | null) {
         () => { void qc.invalidateQueries({ queryKey: ['instances'] }) },
       )
       .subscribe()
-    return () => { void supabase.removeChannel(channel) }
+    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
   }, [instanceId, qc])
 }

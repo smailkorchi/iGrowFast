@@ -51,35 +51,18 @@ export async function listUnassignedConversations(
 }
 
 export async function listInstanceAssignments(instanceId: string): Promise<AssignmentRow[]> {
-  // Pull all assignments for conversations that belong to this instance.
-  // Two-step rather than a join because conversation_assignments has no
-  // direct instance_id column and supabase-js inner-joins are awkward.
-  const { data: convs, error: convErr } = await supabase
-    .schema('whatsapp').from('conversations')
-    .select('id')
-    .eq('instance_id', instanceId)
-  if (convErr) throw new Error(convErr.message)
-  const ids = (convs ?? []).map((c) => c.id)
-  if (ids.length === 0) return []
-
-  // IGF FIX (donor-latent scale bug): the donor sent ONE .in() with every
-  // conversation id — at ~600 conversations that's a ~25KB request URL, which
-  // the self-host proxy (nginx 8k header buffer) rejects before PostgREST,
-  // surfacing as a CORS/ERR_FAILED wall. Chunk to 150 ids (~5.5KB/URL).
-  const CHUNK = 150
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK))
-  const results = await Promise.all(
-    chunks.map(async (chunk) => {
-      const { data, error } = await supabase
-        .schema('whatsapp').from('conversation_assignments')
-        .select('*')
-        .in('conversation_id', chunk)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as AssignmentRow[]
-    }),
-  )
-  return results.flat()
+  // ONE is_wa_admin-gated RPC that joins assignments→conversations server-side
+  // (migration 024). Replaces the old 2-stage client join (unpaginated id
+  // fetch + ceil(N/150) chunked .in() calls), which had TWO defects at prod
+  // scale: (1) PGRST_DB_MAX_ROWS=1000 silently truncated the id fetch — both
+  // instances now exceed 1000 conversations, so assignments for the excluded
+  // rows never loaded and their changes appeared to never take; (2) 8 round
+  // trips per refetch. The RPC is one request, ~3ms server-side, and carries
+  // no URL-length constraint.
+  const { data, error } = await supabase
+    .schema('whatsapp').rpc('admin_list_instance_assignments', { p_instance_id: instanceId })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as unknown as AssignmentRow[]
 }
 
 // ─── writes — single-conversation (preferred for UI) ────────────────────────

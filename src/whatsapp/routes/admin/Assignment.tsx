@@ -290,7 +290,7 @@ export default function AdminAssignment() {
       for (const c of dms) {
         const cur = assignmentsByConv.get(c.id!) ?? []
         if (cur[0] === targetUserId) continue   // already assigned
-        await setAssignees.mutateAsync({ conversationId: c.id!, userIds: [targetUserId] })
+        await setAssignees.mutateAsync({ conversationId: c.id!, userIds: [targetUserId], instanceId: instanceId ?? undefined, isGroup: false })
       }
       if (groups.length > 0) {
         // Only add to groups that don't already have this user.
@@ -298,7 +298,7 @@ export default function AdminAssignment() {
           .filter((g) => !(assignmentsByConv.get(g.id!) ?? []).includes(targetUserId))
           .map((g) => g.id!)
         if (ids.length > 0) {
-          await bulkAssignMut.mutateAsync({ userId: targetUserId, conversationIds: ids })
+          await bulkAssignMut.mutateAsync({ userId: targetUserId, conversationIds: ids, instanceId: instanceId ?? undefined, isGroup: true })
         }
       }
       clearSelection()
@@ -331,7 +331,7 @@ export default function AdminAssignment() {
         setPendingUnassign({ conversationId, userId, name: p?.full_name || p?.email || 'Cet utilisateur', ids })
         return
       }
-      await unassignOne.mutateAsync({ conversationId, userId })
+      await unassignOne.mutateAsync({ conversationId, userId, instanceId: instanceId ?? undefined })
     } catch (e) { toast.error(normalizeError(e)) }
   }
 
@@ -345,7 +345,7 @@ export default function AdminAssignment() {
           await deleteScheduledMut.mutateAsync({ id, conversationId: up.conversationId })
         }
       }
-      await unassignOne.mutateAsync({ conversationId: up.conversationId, userId: up.userId })
+      await unassignOne.mutateAsync({ conversationId: up.conversationId, userId: up.userId, instanceId: instanceId ?? undefined })
     } catch (e) { toast.error(normalizeError(e)) }
   }
 
@@ -396,7 +396,7 @@ export default function AdminAssignment() {
 
   async function runBulkUnassign(pairs: Array<{ userId: string; conversationIds: string[] }>) {
     for (const p of pairs) {
-      await bulkUnassignMut.mutateAsync({ userId: p.userId, conversationIds: p.conversationIds })
+      await bulkUnassignMut.mutateAsync({ userId: p.userId, conversationIds: p.conversationIds, instanceId: instanceId ?? undefined })
     }
     clearSelection()
   }
@@ -431,6 +431,8 @@ export default function AdminAssignment() {
           await setAssignees.mutateAsync({
             conversationId: convId,
             userIds: Array.from(cur),
+            instanceId: instanceId ?? undefined,
+            isGroup: true,
           })
         }
       }
