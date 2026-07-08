@@ -1233,54 +1233,6 @@ export type Database = {
           },
         ]
       }
-      worker_health_status: {
-        Row: {
-          active_numbers: number | null
-          dispatching_count: number | null
-          drain_rate_1m: number | null
-          health: string | null
-          hostname: string | null
-          last_dispatch_at: string | null
-          last_heartbeat_at: string | null
-          notes: Json | null
-          queue_depth: number | null
-          seconds_since_heartbeat: number | null
-          started_at: string | null
-          version: string | null
-          worker_id: string | null
-        }
-        Insert: {
-          active_numbers?: number | null
-          dispatching_count?: number | null
-          drain_rate_1m?: number | null
-          health?: never
-          hostname?: string | null
-          last_dispatch_at?: string | null
-          last_heartbeat_at?: string | null
-          notes?: Json | null
-          queue_depth?: number | null
-          seconds_since_heartbeat?: never
-          started_at?: string | null
-          version?: string | null
-          worker_id?: string | null
-        }
-        Update: {
-          active_numbers?: number | null
-          dispatching_count?: number | null
-          drain_rate_1m?: number | null
-          health?: never
-          hostname?: string | null
-          last_dispatch_at?: string | null
-          last_heartbeat_at?: string | null
-          notes?: Json | null
-          queue_depth?: number | null
-          seconds_since_heartbeat?: never
-          started_at?: string | null
-          version?: string | null
-          worker_id?: string | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       _assert_conversation_access: {
@@ -1558,7 +1510,6 @@ export type Database = {
             }
             Returns: string
           }
-      instance_stats: { Args: { p_instance_id: string }; Returns: Json }
       invitation_claim: {
         Args: { p_submitted_email: string; p_token_hash: string }
         Returns: Database["whatsapp"]["CompositeTypes"]["invitation_claim_result"]
@@ -2012,7 +1963,6 @@ export type WhatsappInstance = Database['whatsapp']['Tables']['whatsapp_instance
   history_synced_at:            string | null
   sync_progress:                number | null
 }
-export type WorkerHealthStatus = Database['whatsapp']['Views']['worker_health_status']['Row']
 export type ConversationNote = Database['whatsapp']['Tables']['conversation_notes']['Row']
 export type MessageTemplate = Database['whatsapp']['Tables']['message_templates']['Row']
 export type Invitation = Database['whatsapp']['Tables']['invitations']['Row']
