@@ -130,7 +130,7 @@ export default function AdminConversations() {
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
   // Live-refresh the per-instance unread badge across ALL numbers (not just the
   // active one) so the switcher badge appears/clears instantly, not on staleTime.
-  useInstancesUnreadRealtime()
+  useInstancesUnreadRealtime(instanceIds)
 
   // ─── lists + favourites (localStorage) ─────────────────────────────────────
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(activeInstanceId))

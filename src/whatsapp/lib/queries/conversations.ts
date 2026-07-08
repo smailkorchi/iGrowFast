@@ -214,21 +214,35 @@ export function useInstancesUnread(instanceIds: string[]) {
 // = all, agents = assigned) and refreshes the unread map the moment any
 // unread_count changes — badge appears/clears in realtime. Debounced so a burst
 // of inbound messages coalesces into one refetch.
-export function useInstancesUnreadRealtime() {
+export function useInstancesUnreadRealtime(instanceIds: string[]) {
   const qc = useQueryClient()
+  // Stable key so re-renders with the same instance set don't re-subscribe.
+  const key = [...instanceIds].sort().join(',')
   useEffect(() => {
+    const ids = key ? key.split(',') : []
+    if (ids.length === 0) return
     let t: ReturnType<typeof setTimeout> | null = null
     const bump = () => {
       if (t) clearTimeout(t)
       t = setTimeout(() => { void qc.invalidateQueries({ queryKey: ['instances-unread'] }) }, 150)
     }
-    const channel = supabase
-      .channel('instances-unread-rt')
-      // No instance filter: catch unread_count changes on any visible number.
-      .on('postgres_changes', { event: '*', schema: 'whatsapp', table: 'conversations' }, bump)
-      .subscribe()
+    // ENTERPRISE AUDIT: was ONE unfiltered subscription to conversations, so
+    // Realtime RLS-checked EVERY conversations change (all tenants) against this
+    // subscriber for a badge count — O(all subscribers) per event at scale. Now
+    // one server-side-filtered binding per the caller's OWN instances: a change
+    // to another tenant's conversation never matches, so it never fires here and
+    // never costs an RLS eval for this session.
+    let channel = supabase.channel('instances-unread-rt')
+    for (const id of ids) {
+      channel = channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${id}` },
+        bump,
+      )
+    }
+    channel.subscribe()
     return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
-  }, [qc])
+  }, [qc, key])
 }
 
 // ─── mark-read (optimistic) ────────────────────────────────────────────────

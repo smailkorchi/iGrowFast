@@ -66,7 +66,7 @@ export function ActiveInstanceProvider({ children }: { children: ReactNode }) {
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
   // Realtime per-instance unread so the agent navbar badge is instant.
-  useInstancesUnreadRealtime()
+  useInstancesUnreadRealtime(instanceIds)
 
   const value = useMemo<ActiveInstanceValue>(
     () => ({ instances, instancesLoading, activeInstanceId, switchInstance, unreadByInstance }),
