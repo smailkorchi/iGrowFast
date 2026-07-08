@@ -7,7 +7,6 @@ import { startHeartbeat, stopHeartbeat } from './heartbeat.js'
 import { wakeLoop, refreshQueueDepth, startSelfPresenceLoop, stopSelfPresenceLoop } from './dispatcher/loop.js'
 import { startInstanceManager, stopInstanceManager } from './dispatcher/instance-manager.js'
 import { startMediaIngest, stopMediaIngest, wakeMediaIngest } from './dispatcher/media-ingest.js'
-import { startDispatcherSnapshot, stopDispatcherSnapshot } from './dispatcher/snapshot.js'
 import { startWebhookServer } from './webhook/server.js'
 import { startActivePeerWarmup, stopActivePeerWarmup } from './webhook/handlers.js'
 
@@ -51,9 +50,8 @@ async function main(): Promise<void> {
   const depthTimer = setInterval(() => { void refreshQueueDepth() }, 5_000)
   depthTimer.unref()
 
-  // Throttled per-instance dispatcher snapshot (Realtime-fanned), retires the
-  // frontend's 2s dispatcher poll. Decoupled from the dispatch loops.
-  startDispatcherSnapshot(3_000)
+  // (dispatcher snapshot removed 2026-07-08 with the NumberDetail cockpit —
+  // its only reader was the live-gauges UI; the 3s UPSERT wrote for nobody.)
 
   // Instance manager: load existing connected instances, spawn dispatchers,
   // subscribe to Realtime for future changes.
@@ -87,7 +85,6 @@ async function shutdown(signal: string): Promise<void> {
   stopMediaIngest()
   stopActivePeerWarmup()
   stopSelfPresenceLoop()
-  stopDispatcherSnapshot()
   if (webhookCloser) {
     try { await webhookCloser() } catch (err) {
       log.error('worker.shutdown.webhook_close_failed', {
