@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useInstances } from '../../lib/queries/instances'
 import {
   useContacts,
-  useUnresolvedContacts,
   useUpsertContact,
   useDeleteContacts,
   type Contact,
@@ -11,7 +10,6 @@ import {
 import { formatPhone } from '../../lib/jid'
 import type { WhatsappInstance } from '../../lib/database.types'
 import ImportContactsModal from '../../components/contacts/ImportContactsModal'
-import PendingContactsModal from '../../components/contacts/PendingContactsModal'
 import './Contacts.css'
 import '../admin/Assignment.css'
 
@@ -326,7 +324,6 @@ export default function AdminContacts() {
   const activeInstance = selectedId ?? connected[0]?.id ?? null
 
   const { data: contacts, isLoading } = useContacts(activeInstance)
-  const { data: unresolved } = useUnresolvedContacts(activeInstance)
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
@@ -342,7 +339,6 @@ export default function AdminContacts() {
 
   const [modal, setModal] = useState<ContactModalState>(null)
   const [importOpen, setImportOpen] = useState(false)
-  const [pendingOpen, setPendingOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null)
   const deleteMutation = useDeleteContacts()
 
@@ -395,21 +391,6 @@ export default function AdminContacts() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {unresolved && unresolved.length > 0 && (
-            <button
-              type="button"
-              className="contacts-page__pending-btn"
-              onClick={() => setPendingOpen(true)}
-              disabled={!activeInstance}
-            >
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              En attente
-              <span className="contacts-page__pending-badge">{unresolved.length}</span>
-            </button>
-          )}
           <button
             type="button"
             className="contacts-page__import-btn"
@@ -478,7 +459,6 @@ export default function AdminContacts() {
         />
         <span className="contacts-page__count">
           {isLoading ? '—' : `${filtered.length} résolus`}
-          {unresolved?.length ? ` · ${unresolved.length} en attente` : ''}
         </span>
       </div>
 
@@ -530,13 +510,6 @@ export default function AdminContacts() {
         <ImportContactsModal
           defaultInstanceId={activeInstance}
           onClose={() => setImportOpen(false)}
-        />
-      )}
-      {pendingOpen && activeInstance && (
-        <PendingContactsModal
-          instanceId={activeInstance}
-          pending={unresolved ?? []}
-          onClose={() => setPendingOpen(false)}
         />
       )}
     </section>

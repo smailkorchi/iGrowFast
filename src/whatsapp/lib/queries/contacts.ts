@@ -19,7 +19,6 @@ export interface Contact {
 export const contactKeys = {
   all: ['contacts'] as const,
   list: (instanceId: string) => ['contacts', 'list', instanceId] as const,
-  unresolved: (instanceId: string) => ['contacts', 'unresolved', instanceId] as const,
   bookMap: (instanceId: string) => ['contacts', 'bookMap', instanceId] as const,
 }
 
@@ -65,24 +64,6 @@ export function useContacts(instanceId: string | null) {
   })
 }
 
-export function useUnresolvedContacts(instanceId: string | null) {
-  return useQuery<Contact[]>({
-    queryKey: contactKeys.unresolved(instanceId ?? '_'),
-    queryFn: async () => {
-      if (!instanceId) return []
-      const { data, error } = await supabase
-        .schema('whatsapp').from('contacts')
-        .select('*')
-        .eq('instance_id', instanceId)
-        .eq('is_resolved', false)
-        .order('updated_at', { ascending: false })
-      if (error) throw new Error(error.message)
-      return (data ?? []) as Contact[]
-    },
-    enabled: !!instanceId,
-  })
-}
-
 export function useUpsertContact() {
   const qc = useQueryClient()
   return useMutation({
@@ -114,7 +95,6 @@ export function useUpsertContact() {
     },
     onSuccess: (_d, v) => {
       void qc.invalidateQueries({ queryKey: contactKeys.list(v.instanceId) })
-      void qc.invalidateQueries({ queryKey: contactKeys.unresolved(v.instanceId) })
     },
   })
 }
@@ -137,76 +117,6 @@ export function useDeleteContacts() {
     },
     onSuccess: (_d, v) => {
       void qc.invalidateQueries({ queryKey: contactKeys.list(v.instanceId) })
-      void qc.invalidateQueries({ queryKey: contactKeys.unresolved(v.instanceId) })
-    },
-  })
-}
-
-// Manually map a pending LID-only contact onto an existing resolved contact.
-// The unique constraints we must clear before the RPCs can succeed:
-//   contacts        (instance_id, lid)        — held by the pending row
-//   jid_mapping     (instance_id, lid)        — possibly held by a stale auto-discovered mapping
-//   jid_mapping     (instance_id, phone_jid)  — possibly held by another LID claiming the same phone
-// Manual map overrides any prior auto-discovered mapping, so we wipe both
-// jid_mapping slots before re-inserting via upsert_jid_mapping, then run
-// resolve_contact_from_mapping (which takes phone_jid as a param and attaches
-// lid + COALESCE push_name/profile_pic onto the resolved phone-JID contact).
-export function useResolveContact() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (params: {
-      instanceId: string
-      lid: string
-      phoneJid: string
-      pendingContactId: string
-      pushName?: string | null
-      profilePic?: string | null
-    }) => {
-      const { error: delContactErr } = await supabase
-        .schema('whatsapp').from('contacts')
-        .delete()
-        .eq('id', params.pendingContactId)
-      if (delContactErr) throw new Error(delContactErr.message)
-
-      // Clear conflicting jid_mapping rows. Two separate deletes (no .or()
-      // because PostgREST .or() with literal JIDs needs quoting that's easy to
-      // get wrong). Errors here are non-fatal — if RLS blocks delete we'll
-      // still try the upsert below and fall through to the resolve step.
-      await supabase
-        .schema('whatsapp').from('jid_mapping')
-        .delete()
-        .eq('instance_id', params.instanceId)
-        .eq('phone_jid', params.phoneJid)
-      await supabase
-        .schema('whatsapp').from('jid_mapping')
-        .delete()
-        .eq('instance_id', params.instanceId)
-        .eq('lid', params.lid)
-
-      const { error: mapErr } = await supabase.schema('whatsapp').rpc('upsert_jid_mapping', {
-        p_instance_id: params.instanceId,
-        p_lid: params.lid,
-        p_phone_jid: params.phoneJid,
-        p_source: 'manual_map',
-      })
-      // Best-effort: mapping is for future webhook auto-resolution. If RLS or
-      // a residual unique conflict blocks it, the user-visible resolve below
-      // is still what marks the contact resolved.
-      if (mapErr) console.warn('manual map: jid_mapping insert failed', mapErr.message)
-
-      const { error: resolveErr } = await supabase.schema('whatsapp').rpc('resolve_contact_from_mapping', {
-        p_instance_id: params.instanceId,
-        p_lid: params.lid,
-        p_phone_jid: params.phoneJid,
-        p_push_name: params.pushName ?? undefined,
-        p_profile_pic: params.profilePic ?? undefined,
-      })
-      if (resolveErr) throw new Error(resolveErr.message)
-    },
-    onSuccess: (_d, v) => {
-      void qc.invalidateQueries({ queryKey: contactKeys.list(v.instanceId) })
-      void qc.invalidateQueries({ queryKey: contactKeys.unresolved(v.instanceId) })
-      void qc.invalidateQueries({ queryKey: contactKeys.bookMap(v.instanceId) })
     },
   })
 }
@@ -300,7 +210,6 @@ export function useUploadPhoneBook(onProgress?: (imported: number, total: number
     },
     onSuccess: (_data, { instanceId }) => {
       void qc.invalidateQueries({ queryKey: contactKeys.list(instanceId) })
-      void qc.invalidateQueries({ queryKey: contactKeys.unresolved(instanceId) })
     },
   })
 }
