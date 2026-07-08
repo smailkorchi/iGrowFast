@@ -339,6 +339,22 @@ export function useConversationsRealtime(instanceId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!instanceId) return
+    // Assignment changes can REVOKE access for a non-admin agent: an agent sees
+    // an instance (wi_select) and its conversations (RLS) ONLY while assigned,
+    // so losing their last assignment must drop the instance from useInstances()
+    // and flip the inbox to the empty state — live. Realtime delivers the agent
+    // their OWN assignment DELETE (replica identity = PK incl. user_id; ca_select
+    // keys on user_id=auth.uid()), so we invalidate BOTH ['conversations'] and
+    // ['instances'] here. Debounced so a bulk (un)assign's per-row event burst
+    // coalesces into a single refetch instead of one per row.
+    let t: ReturnType<typeof setTimeout> | null = null
+    const onAssignmentChange = () => {
+      if (t) clearTimeout(t)
+      t = setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: ['conversations'] })
+        void qc.invalidateQueries({ queryKey: ['instances'] })
+      }, 200)
+    }
     const channel = supabase
       .channel(`conv-page-${instanceId}`)
       .on(
@@ -359,7 +375,7 @@ export function useConversationsRealtime(instanceId: string | null) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'whatsapp', table: 'conversation_assignments' },
-        () => { void qc.invalidateQueries({ queryKey: ['conversations'] }) },
+        onAssignmentChange,
       )
       .on(
         'postgres_changes',
@@ -367,7 +383,7 @@ export function useConversationsRealtime(instanceId: string | null) {
         () => { void qc.invalidateQueries({ queryKey: ['conversations'] }) },
       )
       .subscribe()
-    return () => { void supabase.removeChannel(channel) }
+    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
   }, [instanceId, qc])
 }
 
