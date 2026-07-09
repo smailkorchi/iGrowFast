@@ -4642,7 +4642,14 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
         marginBottom: selectMode ? 1 : streakTail ? 4 : 1,
       }}
       onClick={selectMode ? () => onSelectToggle?.(msg.id!) : undefined}
-      onDoubleClick={selectMode ? undefined : () => { if (!isWaitingForMessage && kind !== 'system') onReply?.(msg) }}
+      onDoubleClick={selectMode ? undefined : (e) => {
+        // A double-click ON the bubble selects its text (native, for copy) — don't
+        // reply. Only a double-click in the gutter (same row, outside the bubble)
+        // opens the reply box, matching WhatsApp.
+        const el = e.target as HTMLElement | null
+        if (el?.closest?.('.wac__bubble')) return
+        if (!isWaitingForMessage && kind !== 'system') onReply?.(msg)
+      }}
     >
       {selectMode && (
         <div
