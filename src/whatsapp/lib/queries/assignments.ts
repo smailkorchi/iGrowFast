@@ -21,6 +21,7 @@ import {
   type UnassignedConversation,
 } from '../assignmentApi'
 import { supabase } from '../supabase'
+import { businessIdOf } from './quickReplies'
 
 export const assignmentKeys = {
   all:           ['assignments'] as const,
@@ -328,6 +329,8 @@ export function useAssignmentsRealtime(instanceId: string | null) {
       if (t) clearTimeout(t)
       t = setTimeout(() => { void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId) }) }, 200)
     }
+    // conversation_assignments — STILL on postgres_changes (migrated to wa:biz +
+    // wa:user in the Phase 2b agent-facing pass; see the slot lock-list).
     const channel = supabase
       .channel(`assignments-page-${instanceId}`)
       .on(
@@ -335,12 +338,29 @@ export function useAssignmentsRealtime(instanceId: string | null) {
         { event: '*', schema: 'whatsapp', table: 'conversation_assignments' },
         reconcile,
       )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'whatsapp', table: 'whatsapp_instances', filter: `id=eq.${instanceId}` },
-        () => { void qc.invalidateQueries({ queryKey: ['instances'] }) },
-      )
       .subscribe()
-    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
+    // whatsapp_instances (auto-assign config edits) — its postgres_changes binding
+    // went DEAD when whatsapp_instances left the publication (mig 050). Re-homed to
+    // the wa:biz:<business_id> 'instance' broadcast (mig 049) so the Assignment
+    // page's auto-assign config still refreshes live across sessions.
+    let bizChannel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    void businessIdOf(instanceId)
+      .then((biz) => {
+        if (cancelled) return
+        bizChannel = supabase
+          .channel(`wa:biz:${biz}`, { config: { private: true } })
+          .on('broadcast', { event: 'instance' }, () => {
+            void qc.invalidateQueries({ queryKey: ['instances'] })
+          })
+          .subscribe()
+      })
+      .catch(() => { /* resolver failure surfaces through the instances query */ })
+    return () => {
+      if (t) clearTimeout(t)
+      void supabase.removeChannel(channel)
+      cancelled = true
+      if (bizChannel) void supabase.removeChannel(bizChannel)
+    }
   }, [instanceId, qc])
 }
