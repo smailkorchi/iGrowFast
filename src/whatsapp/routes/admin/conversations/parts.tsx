@@ -2710,14 +2710,14 @@ export function ChatPane(p: ChatPaneProps) {
     queryFn: async () => {
       const { data } = await supabase
         .schema('whatsapp').from('messages_decrypted')
-        .select('id, body, kind, direction, sender_jid, media_meta, media_mime')
+        .select('id, body, kind, direction, sender_jid, media_meta, media_mime, media_storage_key, media_pending, whatsapp_timestamp')
         .in('id', replyIds)
       return data ?? []
     },
     staleTime: 30 * 60 * 1000,
   })
   const quotedMap = useMemo(() => {
-    const m = new Map<string, { body: string | null; kind: string | null; direction: string | null; senderJid: string | null; mediaMeta: Record<string, unknown> | null; mediaMime: string | null }>()
+    const m = new Map<string, { body: string | null; kind: string | null; direction: string | null; senderJid: string | null; mediaMeta: Record<string, unknown> | null; mediaMime: string | null; mediaStorageKey: string | null; mediaPending: boolean | null; whatsappTimestamp: string | null }>()
     for (const q of quotedQ.data ?? []) {
       if (!q.id) continue
       m.set(q.id, {
@@ -2727,6 +2727,9 @@ export function ChatPane(p: ChatPaneProps) {
         senderJid: q.sender_jid,
         mediaMeta: q.media_meta as Record<string, unknown> | null,
         mediaMime: q.media_mime,
+        mediaStorageKey: q.media_storage_key,
+        mediaPending: q.media_pending,
+        whatsappTimestamp: q.whatsapp_timestamp,
       })
     }
     return m
@@ -4203,7 +4206,7 @@ interface BubbleProps {
   ownerPic?: string | null
   onOpenMedia?: (msg: MessageDecrypted) => void
   contactMap?: Map<string, { pushName: string | null; pic: string | null; bookName: string | null }>
-  quotedMap?: Map<string, { body: string | null; kind: string | null; direction: string | null; senderJid: string | null; mediaMeta: Record<string, unknown> | null; mediaMime: string | null }>
+  quotedMap?: Map<string, { body: string | null; kind: string | null; direction: string | null; senderJid: string | null; mediaMeta: Record<string, unknown> | null; mediaMime: string | null; mediaStorageKey: string | null; mediaPending: boolean | null; whatsappTimestamp: string | null }>
   convName?: string
   onReply?: (msg: MessageDecrypted) => void
   onAction?: (action: string, msg: MessageDecrypted, anchorRect: DOMRect) => void
@@ -4733,8 +4736,35 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
             const tel = vc.match(/TEL[^:]*:([^\n\r]+)/)?.[1]?.replace(/[^0-9]/g, '')
             return tel ? `${tel}@s.whatsapp.net` : null
           })() : null
+          // Visual media (image/video/sticker): show a thumbnail of the exact
+          // quoted item — even one buried in an album — and open it in the
+          // full-screen viewer on click, instead of scrolling to the album.
+          const qIsVisualMedia = qKind === 'image' || qKind === 'video' || qKind === 'sticker'
+          const qStorageKey = q?.mediaStorageKey ?? null
+          const qCanOpenInViewer = qIsVisualMedia && !!qStorageKey && !q?.mediaPending && !!onOpenMedia
+          const onQuoteClick = () => {
+            if (qCanOpenInViewer) {
+              onOpenMedia!({
+                id: msg.reply_to_message_id!,
+                conversation_id: msg.conversation_id,
+                instance_id: msg.instance_id,
+                kind: qKind,
+                direction: q?.direction ?? 'inbound',
+                sender_jid: q?.senderJid ?? null,
+                body: q?.body ?? null,
+                media_storage_key: qStorageKey,
+                media_pending: false,
+                media_mime: q?.mediaMime ?? null,
+                media_meta: qMeta ?? null,
+                whatsapp_timestamp: q?.whatsappTimestamp ?? null,
+                is_starred: false,
+              } as unknown as MessageDecrypted)
+            } else {
+              scrollToMessage(msg.reply_to_message_id!)
+            }
+          }
           return (
-            <div className="wac__bubble-quote" style={{ ['--wa-sender-color' as string]: qColor, cursor: 'pointer' }} onClick={() => scrollToMessage(msg.reply_to_message_id!)}>
+            <div className="wac__bubble-quote" style={{ ['--wa-sender-color' as string]: qColor, cursor: 'pointer' }} onClick={onQuoteClick}>
               <div className="wac__bubble-quote-body">
                 <span className="wac__bubble-quote-author">{qSenderName}</span>
                 <span className="wac__bubble-quote-text">
@@ -4746,6 +4776,9 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
               )}
               {qKind === 'contact' && (
                 <QuoteContactThumb jid={qContactJid} instanceId={msg.instance_id} />
+              )}
+              {qIsVisualMedia && qStorageKey && (
+                <QuoteMediaThumb storageKey={qStorageKey} pending={!!q?.mediaPending} mime={q?.mediaMime ?? null} isVideo={qKind === 'video'} />
               )}
             </div>
           )
@@ -5813,6 +5846,22 @@ function QuoteContactThumb({ jid, instanceId }: { jid: string | null; instanceId
   return (
     <div className="wac__quote-contact-thumb">
       {picQ.data ? <img src={picQ.data} alt="" draggable={false} /> : <IconUser size={24} />}
+    </div>
+  )
+}
+
+// Thumbnail of the exact image/video/sticker a reply quotes — resolves the same
+// public R2 URL the bubble uses. Renders nothing while the media is still
+// pending/expired (the quote falls back to its icon + label).
+function QuoteMediaThumb({ storageKey, pending, mime, isVideo }: { storageKey: string | null; pending: boolean; mime: string | null; isVideo: boolean }) {
+  const resolved = useResolvedMediaUrl({ media_storage_key: storageKey, media_pending: pending, media_mime: mime })
+  if (!resolved.url) return null
+  return (
+    <div className="wac__quote-media-thumb">
+      {isVideo
+        ? <video src={resolved.url} preload="metadata" muted />
+        : <img src={resolved.url} alt="" draggable={false} />}
+      {isVideo && <span className="wac__quote-media-thumb-play"><IconPlay size={14} /></span>}
     </div>
   )
 }

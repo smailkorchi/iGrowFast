@@ -368,9 +368,5 @@
   "366": "BonLivraisonPdfDocument.tsx",
   "367": "DevisPdfDocument.tsx",
   "368": "FacturePdfDocument.tsx",
-  "369": "LifecycleBadge.tsx",
-  "370": "EmailAccountCard.tsx",
-  "371": "ConfigSection.tsx",
-  "372": "EmailTemplateModal",
-  "373": "Couriers.tsx"
+  "371": "ConfigSection.tsx"
 }

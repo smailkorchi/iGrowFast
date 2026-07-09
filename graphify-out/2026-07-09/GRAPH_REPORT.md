@@ -1,16 +1,16 @@
 # Graph Report - iGrowFast  (2026-07-09)
 
 ## Corpus Check
-- 1010 files · ~1,194,497 words
+- 1010 files · ~1,194,542 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5906 nodes · 14005 edges · 372 communities (223 shown, 149 thin omitted)
+- 5906 nodes · 14005 edges · 374 communities (225 shown, 149 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 54 edges (avg confidence: 0.68)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ecfabf12`
+- Built from commit: `f7a8b90c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -99,6 +99,7 @@
 - WhatsApp Frontend
 - WhatsApp Frontend
 - WhatsApp Frontend
+- useStatusCategories.ts
 - Edge Functions
 - Edge Functions
 - Box Ops
@@ -373,6 +374,7 @@
 - EmailAccountCard.tsx
 - ConfigSection.tsx
 - EmailTemplateModal
+- Couriers.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 499 edges
@@ -401,7 +403,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (372 total, 149 thin omitted)
+## Communities (374 total, 149 thin omitted)
 
 ### Community 0 - "WhatsApp Media & Icons"
 Cohesion: 0.02
@@ -460,8 +462,8 @@ Cohesion: 0.07
 Nodes (54): Config, attachListenClient(), channels, closeDb(), listenOn(), NotifyHandler, pool, quoteIdent() (+46 more)
 
 ### Community 14 - "App Pages"
-Cohesion: 0.12
-Nodes (45): AdsSection(), BusinessHealthSection(), CouriersSection(), OrdersSection(), SellersSection(), ShippingSection(), CustomerInsights(), CustomerInsightsProps (+37 more)
+Cohesion: 0.16
+Nodes (37): BusinessHealthSection(), CouriersSection(), OrdersSection(), SellersSection(), ShippingSection(), CustomerInsights(), CustomerInsightsProps, MonthData (+29 more)
 
 ### Community 15 - "Shared Libs & Utils"
 Cohesion: 0.07
@@ -480,8 +482,8 @@ Cohesion: 0.08
 Nodes (47): applyAutoAssignBacklog(), assignByFilter(), AssignmentMode, AssignmentPageRow, AssignmentSummary, AutoAssignConfig, AutoAssignStrategy, bulkAssignConversations() (+39 more)
 
 ### Community 19 - "UI Components"
-Cohesion: 0.10
-Nodes (42): AdsOrderForMatching, AdsOrderItem, AdsSectionProps, CampaignRow, getPlatformIcon(), GlobalAdEntry, PLATFORM_COLORS, ProductAdRow (+34 more)
+Cohesion: 0.12
+Nodes (37): AnalyticsDateFilter(), AnalyticsDateFilterProps, PRESETS, CourierPaymentNote, CourierRow, OrderRow, COLORS, CustomersSection() (+29 more)
 
 ### Community 20 - "App Pages"
 Cohesion: 0.13
@@ -504,12 +506,12 @@ Cohesion: 0.06
 Nodes (24): WhatsappAssignment, WhatsappContacts, WhatsappConversations, WhatsappNumberDetail, WhatsappNumbers, WhatsappSellerInbox, AnnouncementGate(), MediaBuyerIntegrationGuard() (+16 more)
 
 ### Community 25 - "Shared Libs"
-Cohesion: 0.15
-Nodes (25): CustomersSection(), EXPENSE_COLORS, ProfitabilitySection(), adSpendInWindow(), ChartGrain, cogsForOrder(), deliveredRevenueForOrder(), deliveryTimestamp() (+17 more)
+Cohesion: 0.11
+Nodes (33): AdsOrderForMatching, AdsOrderItem, AdsSection(), AdsSectionProps, CampaignRow, getPlatformIcon(), GlobalAdEntry, PLATFORM_COLORS (+25 more)
 
 ### Community 26 - "UI Components"
 Cohesion: 0.06
-Nodes (38): adsOverlapFraction(), DashboardProductsPerformanceProps, DPAccessory, DPAd, DPOrder, DPOrderItem, DPProduct, DPSeller (+30 more)
+Nodes (48): MediaBuyersSection(), adsOverlapFraction(), DashboardProductsPerformanceProps, DPAccessory, DPAd, DPOrder, DPOrderItem, DPProduct (+40 more)
 
 ### Community 27 - "App Pages"
 Cohesion: 0.07
@@ -604,8 +606,8 @@ Cohesion: 0.23
 Nodes (19): buildCourierPayoutPdfBase64(), buildCourierReturnPdfBase64(), arrayBufferToBase64(), blobToBase64(), buildMediaBuyerPayoutPdfBase64(), attributePaymentOrders(), buildSellerPayoutPdfBase64(), BusinessBranding (+11 more)
 
 ### Community 51 - "UI Components"
-Cohesion: 0.08
-Nodes (29): DateFilter, BusinessHealthSectionProps, CouriersSectionProps, CustomersSectionProps, InventorySectionProps, OrdersSectionProps, ProfitabilitySectionProps, SalesChannelsSectionProps (+21 more)
+Cohesion: 0.09
+Nodes (23): DateFilter, BusinessHealthSectionProps, CouriersSectionProps, CustomersSectionProps, InventorySectionProps, OrdersSectionProps, ProfitabilitySectionProps, SalesChannelsSectionProps (+15 more)
 
 ### Community 52 - "Box Ops"
 Cohesion: 0.12
@@ -730,6 +732,10 @@ Nodes (39): CreateInstanceDialog(), PairDialog(), call(), CheckWhatsAppEntry, Ch
 ### Community 83 - "WhatsApp Frontend"
 Cohesion: 0.11
 Nodes (19): pushWaProfile(), pushWaSettings(), usePushWaProfile(), usePushWaSettings(), useSetInstanceSettings(), ACCENT_DOT, Card(), HumanizationCard() (+11 more)
+
+### Community 84 - "useStatusCategories.ts"
+Cohesion: 0.13
+Nodes (14): ORDER_CAT_PRED, orderPred(), OrderStatus, PackageStatus, PKG_CAT_PRED, pkgPred(), deliveryTier(), EnrichedSeller (+6 more)
 
 ### Community 85 - "Edge Functions"
 Cohesion: 0.20
@@ -896,8 +902,8 @@ Cohesion: 0.44
 Nodes (6): admin, appendOwnGroupEvent(), buildSelfBody(), GroupEvent, onlyDigits(), resolveNames()
 
 ### Community 138 - "UI Components"
-Cohesion: 0.07
-Nodes (48): AccessoryRow, EntryRow, MBOrderItem, MBOrderRow, MBRow, MediaBuyersSection(), MediaBuyersSectionProps, ProductRow (+40 more)
+Cohesion: 0.09
+Nodes (24): AccessoryRow, EntryRow, MBOrderItem, MBOrderRow, MBRow, MediaBuyersSectionProps, ProductRow, SellerRow (+16 more)
 
 ### Community 139 - "UI Components"
 Cohesion: 0.22
@@ -1239,6 +1245,10 @@ Nodes (4): EmailAccountCard(), EmailAccountCardProps, EmailAccountModalProps, Em
 Cohesion: 0.67
 Nodes (3): EmailTemplateModal(), emptyForm(), htmlToPlainText()
 
+### Community 373 - "Couriers.tsx"
+Cohesion: 0.17
+Nodes (11): Courier, CourierFeeRow, CourierKpi(), CourierStat, deliveryTier(), InfoRow(), KPI_ACCENTS, MiniTile() (+3 more)
+
 ## Knowledge Gaps
 - **2346 isolated node(s):** `supabase-whatsappmancer`, `$schema`, `style`, `rsc`, `tsx` (+2341 more)
   These have ≤1 connection - possible missing edges or undocumented components.
@@ -1247,9 +1257,9 @@ Nodes (3): EmailTemplateModal(), emptyForm(), htmlToPlainText()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `Dashboard Stat Rows` to `OwnerSidebar.tsx`, `EmailPreview.tsx`, `metaTheme.ts`, `Order Form & Provider Adapters`, `UI Components`, `Order Contact Actions`, `Business & Profile Modals`, `Business Form & Form Primitives`, `App Shell & Route Guards`, `Order Status Dialogs`, `UI Components`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `Shared Libs & Utils`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `App Pages`, `Shared Libs`, `App Pages`, `UI Components`, `Shared Libs`, `WhatsApp Frontend`, `Shared Libs`, `UI Components`, `UI Components`, `UI Components`, `React Hooks`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `Shared Libs`, `UI Components`, `UI Components`, `WhatsApp Frontend`, `WhatsApp Frontend`, `WhatsApp Frontend`, `WhatsApp Frontend`, `WhatsApp Frontend`, `UI Components`, `useStatusCategories.ts`, `Statistics.tsx`, `App Pages`, `breadcrumb.tsx`, `drawer.tsx`, `WhatsApp Frontend`, `LifecycleBadge.tsx`, `EmailAccountCard.tsx`, `EmailTemplateModal`, `UI Components`, `CampaignPreview.tsx`, `UI Components`?**
+- **Why does `cn()` connect `Dashboard Stat Rows` to `OwnerSidebar.tsx`, `EmailPreview.tsx`, `metaTheme.ts`, `Order Form & Provider Adapters`, `UI Components`, `Order Contact Actions`, `Business & Profile Modals`, `Business Form & Form Primitives`, `App Shell & Route Guards`, `Order Status Dialogs`, `UI Components`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `Shared Libs & Utils`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `App Pages`, `Shared Libs`, `App Pages`, `Shared Libs`, `WhatsApp Frontend`, `Shared Libs`, `UI Components`, `UI Components`, `UI Components`, `React Hooks`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `UI Components`, `Shared Libs`, `UI Components`, `UI Components`, `WhatsApp Frontend`, `WhatsApp Frontend`, `WhatsApp Frontend`, `WhatsApp Frontend`, `useStatusCategories.ts`, `WhatsApp Frontend`, `UI Components`, `useStatusCategories.ts`, `Statistics.tsx`, `App Pages`, `breadcrumb.tsx`, `drawer.tsx`, `WhatsApp Frontend`, `LifecycleBadge.tsx`, `EmailAccountCard.tsx`, `EmailTemplateModal`, `Couriers.tsx`, `UI Components`, `CampaignPreview.tsx`, `UI Components`?**
   _High betweenness centrality (0.084) - this node is a cross-community bridge._
-- **Why does `supabase` connect `App Pages` to `OwnerSidebar.tsx`, `App Shell & Route Guards`, `Order Contact Actions`, `Order Form & Provider Adapters`, `Dashboard Stat Rows`, `UI Components`, `Business & Profile Modals`, `Business Form & Form Primitives`, `UI Components`, `UI Components`, `App Pages`, `UI Components`, `Shared Libs & Utils`, `UI Components`, `App Pages`, `UI Components`, `App Pages`, `Shared Libs`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `Shared Libs`, `App Pages`, `App Pages`, `Shared Libs`, `UI Components`, `App Pages`, `Shared Libs`, `Shared Libs`, `UI Components`, `Shared Libs`, `UI Components`, `React Hooks`, `UI Components`, `Shared Libs`, `Shared Libs`, `UI Components`, `Shared Libs`, `useStatusCategories.ts`, `UI Components`, `syncOrderTracking.ts`, `useCampaignMetrics.ts`, `useSellerLiveOwed.ts`, `WhatsApp Frontend`, `CampaignPreview.tsx`, `UI Components`?**
+- **Why does `supabase` connect `App Pages` to `OwnerSidebar.tsx`, `App Shell & Route Guards`, `Order Contact Actions`, `Order Form & Provider Adapters`, `Dashboard Stat Rows`, `UI Components`, `Business & Profile Modals`, `Business Form & Form Primitives`, `UI Components`, `UI Components`, `App Pages`, `UI Components`, `Shared Libs & Utils`, `UI Components`, `App Pages`, `UI Components`, `App Pages`, `Shared Libs`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `Shared Libs`, `App Pages`, `App Pages`, `Shared Libs`, `UI Components`, `App Pages`, `Shared Libs`, `Shared Libs`, `UI Components`, `Shared Libs`, `UI Components`, `React Hooks`, `UI Components`, `Shared Libs`, `Shared Libs`, `UI Components`, `Shared Libs`, `useStatusCategories.ts`, `useStatusCategories.ts`, `UI Components`, `syncOrderTracking.ts`, `useCampaignMetrics.ts`, `useSellerLiveOwed.ts`, `WhatsApp Frontend`, `Couriers.tsx`, `CampaignPreview.tsx`, `UI Components`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._
 - **Why does `dependencies` connect `NPM Dependencies` to `UI Components`, `Package Scripts`, `Dashboard Stat Rows`, `Shared Libs`, `Shared Libs & Utils`, `WhatsApp Inbox State`, `App Pages`?**
   _High betweenness centrality (0.016) - this node is a cross-community bridge._
