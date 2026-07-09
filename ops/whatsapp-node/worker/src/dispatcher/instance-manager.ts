@@ -692,17 +692,18 @@ export async function startInstanceManager(): Promise<void> {
         })
       }
     })
-    // Phase 3a additive: dispatch/media WAKES over wa:node (dual-run alongside the
-    // LISTEN 'outbound_enqueued'/'media_fetch_ready' path — mig 055 dual-emits).
+    // wa:node dispatch/media WAKES — the SOLE wake path since Phase 3a moved the
+    // worker off LISTEN and mig 057 dropped the dead pg_notify producers.
     // wakeLoop/wakeMediaIngest are self-filtering (no-op if this node doesn't own
     // the number / has no pending media), so a wake is always safe to receive.
+    // Logged at debug: high-frequency, only needed when tracing wake delivery.
     .on('broadcast', { event: 'wake_outbound' }, ({ payload }) => {
       const numberId = (payload as { number_id?: string })?.number_id
-      if (numberId) { log.info('wanode.wake_outbound', { number_id: numberId }); wakeLoop(numberId) }
+      if (numberId) { log.debug('wanode.wake_outbound', { number_id: numberId }); wakeLoop(numberId) }
     })
     .on('broadcast', { event: 'wake_media' }, ({ payload }) => {
       const messageId = (payload as { message_id?: string })?.message_id
-      if (messageId) { log.info('wanode.wake_media', { message_id: messageId }); wakeMediaIngest(messageId) }
+      if (messageId) { log.debug('wanode.wake_media', { message_id: messageId }); wakeMediaIngest(messageId) }
     })
     .subscribe((status) => {
       log.info('instance.wanode_status', { status })
