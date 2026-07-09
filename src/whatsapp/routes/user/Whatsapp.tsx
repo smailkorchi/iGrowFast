@@ -196,9 +196,12 @@ export default function UserWhatsapp() {
     return rows
   }, [convs.rows, filter, convTagIds, favorites, query])
 
+  // "Non lues" pill badge = COUNT of unread conversations on the active instance
+  // (server-authoritative, from the instances-unread map), NOT the sum of unread
+  // messages over the loaded rows. Equals the number of rows the filter yields.
   const unreadTotal = useMemo(
-    () => convs.rows.reduce((s, r) => s + (r.unread_count ?? 0), 0),
-    [convs.rows],
+    () => (activeInstanceId ? unreadByInstance?.get(activeInstanceId) ?? 0 : 0),
+    [unreadByInstance, activeInstanceId],
   )
 
   const [activeId, setActiveId] = useState<string | null>(null)

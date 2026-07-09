@@ -171,11 +171,17 @@ export function useConversationSearch(instanceId: string | null, query: string) 
 
 // ─── per-instance unread aggregate ────────────────────────────────────────
 //
-// Returns a Map<instance_id, total_unread> built by summing unread_count
-// across all conversations the caller can see. RLS scopes naturally:
-//   - admin → sees every conversation in every instance
-//   - agent → sees only conversations they're assigned to
-// Used by the inbox sidebar switcher to surface unread on inactive instances.
+// Returns a Map<instance_id, unread_conversation_COUNT> — the number of
+// CONVERSATIONS that still have unread messages, NOT the sum of unread messages.
+// A thread with 10 unread messages contributes 1 here (its list-row badge shows
+// 10; the switcher/pill show unread-thread counts, like WhatsApp/email).
+//
+// Server-side aggregate (whatsapp.instances_unread_counts, mig 060): counts over
+// the operational-list visibility (view + unread>0 + open/pending + not archived)
+// so the pill badge equals the number of rows the "Non lues" filter yields.
+// SECURITY INVOKER → RLS scopes per caller (admin=all, agent=assigned). Replaces
+// the old client select+sum, which summed messages AND was PostgREST-1000-capped.
+// Used by the inbox sidebar switcher + the Non lues pill.
 
 export function useInstancesUnread(instanceIds: string[]) {
   // Stable key so dropping/reordering ids doesn't refire the query.
@@ -184,20 +190,13 @@ export function useInstancesUnread(instanceIds: string[]) {
     queryKey: ['instances-unread', key],
     enabled: instanceIds.length > 0,
     queryFn: async () => {
-      // Read the VIEW (not the raw table) so hidden conversations — merged
-      // tombstones AND unresolved @lid threads — don't inflate the navbar/
-      // switcher badge. The badge then matches exactly what's visible.
       const { data, error } = await supabase
-        .schema('whatsapp').from('conversations_decrypted')
-        .select('instance_id, unread_count')
-        .in('instance_id', instanceIds)
-        .gt('unread_count', 0)
+        .schema('whatsapp').rpc('instances_unread_counts', { p_instance_ids: instanceIds })
       if (error) throw new Error(error.message)
       const m = new Map<string, number>()
-      for (const row of data ?? []) {
-        if (!row.instance_id) continue   // view columns are nullable-typed
-        const prev = m.get(row.instance_id) ?? 0
-        m.set(row.instance_id, prev + (row.unread_count ?? 0))
+      for (const row of (data ?? []) as { instance_id: string | null; unread_conversations: number | null }[]) {
+        if (!row.instance_id) continue
+        m.set(row.instance_id, row.unread_conversations ?? 0)
       }
       return m
     },
@@ -251,15 +250,16 @@ export function useMarkConversationRead() {
       }
     }
 
-    // Optimistic: subtract from the per-instance unread map (powers the switcher badge).
+    // Optimistic: the map holds a COUNT of unread conversations, so reading a
+    // thread that WAS unread removes exactly one from its instance (decrement by
+    // 1, never by the message count). Reconciled by the RPC refetch on settle.
     if (instanceId && unread > 0) {
       const inst = instanceId
-      const amt = unread
       qc.setQueriesData<Map<string, number>>({ queryKey: ['instances-unread'] }, (old) => {
         const cur = old?.get(inst) ?? 0
         if (!old || cur === 0) return old
         const next = new Map(old)
-        const v = Math.max(0, cur - amt)
+        const v = Math.max(0, cur - 1)
         if (v === 0) next.delete(inst); else next.set(inst, v)
         return next
       })
@@ -362,11 +362,12 @@ function scheduleNewConvAdmit(qc: QueryClient, instanceId: string): void {
   }, 300))
 }
 
-// Per-instance unread badge (['instances-unread']) is a SUM the bump payload's
-// absolute per-conversation unread_count can't maintain by itself, so drive it by
-// a debounced INVALIDATE (refetch the aggregate) on any bump — same effect the
-// retired useInstancesUnreadRealtime had, now sourced from the bump instead of a
-// conversations postgres_changes subscription. One global timer (single query key).
+// Per-instance unread badge (['instances-unread']) is a COUNT of unread
+// conversations the bump payload's per-conversation unread_count can't maintain by
+// itself (a new message on an already-unread thread mustn't change the count), so
+// drive it by a debounced INVALIDATE (refetch the aggregate) on any bump — same
+// effect the retired useInstancesUnreadRealtime had, now sourced from the bump
+// instead of a conversations postgres_changes subscription. One global timer.
 let _unreadInvalidateTimer: ReturnType<typeof setTimeout> | null = null
 function scheduleUnreadInvalidate(qc: QueryClient): void {
   if (_unreadInvalidateTimer) clearTimeout(_unreadInvalidateTimer)
