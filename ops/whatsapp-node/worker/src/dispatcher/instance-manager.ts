@@ -594,6 +594,21 @@ async function loadAllAndReconcile(): Promise<void> {
 // ---- Realtime subscription -------------------------------------------------
 
 let channel: ReturnType<typeof supabase.channel> | null = null
+let nodeChannel: ReturnType<typeof supabase.channel> | null = null
+
+// Shared control-plane reconcile — used by BOTH the legacy postgres_changes
+// channel and the wa:node broadcast (enterprise Phase 2b). Node-gate first (a row
+// on another node — or reassigned away — means stop our loop), else spawn/update.
+// Idempotent, so dual-delivery from both feeds during the cutover is a safe no-op.
+async function applyInstanceControl(row: RawInstanceRow): Promise<void> {
+  if (!row?.id) return
+  if (row.node_id !== config.nodeId) {
+    await stopDispatcher(row.id).catch(() => undefined)
+    setActiveNumbers(loopCount())
+    return
+  }
+  await applyState(row)
+}
 
 export async function startInstanceManager(): Promise<void> {
   // Heal any rows stuck on a stale status BEFORE we decide which loops to run
@@ -669,6 +684,42 @@ export async function startInstanceManager(): Promise<void> {
     .subscribe((status) => {
       log.info('instance.realtime_status', { status })
     })
+
+  // Enterprise Phase 2b KEYSTONE (dual-run). Subscribe the wa:node:<node_id>
+  // private control-plane broadcast (mig 048). This is our node's OWN instance
+  // changes only — no wal2json decode of every other node's rows. Runs ALONGSIDE
+  // the postgres_changes channel above until verified, then that one is removed +
+  // whatsapp_instances leaves the publication. service_role authorizes the private
+  // channel by RLS bypass (no wa:node policy). Handler mirrors the pg_changes one.
+  nodeChannel = supabase
+    .channel(`wa:node:${config.nodeId}`, { config: { private: true } })
+    .on('broadcast', { event: 'instance' }, async ({ payload }) => {
+      try {
+        const p = payload as (RawInstanceRow & { deleted?: boolean }) | undefined
+        if (!p) return
+        if ((p as { deleted?: boolean }).deleted === true) {
+          const id = (p as { id?: string }).id
+          if (id) {
+            await stopDispatcher(id)
+            setActiveNumbers(loopCount())
+            log.info('instance.deleted.wanode', { number_id: id })
+          }
+          return
+        }
+        const row = p as RawInstanceRow
+        await applyInstanceControl(row)
+        log.info('instance.reconciled.wanode', {
+          number_id: row.id, status: row.status, lifecycle: row.lifecycle_state,
+        })
+      } catch (err) {
+        log.error('instance.wanode_handler_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    })
+    .subscribe((status) => {
+      log.info('instance.wanode_status', { status })
+    })
 }
 
 export async function stopInstanceManager(): Promise<void> {
@@ -697,5 +748,9 @@ export async function stopInstanceManager(): Promise<void> {
   if (channel) {
     await supabase.removeChannel(channel)
     channel = null
+  }
+  if (nodeChannel) {
+    await supabase.removeChannel(nodeChannel)
+    nodeChannel = null
   }
 }
