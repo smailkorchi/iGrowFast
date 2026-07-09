@@ -3420,6 +3420,13 @@
 
 .wac__voice.is-in .wac__voice-speed {
   grid-column: 3;
+  /* Inbound audio puts the speed button on the RIGHT, under the bubble's
+     top-right action-menu hit area (.wac__bubble-action, 58×58, z-index 2,
+     opacity 0 but still pointer-capturing). Lift the speed button above it so
+     the click accelerates playback instead of opening the menu. Outbound keeps
+     the speed button on the left, clear of the menu — so this is is-in only. */
+  position: relative;
+  z-index: 3;
 }
 
 .wac__voice-avatar {
