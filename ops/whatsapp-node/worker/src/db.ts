@@ -2,19 +2,23 @@
 //
 // Two distinct connection paths:
 //
-//  1. pg.Pool against Supabase pooler in **session mode** (port 5432 on
-//     aws-0-<region>.pooler.supabase.com). Session mode preserves the features
-//     the dispatcher needs:
-//       - pg_advisory_lock for per-number single-writer coordination
-//       - LISTEN/NOTIFY so the worker wakes the instant a new row is enqueued
-//       - server-side prepared statements (set by pg auto by default)
+//  1. pg.Pool against the supavisor pooler in **TRANSACTION mode** (port 6543).
+//     Transaction pooling hands a backend to a client only for one transaction
+//     then returns it to a shared pool, so many worker nodes multiplex over few
+//     backends — this is what breaks the ~2-node session-mode cap (→ ~15-40
+//     nodes). The worker has ZERO session-state dependencies, which is what makes
+//     transaction mode safe:
+//       - NO pg_advisory_lock (per-number coordination is lease-based:
+//         whatsapp.worker_*_instance_leases)
+//       - NO LISTEN/NOTIFY (dispatch + media WAKES ride the wa:node broadcast —
+//         Phase 3a; the dedicated listen connection is gone)
+//       - NO search_path startup option (every object fully `whatsapp.`-qualified)
+//       - NO named prepared statements
+//     Every pool.query / checked-out-client transaction is self-contained.
 //
-//     A dedicated `listenClient` is checked out and held for the LISTEN
-//     lifetime; ordinary queries use the pool.
-//
-//  2. @supabase/supabase-js with the service role key. Used for Realtime
-//     subscriptions on whatsapp_instances + as a fallback for table access
-//     when we want PostgREST shape rather than raw SQL.
+//  2. @supabase/supabase-js with the service role key. Realtime subscriptions
+//     (wa:node control + wakes, wa:conv threads, presence) + PostgREST-shape
+//     table access.
 
 import pg from 'pg'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -25,22 +29,18 @@ import { log } from './logger.js'
 
 export const pool = new pg.Pool({
   connectionString: config.databaseUrl,
-  // Conservative: pooler quotas are project-wide; don't hog them.
-  // Dispatcher loops mostly do tiny short transactions (claim, mark sent).
-  // 10 is plenty for ~10 numbers × ~3 inflight ops each, with margin.
-  max: 10,
+  // Transaction mode: each pool connection is a supavisor CLIENT connection (not
+  // a pinned Postgres backend), so keep the per-node count small — fewer client
+  // connections per node ⇒ more nodes fit under the pooler budget. Dispatcher
+  // loops do tiny short transactions (claim, mark sent); 5 covers the concurrency
+  // with margin. (Enterprise plan Phase 3a / W2.)
+  max: 5,
   idleTimeoutMillis: 30_000,
-  // Pooler doesn't honor `application_name` set by some libs; pass it
-  // explicitly so we can grep pg_stat_activity.
+  // Passed explicitly so we can grep pg_stat_activity.
   application_name: `igf-wa-worker/${config.workerVersion}`,
-  // NO search_path option. Every WhatsApp object our SQL touches — tables,
-  // functions, AND enum casts — is now fully `whatsapp.`-qualified (all 11 enum
-  // casts: instance_status/identifier_source/identifier_kind/message_kind), so
-  // the worker has ZERO search_path dependency. Removing the `-c search_path`
-  // startup option is what lets us move off supavisor SESSION mode onto
-  // TRANSACTION mode (6543): transaction pooling multiplexes many workers over
-  // few backends and does NOT carry per-session startup state, so pinning a
-  // search_path there is unreliable. (Enterprise plan Phase 1d / W2-A.)
+  // NO search_path startup option — every object our SQL touches (tables,
+  // functions, enum casts) is fully `whatsapp.`-qualified, so the worker carries
+  // zero per-session startup state, which is a prerequisite for transaction mode.
 })
 
 pool.on('error', (err) => {
@@ -62,93 +62,15 @@ export const supabase: SupabaseClient = createClient(
   },
 )
 
-// --------- LISTEN dedicated connection --------------------------------------
-// Holds a single client out of the pool for the worker's lifetime, subscribes
-// to LISTEN channels, and re-attaches on disconnect.
-
-type NotifyHandler = (payload: string) => void
-const channels = new Map<string, Set<NotifyHandler>>()
-let listenClient: pg.PoolClient | null = null
-
-async function attachListenClient(): Promise<void> {
-  const client = await pool.connect()
-  listenClient = client
-
-  client.on('notification', (msg) => {
-    if (!msg.channel) return
-    const handlers = channels.get(msg.channel)
-    if (!handlers) return
-    for (const h of handlers) {
-      try {
-        h(msg.payload ?? '')
-      } catch (err) {
-        log.error('listen.handler_threw', {
-          channel: msg.channel,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
-    }
-  })
-
-  client.on('error', (err) => {
-    log.error('listen.client_error', { error: err.message })
-    // Detach so the next reconnectListenClient() call rebuilds it.
-    listenClient = null
-    client.release(err)
-    setTimeout(() => {
-      reconnectListenClient().catch((e) =>
-        log.error('listen.reconnect_failed', { error: e.message }),
-      )
-    }, 1_000)
-  })
-
-  // Re-issue LISTEN for every channel we had subscribed to.
-  for (const channel of channels.keys()) {
-    await client.query(`LISTEN ${quoteIdent(channel)}`)
-    log.debug('listen.attached', { channel })
-  }
-}
-
-async function reconnectListenClient(): Promise<void> {
-  if (listenClient) return
-  log.info('listen.reconnecting')
-  await attachListenClient()
-}
-
-/**
- * Subscribe to a Postgres NOTIFY channel. Handler fires for every notification
- * payload. Safe to call multiple times for the same channel — handlers stack.
- */
-export async function listenOn(channel: string, handler: NotifyHandler): Promise<void> {
-  let set = channels.get(channel)
-  if (!set) {
-    set = new Set()
-    channels.set(channel, set)
-  }
-  set.add(handler)
-
-  if (!listenClient) {
-    await attachListenClient()
-  } else {
-    await listenClient.query(`LISTEN ${quoteIdent(channel)}`)
-  }
-}
-
-// Postgres identifiers in LISTEN can't be parameterized; whitelist allowed chars.
-function quoteIdent(name: string): string {
-  if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
-    throw new Error(`invalid channel name: ${name}`)
-  }
-  return `"${name}"`
-}
+// LISTEN/NOTIFY removed (Phase 3a / transaction mode). Transaction pooling can't
+// hold a persistent LISTEN subscription, and it was the worker's last session-
+// state dependency. Dispatch + media wakes now ride the wa:node broadcast
+// (instance-manager.ts 'wake_outbound'/'wake_media'; producers dual-emit via
+// mig 055), so no dedicated listen connection is checked out anymore.
 
 // --------- Graceful close ---------------------------------------------------
 
 export async function closeDb(): Promise<void> {
-  if (listenClient) {
-    try { listenClient.release() } catch { /* already gone */ }
-    listenClient = null
-  }
   await pool.end()
   log.info('pg.pool.closed')
 }

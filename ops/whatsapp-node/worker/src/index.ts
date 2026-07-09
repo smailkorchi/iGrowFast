@@ -2,11 +2,11 @@
 
 import { config } from './config.js'
 import { log } from './logger.js'
-import { closeDb, listenOn, pool } from './db.js'
+import { closeDb, pool } from './db.js'
 import { startHeartbeat, stopHeartbeat } from './heartbeat.js'
-import { wakeLoop, refreshQueueDepth, startSelfPresenceLoop, stopSelfPresenceLoop } from './dispatcher/loop.js'
+import { refreshQueueDepth, startSelfPresenceLoop, stopSelfPresenceLoop } from './dispatcher/loop.js'
 import { startInstanceManager, stopInstanceManager } from './dispatcher/instance-manager.js'
-import { startMediaIngest, stopMediaIngest, wakeMediaIngest } from './dispatcher/media-ingest.js'
+import { startMediaIngest, stopMediaIngest } from './dispatcher/media-ingest.js'
 import { startWebhookServer } from './webhook/server.js'
 import { startActivePeerWarmup, stopActivePeerWarmup } from './webhook/handlers.js'
 
@@ -32,16 +32,11 @@ async function main(): Promise<void> {
     server_now: rows[0]?.now.toISOString(),
   })
 
-  // NOTIFY plumbing — every outbound_enqueued event wakes the matching
-  // per-number dispatcher loop.
-  await listenOn('outbound_enqueued', (payload) => wakeLoop(payload))
-  log.info('listen.ready', { channel: 'outbound_enqueued' })
-
-  // Media ingest: webhook handlers enqueue rows + NOTIFY 'media_fetch_ready';
-  // the loop drains them, downloading from Evolution and uploading to R2.
-  await listenOn('media_fetch_ready', (payload) => wakeMediaIngest(payload))
+  // Dispatch + media WAKES ride the wa:node broadcast now (Phase 3a): the
+  // instance-manager's wa:node:<node_id> channel handles 'wake_outbound' →
+  // wakeLoop and 'wake_media' → wakeMediaIngest (producers dual-emit via mig 055).
+  // LISTEN/NOTIFY was removed so the worker can run on supavisor TRANSACTION mode.
   startMediaIngest()
-  log.info('listen.ready', { channel: 'media_fetch_ready' })
 
   // Heartbeat (worker_health table).
   startHeartbeat()
