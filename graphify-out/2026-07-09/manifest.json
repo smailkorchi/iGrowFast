@@ -2875,9 +2875,9 @@
     "semantic_hash": "95928464ac7314b9fee9678315fa6817"
   },
   "src/whatsapp/lib/presence.ts": {
-    "mtime": 1783452721.7202268,
-    "ast_hash": "af894f1180198b1dddc48c931ca4238f",
-    "semantic_hash": "af894f1180198b1dddc48c931ca4238f"
+    "mtime": 1783636812.860297,
+    "ast_hash": "0884210b38fa59e9cdb474d342ec5b7f",
+    "semantic_hash": ""
   },
   "src/whatsapp/lib/queries/assignments.ts": {
     "mtime": 1783590054.7216763,

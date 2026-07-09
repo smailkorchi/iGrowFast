@@ -2883,20 +2883,13 @@ export function ChatPane(p: ChatPaneProps) {
     e.target.value = ''
   }, [addStagedFiles])
 
-  // Unknown contact banner
-  const DISMISS_KEY = `wam.contact-banner-dismissed.${p.conv.id}`
-  const [bannerDismissed, setBannerDismissed] = useState(() => {
-    try { return localStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
-  })
+  // Unknown-contact "add to contacts" — a header affordance (was an in-stream
+  // banner). Shown only for unknown DM peers; disappears once saved (the
+  // conversation's contact_book_name lands on refetch).
   const [addContactOpen, setAddContactOpen] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactSaving, setContactSaving] = useState(false)
   const upsertContact = useUpsertContact()
-
-  function dismissBanner() {
-    try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
-    setBannerDismissed(true)
-  }
 
   function saveContact() {
     if (!contactName.trim() || !p.conv.instance_id) return
@@ -2910,7 +2903,6 @@ export function ChatPane(p: ChatPaneProps) {
           setAddContactOpen(false)
           setContactName('')
           setContactSaving(false)
-          dismissBanner()
         },
         onError: () => setContactSaving(false),
       },
@@ -3187,6 +3179,16 @@ export function ChatPane(p: ChatPaneProps) {
               />
             )}
           </div>
+          {!isGroup && !isSelf && !p.conv.contact_book_name && (
+            <button
+              className="wac__icon-btn"
+              aria-label="Ajouter aux contacts"
+              title="Ajouter aux contacts"
+              onClick={() => setAddContactOpen(true)}
+            >
+              <IconUserPlus size={20} />
+            </button>
+          )}
           <button
             className="wac__icon-btn"
             aria-label={p.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
@@ -3301,22 +3303,6 @@ export function ChatPane(p: ChatPaneProps) {
       )}
 
       <div className="wac__stream" ref={streamRef}>
-        {!isGroup && !isSelf && !p.conv.contact_book_name && !bannerDismissed && (
-          <div className="wac__unknown-banner">
-            <div className="wac__unknown-banner-text">
-              <IconUser size={18} />
-              <span>Ce numéro n'est pas dans vos contacts</span>
-            </div>
-            <div className="wac__unknown-banner-actions">
-              <button className="wac__unknown-banner-btn wac__unknown-banner-btn--add" onClick={() => setAddContactOpen(true)}>
-                Ajouter aux contacts
-              </button>
-              <button className="wac__unknown-banner-btn wac__unknown-banner-btn--ignore" onClick={dismissBanner}>
-                Ignorer
-              </button>
-            </div>
-          </div>
-        )}
         {p.isFetchingOlder && (
           <div className="wac__stream-loader">
             <div className="wac__stream-spinner" />
