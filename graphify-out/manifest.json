@@ -855,8 +855,8 @@
     "semantic_hash": ""
   },
   "ops/whatsapp-node/worker/src/dispatcher/instance-manager.ts": {
-    "mtime": 1783580829.8923352,
-    "ast_hash": "851de1f7848f3b5585bff9434c16797d",
+    "mtime": 1783586911.1286693,
+    "ast_hash": "8985216f0fafbe77b029df0ce920e7a4",
     "semantic_hash": ""
   },
   "ops/whatsapp-node/worker/src/dispatcher/loop.ts": {
@@ -5132,6 +5132,11 @@
   "docs/WA_ENTERPRISE_SCALE_PLAN.md": {
     "mtime": 1783563915.52768,
     "ast_hash": "02c83a35081d40fe110f74e5f2bfe665",
+    "semantic_hash": ""
+  },
+  "ops/box/whatsapp-schema/migrations/whatsapp_057_drop_pg_notify.sql": {
+    "mtime": 1783586618.0803027,
+    "ast_hash": "a1438781dae656ac99583aa6aea2174f",
     "semantic_hash": ""
   }
 }

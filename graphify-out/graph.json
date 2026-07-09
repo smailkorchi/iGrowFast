@@ -5923,7 +5923,7 @@
       "source_location": "L196",
       "_origin": "ast",
       "id": "ops_whatsapp_node_worker_upstream_src_webhook_handlers_handleevent",
-      "community": 10,
+      "community": 109,
       "norm_label": "handleevent()"
     },
     {
@@ -6293,7 +6293,7 @@
       "source_location": "L1857",
       "_origin": "ast",
       "id": "ops_whatsapp_node_worker_upstream_src_webhook_handlers_handleqrcodeupdated",
-      "community": 10,
+      "community": 109,
       "norm_label": "handleqrcodeupdated()"
     },
     {
@@ -7730,7 +7730,7 @@
       "label": "stopInstanceManager()",
       "file_type": "code",
       "source_file": "ops/whatsapp-node/worker/src/dispatcher/instance-manager.ts",
-      "source_location": "L725",
+      "source_location": "L726",
       "_origin": "ast",
       "id": "ops_whatsapp_node_worker_src_dispatcher_instance_manager_stopinstancemanager",
       "community": 33,
@@ -15393,7 +15393,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "src_components_meta_createcampaignwizard_createcampaignwizard",
-      "community": 56,
+      "community": 55,
       "norm_label": "createcampaignwizard()"
     },
     {
@@ -15533,7 +15533,7 @@
       "source_location": "L315",
       "_origin": "ast",
       "id": "src_components_meta_manager_campaignstable_budgetcell",
-      "community": 91,
+      "community": 55,
       "norm_label": "budgetcell()"
     },
     {
@@ -18303,7 +18303,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs",
-      "community": 74,
+      "community": 152,
       "norm_label": "mediabuyerledgerdialogs.tsx"
     },
     {
@@ -18313,7 +18313,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_fmt",
-      "community": 74,
+      "community": 152,
       "norm_label": "fmt()"
     },
     {
@@ -18323,7 +18323,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_periodname",
-      "community": 74,
+      "community": 152,
       "norm_label": "periodname()"
     },
     {
@@ -18333,7 +18333,7 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_mbpayoutlite",
-      "community": 74,
+      "community": 152,
       "norm_label": "mbpayoutlite"
     },
     {
@@ -18343,7 +18343,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_mediabuyerledger",
-      "community": 74,
+      "community": 152,
       "norm_label": "mediabuyerledger"
     },
     {
@@ -18353,7 +18353,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_mbtxn",
-      "community": 74,
+      "community": 152,
       "norm_label": "mbtxn"
     },
     {
@@ -18363,7 +18363,7 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_statusmeta",
-      "community": 74,
+      "community": 152,
       "norm_label": "statusmeta()"
     },
     {
@@ -18373,7 +18373,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_payoutbreakdownbody",
-      "community": 74,
+      "community": 152,
       "norm_label": "payoutbreakdownbody()"
     },
     {
@@ -18383,7 +18383,7 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_monthrow",
-      "community": 74,
+      "community": 152,
       "norm_label": "monthrow()"
     },
     {
@@ -18393,7 +18393,7 @@
       "source_location": "L189",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_mediabuyerpayoutdetaildialog",
-      "community": 74,
+      "community": 152,
       "norm_label": "mediabuyerpayoutdetaildialog()"
     },
     {
@@ -18403,7 +18403,7 @@
       "source_location": "L253",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_mediabuyerbreakdowndialog",
-      "community": 74,
+      "community": 152,
       "norm_label": "mediabuyerbreakdowndialog()"
     },
     {
@@ -18413,7 +18413,7 @@
       "source_location": "L307",
       "_origin": "ast",
       "id": "src_components_salaries_mediabuyerledgerdialogs_mediabuyerglobaldialog",
-      "community": 74,
+      "community": 152,
       "norm_label": "mediabuyerglobaldialog()"
     },
     {
@@ -19443,7 +19443,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_ui_carousel",
-      "community": 62,
+      "community": 81,
       "norm_label": "carousel.tsx"
     },
     {
@@ -19453,7 +19453,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselapi",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselapi"
     },
     {
@@ -19463,7 +19463,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "src_components_ui_carousel_usecarouselparameters",
-      "community": 62,
+      "community": 81,
       "norm_label": "usecarouselparameters"
     },
     {
@@ -19473,7 +19473,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouseloptions",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouseloptions"
     },
     {
@@ -19483,7 +19483,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselplugin",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselplugin"
     },
     {
@@ -19493,7 +19493,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselprops",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselprops"
     },
     {
@@ -19503,7 +19503,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselcontextprops",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselcontextprops"
     },
     {
@@ -19513,7 +19513,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselcontext",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselcontext"
     },
     {
@@ -19523,7 +19523,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "src_components_ui_carousel_usecarousel",
-      "community": 62,
+      "community": 81,
       "norm_label": "usecarousel()"
     },
     {
@@ -19533,7 +19533,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carousel",
-      "community": 62,
+      "community": 81,
       "norm_label": "carousel"
     },
     {
@@ -19543,7 +19543,7 @@
       "source_location": "L134",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselcontent",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselcontent"
     },
     {
@@ -19553,7 +19553,7 @@
       "source_location": "L151",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselitem",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselitem"
     },
     {
@@ -19563,7 +19563,7 @@
       "source_location": "L168",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselprevious",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselprevious"
     },
     {
@@ -19573,7 +19573,7 @@
       "source_location": "L196",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselnext",
-      "community": 62,
+      "community": 81,
       "norm_label": "carouselnext"
     },
     {
@@ -19583,7 +19583,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_ui_chart",
-      "community": 250,
+      "community": 62,
       "norm_label": "chart.tsx"
     },
     {
@@ -19593,7 +19593,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "src_components_ui_chart_themes",
-      "community": 250,
+      "community": 62,
       "norm_label": "themes"
     },
     {
@@ -19603,7 +19603,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "src_components_ui_chart_chartconfig",
-      "community": 250,
+      "community": 62,
       "norm_label": "chartconfig"
     },
     {
@@ -19613,7 +19613,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "src_components_ui_chart_chartcontextprops",
-      "community": 250,
+      "community": 62,
       "norm_label": "chartcontextprops"
     },
     {
@@ -19623,7 +19623,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_components_ui_chart_chartcontext",
-      "community": 250,
+      "community": 62,
       "norm_label": "chartcontext"
     },
     {
@@ -19633,7 +19633,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "src_components_ui_chart_usechart",
-      "community": 250,
+      "community": 62,
       "norm_label": "usechart()"
     },
     {
@@ -19643,7 +19643,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_components_ui_chart_chartcontainer",
-      "community": 250,
+      "community": 62,
       "norm_label": "chartcontainer"
     },
     {
@@ -19653,7 +19653,7 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "src_components_ui_chart_chartstyle",
-      "community": 250,
+      "community": 62,
       "norm_label": "chartstyle()"
     },
     {
@@ -19663,7 +19663,7 @@
       "source_location": "L92",
       "_origin": "ast",
       "id": "src_components_ui_chart_charttooltipcontent",
-      "community": 250,
+      "community": 62,
       "norm_label": "charttooltipcontent"
     },
     {
@@ -19673,7 +19673,7 @@
       "source_location": "L230",
       "_origin": "ast",
       "id": "src_components_ui_chart_chartlegendcontent",
-      "community": 250,
+      "community": 62,
       "norm_label": "chartlegendcontent"
     },
     {
@@ -19683,7 +19683,7 @@
       "source_location": "L278",
       "_origin": "ast",
       "id": "src_components_ui_chart_getpayloadconfigfrompayload",
-      "community": 250,
+      "community": 62,
       "norm_label": "getpayloadconfigfrompayload()"
     },
     {
@@ -20053,7 +20053,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_ui_drawer",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawer.tsx"
     },
     {
@@ -20063,7 +20063,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "src_components_ui_drawer_drawer",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawer()"
     },
     {
@@ -20073,7 +20073,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "src_components_ui_drawer_draweroverlay",
-      "community": 152,
+      "community": 4,
       "norm_label": "draweroverlay"
     },
     {
@@ -20083,7 +20083,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "src_components_ui_drawer_drawercontent",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawercontent"
     },
     {
@@ -20093,7 +20093,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "src_components_ui_drawer_drawerheader",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawerheader()"
     },
     {
@@ -20103,7 +20103,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "src_components_ui_drawer_drawerfooter",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawerfooter()"
     },
     {
@@ -20113,7 +20113,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "src_components_ui_drawer_drawertitle",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawertitle"
     },
     {
@@ -20123,7 +20123,7 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "src_components_ui_drawer_drawerdescription",
-      "community": 152,
+      "community": 4,
       "norm_label": "drawerdescription"
     },
     {
@@ -27193,7 +27193,7 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "src_lib_metaads_tobudgetcents",
-      "community": 56,
+      "community": 55,
       "norm_label": "tobudgetcents()"
     },
     {
@@ -36083,7 +36083,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_pages_seller_payments",
-      "community": 258,
+      "community": 74,
       "norm_label": "payments.tsx"
     },
     {
@@ -36093,7 +36093,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "src_pages_seller_payments_orderstatemeta",
-      "community": 258,
+      "community": 74,
       "norm_label": "orderstatemeta"
     },
     {
@@ -36103,7 +36103,7 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "src_pages_seller_payments_ledgerticket",
-      "community": 258,
+      "community": 74,
       "norm_label": "ledgerticket"
     },
     {
@@ -36113,7 +36113,7 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "src_pages_seller_payments_txn",
-      "community": 258,
+      "community": 74,
       "norm_label": "txn"
     },
     {
@@ -36123,7 +36123,7 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "src_pages_seller_payments_monthorder",
-      "community": 258,
+      "community": 74,
       "norm_label": "monthorder"
     },
     {
@@ -36133,7 +36133,7 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "src_pages_seller_payments_num",
-      "community": 258,
+      "community": 74,
       "norm_label": "num()"
     },
     {
@@ -36143,7 +36143,7 @@
       "source_location": "L85",
       "_origin": "ast",
       "id": "src_pages_seller_payments_fmt",
-      "community": 258,
+      "community": 74,
       "norm_label": "fmt()"
     },
     {
@@ -36153,7 +36153,7 @@
       "source_location": "L88",
       "_origin": "ast",
       "id": "src_pages_seller_payments_sellerpayments",
-      "community": 258,
+      "community": 74,
       "norm_label": "sellerpayments()"
     },
     {
@@ -37003,7 +37003,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_instanceavatar",
-      "community": 81,
+      "community": 88,
       "norm_label": "instanceavatar.tsx"
     },
     {
@@ -37013,7 +37013,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_instanceavatar_props",
-      "community": 81,
+      "community": 88,
       "norm_label": "props"
     },
     {
@@ -37023,7 +37023,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_instanceavatar_accents",
-      "community": 81,
+      "community": 88,
       "norm_label": "accents"
     },
     {
@@ -37033,7 +37033,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_instanceavatar_instanceavatar",
-      "community": 81,
+      "community": 88,
       "norm_label": "instanceavatar()"
     },
     {
@@ -37153,7 +37153,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog",
-      "community": 81,
+      "community": 80,
       "norm_label": "pairdialog.tsx"
     },
     {
@@ -37163,7 +37163,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_syncstage",
-      "community": 81,
+      "community": 80,
       "norm_label": "syncstage"
     },
     {
@@ -37173,7 +37173,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_formatelapsed",
-      "community": 81,
+      "community": 80,
       "norm_label": "formatelapsed()"
     },
     {
@@ -37183,7 +37183,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_props",
-      "community": 81,
+      "community": 80,
       "norm_label": "props"
     },
     {
@@ -37193,7 +37193,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_phase",
-      "community": 81,
+      "community": 80,
       "norm_label": "phase"
     },
     {
@@ -37213,7 +37213,7 @@
       "source_location": "L261",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_phasefade",
-      "community": 81,
+      "community": 80,
       "norm_label": "phasefade()"
     },
     {
@@ -37223,7 +37223,7 @@
       "source_location": "L280",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_qrbody",
-      "community": 81,
+      "community": 80,
       "norm_label": "qrbody()"
     },
     {
@@ -37233,7 +37233,7 @@
       "source_location": "L378",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_syncingbody",
-      "community": 81,
+      "community": 80,
       "norm_label": "syncingbody()"
     },
     {
@@ -37243,7 +37243,7 @@
       "source_location": "L585",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_readybody",
-      "community": 81,
+      "community": 80,
       "norm_label": "readybody()"
     },
     {
@@ -37253,7 +37253,7 @@
       "source_location": "L683",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_tile",
-      "community": 81,
+      "community": 80,
       "norm_label": "tile()"
     },
     {
@@ -37263,7 +37263,7 @@
       "source_location": "L721",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_spinner",
-      "community": 81,
+      "community": 80,
       "norm_label": "spinner()"
     },
     {
@@ -37273,7 +37273,7 @@
       "source_location": "L733",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_readydot",
-      "community": 81,
+      "community": 80,
       "norm_label": "readydot()"
     },
     {
@@ -37283,7 +37283,7 @@
       "source_location": "L737",
       "_origin": "ast",
       "id": "src_whatsapp_components_numbers_pairdialog_stripcheck",
-      "community": 81,
+      "community": 80,
       "norm_label": "stripcheck()"
     },
     {
@@ -38573,7 +38573,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid",
-      "community": 37,
+      "community": 127,
       "norm_label": "jid.ts"
     },
     {
@@ -38583,7 +38583,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid_jidkind",
-      "community": 37,
+      "community": 127,
       "norm_label": "jidkind"
     },
     {
@@ -38593,7 +38593,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid_parsedjid",
-      "community": 37,
+      "community": 127,
       "norm_label": "parsedjid"
     },
     {
@@ -38613,7 +38613,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid_cc_1",
-      "community": 37,
+      "community": 127,
       "norm_label": "cc_1"
     },
     {
@@ -38623,7 +38623,7 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid_cc_2",
-      "community": 37,
+      "community": 127,
       "norm_label": "cc_2"
     },
     {
@@ -38633,7 +38633,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid_detectcountrycode",
-      "community": 37,
+      "community": 127,
       "norm_label": "detectcountrycode()"
     },
     {
@@ -38643,7 +38643,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "src_whatsapp_lib_jid_formatphone",
-      "community": 37,
+      "community": 127,
       "norm_label": "formatphone()"
     },
     {
@@ -39483,7 +39483,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_instances_useinstancecapacitystatus",
-      "community": 127,
+      "community": 6,
       "norm_label": "useinstancecapacitystatus()"
     },
     {
@@ -39593,7 +39593,7 @@
       "source_location": "L253",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_instances_instancesyncmetrics",
-      "community": 81,
+      "community": 80,
       "norm_label": "instancesyncmetrics"
     },
     {
@@ -39603,7 +39603,7 @@
       "source_location": "L276",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_instances_useinstancesyncmetrics",
-      "community": 81,
+      "community": 80,
       "norm_label": "useinstancesyncmetrics()"
     },
     {
@@ -39783,7 +39783,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_quickreplies_steptype",
-      "community": 6,
+      "community": 41,
       "norm_label": "steptype"
     },
     {
@@ -39933,7 +39933,7 @@
       "source_location": "L173",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_quickreplies_decodeaudiodurationseconds",
-      "community": 6,
+      "community": 41,
       "norm_label": "decodeaudiodurationseconds()"
     },
     {
@@ -40003,7 +40003,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_scheduledmessages_usescheduledmessages",
-      "community": 127,
+      "community": 6,
       "norm_label": "usescheduledmessages()"
     },
     {
@@ -40473,7 +40473,7 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "src_whatsapp_lib_relativetime_formatdaydivider",
-      "community": 17,
+      "community": 127,
       "norm_label": "formatdaydivider()"
     },
     {
@@ -41223,7 +41223,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder",
-      "community": 6,
+      "community": 41,
       "norm_label": "nodesequencebuilder.tsx"
     },
     {
@@ -41233,7 +41233,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_iconcmp",
-      "community": 6,
+      "community": 41,
       "norm_label": "iconcmp"
     },
     {
@@ -41243,7 +41243,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_uploadfn",
-      "community": 6,
+      "community": 41,
       "norm_label": "uploadfn"
     },
     {
@@ -41253,7 +41253,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_icontext",
-      "community": 6,
+      "community": 41,
       "norm_label": "icontext()"
     },
     {
@@ -41263,7 +41263,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_paletteitem",
-      "community": 6,
+      "community": 41,
       "norm_label": "paletteitem"
     },
     {
@@ -41273,7 +41273,7 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_palette",
-      "community": 6,
+      "community": 41,
       "norm_label": "palette"
     },
     {
@@ -41283,7 +41283,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_metafor",
-      "community": 6,
+      "community": 41,
       "norm_label": "metafor()"
     },
     {
@@ -41293,7 +41293,7 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_acceptfor",
-      "community": 6,
+      "community": 41,
       "norm_label": "acceptfor()"
     },
     {
@@ -41303,7 +41303,7 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_texteditor",
-      "community": 6,
+      "community": 41,
       "norm_label": "texteditor"
     },
     {
@@ -41313,7 +41313,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_pt",
-      "community": 6,
+      "community": 41,
       "norm_label": "pt"
     },
     {
@@ -41323,7 +41323,7 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_computelayout",
-      "community": 6,
+      "community": 41,
       "norm_label": "computelayout()"
     },
     {
@@ -41333,7 +41333,7 @@
       "source_location": "L89",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_buildpath",
-      "community": 6,
+      "community": 41,
       "norm_label": "buildpath()"
     },
     {
@@ -41343,7 +41343,7 @@
       "source_location": "L108",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_useelementwidth",
-      "community": 6,
+      "community": 41,
       "norm_label": "useelementwidth()"
     },
     {
@@ -41363,7 +41363,7 @@
       "source_location": "L208",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_flowcanvas",
-      "community": 6,
+      "community": 41,
       "norm_label": "flowcanvas()"
     },
     {
@@ -41373,7 +41373,7 @@
       "source_location": "L443",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_flownode",
-      "community": 6,
+      "community": 41,
       "norm_label": "flownode()"
     },
     {
@@ -41393,7 +41393,7 @@
       "source_location": "L536",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_nodesequencebuilder_texteditormodal",
-      "community": 6,
+      "community": 41,
       "norm_label": "texteditormodal()"
     },
     {
@@ -41913,7 +41913,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_iconsearch",
-      "community": 58,
+      "community": 6,
       "norm_label": "iconsearch()"
     },
     {
@@ -41943,7 +41943,7 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_iconclose",
-      "community": 6,
+      "community": 58,
       "norm_label": "iconclose()"
     },
     {
@@ -42043,7 +42043,7 @@
       "source_location": "L171",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_iconmic",
-      "community": 6,
+      "community": 41,
       "norm_label": "iconmic()"
     },
     {
@@ -42113,7 +42113,7 @@
       "source_location": "L238",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_iconvideo",
-      "community": 6,
+      "community": 41,
       "norm_label": "iconvideo()"
     },
     {
@@ -42293,7 +42293,7 @@
       "source_location": "L403",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_icondocument",
-      "community": 6,
+      "community": 41,
       "norm_label": "icondocument()"
     },
     {
@@ -42303,7 +42303,7 @@
       "source_location": "L412",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_iconimage",
-      "community": 6,
+      "community": 41,
       "norm_label": "iconimage()"
     },
     {
@@ -42323,7 +42323,7 @@
       "source_location": "L431",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_icons_iconheadphones",
-      "community": 6,
+      "community": 41,
       "norm_label": "iconheadphones()"
     },
     {
@@ -43243,7 +43243,7 @@
       "source_location": "L4173",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_usedaybuckets",
-      "community": 17,
+      "community": 127,
       "norm_label": "usedaybuckets()"
     },
     {
@@ -43723,7 +43723,7 @@
       "source_location": "L7287",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_composer",
-      "community": 127,
+      "community": 6,
       "norm_label": "composer()"
     },
     {
@@ -43973,7 +43973,7 @@
       "source_location": "L8813",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_formatscheduledat",
-      "community": 127,
+      "community": 6,
       "norm_label": "formatscheduledat()"
     },
     {
@@ -75199,7 +75199,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "ops/whatsapp-node/worker/src/dispatcher/instance-manager.ts",
-      "source_location": "L725",
+      "source_location": "L726",
       "weight": 1.0,
       "source": "ops_whatsapp_node_worker_src_dispatcher_instance_manager",
       "target": "ops_whatsapp_node_worker_src_dispatcher_instance_manager_stopinstancemanager",
@@ -75953,7 +75953,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "ops/whatsapp-node/worker/src/dispatcher/instance-manager.ts",
-      "source_location": "L701",
+      "source_location": "L702",
       "weight": 1.0,
       "source": "ops_whatsapp_node_worker_src_dispatcher_instance_manager_startinstancemanager",
       "target": "ops_whatsapp_node_worker_src_dispatcher_loop_wakeloop"
@@ -75964,7 +75964,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "ops/whatsapp-node/worker/src/dispatcher/instance-manager.ts",
-      "source_location": "L705",
+      "source_location": "L706",
       "weight": 1.0,
       "source": "ops_whatsapp_node_worker_src_dispatcher_instance_manager_startinstancemanager",
       "target": "ops_whatsapp_node_worker_src_dispatcher_media_ingest_wakemediaingest"
@@ -208369,5 +208369,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "807d8a6189404f98d02ae45b5f02a176fa1d0ea0"
+  "built_at_commit": "7a632339aefd7017c22b459779fb7e13b662de74"
 }
