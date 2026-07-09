@@ -23,8 +23,6 @@ import type { AdminCartOrderDraft } from '@/components/orders/AdminChatCartOrder
 import {
   useFlattenedConversations,
   useConversation,
-  useConversationsRealtime,
-  useConversationsBumpRealtime,
   useInstancesUnread,
   useMarkConversationRead,
   type ConversationFilter,
@@ -58,7 +56,7 @@ import { TagsPanel } from './conversations/TagsPanel'
 import { ScheduledMessagesPanel } from './conversations/ScheduledMessagesPanel'
 import { sendMessage, sendReadReceipt, sendStepSequence } from '../../lib/conversationsApi'
 import type { QuickReply } from '../../lib/queries/quickReplies'
-import { useTags, useAllConversationTags, useConversationTags, useConversationTagsRealtime, useTagsRealtime } from '../../lib/queries/tags'
+import { useTags, useAllConversationTags, useConversationTags } from '../../lib/queries/tags'
 import './conversations/conversations.css'
 
 // ─── localStorage helpers (per-instance favourites) ─────────────────────────
@@ -134,11 +132,8 @@ export default function AdminConversations() {
   // wall). The DB bump trigger (mig 046) dual-publishes to wa:biz; applyBump still
   // routes each row by its own instance_id, so in-place list patching + the
   // per-instance unread badge (['instances-unread'] invalidate) are unchanged.
-  // All of an admin's instances share the one business_id (RLS scopes useInstances
-  // to their business), so instances[0] is the source.
-  const businessId = useMemo(() => instances?.[0]?.business_id ?? null, [instances])
-  const bumpTopics = useMemo(() => (businessId ? [`wa:biz:${businessId}`] : []), [businessId])
-  useConversationsBumpRealtime(bumpTopics)
+  // Conversation bumps ride the unified wa:biz channel (AdminWaRealtime in the
+  // page wrapper) — one channel per admin, not one per hook.
 
   // ─── lists + favourites (localStorage) ─────────────────────────────────────
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(activeInstanceId))
@@ -156,7 +151,6 @@ export default function AdminConversations() {
   const [scheduledEditId, setScheduledEditId] = useState<string | null>(null)
 
   const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter))
-  useConversationsRealtime(activeInstanceId)
   // Keep the active number ONLINE while this inbox is open+visible so peer
   // typing always arrives (only the connected active instance — never the
   // whole fleet). Reverts to ban-safe offline shortly after the page hides.
@@ -164,9 +158,8 @@ export default function AdminConversations() {
 
   // ─── tags (DB-level, shared — also power the chat-list filters) ─────────────
   const { data: tags } = useTags(activeInstanceId)
-  useTagsRealtime(activeInstanceId)
   const { data: allConvTags } = useAllConversationTags(activeInstanceId)
-  useConversationTagsRealtime(activeInstanceId)
+  // tag + conversation_tag realtime ride the unified wa:biz channel (AdminWaRealtime).
 
   // If the tag a filter points at is deleted, revert to Toutes.
   useEffect(() => {

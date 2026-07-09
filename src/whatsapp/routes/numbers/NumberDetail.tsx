@@ -15,7 +15,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   useDisconnectInstance,
   useInstance,
-  useInstancesRealtime,
   usePushWaProfile,
   usePushWaSettings,
   useRestartInstance,
@@ -50,7 +49,7 @@ const PROTECTION_PRESETS: Record<'conservative'|'balanced'|'aggressive', Protect
 }
 
 export default function NumberDetail() {
-  useInstancesRealtime()
+  // instance realtime rides the unified wa:biz channel (AdminWaRealtime wrapper).
   const { id } = useParams<{ id: string }>()
   const nav = useNavigate()
   const { data: instance, isLoading } = useInstance(id ?? null)

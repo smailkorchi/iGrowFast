@@ -107,7 +107,6 @@ import {
 } from '../../../lib/queries/conversations'
 import {
   useConversationAssignees,
-  useConversationAssigneesRealtime,
   useSetConversationAssignees,
   useUnassignConversationUser,
 } from '../../../lib/queries/assignments'
@@ -8846,7 +8845,7 @@ export function InfoPane({
   // lets admins (un)assign. Hook only fetches when isAdmin so non-admins don't
   // trigger an extra realtime channel + select that they can't act on anyway.
   const assigneesQ = useConversationAssignees(isAdmin ? (conv.id ?? null) : null)
-  useConversationAssigneesRealtime(isAdmin ? (conv.id ?? null) : null)
+  // assignee realtime rides the unified wa:biz channel (AdminWaRealtime).
   const profilesQ = useProfiles()
   const setAssigneesMut = useSetConversationAssignees()
   const unassignMut = useUnassignConversationUser()

@@ -9,10 +9,12 @@
 import './styles/whatsapp.css'
 import AdminAssignment from './routes/admin/Assignment'
 import WaShell from './WaShell'
+import { AdminWaRealtime } from './lib/queries/waChannels'
 
 export default function WhatsappAssignment() {
   return (
     <WaShell>
+      <AdminWaRealtime />
       <div className="wa-mgmt ant-surface min-h-screen">
         <div className="px-4 md:px-8 py-6 md:py-8">
           <AdminAssignment />

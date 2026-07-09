@@ -20,7 +20,6 @@ import type { SellerCartOrderDraft } from '@/components/orders/SellerChatCartOrd
 import {
   useFlattenedConversations,
   useConversation,
-  useConversationsRealtime,
   useMarkConversationRead,
   type ConversationFilter,
 } from '../../lib/queries/conversations'
@@ -54,7 +53,7 @@ import { ScheduledMessagesPanel } from '../admin/conversations/ScheduledMessages
 import { sendMessage, sendReadReceipt, sendStepSequence } from '../../lib/conversationsApi'
 import { supabase } from '../../lib/supabase'
 import type { QuickReply } from '../../lib/queries/quickReplies'
-import { useTags, useAllConversationTags, useConversationTags, useConversationTagsRealtime, useTagsRealtime } from '../../lib/queries/tags'
+import { useTags, useAllConversationTags, useConversationTags } from '../../lib/queries/tags'
 import '../admin/conversations/conversations.css'
 
 // ─── localStorage helpers (per-instance favourites) ─────────────────────────
@@ -114,15 +113,15 @@ export default function UserWhatsapp() {
   const [scheduledEditId, setScheduledEditId] = useState<string | null>(null)
 
   const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter))
-  useConversationsRealtime(activeInstanceId)
+  // conversations + tags realtime ride the unified wa:user channel
+  // (useWaUserChannel in ActiveInstanceProvider) — one channel per agent.
   // Keep the active number ONLINE while this inbox is open+visible so peer
   // typing always arrives. Reverts to ban-safe offline shortly after hide.
   useInboxAttendance(activeInstance?.status === 'connected' ? activeInstanceId : null)
 
   const { data: tags } = useTags(activeInstanceId)
-  useTagsRealtime(activeInstanceId)
   const { data: allConvTags } = useAllConversationTags(activeInstanceId)
-  useConversationTagsRealtime(activeInstanceId)
+  // tag/conv_tag realtime: tag library via 60s staleTime; conv_tag via wa:user.
 
   // Revert to Toutes if the active tag filter's tag is deleted.
   useEffect(() => {

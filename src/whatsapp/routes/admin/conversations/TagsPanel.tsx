@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../../lib/auth'
 import {
   useTags,
-  useTagsRealtime,
   useCreateTag,
   useUpdateTag,
   useDeleteTag,
@@ -67,7 +66,7 @@ type Subview = 'list' | 'create' | 'edit'
 
 export function TagsPanel({ instanceId, onCancel, initialSubview = 'list' }: TagsPanelProps) {
   const { data: tags } = useTags(instanceId)
-  useTagsRealtime(instanceId)
+  // tags realtime rides the unified wa:biz channel (AdminWaRealtime).
   const { session, profile } = useAuth()
   const currentUid = session?.user.id ?? null
   const isAdmin = profile?.role === 'admin'

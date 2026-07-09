@@ -3,7 +3,6 @@ import { useAuth } from '../../../lib/auth'
 import { toast, normalizeError } from '../../../lib/toast/store'
 import {
   useQuickReplies,
-  useQuickRepliesRealtime,
   useCreateQuickReply,
   useUpdateQuickReply,
   useDeleteQuickReply,
@@ -34,7 +33,7 @@ type Subview = 'list' | 'create' | 'edit'
 
 export function QuickRepliesPanel({ instanceId, onCancel, onSelect }: QuickRepliesPanelProps) {
   const { data: quickReplies } = useQuickReplies(instanceId)
-  useQuickRepliesRealtime(instanceId)
+  // quick_replies realtime rides the unified wa:biz channel (AdminWaRealtime).
   const { session, profile } = useAuth()
   const currentUid = session?.user.id ?? null
   const isAdmin = profile?.role === 'admin'

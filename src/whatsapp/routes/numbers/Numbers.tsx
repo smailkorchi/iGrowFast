@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useInstances, useInstancesRealtime } from '../../lib/queries/instances'
+import { useInstances } from '../../lib/queries/instances'
 import { CreateInstanceDialog } from '../../components/numbers/CreateInstanceDialog'
 import { InstanceCard, InstanceCardSkeleton } from '../../components/numbers/InstanceCard'
 import { NumbersEmptyState } from '../../components/numbers/EmptyState'
@@ -12,7 +12,8 @@ import { PairDialog } from '../../components/numbers/PairDialog'
 // fleet-operator telemetry; removed from the admin surface.
 
 export default function AdminNumbers() {
-  useInstancesRealtime()
+  // Realtime for instance changes rides the unified wa:biz channel (AdminWaRealtime
+  // in the page wrapper) — no per-page channel here.
   const { data: instances, isLoading } = useInstances()
 
   const [createOpen, setCreateOpen] = useState(false)

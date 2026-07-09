@@ -25,7 +25,6 @@ import { toast, normalizeError } from '../../lib/toast/store'
 import {
   assignmentKeys,
   useApplyAutoAssignBacklog,
-  useAssignmentsRealtime,
   useBulkAssign,
   useBulkUnassign,
   useInstanceAssignments,
@@ -34,7 +33,6 @@ import {
   useUnassignConversationUser,
 } from '../../lib/queries/assignments'
 import {
-  useConversationsRealtime,
   useFlattenedConversations,
   type ConversationListRow,
 } from '../../lib/queries/conversations'
@@ -68,8 +66,8 @@ export default function AdminAssignment() {
 
   const activeInstance = instances?.find((i) => i.id === instanceId) ?? null
 
-  useConversationsRealtime(instanceId)
-  useAssignmentsRealtime(instanceId)
+  // conversations + assignment realtime ride the unified wa:biz channel
+  // (AdminWaRealtime in the page wrapper) — no per-page channels here.
 
   const convs           = useFlattenedConversations(instanceId, 'all')
   const assignmentsQ    = useInstanceAssignments(instanceId)

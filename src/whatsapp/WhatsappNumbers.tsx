@@ -5,10 +5,12 @@
 // QueryClient (tuned defaults + mutation-error toasts) and Toaster.
 import AdminNumbers from './routes/numbers/Numbers'
 import WaShell from './WaShell'
+import { AdminWaRealtime } from './lib/queries/waChannels'
 
 export default function WhatsappNumbers() {
   return (
     <WaShell>
+      <AdminWaRealtime />
       <AdminNumbers />
     </WaShell>
   )
