@@ -183,6 +183,13 @@ export default function UserWhatsapp() {
       rows = rows.filter((c) => c.id && convTagIds.get(c.id)?.has(tagId))
     } else if (filter.kind === 'favoris') {
       rows = rows.filter((c) => c.id && favorites.has(c.id))
+    } else if (filter.kind === 'unread') {
+      // Drop a conversation the instant it's read. mark-read optimistically zeroes
+      // unread_count in the list cache, but the server 'unread' query keeps the
+      // (now-zeroed) row until it re-prunes, and switching tabs re-serves that
+      // cache — so the read thread lingered. Filtering at render clears it
+      // immediately and keeps it cleared across tab switches.
+      rows = rows.filter((c) => (c.unread_count ?? 0) > 0)
     }
     const q = query.trim().toLowerCase()
     if (q) {

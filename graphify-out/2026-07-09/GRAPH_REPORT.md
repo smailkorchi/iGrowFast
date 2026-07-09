@@ -1,7 +1,7 @@
 # Graph Report - iGrowFast  (2026-07-09)
 
 ## Corpus Check
-- 1009 files · ~1,193,857 words
+- 1010 files · ~1,194,351 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f437f3ac`
+- Built from commit: `9c215e2c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
