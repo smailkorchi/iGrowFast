@@ -115,7 +115,25 @@ export function useInstanceQr(instanceId: string | null, enabled: boolean, refet
 
 export function useInstancesRealtime() {
   const qc = useQueryClient()
+  // Enterprise Phase 2b: business id for the wa:biz instance feed (mig 049). All
+  // of an admin's instances share it (RLS scopes the list to their business).
+  const { data: instances } = useInstances()
+  const businessId = instances?.[0]?.business_id ?? null
   useEffect(() => {
+    // wa:biz dual-run (Phase 2b). The DB trigger _broadcast_instance_control now
+    // emits a minimal {id} 'instance' event to wa:biz:<business_id> on every
+    // whatsapp_instances change; invalidate the list to refetch. Runs ALONGSIDE
+    // the postgres_changes patch below until verified, then that binding is
+    // removed and whatsapp_instances leaves the supabase_realtime publication.
+    let bizChannel: ReturnType<typeof supabase.channel> | null = null
+    if (businessId) {
+      bizChannel = supabase
+        .channel(`wa:biz:${businessId}`, { config: { private: true } })
+        .on('broadcast', { event: 'instance' }, () => {
+          void qc.invalidateQueries({ queryKey: instanceKeys.list })
+        })
+        .subscribe()
+    }
     const channel = supabase
       .channel('numbers-page-instances')
       .on(
@@ -145,8 +163,11 @@ export function useInstancesRealtime() {
         },
       )
       .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [qc])
+    return () => {
+      void supabase.removeChannel(channel)
+      if (bizChannel) void supabase.removeChannel(bizChannel)
+    }
+  }, [qc, businessId])
 }
 
 // ---------- Mutations -------------------------------------------------------
