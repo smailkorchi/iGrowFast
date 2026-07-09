@@ -1,9 +1,8 @@
-// Instance query hooks + Realtime live-sync. The list view subscribes to
-// `whatsapp_instances` changes; every INSERT/UPDATE/DELETE patches the
-// TanStack cache so the UI is always live without polling.
+// Instance query hooks. Realtime live-sync rides the unified wa:biz broadcast
+// (see queries/waChannels.ts): the 'instance' event invalidates the list + the
+// changed instance. whatsapp_instances is no longer on postgres_changes.
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 import {
   createInstance,
   deleteInstance,
@@ -106,39 +105,6 @@ export function useInstanceQr(instanceId: string | null, enabled: boolean, refet
     refetchOnWindowFocus: false,
     gcTime: 0,   // never cache a QR beyond the dialog
   })
-}
-
-// ---------- Realtime subscription ------------------------------------------
-// Mounts a single channel for the whatsapp_instances table that patches the
-// React Query cache on every event. Call once from the Numbers list page or
-// AdminLayout; useEffect cleanup unsubscribes on unmount.
-
-export function useInstancesRealtime() {
-  const qc = useQueryClient()
-  // Enterprise Phase 2b: business id for the wa:biz instance feed (mig 049). All
-  // of an admin's instances share it (RLS scopes the list to their business).
-  const { data: instances } = useInstances()
-  const businessId = instances?.[0]?.business_id ?? null
-  useEffect(() => {
-    // Enterprise Phase 2b: whatsapp_instances left the supabase_realtime publication
-    // (mig 050), so the Numbers list is driven SOLELY by the wa:biz:<business_id>
-    // 'instance' broadcast (DB trigger _broadcast_instance_control, mig 049).
-    // Invalidate the (low-cardinality) list to refetch, plus the changed instance's
-    // single-cache so an open NumberDetail refreshes — equivalent coverage to the
-    // retired postgres_changes in-place patch, without the whatsapp_instances WAL
-    // decode / per-subscriber cost. Event 'instance' is distinct from the
-    // conversation-bump 'bump' event on the same wa:biz topic.
-    if (!businessId) return
-    const bizChannel = supabase
-      .channel(`wa:biz:${businessId}`, { config: { private: true } })
-      .on('broadcast', { event: 'instance' }, ({ payload }) => {
-        void qc.invalidateQueries({ queryKey: instanceKeys.list })
-        const id = (payload as { id?: string })?.id
-        if (id) void qc.invalidateQueries({ queryKey: instanceKeys.one(id) })
-      })
-      .subscribe()
-    return () => { void supabase.removeChannel(bizChannel) }
-  }, [qc, businessId])
 }
 
 // ---------- Mutations -------------------------------------------------------

@@ -6,7 +6,16 @@
 // (useConversationsBumpRealtime / useConversationsRealtime / useInstancesRealtime /
 // useQuickRepliesRealtime / useScheduledMessagesRealtime / useTags* / useAssignments*),
 // each of which opened its OWN channel to the same topic — channel proliferation
-// that defeated the point of collapsing onto wa:biz. Mounted ONCE at the shell.
+// that defeated the point of collapsing onto wa:biz.
+//
+// MOUNT: the admin channel mounts via <AdminWaRealtime/> in each admin page
+// wrapper, and only ONE admin WhatsApp page is mounted at a time, so there is
+// exactly one wa:biz channel live per admin (it re-subscribes on sub-navigation
+// between WhatsApp pages; the module-level waQueryClient cache persists across the
+// remount, so the on-mount refetch covers the sub-second gap — no data loss). The
+// agent channel mounts once in ActiveInstanceProvider (persistent). A future
+// optimization could hoist AdminWaRealtime above an <Outlet/> layout route to make
+// the admin channel persistent too; not required for correctness.
 //
 // Per-thread wa:conv (messages) and presence (wa-typing) stay per-thread — they are
 // inherently scoped to the one open conversation, not the whole business.

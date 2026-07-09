@@ -1,11 +1,10 @@
-// Assignment hooks: queries + mutations + realtime live-sync.
+// Assignment hooks: queries + mutations.
 //
 // All caches are scoped per-instance because assignments are admin-only and
-// admin views one instance at a time. Realtime subscribes to
-// conversation_assignments (INSERT/DELETE) and whatsapp_instances (auto-assign
-// config edits) so a change in any session reflects everywhere.
+// admin views one instance at a time. Realtime live-sync rides the unified
+// wa:biz/wa:user broadcast (see queries/waChannels.ts).
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   applyAutoAssignBacklog,
@@ -21,7 +20,6 @@ import {
   type UnassignedConversation,
 } from '../assignmentApi'
 import { supabase } from '../supabase'
-import { businessIdOf } from './quickReplies'
 
 export const assignmentKeys = {
   all:           ['assignments'] as const,
@@ -60,34 +58,6 @@ export function useConversationAssignees(conversationId: string | null) {
     },
     staleTime: 30_000,
   })
-}
-
-/**
- * Live-sync assignees for one conversation. Lighter than the instance-wide
- * realtime sub used on the Assignment page — only subscribes to changes for
- * the conversation currently in the info pane.
- */
-export function useConversationAssigneesRealtime(conversationId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!conversationId) return
-    const channel = supabase
-      .channel(`conv-assignees-${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event:  '*',
-          schema: 'whatsapp',
-          table:  'conversation_assignments',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
-          void qc.invalidateQueries({ queryKey: assignmentKeys.byConversation(conversationId) })
-        },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [conversationId, qc])
 }
 
 export function useInstanceAssignments(instanceId: string | null) {
@@ -270,97 +240,3 @@ export function useSetAutoAssign() {
   })
 }
 
-// ─── realtime ───────────────────────────────────────────────────────────────
-
-/**
- * ALWAYS-ON per-agent assignment sync (IGF 2026-07-08).
- *
- * An agent's instances (wi_select) and conversations (RLS) exist ONLY while
- * they hold an assignment. The per-instance useConversationsRealtime can't
- * cover the transition INTO/OUT OF the empty state: when the agent has zero
- * instances, activeInstanceId is null and that hook doesn't subscribe — so a
- * newly-granted assignment could never arrive live (needed a refresh).
- *
- * This subscription is mounted at the seller-shell provider, keyed on the
- * agent's OWN user_id (server-side filter), so it is live even from the empty
- * state. Realtime delivers the agent their own INSERT/DELETE (replica identity
- * = PK incl. user_id; ca_select keys on user_id=auth.uid()). On any change it
- * invalidates the instance list (→ wi_select re-runs → number appears/vanishes)
- * and conversations. Debounced so a bulk (un)assign's per-row burst coalesces.
- */
-export function useMyAssignmentsRealtime(userId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!userId) return
-    let t: ReturnType<typeof setTimeout> | null = null
-    const reconcile = () => {
-      if (t) clearTimeout(t)
-      t = setTimeout(() => {
-        void qc.invalidateQueries({ queryKey: ['instances'] })
-        void qc.invalidateQueries({ queryKey: ['conversations'] })
-        void qc.invalidateQueries({ queryKey: ['instances-unread'] })
-      }, 200)
-    }
-    const channel = supabase
-      .channel(`my-assignments-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversation_assignments', filter: `user_id=eq.${userId}` },
-        reconcile,
-      )
-      .subscribe()
-    return () => { if (t) clearTimeout(t); void supabase.removeChannel(channel) }
-  }, [userId, qc])
-}
-
-export function useAssignmentsRealtime(instanceId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!instanceId) return
-    // DEBOUNCE (IGF audit fix 2026-07-08): a bulk op emits ONE postgres_changes
-    // event per row; undebounced, each cancelled-and-restarted the in-flight
-    // roster refetch (v5 cancelRefetch default), so the UI settled only after
-    // the whole burst drained. One trailing 200ms timer coalesces a burst into
-    // a single reconcile. Narrowed to byInstance (the Assignment page's pills) —
-    // the conversation list here doesn't depend on assignments, and any open
-    // inbox has its OWN conversation_assignments subscription (conversations.ts).
-    let t: ReturnType<typeof setTimeout> | null = null
-    const reconcile = () => {
-      if (t) clearTimeout(t)
-      t = setTimeout(() => { void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId) }) }, 200)
-    }
-    // conversation_assignments — STILL on postgres_changes (migrated to wa:biz +
-    // wa:user in the Phase 2b agent-facing pass; see the slot lock-list).
-    const channel = supabase
-      .channel(`assignments-page-${instanceId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversation_assignments' },
-        reconcile,
-      )
-      .subscribe()
-    // whatsapp_instances (auto-assign config edits) — its postgres_changes binding
-    // went DEAD when whatsapp_instances left the publication (mig 050). Re-homed to
-    // the wa:biz:<business_id> 'instance' broadcast (mig 049) so the Assignment
-    // page's auto-assign config still refreshes live across sessions.
-    let bizChannel: ReturnType<typeof supabase.channel> | null = null
-    let cancelled = false
-    void businessIdOf(instanceId)
-      .then((biz) => {
-        if (cancelled) return
-        bizChannel = supabase
-          .channel(`wa:biz:${biz}`, { config: { private: true } })
-          .on('broadcast', { event: 'instance' }, () => {
-            void qc.invalidateQueries({ queryKey: ['instances'] })
-          })
-          .subscribe()
-      })
-      .catch(() => { /* resolver failure surfaces through the instances query */ })
-    return () => {
-      if (t) clearTimeout(t)
-      void supabase.removeChannel(channel)
-      cancelled = true
-      if (bizChannel) void supabase.removeChannel(bizChannel)
-    }
-  }, [instanceId, qc])
-}

@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 import { supabase } from '../supabase'
 
 // ─── Node-sequence model (shared by quick replies + scheduled messages) ──────
@@ -103,34 +102,6 @@ export function useQuickReplies(instanceId: string | null) {
     enabled: !!instanceId,
     staleTime: 60_000,
   })
-}
-
-export function useQuickRepliesRealtime(instanceId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!instanceId) return
-    let channel: ReturnType<typeof supabase.channel> | null = null
-    let cancelled = false
-    // Enterprise Phase 2b: quick_replies left the supabase_realtime publication
-    // (mig 052); driven by the wa:biz:<business_id> 'quick_reply' broadcast (DB
-    // trigger, mig 051) → invalidate this instance's list. Admin-only panel, so
-    // wa:biz (business-admin gated) is the correct topic.
-    void businessIdOf(instanceId)
-      .then((biz) => {
-        if (cancelled) return
-        channel = supabase
-          .channel(`wa:biz:${biz}`, { config: { private: true } })
-          .on('broadcast', { event: 'quick_reply' }, () => {
-            void qc.invalidateQueries({ queryKey: quickReplyKeys.list(instanceId) })
-          })
-          .subscribe()
-      })
-      .catch(() => { /* resolver failure surfaces through the list query */ })
-    return () => {
-      cancelled = true
-      if (channel) void supabase.removeChannel(channel)
-    }
-  }, [instanceId, qc])
 }
 
 export function useCreateQuickReply() {

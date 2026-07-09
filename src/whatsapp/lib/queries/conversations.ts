@@ -1,10 +1,11 @@
-// Conversations list + search + realtime live-sync hooks.
+// Conversations list + search hooks, plus applyBump (the shared list-cache
+// patcher the realtime 'bump' event calls).
 //
-// All queries read from public.conversations_decrypted (RLS-scoped). Live-sync
-// subscribes to conversations + conversation_assignments + conversation_tags
-// + messages INSERT (latter only to refresh ordering when a new inbound lands).
+// All queries read from whatsapp.conversations_decrypted (RLS-scoped). Realtime
+// live-sync rides the unified wa:biz/wa:user broadcast (see queries/waChannels.ts):
+// its 'bump' event calls applyBump here to patch the loaded list caches in place.
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
 import { markConversationRead } from '../conversationsApi'
@@ -48,8 +49,8 @@ export function useConversations(instanceId: string | null, filter: Conversation
   return useInfiniteQuery({
     queryKey: conversationKeys.list(instanceId ?? '_', filter),
     enabled:  !!instanceId,
-    // Realtime (useConversationsRealtime) keeps this live, so a focus-refetch of
-    // every loaded page on every tab-return is pure redundant load at scale.
+    // Realtime (the wa:biz/wa:user bump broadcast, waChannels.ts) keeps this live,
+    // so a focus-refetch of every loaded page on every tab-return is redundant load.
     refetchOnWindowFocus: false,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
@@ -211,11 +212,11 @@ export function useInstancesUnread(instanceIds: string[]) {
 // whatsapp.conversations. That table was dropped from the supabase_realtime
 // publication (the ~89% WAL / list_changes choke-point fix), so the badge is now
 // driven off the SAME private bump broadcast that drives the list: applyBump
-// (via useConversationsBumpRealtime) calls scheduleUnreadInvalidate on every bump
-// (admins get wa:inst:<id> per instance; agents get wa:user:<uid>), and
-// scheduleBumpReconcile refetches it on (re)connect. Coverage is equivalent — any
-// unread_count change fires a conversation bump — with none of the conversations
-// WAL decode + per-subscriber RLS cost.
+// (called by the unified wa:biz/wa:user channel, waChannels.ts) runs
+// scheduleUnreadInvalidate on every bump, and the channel's on-reconnect reconcile
+// refetches it. Coverage is equivalent — any unread_count change fires a
+// conversation bump — with none of the conversations WAL decode + per-subscriber
+// RLS cost.
 
 // ─── mark-read (optimistic) ────────────────────────────────────────────────
 // Returns a callback that clears a conversation's unread INSTANTLY across every
@@ -318,89 +319,20 @@ export function useAssignments(conversationId: string | null) {
 // (useTagsFor — the v1 text-tag hook — was removed when conversation_tags
 // migrated to tag_id FKs. Use useConversationTags from queries/tags.ts.)
 
-// ─── realtime live-sync ────────────────────────────────────────────────────
-// One channel per instance; invalidates the relevant TanStack caches on every
-// conversations/messages/assignments/tags/notes change.
-
-export function useConversationsRealtime(instanceId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!instanceId) return
-    // Assignment changes can REVOKE access for a non-admin agent: an agent sees
-    // an instance (wi_select) and its conversations (RLS) ONLY while assigned,
-    // so losing their last assignment must drop the instance from useInstances()
-    // and flip the inbox to the empty state — live. Realtime delivers the agent
-    // their OWN assignment DELETE (replica identity = PK incl. user_id; ca_select
-    // keys on user_id=auth.uid()), so we invalidate BOTH ['conversations'] and
-    // ['instances'] here. Debounced so a bulk (un)assign's per-row event burst
-    // coalesces into a single refetch instead of one per row.
-    // DEBOUNCE + NARROW (enterprise-audit Stage 0). The two hottest handlers
-    // (conversations UPDATE + messages INSERT) fire on essentially every message.
-    // Undebounced they refetched the WHOLE ['conversations'] tree — every loaded
-    // infinite page AND the expensive single-conv header (#3 statement) — per
-    // event. Now they coalesce into ONE trailing refetch of the LIST only
-    // (['conversations','list',instanceId] — all filters, NOT the ['one',id]
-    // header, which has its own thread realtime). A tenant receiving 10 msg/s
-    // dropped from ~60-70 req/s per admin to ~4.
-    let listT: ReturnType<typeof setTimeout> | null = null
-    const bumpList = () => {
-      if (listT) clearTimeout(listT)
-      listT = setTimeout(() => {
-        void qc.invalidateQueries({ queryKey: ['conversations', 'list', instanceId] })
-      }, 250)
-    }
-    // Assignment changes also touch instance visibility for agents (revocation →
-    // empty state); keep the debounced ['instances'] invalidate here.
-    let asgT: ReturnType<typeof setTimeout> | null = null
-    const onAssignmentChange = () => {
-      if (asgT) clearTimeout(asgT)
-      asgT = setTimeout(() => {
-        void qc.invalidateQueries({ queryKey: ['conversations', 'list', instanceId] })
-        void qc.invalidateQueries({ queryKey: ['instances'] })
-      }, 250)
-    }
-    // Stage C (2026-07-08): the conversations `*` and messages INSERT bindings
-    // were REMOVED — the conversation-bump firehose now rides the private bump
-    // broadcast (useConversationsBumpRealtime patches the list in place), and
-    // whatsapp.conversations was dropped from the supabase_realtime publication
-    // (the list_changes WAL choke-point fix). What remains here are the two
-    // low-churn signals that stay on postgres_changes (still published tables):
-    //   • conversation_assignments — an assignment DELETE can revoke an agent's
-    //     access (→ empty state); the bump trigger does not fire on assignment.
-    //   • conversation_tags — tag chips on list rows; not a conversations write,
-    //     so no bump fires for it.
-    const channel = supabase
-      .channel(`conv-page-${instanceId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversation_assignments' },
-        onAssignmentChange,
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversation_tags' },
-        bumpList,
-      )
-      .subscribe()
-    return () => { if (listT) clearTimeout(listT); if (asgT) clearTimeout(asgT); void supabase.removeChannel(channel) }
-  }, [instanceId, qc])
-}
-
-// ─── bump broadcast consumer (Stage-2 list-bump cutover) ────────────────────
-// The DB trigger whatsapp._broadcast_conversation_bump (migration 036) publishes
-// to_jsonb(conversations_decrypted) as a 'bump' broadcast on PRIVATE topics:
-//   wa:inst:<instance_id>  → business-admins of that instance
-//   wa:user:<user_id>      → each assigned agent
-// This consumer patches the loaded list caches IN PLACE (no PostgREST refetch) —
-// the point of moving the conversation-bump firehose off postgres_changes.
+// ─── bump broadcast consumer (applyBump) ────────────────────────────────────
+// The DB trigger whatsapp._broadcast_conversation_bump publishes
+// to_jsonb(conversations_decrypted) as a 'bump' broadcast on PRIVATE topics
+// (mig 046 dual-publishes so admins get wa:biz:<business_id> and each assigned
+// agent gets wa:user:<user_id>). The unified channel (queries/waChannels.ts)
+// calls applyBump on every 'bump' to patch the loaded list caches IN PLACE (no
+// PostgREST refetch) — the point of moving the conversation-bump firehose off
+// postgres_changes.
 //
-// ADDITIVE + fail-safe: it runs ALONGSIDE useConversationsRealtime's 250ms
-// invalidate, which stays the reconciler / global-order + membership + new-conv
-// backstop. So an out-of-order edge, a membership change, or even a wrong-shaped
-// payload can never break the list — the invalidate refetch converges to truth
-// within 250ms. The overlay is ABSOLUTE (from the payload) with a `touched`
-// guard, so double delivery is idempotent. The retained invalidate is removed
-// only at the gated Stage C, once this path is verified live.
+// Fail-safe: a membership change or a not-yet-loaded conversation falls back to a
+// debounced instance-list refetch (scheduleNewConvAdmit), and the channel's
+// on-reconnect reconcile catches anything missed while the socket was down
+// (broadcast = at-most-once). The overlay is ABSOLUTE (from the payload) with a
+// `touched` guard, so double delivery is idempotent.
 
 // Exact parity with the server ORDER BY (useConversations: is_pinned DESC, then
 // last_message_at DESC NULLS LAST). A page is re-sorted after a bump changes
@@ -442,21 +374,6 @@ function scheduleUnreadInvalidate(qc: QueryClient): void {
     _unreadInvalidateTimer = null
     void qc.invalidateQueries({ queryKey: ['instances-unread'] })
   }, 150)
-}
-
-// Reconciliation backstop. Broadcast is at-most-once, so anything missed while the
-// socket was disconnected is caught by one full list+badge refetch when a bump
-// channel (re)subscribes. Within a live connection, bumps carry the ABSOLUTE row
-// so any dropped bump self-heals on that conversation's next bump. Debounced so
-// an admin's N channels resubscribing coalesce into one refetch.
-let _reconcileTimer: ReturnType<typeof setTimeout> | null = null
-function scheduleBumpReconcile(qc: QueryClient): void {
-  if (_reconcileTimer) clearTimeout(_reconcileTimer)
-  _reconcileTimer = setTimeout(() => {
-    _reconcileTimer = null
-    void qc.invalidateQueries({ queryKey: ['conversations', 'list'] })
-    void qc.invalidateQueries({ queryKey: ['instances-unread'] })
-  }, 300)
 }
 
 // Filter-membership signature: the columns that decide which list tab(s) a row
@@ -559,47 +476,6 @@ export function applyBump(qc: QueryClient, rawPayload: unknown): void {
 
   // 3) Per-instance unread badge aggregate (debounced refetch).
   scheduleUnreadInvalidate(qc)
-}
-
-// Subscribe to private bump broadcasts and patch the list caches in place.
-// Topic-agnostic: the admin shell passes wa:inst:<id> per in-scope instance; the
-// agent shell passes [wa:user:<uid>]. One private channel per topic.
-export function useConversationsBumpRealtime(topics: string[]) {
-  const qc = useQueryClient()
-  // Stable key: element order irrelevant → the same set doesn't re-subscribe.
-  const key = [...topics].sort().join('|')
-  useEffect(() => {
-    const list = key ? key.split('|') : []
-    if (list.length === 0) return
-    const channels = list.map((topic) => {
-      // Reconcile only on a RE-subscribe (after this channel errored/dropped),
-      // not on the cold mount — list + badge already fetch on mount, so a first-
-      // SUBSCRIBED refetch would be redundant. PER-CHANNEL flag so a late-
-      // reconnecting channel still triggers its own reconcile (a shared flag lets
-      // the first channel's reconcile suppress the others').
-      let hadError = false
-      return supabase
-        .channel(topic, { config: { private: true } })
-        .on('broadcast', { event: 'bump' }, ({ payload }) => applyBump(qc, payload))
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            if (hadError) {
-              // Reconnected → catch any bump missed while the socket was down
-              // (broadcast = at-most-once): one debounced list + badge refetch.
-              hadError = false
-              scheduleBumpReconcile(qc)
-            }
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            // Private-channel authorization failed or the socket dropped. Surface
-            // for diagnostics (Realtime fails closed, never silently opens); the
-            // on-reconnect reconcile keeps the list correct.
-            hadError = true
-            console.warn(`[wa-bump] channel ${topic} status=${status}`)
-          }
-        })
-    })
-    return () => { channels.forEach((ch) => { void supabase.removeChannel(ch) }) }
-  }, [qc, key])
 }
 
 // ─── flatten infinite query for consumers ──────────────────────────────────

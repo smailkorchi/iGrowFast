@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 import { supabase } from '../supabase'
 
 export interface Tag {
@@ -44,24 +43,6 @@ export function useTags(instanceId: string | null) {
   })
 }
 
-let _tagSubId = 0
-
-export function useTagsRealtime(instanceId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!instanceId) return
-    const channel = supabase
-      .channel(`tags-${instanceId}-${++_tagSubId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'tags', filter: `instance_id=eq.${instanceId}` },
-        () => { void qc.invalidateQueries({ queryKey: tagKeys.list(instanceId) }) },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [instanceId, qc])
-}
-
 export function useConversationTags(conversationId: string | null) {
   return useQuery<ConversationTag[]>({
     queryKey: tagKeys.conversationTags(conversationId ?? '_'),
@@ -99,24 +80,6 @@ export function useAllConversationTags(instanceId: string | null) {
     enabled: !!instanceId,
     staleTime: 30_000,
   })
-}
-
-export function useConversationTagsRealtime(instanceId: string | null) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!instanceId) return
-    const channel = supabase
-      .channel(`conv-tags-${instanceId}-${++_tagSubId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversation_tags' },
-        () => {
-          void qc.invalidateQueries({ queryKey: ['conversation_tags'] })
-        },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [instanceId, qc])
 }
 
 export function useCreateTag() {

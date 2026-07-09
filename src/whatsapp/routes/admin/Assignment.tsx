@@ -6,9 +6,9 @@
 // configuration per instance.
 //
 // All writes go through the SECURITY DEFINER RPCs in assignmentApi.ts —
-// is_admin() gates inside the function. Realtime sync via
-// useAssignmentsRealtime so every admin session reflects the same state
-// without polling.
+// is_admin() gates inside the function. Realtime sync rides the unified wa:biz
+// broadcast (AdminWaRealtime, mounted in the page wrapper) so every admin
+// session reflects the same state without polling.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
