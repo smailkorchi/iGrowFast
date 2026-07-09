@@ -66,6 +66,7 @@ const REASON_FR: Record<string, string> = {
   upload_failed: 'Échec de l’envoi du fichier.',
   unauthorized: 'Session expirée. Reconnectez-vous.',
   rate_limited: 'Trop de requêtes. Patientez un instant.',
+  conversation_taken: 'Cette conversation est déjà gérée par un autre agent.',
 }
 const PG_CODE_FR: Record<string, string> = {
   '42501': 'Action non autorisée.',

@@ -1,5 +1,9 @@
 // check-whatsapp
-// Admin-only. Checks whether a list of phone numbers have WhatsApp accounts.
+// Admin OR assigned agent (instance-scoped). Checks whether a list of phone
+// numbers have WhatsApp accounts. Used by the new-chat dial-pad / new-contact
+// flow, which sellers use too — so it accepts any caller authorized for THIS
+// instance (whatsapp.can_use_instance), not admins only, without opening it to
+// every authenticated user across tenants.
 // Body: { instance_id: string, numbers: string[] }
 // Returns the raw Evolution response so the caller can inspect each number's
 // exists/jid fields.
@@ -28,5 +32,5 @@ Deno.serve((req) =>
       }, { status: 502 })
     }
     return json({ ok: true, result: evo.body })
-  }),
+  }, { allowUsers: true, requireInstanceAccess: true }),
 )

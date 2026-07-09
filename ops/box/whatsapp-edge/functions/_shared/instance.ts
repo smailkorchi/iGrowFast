@@ -45,7 +45,7 @@ export interface InstanceCtx {
 export async function withInstance(
   req: Request,
   handler: (ctx: InstanceCtx) => Promise<Response>,
-  opts?: { allowUsers?: boolean },
+  opts?: { allowUsers?: boolean; requireInstanceAccess?: boolean },
 ): Promise<Response> {
   const pre = preflight(req); if (pre) return pre
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, { status: 405 })
@@ -62,6 +62,22 @@ export async function withInstance(
   const instanceId = (raw as { instance_id?: unknown })?.instance_id
   if (typeof instanceId !== 'string' || !UUID_RE.test(instanceId)) {
     return json({ ok: false, reason: 'invalid_instance_id' }, { status: 400 })
+  }
+
+  // Instance-scoped agent authorization. `allowUsers` alone admits ANY
+  // authenticated user (fine for blanket features); a fn that must stay tenant-
+  // scoped — a seller may only touch numbers they actually work — opts into
+  // requireInstanceAccess. whatsapp.can_use_instance() is the single source of
+  // truth (admin OR has-assignment-on-instance, same predicate as wi_select RLS)
+  // and is checked with the caller's JWT so auth.uid() resolves to them. Runs
+  // before the instance lookup so an unauthorized caller learns nothing about
+  // whether the instance exists.
+  if (opts?.requireInstanceAccess) {
+    const { data: allowed, error: accErr } = await caller.client
+      .schema('whatsapp').rpc('can_use_instance', { p_instance_id: instanceId })
+    if (accErr || allowed !== true) {
+      return json({ ok: false, reason: 'forbidden' }, { status: 403 })
+    }
   }
 
   const { data: row, error } = await admin
