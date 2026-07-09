@@ -406,7 +406,7 @@ async function reconcileEvolutionStatuses(): Promise<void> {
     if (state === 'open' && r.status !== 'connected') {
       const res = await pool.query(
         `UPDATE whatsapp.whatsapp_instances
-            SET status = 'connected'::instance_status,
+            SET status = 'connected'::whatsapp.instance_status,
                 status_detail = 'reconciled:open',
                 paired_at = COALESCE(paired_at, now()),
                 qr_code = NULL
@@ -422,7 +422,7 @@ async function reconcileEvolutionStatuses(): Promise<void> {
     } else if (state === 'close' && r.status !== 'disconnected') {
       const res = await pool.query(
         `UPDATE whatsapp.whatsapp_instances
-            SET status = 'disconnected'::instance_status,
+            SET status = 'disconnected'::whatsapp.instance_status,
                 status_detail = 'reconciled:close'
           WHERE id = $1 AND status NOT IN ('disconnected', 'pending')`,
         [r.id],

@@ -33,13 +33,14 @@ export const pool = new pg.Pool({
   // Pooler doesn't honor `application_name` set by some libs; pass it
   // explicitly so we can grep pg_stat_activity.
   application_name: `igf-wa-worker/${config.workerVersion}`,
-  // Our WhatsApp objects (tables, functions, and ENUM TYPES) live in the
-  // `whatsapp` schema. Table/fn refs in our SQL are schema-qualified, but bare
-  // enum casts (e.g. `$1::instance_status`) resolve via search_path — so set it
-  // on the startup packet. NOTE: node-pg only forwards this `options` field
-  // (NOT `?options=` in the URL — that's libpq-only); supavisor session mode
-  // passes it through. Without it: `type "instance_status" does not exist`.
-  options: '-c search_path=whatsapp,public',
+  // NO search_path option. Every WhatsApp object our SQL touches — tables,
+  // functions, AND enum casts — is now fully `whatsapp.`-qualified (all 11 enum
+  // casts: instance_status/identifier_source/identifier_kind/message_kind), so
+  // the worker has ZERO search_path dependency. Removing the `-c search_path`
+  // startup option is what lets us move off supavisor SESSION mode onto
+  // TRANSACTION mode (6543): transaction pooling multiplexes many workers over
+  // few backends and does NOT carry per-session startup state, so pinning a
+  // search_path there is unreliable. (Enterprise plan Phase 1d / W2-A.)
 })
 
 pool.on('error', (err) => {

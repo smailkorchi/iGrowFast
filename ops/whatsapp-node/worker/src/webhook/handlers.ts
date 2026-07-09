@@ -82,7 +82,7 @@ async function captureJidMapping(
     // phone-keyed conversation.
     if (phoneJid.endsWith('@s.whatsapp.net') && lid.endsWith('@lid')) {
       await pool.query(
-        `SELECT whatsapp.resolve_identity($1, $2, 'phone', $3::identifier_source, $4, 'lid', $5, NULL)`,
+        `SELECT whatsapp.resolve_identity($1, $2, 'phone', $3::whatsapp.identifier_source, $4, 'lid', $5, NULL)`,
         [instanceId, phoneJid, source, lid, pushName],
       )
       // Now that the bible deterministically links this @lid to a phone, collapse
@@ -236,7 +236,7 @@ async function upsertContactFromSync(
     // dedups the contact, and fills phone_jid/phone_number/lid/push_name/
     // profile_pic under its own anti-fusion guards.
     await pool.query(
-      `SELECT whatsapp.resolve_identity($1, $2, $3::identifier_kind, 'contacts_upsert', NULL, NULL, $4, $5)`,
+      `SELECT whatsapp.resolve_identity($1, $2, $3::whatsapp.identifier_kind, 'contacts_upsert', NULL, NULL, $4, $5)`,
       [instanceId, jid, isPhone ? 'phone' : 'lid', pushName, profilePic],
     )
   } catch (err) {
@@ -686,7 +686,7 @@ async function ingestMessage(instanceId: string, m: WAMessageData, fromHistorySy
     needsMediaFetch
   ) {
     await pool.query(
-      `SELECT whatsapp.enqueue_media_fetch($1, $2, $3, $4::message_kind)`,
+      `SELECT whatsapp.enqueue_media_fetch($1, $2, $3, $4::whatsapp.message_kind)`,
       [newMsgId, instanceId, evolutionMsgId, mediaFetchKind],
     ).catch((err) =>
       log.warn('media.enqueue_failed', {
@@ -1911,10 +1911,10 @@ async function handleConnectionUpdate(
          FROM whatsapp.whatsapp_instances WHERE id = $1
      )
      UPDATE whatsapp.whatsapp_instances
-       SET status = $2::instance_status,
+       SET status = $2::whatsapp.instance_status,
            status_detail = $3::text,
            last_seen_at = now(),
-           paired_at = COALESCE(paired_at, CASE WHEN $2::instance_status = 'connected' THEN now() END),
+           paired_at = COALESCE(paired_at, CASE WHEN $2::whatsapp.instance_status = 'connected' THEN now() END),
            phone_number = COALESCE(phone_number, $4::text),
            -- Stamp THIS connect (not coalesced) + reset the sync markers, so the
            -- pairing modal waits for a genuine history-sync completion of the
@@ -1931,13 +1931,13 @@ async function handleConnectionUpdate(
            -- sends no messages.set at all, so resetting the markers there
            -- left the sync gate + PairDialog waiting forever on a dump that
            -- will never come. New sync cycle == transition WITH QR pending.
-           last_connect_at   = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN now() ELSE last_connect_at END,
-           history_synced_at = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN NULL ELSE history_synced_at END,
-           sync_progress     = CASE WHEN $2::instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN 0 ELSE sync_progress END,
+           last_connect_at   = CASE WHEN $2::whatsapp.instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN now() ELSE last_connect_at END,
+           history_synced_at = CASE WHEN $2::whatsapp.instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN NULL ELSE history_synced_at END,
+           sync_progress     = CASE WHEN $2::whatsapp.instance_status = 'connected' AND status IS DISTINCT FROM 'connected' AND qr_code IS NOT NULL THEN 0 ELSE sync_progress END,
            -- Clear the QR on any terminal state, not just 'connected'. A dead
            -- QR (loop ended → disconnected/error) must not linger in the DB and
            -- render as if it were still scannable.
-           qr_code = CASE WHEN $2::instance_status IN ('connected','disconnected','error') THEN NULL ELSE qr_code END
+           qr_code = CASE WHEN $2::whatsapp.instance_status IN ('connected','disconnected','error') THEN NULL ELSE qr_code END
      WHERE id = $1
      RETURNING (SELECT old_status FROM prev) AS old_status, (SELECT was_pairing FROM prev) AS was_pairing`,
     [instanceId, newStatus, data.statusReason ? String(data.statusReason) : null, phoneNumber],
