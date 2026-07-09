@@ -1962,6 +1962,10 @@ export type WhatsappInstance = Database['whatsapp']['Tables']['whatsapp_instance
   last_connect_at:              string | null
   history_synced_at:            string | null
   sync_progress:                number | null
+  // Ownership + crypto. Selected by INSTANCE_COLS; generated types stale.
+  business_id:                  string          // NOT NULL — owning business
+  node_id:                      number | null   // worker node shard (nullable)
+  key_id:                       number          // envelope key id (NOT NULL)
 }
 export type ConversationNote = Database['whatsapp']['Tables']['conversation_notes']['Row']
 export type MessageTemplate = Database['whatsapp']['Tables']['message_templates']['Row']

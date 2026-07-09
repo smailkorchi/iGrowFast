@@ -128,12 +128,16 @@ export default function AdminConversations() {
 
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
-  // Stage-2 list-bump / Stage C: admins receive per-instance conversation bumps
-  // on a private broadcast channel (wa:inst:<id>). This single hook now drives
-  // BOTH the live list (patched in place) AND the per-instance unread badge
-  // (['instances-unread'] invalidate) — it replaced the retired
-  // useInstancesUnreadRealtime after conversations left the realtime publication.
-  const bumpTopics = useMemo(() => instanceIds.map((id) => `wa:inst:${id}`), [instanceIds])
+  // Stage 2a (W5): admins receive conversation bumps on ONE business-scoped
+  // broadcast channel (wa:biz:<business_id>) instead of one wa:inst:<id> channel
+  // PER instance — a business with 93 numbers opened 93 channels/tab (the channel
+  // wall). The DB bump trigger (mig 046) dual-publishes to wa:biz; applyBump still
+  // routes each row by its own instance_id, so in-place list patching + the
+  // per-instance unread badge (['instances-unread'] invalidate) are unchanged.
+  // All of an admin's instances share the one business_id (RLS scopes useInstances
+  // to their business), so instances[0] is the source.
+  const businessId = useMemo(() => instances?.[0]?.business_id ?? null, [instances])
+  const bumpTopics = useMemo(() => (businessId ? [`wa:biz:${businessId}`] : []), [businessId])
   useConversationsBumpRealtime(bumpTopics)
 
   // ─── lists + favourites (localStorage) ─────────────────────────────────────
