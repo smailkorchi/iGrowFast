@@ -30,7 +30,9 @@ import {
   spawnDispatcher,
   stopDispatcher,
   updateInstanceConfig,
+  wakeLoop,
 } from './loop.js'
+import { wakeMediaIngest } from './media-ingest.js'
 import type { BusinessHours, InstanceConfig, InstanceLifecycleState, InstanceStatus } from './types.js'
 
 // ── Multi-worker lease coordination ──────────────────────────────────────────
@@ -689,6 +691,18 @@ export async function startInstanceManager(): Promise<void> {
           error: err instanceof Error ? err.message : String(err),
         })
       }
+    })
+    // Phase 3a additive: dispatch/media WAKES over wa:node (dual-run alongside the
+    // LISTEN 'outbound_enqueued'/'media_fetch_ready' path — mig 055 dual-emits).
+    // wakeLoop/wakeMediaIngest are self-filtering (no-op if this node doesn't own
+    // the number / has no pending media), so a wake is always safe to receive.
+    .on('broadcast', { event: 'wake_outbound' }, ({ payload }) => {
+      const numberId = (payload as { number_id?: string })?.number_id
+      if (numberId) wakeLoop(numberId)
+    })
+    .on('broadcast', { event: 'wake_media' }, ({ payload }) => {
+      const messageId = (payload as { message_id?: string })?.message_id
+      if (messageId) wakeMediaIngest(messageId)
     })
     .subscribe((status) => {
       log.info('instance.wanode_status', { status })
