@@ -37,7 +37,15 @@ export function useAgentTyping(
   const uid = self?.user_id ?? null
 
   useEffect(() => {
-    if (!conversationId || !uid) { setTypers([]); mapRef.current.clear(); return }
+    // The channel is per-conversation, so clear any typers carried over from the
+    // PREVIOUS conversation before (re)subscribing. Without this, a teammate who
+    // was typing in the chat you just left keeps showing as "…est en train
+    // d'écrire" in every chat you open next: the effect cleanup cleared mapRef +
+    // the channel but never reset the `typers` STATE, so it lingered until a
+    // fresh ping/prune on the new channel happened to re-flush.
+    setTypers([])
+    mapRef.current.clear()
+    if (!conversationId || !uid) return
     const flush = () => setTypers([...mapRef.current.values()].map((v) => v.agent))
     const channel = supabase.channel(`presence:conv:${conversationId}`)
     channelRef.current = channel
