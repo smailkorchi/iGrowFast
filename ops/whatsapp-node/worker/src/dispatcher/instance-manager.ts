@@ -698,11 +698,11 @@ export async function startInstanceManager(): Promise<void> {
     // the number / has no pending media), so a wake is always safe to receive.
     .on('broadcast', { event: 'wake_outbound' }, ({ payload }) => {
       const numberId = (payload as { number_id?: string })?.number_id
-      if (numberId) wakeLoop(numberId)
+      if (numberId) { log.info('wanode.wake_outbound', { number_id: numberId }); wakeLoop(numberId) }
     })
     .on('broadcast', { event: 'wake_media' }, ({ payload }) => {
       const messageId = (payload as { message_id?: string })?.message_id
-      if (messageId) wakeMediaIngest(messageId)
+      if (messageId) { log.info('wanode.wake_media', { message_id: messageId }); wakeMediaIngest(messageId) }
     })
     .subscribe((status) => {
       log.info('instance.wanode_status', { status })
