@@ -473,6 +473,16 @@ async function reconcileEvolutionStatuses(): Promise<void> {
           })
         }
       }
+
+      // Re-audit RANK 2 self-heal: if Evolution reports the socket CLOSED, make sure
+      // no dispatcher is still draining the dead session. queue_claim_next does NOT
+      // gate on status='disconnected', so a missed wa:node 'disconnect' broadcast
+      // would otherwise keep the loop sending → 404s → premature dead-marking.
+      // Idempotent (no-op if not running); the watchdog handles reconnection, and a
+      // later 'open' respawns via wa:node / loadAllAndReconcile with the queue intact.
+      if (state === 'close') {
+        await stopDispatcher(r.id).catch(() => undefined)
+      }
     }
 
     // Concurrency-capped fan-out: a fixed pool of workers drains a shared cursor,
@@ -512,9 +522,13 @@ async function claimLeases(instanceIds: string[]): Promise<Set<string>> {
 
 async function renewLeases(): Promise<void> {
   try {
+    // Node-scoped renewal (mig 054): only renew leases whose instance is STILL on
+    // our node. A reassigned-away instance drops from stillOwned → we stopDispatcher
+    // it below, and its unrenewed lease expires so the new node can claim it. This
+    // is what makes the wa:node self-heal true in the reassign-away direction.
     const { rows } = await pool.query<{ out_instance_id: string }>(
-      `SELECT out_instance_id FROM whatsapp.worker_renew_instance_leases($1, $2)`,
-      [config.workerId, LEASE_DURATION_SEC],
+      `SELECT out_instance_id FROM whatsapp.worker_renew_instance_leases($1, $2, $3)`,
+      [config.workerId, LEASE_DURATION_SEC, config.nodeId],
     )
     const stillOwned = new Set(rows.map((r) => r.out_instance_id))
 
@@ -594,6 +608,9 @@ async function loadAllAndReconcile(): Promise<void> {
 // ---- Realtime subscription -------------------------------------------------
 
 let nodeChannel: ReturnType<typeof supabase.channel> | null = null
+// wa:node is at-most-once; on reconnect-after-error we do a full node-local
+// reconcile to catch any control-plane change missed while the socket was down.
+let wanodeHadError = false
 
 // Shared control-plane reconcile — used by BOTH the legacy postgres_changes
 // channel and the wa:node broadcast (enterprise Phase 2b). Node-gate first (a row
@@ -675,6 +692,19 @@ export async function startInstanceManager(): Promise<void> {
     })
     .subscribe((status) => {
       log.info('instance.wanode_status', { status })
+      if (status === 'SUBSCRIBED') {
+        if (wanodeHadError) {
+          wanodeHadError = false
+          // Reconnected — a wa:node control change (assign/reassign/disconnect/rate)
+          // may have fired while we were down. Full node-local reconcile catches it.
+          void loadAllAndReconcile().catch((err) =>
+            log.error('instance.wanode.reconcile_failed', {
+              error: err instanceof Error ? err.message : String(err),
+            }))
+        }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        wanodeHadError = true
+      }
     })
 }
 
