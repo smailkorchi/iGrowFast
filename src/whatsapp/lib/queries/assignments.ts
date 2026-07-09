@@ -4,28 +4,77 @@
 // admin views one instance at a time. Realtime live-sync rides the unified
 // wa:biz/wa:user broadcast (see queries/waChannels.ts).
 
-import { useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   applyAutoAssignBacklog,
+  assignByFilter,
   bulkAssignConversations,
   bulkUnassignConversations,
-  listInstanceAssignments,
+  getAssignmentSummary,
+  listAssignmentPage,
   listUnassignedConversations,
   setAutoAssign,
   setConversationAssignees,
+  unassignByFilter,
   unassignConversationUser,
-  type AssignmentRow,
+  type AssignmentMode,
+  type AssignmentPageRow,
+  type AssignmentSummary,
   type AutoAssignConfig,
   type UnassignedConversation,
 } from '../assignmentApi'
 import { supabase } from '../supabase'
 
+const PAGE_SIZE = 50
+
 export const assignmentKeys = {
   all:           ['assignments'] as const,
   unassigned:    (instanceId: string) => ['assignments', 'unassigned', instanceId] as const,
-  byInstance:    (instanceId: string) => ['assignments', 'by-instance', instanceId] as const,
   byConversation:(conversationId: string) => ['assignments', 'by-conv', conversationId] as const,
+  summary:       (instanceId: string) => ['assignments', 'summary', instanceId] as const,
+  page:          (instanceId: string, mode: AssignmentMode, search: string) =>
+                   ['assignments', 'page', instanceId, mode, search] as const,
+}
+
+// ─── server-authoritative console queries (kill the client-side 50-row tally) ─
+
+/** Whole-instance chip counts + per-agent open-load, one round trip. */
+export function useAssignmentSummary(instanceId: string | null) {
+  return useQuery<AssignmentSummary>({
+    queryKey: instanceId ? assignmentKeys.summary(instanceId) : ['assignments', 'summary', '_'],
+    enabled:  !!instanceId,
+    queryFn:  () => getAssignmentSummary(instanceId!),
+  })
+}
+
+/**
+ * Keyset-paginated conversation list for the active chip + search. Cursor is
+ * the last row's (last_message_at, id); a short page (< PAGE_SIZE) means the
+ * end. Server-side filter + search + seek — the browser never holds more than
+ * the pages the admin has scrolled.
+ */
+export function useAssignmentPage(
+  instanceId: string | null,
+  mode: AssignmentMode,
+  search: string,
+) {
+  return useInfiniteQuery({
+    queryKey: assignmentKeys.page(instanceId ?? '_', mode, search),
+    enabled:  !!instanceId,
+    initialPageParam: null as { ts: string | null; id: string } | null,
+    queryFn: async ({ pageParam }) => {
+      if (!instanceId) return [] as AssignmentPageRow[]
+      return listAssignmentPage(
+        instanceId, mode, search, PAGE_SIZE,
+        pageParam?.ts ?? null, pageParam?.id ?? null,
+      )
+    },
+    getNextPageParam: (last) => {
+      if (last.length < PAGE_SIZE) return undefined
+      const tail = last[last.length - 1]
+      return { ts: tail.last_message_at, id: tail.id }
+    },
+  })
 }
 
 // ─── queries ────────────────────────────────────────────────────────────────
@@ -60,161 +109,94 @@ export function useConversationAssignees(conversationId: string | null) {
   })
 }
 
-export function useInstanceAssignments(instanceId: string | null) {
-  return useQuery<AssignmentRow[]>({
-    queryKey: assignmentKeys.byInstance(instanceId ?? '_'),
-    enabled:  !!instanceId,
-    queryFn:  () => (instanceId ? listInstanceAssignments(instanceId) : Promise.resolve([])),
-  })
-}
-
-/**
- * Per-user open conversation count derived from the assignments cache.
- * "Open" = the assignment exists; status filtering happens at query time.
- * For the agent roster we just count assignments — admin can see breakdown
- * by clicking through.
- */
-export function useAssignmentCountsByUser(instanceId: string | null) {
-  const q = useInstanceAssignments(instanceId)
-  const counts = useMemo(() => {
-    const m = new Map<string, { dm: number; group: number; total: number }>()
-    for (const r of q.data ?? []) {
-      const prev = m.get(r.user_id) ?? { dm: 0, group: 0, total: 0 }
-      if (r.is_group) prev.group += 1
-      else            prev.dm    += 1
-      prev.total += 1
-      m.set(r.user_id, prev)
-    }
-    return m
-  }, [q.data])
-  return { ...q, counts }
-}
-
 // ─── mutations ──────────────────────────────────────────────────────────────
 //
-// OPTIMISTIC-UPDATE CONTRACT (IGF, assignment-audit fix 2026-07-08).
-// The Assignment page renders every pill/chip/count PURELY from the byInstance
-// assignments cache, so before this change the screen could not change until a
-// full invalidate→refetch cycle completed (multi-second at prod scale, and on
-// the inbox filters too). Each mutation now accepts an OPTIONAL `instanceId`:
-//   - present (Assignment page) → patch assignmentKeys.byInstance(instanceId)
-//     synchronously in onMutate (instant UI), roll back onError, and reconcile
-//     with ONE background refetch (the 024 RPC). It does NOT invalidate the
-//     ['conversations'] tree — assignments never change conversation rows, and
-//     the Assignment list doesn't filter by assignment.
-//   - absent (inbox InfoPane) → unchanged donor behavior: invalidate assignment
-//     caches + ['conversations'] so the inbox unassigned/assigned filters move.
-// `assigned_by`/`assigned_at` in an optimistically-added row are placeholders;
-// nothing renders them, and the refetch overwrites them with the true values.
-
-const PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
-
-/** Patch the byInstance cache in place; returns a rollback snapshot. */
-function patchByInstance(
-  qc: ReturnType<typeof useQueryClient>,
-  instanceId: string,
-  mutate: (rows: AssignmentRow[]) => AssignmentRow[],
-): { key: readonly unknown[]; prev: AssignmentRow[] | undefined } {
-  const key = assignmentKeys.byInstance(instanceId)
-  const prev = qc.getQueryData<AssignmentRow[]>(key)
-  qc.setQueryData<AssignmentRow[]>(key, (old) => mutate(old ?? []))
-  return { key, prev }
-}
-
-/** Common onError/onSettled wiring for an optionally-optimistic mutation. */
-function optimisticHandlers(qc: ReturnType<typeof useQueryClient>) {
+// The console reads counts from `summary` and rows from `page` — both bounded,
+// ~ms server RPCs (mig 058). A mutation just invalidates and lets the fast
+// refetch reconcile; there is no optimistic cache patching. (The old byInstance
+// optimism existed only to mask a multi-second refetch of the UNBOUNDED
+// per-instance assignments list — that list, its cache, and the lag are gone.)
+//   - instanceId present (console) → invalidate the ['assignments'] tree
+//     (summary + page + per-conversation assignees). The console doesn't read
+//     ['conversations'], so leave it untouched.
+//   - absent (inbox InfoPane) → also invalidate ['conversations'] so the inbox
+//     unassigned/assigned filters move.
+// `instanceId`/`isGroup` stay in the param types for call-site compatibility.
+function reconcileHandlers(qc: ReturnType<typeof useQueryClient>) {
   return {
-    onError: (_e: unknown, _v: unknown, ctx: { key: readonly unknown[]; prev: AssignmentRow[] | undefined } | undefined) => {
-      if (ctx?.prev !== undefined) qc.setQueryData(ctx.key, ctx.prev)
-    },
-    onSettled: (_d: unknown, _e: unknown, vars: { instanceId?: string }) => {
-      if (vars.instanceId) {
-        // Reconcile the patched cache from the server; realtime debounce covers
-        // cross-session. Do NOT touch ['conversations'] here.
-        void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(vars.instanceId) })
-      } else {
-        void qc.invalidateQueries({ queryKey: assignmentKeys.all })
-        void qc.invalidateQueries({ queryKey: ['conversations'] })
-      }
+    // vars typed `unknown` so this shared handler doesn't pin react-query's
+    // TVariables — each mutationFn's own param shape drives inference.
+    onSettled: (_d: unknown, _e: unknown, vars: unknown) => {
+      const instanceId = (vars as { instanceId?: string } | undefined)?.instanceId
+      void qc.invalidateQueries({ queryKey: assignmentKeys.all })
+      if (!instanceId) void qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   }
 }
 
 export function useSetConversationAssignees() {
   const qc = useQueryClient()
-  const h = optimisticHandlers(qc)
   return useMutation({
     mutationFn: ({ conversationId, userIds }: { conversationId: string; userIds: string[]; instanceId?: string; isGroup?: boolean }) =>
       setConversationAssignees(conversationId, userIds),
-    onMutate: ({ conversationId, userIds, instanceId, isGroup }) => {
-      if (!instanceId) return undefined
-      // Replace this conversation's assignees with the new set.
-      return patchByInstance(qc, instanceId, (rows) => [
-        ...rows.filter((r) => r.conversation_id !== conversationId),
-        ...userIds.map((uid) => ({
-          conversation_id: conversationId, user_id: uid,
-          assigned_by: PLACEHOLDER, assigned_at: new Date().toISOString(), is_group: !!isGroup,
-        })),
-      ])
-    },
-    ...h,
+    ...reconcileHandlers(qc),
   })
 }
 
 export function useUnassignConversationUser() {
   const qc = useQueryClient()
-  const h = optimisticHandlers(qc)
   return useMutation({
     mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string; instanceId?: string }) =>
       unassignConversationUser(conversationId, userId),
-    onMutate: ({ conversationId, userId, instanceId }) => {
-      if (!instanceId) return undefined
-      return patchByInstance(qc, instanceId, (rows) =>
-        rows.filter((r) => !(r.conversation_id === conversationId && r.user_id === userId)))
-    },
-    ...h,
+    ...reconcileHandlers(qc),
   })
 }
 
 export function useBulkAssign() {
   const qc = useQueryClient()
-  const h = optimisticHandlers(qc)
   return useMutation({
     mutationFn: ({ userId, conversationIds }: { userId: string; conversationIds: string[]; instanceId?: string; isGroup?: boolean }) =>
       bulkAssignConversations(userId, conversationIds),
-    onMutate: ({ userId, conversationIds, instanceId, isGroup }) => {
-      if (!instanceId) return undefined
-      const set = new Set(conversationIds)
-      // ON CONFLICT DO NOTHING: add userId only where absent (matches server).
-      return patchByInstance(qc, instanceId, (rows) => {
-        const has = new Set(rows.filter((r) => r.user_id === userId).map((r) => r.conversation_id))
-        const additions = conversationIds
-          .filter((cid) => !has.has(cid))
-          .map((cid) => ({
-            conversation_id: cid, user_id: userId,
-            assigned_by: PLACEHOLDER, assigned_at: new Date().toISOString(), is_group: isGroup ?? true,
-          }))
-        void set
-        return [...rows, ...additions]
-      })
-    },
-    ...h,
+    ...reconcileHandlers(qc),
   })
 }
 
 export function useBulkUnassign() {
   const qc = useQueryClient()
-  const h = optimisticHandlers(qc)
   return useMutation({
     mutationFn: ({ userId, conversationIds }: { userId: string; conversationIds: string[]; instanceId?: string }) =>
       bulkUnassignConversations(userId, conversationIds),
-    onMutate: ({ userId, conversationIds, instanceId }) => {
-      if (!instanceId) return undefined
-      const set = new Set(conversationIds)
-      return patchByInstance(qc, instanceId, (rows) =>
-        rows.filter((r) => !(r.user_id === userId && set.has(r.conversation_id))))
-    },
-    ...h,
+    ...reconcileHandlers(qc),
+  })
+}
+
+// ─── bulk BY FILTER (select-all-N-matching path) ─────────────────────────────
+//
+// These touch an unbounded set of rows server-side, so there is nothing to
+// patch optimistically — reconcile the console caches (summary + page +
+// byInstance) with a background refetch once the server op returns.
+function invalidateConsole(qc: ReturnType<typeof useQueryClient>, instanceId: string) {
+  void qc.invalidateQueries({ queryKey: assignmentKeys.summary(instanceId) })
+  void qc.invalidateQueries({ queryKey: ['assignments', 'page', instanceId] })
+}
+
+export function useAssignByFilter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ instanceId, mode, search, userId }:
+      { instanceId: string; mode: AssignmentMode; search: string; userId: string }) =>
+      assignByFilter(instanceId, mode, search, userId),
+    onSettled: (_d, _e, vars) => invalidateConsole(qc, vars.instanceId),
+  })
+}
+
+export function useUnassignByFilter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ instanceId, mode, search, userId }:
+      { instanceId: string; mode: AssignmentMode; search: string; userId?: string | null }) =>
+      unassignByFilter(instanceId, mode, search, userId ?? null),
+    onSettled: (_d, _e, vars) => invalidateConsole(qc, vars.instanceId),
   })
 }
 

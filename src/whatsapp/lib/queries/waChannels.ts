@@ -71,7 +71,14 @@ export function useWaBizChannel(businessId: string | null) {
     let hadError = false
     const ch = supabase
       .channel(`wa:biz:${businessId}`, { config: { private: true } })
-      .on('broadcast', { event: 'bump' }, ({ payload }) => applyBump(qc, payload))
+      .on('broadcast', { event: 'bump' }, ({ payload }) => {
+        applyBump(qc, payload)
+        // Keep the Assignment console's server-side counts + list live when a
+        // new inbound conversation arrives. Debounced + active-observer-only:
+        // a no-op cost unless an admin is actually on /admin/assignment.
+        inval(qc, ['assignments', 'summary'])
+        inval(qc, ['assignments', 'page'])
+      })
       .on('broadcast', { event: 'instance' }, ({ payload }) => {
         inval(qc, ['instances'])
         const id = (payload as { id?: string })?.id

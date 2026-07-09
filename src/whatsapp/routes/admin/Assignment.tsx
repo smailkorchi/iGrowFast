@@ -25,17 +25,17 @@ import { toast, normalizeError } from '../../lib/toast/store'
 import {
   assignmentKeys,
   useApplyAutoAssignBacklog,
+  useAssignByFilter,
+  useAssignmentPage,
+  useAssignmentSummary,
   useBulkAssign,
   useBulkUnassign,
-  useInstanceAssignments,
   useSetAutoAssign,
   useSetConversationAssignees,
+  useUnassignByFilter,
   useUnassignConversationUser,
 } from '../../lib/queries/assignments'
-import {
-  useFlattenedConversations,
-  type ConversationListRow,
-} from '../../lib/queries/conversations'
+import type { AssignmentMode, AssignmentPageRow } from '../../lib/assignmentApi'
 import type { AvatarConfig } from '../../lib/database.types'
 import { conversationLabel } from '../../lib/jid'
 import './Assignment.css'
@@ -66,11 +66,25 @@ export default function AdminAssignment() {
 
   const activeInstance = instances?.find((i) => i.id === instanceId) ?? null
 
-  // conversations + assignment realtime ride the unified wa:biz channel
-  // (AdminWaRealtime in the page wrapper) — no per-page channels here.
+  // Counts + list are SERVER-AUTHORITATIVE (mig 058). The old console tallied
+  // every chip + agent count over the first 50 client-loaded rows, so a
+  // 1,221-conversation instance read 50/50/0 and an agent owning 1,076 showed
+  // "0 ouvertes" (her rows sat past the loaded page). Now: one summary RPC for
+  // all counts, one keyset-paginated RPC for the visible page. Realtime still
+  // rides the unified wa:biz channel (AdminWaRealtime in the page wrapper),
+  // which invalidates these caches.
 
-  const convs           = useFlattenedConversations(instanceId, 'all')
-  const assignmentsQ    = useInstanceAssignments(instanceId)
+  // ── chip + debounced server-side search ────────────────────────────────────
+  const [chip, setChip] = useState<FilterChip>('unassigned')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const summaryQ = useAssignmentSummary(instanceId)
+  const pageQ    = useAssignmentPage(instanceId, chip as AssignmentMode, debouncedSearch)
 
   // Roster = active non-admin users only. Admins already have full access
   // to every conversation via RLS; routing them is meaningless.
@@ -85,114 +99,53 @@ export default function AdminAssignment() {
     [allProfiles],
   )
 
-  // ── assignments index: convId → user_id[] ─────────────────────────────────
+  // Loaded rows for the active chip (server already filtered + ordered by the
+  // same visibility rule as the inbox: not archived, open/pending, no @lid, no
+  // merged/broadcast/newsletter). The browser holds only what's been scrolled.
+  const visibleRows = useMemo<AssignmentPageRow[]>(
+    () => (pageQ.data?.pages ?? []).flat(),
+    [pageQ.data?.pages],
+  )
+
+  // convId → assignee user_ids for the loaded rows (drives pills + per-row swap
+  // logic). Rows outside the loaded pages are only ever touched via the
+  // by-filter path, which needs no client-side id.
   const assignmentsByConv = useMemo(() => {
     const m = new Map<string, string[]>()
-    for (const a of assignmentsQ.data ?? []) {
-      const arr = m.get(a.conversation_id) ?? []
-      arr.push(a.user_id)
-      m.set(a.conversation_id, arr)
-    }
+    for (const r of visibleRows) m.set(r.id, r.assigned_user_ids ?? [])
     return m
-  }, [assignmentsQ.data])
+  }, [visibleRows])
 
-  // ── client-side narrowing: chips + search ─────────────────────────────────
-  const [chip, setChip] = useState<FilterChip>('unassigned')
-  const [search, setSearch] = useState('')
-
-  // Identical visibility rules to /admin/conversations:
-  //   1. Hide unresolved @lid DMs (no book_name). Phone-JID DMs always visible.
-  //      Groups always visible.
-  //   2. Deduplicate by contact_id: keep the phone-JID conversation, hide
-  //      the @lid sibling when the contact has been resolved.
-  //   3. Search/chip narrowing happens downstream in visibleRows.
-  const baseRows = useMemo(() => {
-    let rows = convs.rows
-
-    // 1) hide unresolved @lid DMs
-    rows = rows.filter((c) => {
-      if (c.is_group) return true
-      const jid = c.remote_jid ?? ''
-      if (jid.endsWith('@s.whatsapp.net')) return true
-      return !!c.contact_book_name
-    })
-
-    // 2) dedup @lid siblings when a phone JID exists for the same contact_id
-    const contactIdToPhone = new Set<string>()
-    for (const c of rows) {
-      if (c.contact_id && c.remote_jid && !c.remote_jid.endsWith('@lid')) {
-        contactIdToPhone.add(c.contact_id)
-      }
-    }
-    rows = rows.filter((c) => {
-      if (!c.contact_id) return true
-      const jid = c.remote_jid ?? ''
-      if (!jid.endsWith('@lid')) return true
-      return !contactIdToPhone.has(c.contact_id)
-    })
-
-    return rows
-  }, [convs.rows])
-
-  // openCountsByUser is derived from baseRows (resolved conversations) so it
-  // matches what the inbox shows. A stray assignment against an unresolved
-  // conversation cannot inflate the count. Backend cleans these up too;
-  // this is defense-in-depth.
+  // Chip badges + each agent's open-load come straight from the summary RPC.
+  const summary = summaryQ.data
+  const chipCounts: Record<FilterChip, number> = {
+    unassigned: summary?.unassigned ?? 0,
+    one:        summary?.one ?? 0,
+    many:       summary?.many ?? 0,
+    dms:        summary?.dms ?? 0,
+    groups:     summary?.groups ?? 0,
+    all:        summary?.all ?? 0,
+  }
   const openCountsByUser = useMemo(() => {
-    const visibleIds = new Set<string>()
-    for (const r of baseRows) if (r.id) visibleIds.add(r.id)
     const m = new Map<string, number>()
-    for (const a of assignmentsQ.data ?? []) {
-      if (!visibleIds.has(a.conversation_id)) continue
-      m.set(a.user_id, (m.get(a.user_id) ?? 0) + 1)
-    }
+    for (const [uid, n] of Object.entries(summary?.agents ?? {})) m.set(uid, n)
     return m
-  }, [assignmentsQ.data, baseRows])
-
-  const chipCounts = useMemo(() => {
-    const out = { unassigned: 0, one: 0, many: 0, dms: 0, groups: 0, all: baseRows.length }
-    for (const c of baseRows) {
-      const n = assignmentsByConv.get(c.id ?? '')?.length ?? 0
-      if (n === 0) out.unassigned += 1
-      else if (n === 1) out.one += 1
-      else out.many += 1
-      if (c.is_group) out.groups += 1
-      else            out.dms += 1
-    }
-    return out
-  }, [baseRows, assignmentsByConv])
-
-  const visibleRows = useMemo(() => {
-    let rows = baseRows
-    rows = rows.filter((c) => {
-      const n = assignmentsByConv.get(c.id ?? '')?.length ?? 0
-      if (chip === 'unassigned') return n === 0
-      if (chip === 'one')        return n === 1
-      if (chip === 'many')       return n >= 2
-      if (chip === 'dms')        return c.is_group === false
-      if (chip === 'groups')     return c.is_group === true
-      return true
-    })
-    const q = search.trim().toLowerCase()
-    if (q) {
-      rows = rows.filter((c) => {
-        const label = conversationLabel(c.remote_jid ?? '', c.peer_display_name, c.contact_book_name).toLowerCase()
-        const jid   = (c.remote_jid ?? '').toLowerCase()
-        return label.includes(q) || jid.includes(q)
-      })
-    }
-    return rows
-  }, [baseRows, chip, search, assignmentsByConv])
+  }, [summary?.agents])
 
   // ── selection ─────────────────────────────────────────────────────────────
   // Reset selection when the filter context changes. Canonical key-based
-  // pattern from the React docs (avoid effect-driven cascades).
-  const selectionContextKey = `${instanceId ?? ''}|${chip}`
+  // pattern from the React docs (avoid effect-driven cascades). `selectAllMatching`
+  // means "the whole chip+search result set" (count = chipCounts[chip]) — the
+  // scale path that routes assign/unassign through the by-filter RPCs instead of
+  // shipping ids. It clears on any context change alongside the explicit set.
+  const selectionContextKey = `${instanceId ?? ''}|${chip}|${debouncedSearch}`
   const [selectionKey, setSelectionKey] = useState(selectionContextKey)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [selectAllMatching, setSelectAllMatching] = useState(false)
   if (selectionKey !== selectionContextKey) {
     setSelectionKey(selectionContextKey)
     setSelectedIds(new Set())
+    setSelectAllMatching(false)
   }
 
   // Selection kind is derived from the first selected item. Mode-locked:
@@ -208,6 +161,8 @@ export default function AdminAssignment() {
   function toggleSelected(id: string) {
     const row = visibleRows.find((r) => r.id === id)
     if (!row) return
+    // Manually picking a row drops out of "all matching" into explicit selection.
+    if (selectAllMatching) setSelectAllMatching(false)
     const rowKind: SelKind = row.is_group ? 'group' : 'dm'
     setSelectedIds((cur) => {
       const next = new Set(cur)
@@ -223,19 +178,33 @@ export default function AdminAssignment() {
       return next
     })
   }
-  function selectAllVisible() {
-    // If a kind is already locked, only pull in visible rows of that kind;
-    // otherwise lock to the first visible row's kind and grab all of those.
-    const firstVisible = visibleRows.find((r) => r.id != null)
-    if (!firstVisible) return
-    const lockKind: SelKind = selectionKind ?? (firstVisible.is_group ? 'group' : 'dm')
-    setSelectedIds(new Set(
-      visibleRows
-        .filter((r) => !!r.id && (r.is_group ? 'group' : 'dm') === lockKind)
-        .map((r) => r.id!),
-    ))
+  // "Tout sélectionner" selects the ENTIRE chip+search result set, not just the
+  // loaded page — assign/unassign then run server-side via the by-filter RPCs
+  // (no ids cross the wire). Homogeneous-kind locking only matters for the
+  // explicit id-list + group-multi-agent flows below.
+  function selectAllMatchingOn() {
+    setSelectedIds(new Set())
+    setSelectAllMatching(true)
   }
-  function clearSelection() { setSelectedIds(new Set()) }
+  function clearSelection() { setSelectedIds(new Set()); setSelectAllMatching(false) }
+
+  // Displayed selection size + whether a bulk CTA is live.
+  const selCount  = selectAllMatching ? chipCounts[chip] : selectedIds.size
+  const ctaActive = selectAllMatching || selectedIds.size > 0
+
+  // Infinite scroll: pull the next keyset page when the sentinel nears view.
+  const loadMoreRef = useRef<HTMLLIElement | null>(null)
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el) return
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && pageQ.hasNextPage && !pageQ.isFetchingNextPage) {
+        void pageQ.fetchNextPage()
+      }
+    }, { rootMargin: '240px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [pageQ.hasNextPage, pageQ.isFetchingNextPage, pageQ])
 
   // ── multi-agent picker (groups chip only) ─────────────────────────────────
   // On the Groups tab with ≥1 group selected, agent cards sprout a checkbox.
@@ -268,6 +237,8 @@ export default function AdminAssignment() {
   const unassignOne     = useUnassignConversationUser()
   const bulkAssignMut   = useBulkAssign()
   const bulkUnassignMut = useBulkUnassign()
+  const assignByFilterMut   = useAssignByFilter()
+  const unassignByFilterMut = useUnassignByFilter()
   const setAutoAssignMut = useSetAutoAssign()
   const applyBacklogMut  = useApplyAutoAssignBacklog()
   const deleteScheduledMut = useDeleteScheduledMessage()
@@ -329,10 +300,42 @@ export default function AdminAssignment() {
     // Reconcile the pool from server truth (drops assigned rows + purges any
     // stale/merged id that a client-cached page was still holding).
     void qc.invalidateQueries({ queryKey: ['conversations'] })
-    void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId ?? '_') })
+    void qc.invalidateQueries({ queryKey: assignmentKeys.all })
 
     clearSelection()
     if (failures > 0) toast.error(`${failures} conversation(s) n'ont pas pu être affectées.`)
+  }
+
+  // Agent-card click dispatcher: whole result set → server by-filter RPC;
+  // explicit selection → the resilient id-list path above.
+  async function assignAgentClicked(userId: string) {
+    if (selectAllMatching) return assignAllMatchingToUser(userId)
+    return assignSelectedToUser(userId)
+  }
+
+  async function assignAllMatchingToUser(userId: string) {
+    if (!instanceId) return
+    try {
+      const n = await assignByFilterMut.mutateAsync({
+        instanceId, mode: chip as AssignmentMode, search: debouncedSearch, userId,
+      })
+      toast.success(`${n} conversation(s) affectée(s).`)
+    } catch (e) { toast.error(normalizeError(e)) }
+    clearSelection()
+  }
+
+  // Whole-result-set unassign — strips every assignee from matching
+  // conversations. No per-conversation scheduled-message prompt (that gate is
+  // only offered on explicit id selections, below).
+  async function unassignAllMatching() {
+    if (!instanceId) return
+    try {
+      const n = await unassignByFilterMut.mutateAsync({
+        instanceId, mode: chip as AssignmentMode, search: debouncedSearch, userId: null,
+      })
+      toast.success(`${n} désaffectation(s).`)
+    } catch (e) { toast.error(normalizeError(e)) }
+    clearSelection()
   }
 
   async function removeAssignee(conversationId: string, userId: string) {
@@ -429,7 +432,7 @@ export default function AdminAssignment() {
       pairs.map((p) => bulkUnassignMut.mutateAsync({ userId: p.userId, conversationIds: p.conversationIds, instanceId: instanceId ?? undefined })),
     )
     void qc.invalidateQueries({ queryKey: ['conversations'] })
-    void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId ?? '_') })
+    void qc.invalidateQueries({ queryKey: assignmentKeys.all })
     clearSelection()
     const failed = results.filter((r) => r.status === 'rejected').length
     if (failed > 0) toast.error(`${failed} désaffectation(s) ont échoué.`)
@@ -469,7 +472,7 @@ export default function AdminAssignment() {
       jobs.map((j) => setAssignees.mutateAsync({ conversationId: j.convId, userIds: j.userIds, instanceId: instanceId ?? undefined, isGroup: true })),
     )
     void qc.invalidateQueries({ queryKey: ['conversations'] })
-    void qc.invalidateQueries({ queryKey: assignmentKeys.byInstance(instanceId ?? '_') })
+    void qc.invalidateQueries({ queryKey: assignmentKeys.all })
     clearSelection()
     setSelectedAgentIds(new Set())
     const failed = results.filter((r) => r.status === 'rejected').length
@@ -546,13 +549,9 @@ export default function AdminAssignment() {
   const [backlogPromptOpen, setBacklogPromptOpen] = useState(false)
   const [poolEmptyPromptOpen, setPoolEmptyPromptOpen] = useState(false)
 
-  // Count of existing unassigned DMs for this instance — drives the smart
-  // prompt that fires right after Off→On. React Compiler auto-memoizes this.
-  let unassignedDmCount = 0
-  for (const c of baseRows) {
-    if (c.is_group) continue
-    if ((assignmentsByConv.get(c.id ?? '')?.length ?? 0) === 0) unassignedDmCount += 1
-  }
+  // Existing unassigned DMs (server truth from the summary RPC) — drives the
+  // smart backlog prompt that fires right after Off→On.
+  const unassignedDmCount = summary?.unassigned_dms ?? 0
 
   async function applyBacklog() {
     if (!instanceId) return
@@ -703,35 +702,50 @@ export default function AdminAssignment() {
               onChange={(e) => setSearch(e.target.value)}
             />
             <div className="convpane__bulk">
+              {/* "Tout sélectionner" = the ENTIRE chip+search result set (count =
+                  chipCounts[chip]), not just the loaded page — acts server-side
+                  via the by-filter RPCs. */}
               <button
                 type="button"
                 className="convpane__select-all"
                 onClick={() => {
-                  const allChecked = visibleRows.length > 0 && selectedIds.size === visibleRows.length
-                  if (allChecked) clearSelection(); else selectAllVisible()
+                  if (selectAllMatching) clearSelection()
+                  else if (chipCounts[chip] > 0) selectAllMatchingOn()
                 }}
-                aria-pressed={visibleRows.length > 0 && selectedIds.size === visibleRows.length}
+                aria-pressed={selectAllMatching}
               >
                 <CheckSquare
-                  state={
-                    selectedIds.size === 0 ? 'off'
-                    : selectedIds.size === visibleRows.length ? 'on'
-                    : 'mixed'
-                  }
+                  state={selectAllMatching ? 'on' : selectedIds.size > 0 ? 'mixed' : 'off'}
                 />
-                <span>Tout sélectionner</span>
+                <span>Tout sélectionner{chipCounts[chip] > 0 ? ` (${chipCounts[chip]})` : ''}</span>
               </button>
-              <span className={'convpane__bulk-count' + (selectedIds.size > 0 ? ' is-active' : '')}>
-                {selectedIds.size}
-                {selectionKind === 'dm'    && ' DM sélectionné' + (selectedIds.size === 1 ? '' : 's')}
-                {selectionKind === 'group' && ' groupe' + (selectedIds.size === 1 ? '' : 's') + ' sélectionné' + (selectedIds.size === 1 ? '' : 's')}
-                {selectionKind === null    && ' sélectionné'}
+              <span className={'convpane__bulk-count' + (ctaActive ? ' is-active' : '')}>
+                {selCount}
+                {selectAllMatching
+                  ? ' sélectionné' + (selCount === 1 ? '' : 's') + ' (tout)'
+                  : selectionKind === 'dm'    ? ' DM sélectionné' + (selCount === 1 ? '' : 's')
+                  : selectionKind === 'group' ? ' groupe' + (selCount === 1 ? '' : 's') + ' sélectionné' + (selCount === 1 ? '' : 's')
+                  : ' sélectionné'}
               </span>
-              {selectedIds.size > 0 && (
+              {ctaActive && (
                 <button type="button" className="convpane__bulk-clear" onClick={clearSelection}>Effacer</button>
               )}
-              {/* IGF ADDITION (donor gap): bulk unassign of the selection. */}
+              {/* IGF ADDITION (donor gap): bulk unassign. All-matching → by-filter
+                  RPC; explicit selection → id-list path with the scheduled-msg gate. */}
               {(() => {
+                if (selectAllMatching) {
+                  if (chip === 'unassigned') return null
+                  return (
+                    <button
+                      type="button"
+                      className="convpane__bulk-clear convpane__bulk-unassign"
+                      disabled={unassignByFilterMut.isPending}
+                      onClick={() => void unassignAllMatching()}
+                    >
+                      Désassigner tout
+                    </button>
+                  )
+                }
                 const withAssignees = Array.from(selectedIds).filter((id) => (assignmentsByConv.get(id) ?? []).length > 0).length
                 return withAssignees > 0 ? (
                   <button
@@ -748,8 +762,8 @@ export default function AdminAssignment() {
           </div>
 
           <ul className="convpane__list">
-            {convs.isLoading && <li className="convpane__empty">Chargement…</li>}
-            {!convs.isLoading && visibleRows.length === 0 && (
+            {pageQ.isLoading && <li className="convpane__empty">Chargement…</li>}
+            {!pageQ.isLoading && visibleRows.length === 0 && (
               <li className="convpane__empty">Aucune conversation ne correspond à ce filtre.</li>
             )}
             <AnimatePresence initial={false}>
@@ -757,14 +771,19 @@ export default function AdminAssignment() {
                 <ConversationRow
                   key={c.id}
                   c={c}
-                  assignees={assignmentsByConv.get(c.id!) ?? []}
+                  assignees={c.assigned_user_ids}
                   profilesById={agents}
-                  selected={!!c.id && selectedIds.has(c.id)}
-                  onToggle={() => c.id && toggleSelected(c.id)}
-                  onRemoveAssignee={(uid) => c.id && removeAssignee(c.id, uid)}
+                  selected={selectedIds.has(c.id)}
+                  onToggle={() => toggleSelected(c.id)}
+                  onRemoveAssignee={(uid) => removeAssignee(c.id, uid)}
                 />
               ))}
             </AnimatePresence>
+            {pageQ.hasNextPage && (
+              <li ref={loadMoreRef} className="convpane__empty">
+                {pageQ.isFetchingNextPage ? 'Chargement…' : 'Faites défiler pour charger plus'}
+              </li>
+            )}
           </ul>
         </div>
 
@@ -814,7 +833,6 @@ export default function AdminAssignment() {
               {agents.map((p) => {
                 const openCount = openCountsByUser.get(p.id) ?? 0
                 const isSelf = p.id === me?.id
-                const ctaActive = selectedIds.size > 0
                 const inPicker = agentPickerActive
                 const isPicked = inPicker && selectedAgentIds.has(p.id)
                 return (
@@ -863,10 +881,10 @@ export default function AdminAssignment() {
                       <button
                         type="button"
                         className={'agentcard__assign-btn' + (ctaActive ? ' is-cta' : '')}
-                        disabled={!ctaActive || setAssignees.isPending || bulkAssignMut.isPending}
-                        onClick={() => assignSelectedToUser(p.id)}
+                        disabled={!ctaActive || setAssignees.isPending || bulkAssignMut.isPending || assignByFilterMut.isPending}
+                        onClick={() => void assignAgentClicked(p.id)}
                       >
-                        {ctaActive ? `Assigner ${selectedIds.size}` : 'Assigner'}
+                        {ctaActive ? `Assigner ${selCount}` : 'Assigner'}
                       </button>
                     )}
                   </motion.li>
@@ -905,7 +923,7 @@ export default function AdminAssignment() {
 function ConversationRow({
   c, assignees, profilesById, selected, onToggle, onRemoveAssignee,
 }: {
-  c: ConversationListRow
+  c: AssignmentPageRow
   assignees: string[]
   profilesById: { id: string; full_name: string | null; email: string; avatar_config: unknown; avatar_url?: string | null }[]
   selected: boolean
