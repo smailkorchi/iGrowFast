@@ -10,7 +10,6 @@ import { useAuth } from '../../../lib/auth'
 import { toast, normalizeError } from '../../../lib/toast/store'
 import {
   useScheduledMessages,
-  useScheduledMessagesRealtime,
   useCreateScheduledMessage,
   useUpdateScheduledMessage,
   useDeleteScheduledMessage,
@@ -55,7 +54,7 @@ export function ScheduledMessagesPanel({
   onCancel,
 }: ScheduledMessagesPanelProps) {
   const { data: scheduled } = useScheduledMessages(conversationId)
-  useScheduledMessagesRealtime(conversationId, instanceId)
+  // scheduled_messages realtime rides the unified wa:biz channel (AdminWaRealtime).
   const { session, profile } = useAuth()
   const currentUid = session?.user.id ?? null
   const isAdmin = profile?.role === 'admin'
