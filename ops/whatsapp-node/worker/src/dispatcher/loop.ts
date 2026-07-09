@@ -55,6 +55,19 @@ interface OutboundMessage {
   sent_by_agent_id: string | null
 }
 
+/** One-round-trip prep payload from whatsapp.dispatch_prep (Phase 3b): gate +
+ *  claimed row + pacing snapshot + dereferenced message + token wait, folded so
+ *  the worker does 2 DB round-trips per send (prep + mark) instead of 6. */
+interface DispatchPrep {
+  gate: { allowed: boolean; reason: string | null; resume_at: string | null }
+  claimed: (QueuedAction & { dispatched_at: string | null; completed_at: string | null }) | null
+  pacing?: { last_send_at: string | null; last_send_conversation_id: string | null; remote_jid: string }
+  pacing_missing?: boolean
+  message?: OutboundMessage | null
+  deref_miss?: boolean
+  token_wait_ms?: number
+}
+
 const MAX_ATTEMPTS = 4
 const BACKOFF_SECONDS = [2, 8, 30, 120]   // attempts 1→2, 2→3, 3→4, 4→dead
 
@@ -229,73 +242,55 @@ async function iterate(r: RunningLoop): Promise<void> {
   // viewing, regardless of the clock or content budget. They still serialize
   // through this single per-number loop.
   const now = new Date()
-  let contentAllowed = true
-  let contentResumeMs = 5_000   // how long to idle when only content is blocked
+  const windowOpen = withinDispatchWindow(r.instance, now)
+  let contentResumeMs = windowOpen ? 5_000 : msUntilNextMinute(now)
 
-  if (!withinDispatchWindow(r.instance, now)) {
-    contentAllowed = false
-    contentResumeMs = msUntilNextMinute(now)
-  } else {
-    const gate = await pool.query<{ allowed: boolean; reason: string | null; resume_at: string | null }>(
-      'SELECT allowed, reason, resume_at FROM whatsapp.dispatch_gate_check($1)',
-      [r.instance.id],
-    )
-    const g = gate.rows[0]
-    if (g && !g.allowed) {
-      contentAllowed = false
-      const wait = g.resume_at ? Math.max(1_000, new Date(g.resume_at).getTime() - Date.now()) : 60_000
-      contentResumeMs = Math.min(wait, 5 * 60 * 1000)
-      log.debug('dispatcher.content_gated', { number_id: r.instance.id, reason: g.reason, wait_ms: wait })
-    }
+  // Phase 3b: ONE atomic call folds gate + claim + pacing-ctx + message deref +
+  // token (6→2 DB round-trips per send). withinDispatchWindow stays in JS (business
+  // hours, no DB); the pure-JS pacing math (crossContactGap / canned burst) runs in
+  // processAction from the returned pacing snapshot.
+  const prepRes = await pool.query<{ prep: DispatchPrep }>(
+    'SELECT whatsapp.dispatch_prep($1, $2, $3, $4) AS prep',
+    [r.instance.id, windowOpen, r.instance.sendRatePerMin, r.instance.minuteBurstCap],
+  )
+  const prep = prepRes.rows[0]?.prep ?? null
+  const gate = prep?.gate
+  if (windowOpen && gate && !gate.allowed) {
+    const wait = gate.resume_at ? Math.max(1_000, new Date(gate.resume_at).getTime() - Date.now()) : 60_000
+    contentResumeMs = Math.min(wait, 5 * 60 * 1000)
+    log.debug('dispatcher.content_gated', { number_id: r.instance.id, reason: gate.reason, wait_ms: wait })
   }
 
-  // Claim — when content is gated, only passive actions are eligible.
-  const claim = await pool.query<QueuedAction & { dispatched_at: string | null; completed_at: string | null }>(
-    'SELECT * FROM whatsapp.queue_claim_next($1, $2)',
-    [r.instance.id, contentAllowed],
-  )
-  const row = claim.rows[0] ?? null
+  const row = prep?.claimed ?? null
   if (!row || row.id == null) {
-    // Nothing claimable. If content is gated there may be content rows
-    // waiting — sleep until the gate reopens, but stay wakeable by NOTIFY so
-    // a fresh passive action (read/typing) dispatches immediately.
+    // Nothing claimable — idle, but stay wakeable via wa:node so a fresh passive
+    // action dispatches immediately. When content is gated, sleep to the reopen.
     await drivePresence(r)
-    await waitForWakeOrTimeout(r, contentAllowed ? 5_000 : contentResumeMs)
+    await waitForWakeOrTimeout(r, (windowOpen && gate?.allowed) ? 5_000 : contentResumeMs)
     return
   }
 
   r.inflight = true
   setDispatchingCount(inflightCount())
   try {
-    await processAction(r, row)
+    await processAction(r, prep as DispatchPrep)
   } finally {
     r.inflight = false
     setDispatchingCount(inflightCount())
   }
 }
 
-async function processAction(r: RunningLoop, row: QueuedAction): Promise<void> {
-  // 2. Read pacing + conversation context (remote_jid comes from payload if
-  // present — RPCs now embed it — but fall back to conversations row).
-  const ctx = await pool.query<{
-    last_send_at: Date | null
-    last_send_conversation_id: string | null
-    remote_jid: string
-  }>(
-    `SELECT p.last_send_at,
-            p.last_send_conversation_id,
-            c.remote_jid
-       FROM whatsapp.number_pacing_state p
-  LEFT JOIN whatsapp.conversations c ON c.id = $2
-      WHERE p.number_id = $1`,
-    [row.number_id, row.conversation_id],
-  )
-  const pacing = ctx.rows[0]
-  if (!pacing) {
+async function processAction(r: RunningLoop, prep: DispatchPrep): Promise<void> {
+  const row = prep.claimed as QueuedAction
+  // 2. Pacing + conversation context — folded into dispatch_prep (Phase 3b). A
+  // missing number_pacing_state row markFails+retries, exactly as the old path.
+  if (prep.pacing_missing || !prep.pacing) {
     log.error('dispatcher.missing_pacing_state', { number_id: row.number_id })
     await markFailed(row.id, 'pacing state missing', 30)
     return
   }
+  const pacing = prep.pacing
+  const lastSendAt = pacing.last_send_at ? new Date(pacing.last_send_at) : null
   const remoteJid = readStringOpt(row.payload, 'remote_jid') ?? pacing.remote_jid
 
   // 2b. For send_* actions, dereference the messages row up-front so we know
@@ -303,18 +298,14 @@ async function processAction(r: RunningLoop, row: QueuedAction): Promise<void> {
   // after dispatch.
   let outboundMsg: OutboundMessage | null = null
   if (isMessageBackedAction(row.action_type)) {
-    const messageId = readStringOpt(row.payload, 'message_id')
-    if (!messageId) {
-      log.error('dispatcher.payload_missing_message_id', { queue_id: row.id, action: row.action_type })
-      await markDead(row.id, 'payload missing message_id')
+    // Message deref folded into dispatch_prep. deref_miss = no message_id OR the
+    // messages row vanished; either way markDead (was two separate branches).
+    if (prep.deref_miss || !prep.message) {
+      log.error('dispatcher.message_missing', { queue_id: row.id, action: row.action_type })
+      await markDead(row.id, 'message missing (no message_id or not found)')
       return
     }
-    outboundMsg = await fetchOutboundMessage(messageId)
-    if (!outboundMsg) {
-      log.error('dispatcher.message_not_found', { queue_id: row.id, message_id: messageId })
-      await markDead(row.id, `message ${messageId} not found`)
-      return
-    }
+    outboundMsg = prep.message
     // NOTE: we deliberately do NOT write an intermediate 'DISPATCHING' status
     // here. The optimistic bubble already renders a clock from 'PENDING'
     // (messageStatus.ts maps DISPATCHING and PENDING identically), so the
@@ -352,20 +343,15 @@ async function processAction(r: RunningLoop, row: QueuedAction): Promise<void> {
 
   const cross = crossContactGap({
     now: new Date(),
-    numberLastSendAt: pacing.last_send_at,
+    numberLastSendAt: lastSendAt,
     numberLastSendConversationId: pacing.last_send_conversation_id,
     thisConversationId: row.conversation_id,
     isContentSend,
   })
 
-  let tokenWaitMs = 0
-  if (isContentSend && !sameContact) {
-    const tb = await pool.query<{ wait_ms: number }>(
-      'SELECT whatsapp.pacing_take_token($1, $2, $3) AS wait_ms',
-      [row.number_id, r.instance.sendRatePerMin, r.instance.minuteBurstCap],
-    )
-    tokenWaitMs = tb.rows[0]?.wait_ms ?? 0
-  }
+  // Token already taken inside dispatch_prep (content && !sameContact); the wait it
+  // computed rides back in the prep result (Phase 3b — no separate round-trip).
+  const tokenWaitMs = prep.token_wait_ms ?? 0
 
   // Canned multi-attachment human spacing. When a quick reply / scheduled
   // message drains several media rows to the SAME contact, the bucket + gap are
@@ -833,19 +819,9 @@ function isSendType(t: QueuedAction['action_type']): boolean {
       || t === 'send_contact'
 }
 
-// ---- message dereference helpers ------------------------------------------
-
-async function fetchOutboundMessage(id: string): Promise<OutboundMessage | null> {
-  const res = await pool.query<OutboundMessage>(
-    `SELECT id, conversation_id, instance_id, kind, body,
-            media_storage_bucket, media_storage_key, media_mime, media_meta,
-            reply_to_message_id, sent_by_agent_id
-       FROM whatsapp.messages_decrypted
-      WHERE id = $1`,
-    [id],
-  )
-  return res.rows[0] ?? null
-}
+// ---- message helpers -------------------------------------------------------
+// (fetchOutboundMessage removed in Phase 3b — the deref is folded into
+//  whatsapp.dispatch_prep and rides back in the prep result.)
 
 async function updateMessageStatus(id: string, status: string): Promise<void> {
   await pool.query(
