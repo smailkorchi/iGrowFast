@@ -9,7 +9,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { supabase } from '../supabase'
-import type { MessageStep } from './quickReplies'
+import { businessIdOf, type MessageStep } from './quickReplies'
 
 export type ScheduledMessageStatus = 'pending' | 'sent' | 'cancelled' | 'failed'
 
@@ -54,25 +54,31 @@ export function useScheduledMessages(conversationId: string | null) {
   })
 }
 
-export function useScheduledMessagesRealtime(conversationId: string | null) {
+export function useScheduledMessagesRealtime(conversationId: string | null, instanceId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
-    if (!conversationId) return
-    const channel = supabase
-      .channel(`sm-${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'whatsapp',
-          table: 'scheduled_messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => { void qc.invalidateQueries({ queryKey: scheduledMessageKeys.list(conversationId) }) },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [conversationId, qc])
+    if (!conversationId || !instanceId) return
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Enterprise Phase 2b: scheduled_messages left the supabase_realtime publication
+    // (mig 052); driven by the wa:biz:<business_id> 'scheduled' broadcast (DB trigger,
+    // mig 051). Admin-only panel. The broadcast carries conversation_id; invalidate
+    // this conversation's list only when the event is for it.
+    void businessIdOf(instanceId)
+      .then((biz) => {
+        if (cancelled) return
+        channel = supabase
+          .channel(`wa:biz:${biz}`, { config: { private: true } })
+          .on('broadcast', { event: 'scheduled' }, ({ payload }) => {
+            if ((payload as { conversation_id?: string })?.conversation_id === conversationId) {
+              void qc.invalidateQueries({ queryKey: scheduledMessageKeys.list(conversationId) })
+            }
+          })
+          .subscribe()
+      })
+      .catch(() => { /* resolver failure surfaces through the list query */ })
+    return () => { cancelled = true; if (channel) void supabase.removeChannel(channel) }
+  }, [conversationId, instanceId, qc])
 }
 
 export function useCreateScheduledMessage() {

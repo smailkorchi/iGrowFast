@@ -55,7 +55,7 @@ export function ScheduledMessagesPanel({
   onCancel,
 }: ScheduledMessagesPanelProps) {
   const { data: scheduled } = useScheduledMessages(conversationId)
-  useScheduledMessagesRealtime(conversationId)
+  useScheduledMessagesRealtime(conversationId, instanceId)
   const { session, profile } = useAuth()
   const currentUid = session?.user.id ?? null
   const isAdmin = profile?.role === 'admin'

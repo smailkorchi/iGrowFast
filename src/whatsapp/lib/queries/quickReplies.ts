@@ -67,7 +67,7 @@ export interface QuickReply {
 // instances, so every exported hook KEEPS its instanceId signature and we
 // resolve the owning business once per instance (immutable — cached forever).
 const bizCache = new Map<string, string>()
-async function businessIdOf(instanceId: string): Promise<string> {
+export async function businessIdOf(instanceId: string): Promise<string> {
   const hit = bizCache.get(instanceId)
   if (hit) return hit
   const { data, error } = await supabase
@@ -111,16 +111,18 @@ export function useQuickRepliesRealtime(instanceId: string | null) {
     if (!instanceId) return
     let channel: ReturnType<typeof supabase.channel> | null = null
     let cancelled = false
+    // Enterprise Phase 2b: quick_replies left the supabase_realtime publication
+    // (mig 052); driven by the wa:biz:<business_id> 'quick_reply' broadcast (DB
+    // trigger, mig 051) → invalidate this instance's list. Admin-only panel, so
+    // wa:biz (business-admin gated) is the correct topic.
     void businessIdOf(instanceId)
       .then((biz) => {
         if (cancelled) return
         channel = supabase
-          .channel(`qr-${instanceId}`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'whatsapp', table: 'quick_replies', filter: `business_id=eq.${biz}` },
-            () => { void qc.invalidateQueries({ queryKey: quickReplyKeys.list(instanceId) }) },
-          )
+          .channel(`wa:biz:${biz}`, { config: { private: true } })
+          .on('broadcast', { event: 'quick_reply' }, () => {
+            void qc.invalidateQueries({ queryKey: quickReplyKeys.list(instanceId) })
+          })
           .subscribe()
       })
       .catch(() => { /* resolver failure surfaces through the list query */ })
