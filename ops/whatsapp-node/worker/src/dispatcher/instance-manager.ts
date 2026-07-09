@@ -324,8 +324,9 @@ async function fetchDisconnectReason(name: string): Promise<number | null> {
 }
 
 // Acts on the already-fetched Evolution `state` for one instance. Called only
-// when auto_reconnect=true and lifecycle <> 'banned'.
-async function runWatchdog(id: string, name: string, state: string): Promise<void> {
+// when auto_reconnect=true and lifecycle <> 'banned'. `budget` is a per-cycle
+// restart allowance shared across the whole reconcile fan-out.
+async function runWatchdog(id: string, name: string, state: string, budget: { left: number }): Promise<void> {
   const s = wdState(id)
   const now = Date.now()
 
@@ -370,74 +371,130 @@ async function runWatchdog(id: string, name: string, state: string): Promise<voi
     return
   }
 
+  // Per-cycle restart budget — bound the mass-disconnect stampede. On the FIRST
+  // tick after a mass disconnect every down instance has lastRestartAt=null and
+  // would restart at once, slamming a recovering Evolution that is already
+  // auto-reconnecting its persisted sessions (impedes recovery). Out of budget →
+  // leave state untouched so this instance is retried next cycle (the drip).
+  if (budget.left <= 0) return
+  budget.left -= 1
   s.attempts += 1
   s.lastRestartAt = now
   const ok = await restartEvolutionInstance(name)
-  log.warn('watchdog.restart', { number_id: id, name, attempt: s.attempts, state, reason, ok })
+  log.warn('watchdog.restart', { number_id: id, name, attempt: s.attempts, state, reason, ok, budget_left: budget.left })
 }
 
+// Reconcile fan-out bounds (W6). Cap concurrent Evolution HTTP so a large node
+// doesn't fire N connectionState/restart calls at once; env-overridable.
+const RECONCILE_CONCURRENCY = (() => {
+  const raw = process.env['RECONCILE_CONCURRENCY']
+  const n = raw ? parseInt(raw, 10) : 8
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 32) : 8
+})()
+// Per-cycle restart budget = max(FLOOR, ceil(instances / DIVISOR)) — drips
+// restarts so a mass-disconnect can't stampede a recovering Evolution.
+const RESTART_BUDGET_DIVISOR = 20
+const RESTART_BUDGET_FLOOR = 3
+
+interface ReconcileRow {
+  id: string
+  name: string
+  status: InstanceStatus
+  auto_reconnect: boolean
+  lifecycle_state: InstanceLifecycleState
+}
+
+// Re-entrancy guard: the 45s timer fires unconditionally, but the concurrency
+// cap serializes HTTP so a mass-disconnect cycle can exceed 45s. A 2nd concurrent
+// pass would double the restart budget and race the shared watchdog state.
+let reconcileInflight = false
+
 async function reconcileEvolutionStatuses(): Promise<void> {
-  const { rows } = await pool.query<{ id: string; name: string; status: InstanceStatus; auto_reconnect: boolean; lifecycle_state: InstanceLifecycleState }>(
-    // Node-scoped: fetchEvolutionState/watchdog talk to THIS node's local Evolution,
-    // which only hosts this node's sessions — polling another node's instance here
-    // would read 'close'/404 and wrongly flap it disconnected or restart it.
-    `SELECT id, evolution_instance_name AS name, status, auto_reconnect, lifecycle_state
-       FROM whatsapp.whatsapp_instances
-      WHERE status <> 'pending' AND node_id = $1`,   // 'pending' = active QR pairing; leave it alone
-    [config.nodeId],
-  )
-  if (rows.length === 0) return
+  if (reconcileInflight) return
+  reconcileInflight = true
+  try {
+    const { rows } = await pool.query<ReconcileRow>(
+      // Node-scoped: fetchEvolutionState/watchdog talk to THIS node's local Evolution,
+      // which only hosts this node's sessions — polling another node's instance here
+      // would read 'close'/404 and wrongly flap it disconnected or restart it.
+      `SELECT id, evolution_instance_name AS name, status, auto_reconnect, lifecycle_state
+         FROM whatsapp.whatsapp_instances
+        WHERE status <> 'pending' AND node_id = $1`,   // 'pending' = active QR pairing; leave it alone
+      [config.nodeId],
+    )
+    if (rows.length === 0) return
 
-  let corrected = 0
-  await Promise.allSettled(rows.map(async (r) => {
-    const state = await fetchEvolutionState(r.name)
-    if (!state) return
+    // Shared per-cycle restart budget across the fan-out.
+    const budget = { left: Math.max(RESTART_BUDGET_FLOOR, Math.ceil(rows.length / RESTART_BUDGET_DIVISOR)) }
+    let corrected = 0
 
-    // Auto-reconnect watchdog (opt-in, never on a banned number). Runs on the
-    // raw Evolution state — including 'connecting' for the stuck-hang case.
-    if (r.auto_reconnect && r.lifecycle_state !== 'banned') {
-      await runWatchdog(r.id, r.name, state).catch((err) =>
-        log.error('watchdog.failed', { number_id: r.id, error: err instanceof Error ? err.message : String(err) }),
-      )
-    } else {
-      watchdog.delete(r.id) // disabled → drop episode state so re-enabling starts fresh
+    const reconcileOne = async (r: ReconcileRow): Promise<void> => {
+      const state = await fetchEvolutionState(r.name)
+      if (!state) return
+
+      // Auto-reconnect watchdog (opt-in, never on a banned number). Runs on the
+      // raw Evolution state — including 'connecting' for the stuck-hang case.
+      if (r.auto_reconnect && r.lifecycle_state !== 'banned') {
+        await runWatchdog(r.id, r.name, state, budget).catch((err) =>
+          log.error('watchdog.failed', { number_id: r.id, error: err instanceof Error ? err.message : String(err) }),
+        )
+      } else {
+        watchdog.delete(r.id) // disabled → drop episode state so re-enabling starts fresh
+      }
+
+      if (state === 'open' && r.status !== 'connected') {
+        const res = await pool.query(
+          `UPDATE whatsapp.whatsapp_instances
+              SET status = 'connected'::whatsapp.instance_status,
+                  status_detail = 'reconciled:open',
+                  paired_at = COALESCE(paired_at, now()),
+                  qr_code = NULL
+            WHERE id = $1 AND status <> 'connected'`,
+          [r.id],
+        )
+        if ((res.rowCount ?? 0) > 0) {
+          corrected++
+          log.warn('instance.status.reconciled', {
+            number_id: r.id, name: r.name, from: r.status, to: 'connected', evo_state: state,
+          })
+        }
+      } else if (state === 'close' && r.status !== 'disconnected') {
+        const res = await pool.query(
+          `UPDATE whatsapp.whatsapp_instances
+              SET status = 'disconnected'::whatsapp.instance_status,
+                  status_detail = 'reconciled:close'
+            WHERE id = $1 AND status NOT IN ('disconnected', 'pending')`,
+          [r.id],
+        )
+        if ((res.rowCount ?? 0) > 0) {
+          corrected++
+          log.warn('instance.status.reconciled', {
+            number_id: r.id, name: r.name, from: r.status, to: 'disconnected', evo_state: state,
+          })
+        }
+      }
     }
 
-    if (state === 'open' && r.status !== 'connected') {
-      const res = await pool.query(
-        `UPDATE whatsapp.whatsapp_instances
-            SET status = 'connected'::whatsapp.instance_status,
-                status_detail = 'reconciled:open',
-                paired_at = COALESCE(paired_at, now()),
-                qr_code = NULL
-          WHERE id = $1 AND status <> 'connected'`,
-        [r.id],
-      )
-      if ((res.rowCount ?? 0) > 0) {
-        corrected++
-        log.warn('instance.status.reconciled', {
-          number_id: r.id, name: r.name, from: r.status, to: 'connected', evo_state: state,
-        })
+    // Concurrency-capped fan-out: a fixed pool of workers drains a shared cursor,
+    // so at most RECONCILE_CONCURRENCY Evolution calls are in flight at once.
+    let cursor = 0
+    const workerCount = Math.min(RECONCILE_CONCURRENCY, rows.length)
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+      while (cursor < rows.length) {
+        const r = rows[cursor++]!
+        try {
+          await reconcileOne(r)
+        } catch (err) {
+          log.error('reconcile.row_failed', { number_id: r.id, error: err instanceof Error ? err.message : String(err) })
+        }
       }
-    } else if (state === 'close' && r.status !== 'disconnected') {
-      const res = await pool.query(
-        `UPDATE whatsapp.whatsapp_instances
-            SET status = 'disconnected'::whatsapp.instance_status,
-                status_detail = 'reconciled:close'
-          WHERE id = $1 AND status NOT IN ('disconnected', 'pending')`,
-        [r.id],
-      )
-      if ((res.rowCount ?? 0) > 0) {
-        corrected++
-        log.warn('instance.status.reconciled', {
-          number_id: r.id, name: r.name, from: r.status, to: 'disconnected', evo_state: state,
-        })
-      }
-    }
-  }))
+    }))
 
-  if (corrected > 0) {
-    log.info('instance.status.reconcile_summary', { corrected, scanned: rows.length })
+    if (corrected > 0) {
+      log.info('instance.status.reconcile_summary', { corrected, scanned: rows.length })
+    }
+  } finally {
+    reconcileInflight = false
   }
 }
 
