@@ -120,53 +120,24 @@ export function useInstancesRealtime() {
   const { data: instances } = useInstances()
   const businessId = instances?.[0]?.business_id ?? null
   useEffect(() => {
-    // wa:biz dual-run (Phase 2b). The DB trigger _broadcast_instance_control now
-    // emits a minimal {id} 'instance' event to wa:biz:<business_id> on every
-    // whatsapp_instances change; invalidate the list to refetch. Runs ALONGSIDE
-    // the postgres_changes patch below until verified, then that binding is
-    // removed and whatsapp_instances leaves the supabase_realtime publication.
-    let bizChannel: ReturnType<typeof supabase.channel> | null = null
-    if (businessId) {
-      bizChannel = supabase
-        .channel(`wa:biz:${businessId}`, { config: { private: true } })
-        .on('broadcast', { event: 'instance' }, () => {
-          void qc.invalidateQueries({ queryKey: instanceKeys.list })
-        })
-        .subscribe()
-    }
-    const channel = supabase
-      .channel('numbers-page-instances')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'whatsapp_instances' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const row = payload.new as WhatsappInstance
-            qc.setQueryData<WhatsappInstance[]>(instanceKeys.list, (prev) =>
-              [row, ...(prev ?? []).filter((x) => x.id !== row.id)],
-            )
-          } else if (payload.eventType === 'UPDATE') {
-            const row = payload.new as WhatsappInstance
-            qc.setQueryData<WhatsappInstance[]>(instanceKeys.list, (prev) =>
-              (prev ?? []).map((x) => (x.id === row.id ? row : x)),
-            )
-            qc.setQueryData<WhatsappInstance | null>(instanceKeys.one(row.id), row)
-          } else if (payload.eventType === 'DELETE') {
-            const oldRow = payload.old as { id?: string }
-            if (oldRow.id) {
-              qc.setQueryData<WhatsappInstance[]>(instanceKeys.list, (prev) =>
-                (prev ?? []).filter((x) => x.id !== oldRow.id),
-              )
-              qc.removeQueries({ queryKey: instanceKeys.one(oldRow.id) })
-            }
-          }
-        },
-      )
+    // Enterprise Phase 2b: whatsapp_instances left the supabase_realtime publication
+    // (mig 050), so the Numbers list is driven SOLELY by the wa:biz:<business_id>
+    // 'instance' broadcast (DB trigger _broadcast_instance_control, mig 049).
+    // Invalidate the (low-cardinality) list to refetch, plus the changed instance's
+    // single-cache so an open NumberDetail refreshes — equivalent coverage to the
+    // retired postgres_changes in-place patch, without the whatsapp_instances WAL
+    // decode / per-subscriber cost. Event 'instance' is distinct from the
+    // conversation-bump 'bump' event on the same wa:biz topic.
+    if (!businessId) return
+    const bizChannel = supabase
+      .channel(`wa:biz:${businessId}`, { config: { private: true } })
+      .on('broadcast', { event: 'instance' }, ({ payload }) => {
+        void qc.invalidateQueries({ queryKey: instanceKeys.list })
+        const id = (payload as { id?: string })?.id
+        if (id) void qc.invalidateQueries({ queryKey: instanceKeys.one(id) })
+      })
       .subscribe()
-    return () => {
-      void supabase.removeChannel(channel)
-      if (bizChannel) void supabase.removeChannel(bizChannel)
-    }
+    return () => { void supabase.removeChannel(bizChannel) }
   }, [qc, businessId])
 }
 
@@ -330,34 +301,13 @@ export interface InstanceSyncMetrics {
 }
 
 /**
- * Poll-based live sync metrics for the pair modal's "syncing" phase.
- * Polls every 2 s while enabled; realtime invalidation on the relevant
- * tables also kicks a refetch.
+ * Poll-based live sync metrics for the pair modal's "syncing" phase. Polls every
+ * 2 s while enabled. (Phase 2b: the old postgres_changes invalidation bindings on
+ * conversations/messages/contacts/jid_mapping were REMOVED — those tables are no
+ * longer in the supabase_realtime publication, so the bindings were dead; the 2 s
+ * poll fully covers the pairing "syncing" progress.)
  */
 export function useInstanceSyncMetrics(id: string | null, enabled: boolean) {
-  const qc = useQueryClient()
-
-  useEffect(() => {
-    if (!id || !enabled) return
-    const key = ['instances', 'sync-metrics', id] as const
-    const invalidate = () => { void qc.invalidateQueries({ queryKey: key }) }
-    const channel = supabase
-      .channel(`sync-metrics-${id}`)
-      .on('postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'conversations', filter: `instance_id=eq.${id}` },
-        invalidate)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'whatsapp', table: 'messages', filter: `instance_id=eq.${id}` },
-        invalidate)
-      .on('postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'contacts', filter: `instance_id=eq.${id}` },
-        invalidate)
-      .on('postgres_changes',
-        { event: '*', schema: 'whatsapp', table: 'jid_mapping', filter: `instance_id=eq.${id}` },
-        invalidate)
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [id, enabled, qc])
 
   return useQuery<InstanceSyncMetrics | null>({
     queryKey: ['instances', 'sync-metrics', id ?? '_'],

@@ -593,7 +593,6 @@ async function loadAllAndReconcile(): Promise<void> {
 
 // ---- Realtime subscription -------------------------------------------------
 
-let channel: ReturnType<typeof supabase.channel> | null = null
 let nodeChannel: ReturnType<typeof supabase.channel> | null = null
 
 // Shared control-plane reconcile — used by BOTH the legacy postgres_changes
@@ -638,59 +637,16 @@ export async function startInstanceManager(): Promise<void> {
   }, ORPHAN_REAP_INTERVAL_MS)
   reapTimer.unref()
 
-  channel = supabase
-    .channel('worker-instances')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'whatsapp', table: 'whatsapp_instances' },
-      async (payload) => {
-        try {
-          if (payload.eventType === 'DELETE') {
-            const id = (payload.old as { id?: string }).id
-            if (id) {
-              await stopDispatcher(id)
-              setActiveNumbers(loopCount())
-              log.info('instance.deleted', { number_id: id })
-            }
-            return
-          }
-          const row = payload.new as RawInstanceRow | undefined
-          if (!row || !row.id) return
-          // Node gate — THIS is the path that bypasses leases (realtime UPDATE spawns
-          // a dispatcher directly). Without it a worker would start a loop for another
-          // node's instance and 404 every send against the wrong Evolution. If an
-          // instance was ours but got reassigned to another node (node_id changed),
-          // stop the loop we were running for it. null node_id = unassigned = no worker.
-          if (row.node_id !== config.nodeId) {
-            await stopDispatcher(row.id).catch(() => undefined)
-            setActiveNumbers(loopCount())
-            return
-          }
-          await applyState(row)
-          log.info('instance.reconciled', {
-            number_id: row.id,
-            status: row.status,
-            lifecycle: row.lifecycle_state,
-            paused: row.worker_paused,
-            event: payload.eventType,
-          })
-        } catch (err) {
-          log.error('instance.realtime_handler_failed', {
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }
-      },
-    )
-    .subscribe((status) => {
-      log.info('instance.realtime_status', { status })
-    })
-
-  // Enterprise Phase 2b KEYSTONE (dual-run). Subscribe the wa:node:<node_id>
-  // private control-plane broadcast (mig 048). This is our node's OWN instance
-  // changes only — no wal2json decode of every other node's rows. Runs ALONGSIDE
-  // the postgres_changes channel above until verified, then that one is removed +
-  // whatsapp_instances leaves the publication. service_role authorizes the private
-  // channel by RLS bypass (no wa:node policy). Handler mirrors the pg_changes one.
+  // Enterprise Phase 2b KEYSTONE — SOLE control-plane feed. The legacy
+  // 'worker-instances' postgres_changes channel on whatsapp_instances was REMOVED
+  // here (verified: wa:node reconciled a forced write end-to-end); whatsapp_instances
+  // left the supabase_realtime publication (mig 050). This node subscribes ONLY its
+  // OWN instance changes via wa:node:<node_id> (mig 048) — no wal2json decode of
+  // every other node's rows. service_role authorizes the private channel by RLS
+  // bypass (no wa:node policy). A missed at-most-once broadcast self-heals within
+  // the lease interval: renewLeases() rescans node_id=self connected instances,
+  // claims un-owned, and applyState()s them (spawns dispatchers) — the same backstop
+  // coverage the worker always had. Boot state comes from loadAllAndReconcile().
   nodeChannel = supabase
     .channel(`wa:node:${config.nodeId}`, { config: { private: true } })
     .on('broadcast', { event: 'instance' }, async ({ payload }) => {
@@ -744,10 +700,6 @@ export async function stopInstanceManager(): Promise<void> {
     log.warn('instance.lease.release_failed', {
       error: err instanceof Error ? err.message : String(err),
     })
-  }
-  if (channel) {
-    await supabase.removeChannel(channel)
-    channel = null
   }
   if (nodeChannel) {
     await supabase.removeChannel(nodeChannel)
