@@ -487,7 +487,7 @@ function removeConversationFromCaches(qc: QueryClient, id: string): void {
   qc.removeQueries({ queryKey: conversationKeys.one(id) })
 }
 
-function applyBump(qc: QueryClient, rawPayload: unknown): void {
+export function applyBump(qc: QueryClient, rawPayload: unknown): void {
   // Envelope: realtime.send delivers the jsonb directly as `payload`. Tolerate a
   // nested {record} too; no-op if neither carries an id (never throws / breaks).
   const p = rawPayload as { id?: unknown; record?: unknown } | null

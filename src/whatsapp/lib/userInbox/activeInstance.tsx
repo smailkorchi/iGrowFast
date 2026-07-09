@@ -12,8 +12,8 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useInstances } from '../queries/instances'
-import { useInstancesUnread, useConversationsBumpRealtime } from '../queries/conversations'
-import { useMyAssignmentsRealtime } from '../queries/assignments'
+import { useInstancesUnread } from '../queries/conversations'
+import { useWaUserChannel } from '../queries/waChannels'
 import { useAuth } from '../auth'
 import type { WhatsappInstance } from '../database.types'
 
@@ -43,7 +43,12 @@ export function ActiveInstanceProvider({ children }: { children: ReactNode }) {
   // makes a number appear live, and losing the last assignment drops to the
   // empty state live, without a refresh. Keyed on the agent's own user id.
   const { session } = useAuth()
-  useMyAssignmentsRealtime(session?.user.id ?? null)
+  // Unified per-agent realtime (Phase 2b): ONE wa:user:<uid> channel carries
+  // bumps + assignment (revocation-critical) + conv_tag. Replaces the former
+  // useMyAssignmentsRealtime (assignment postgres_changes) AND
+  // useConversationsBumpRealtime (a separate wa:user bump channel) — one channel,
+  // many handlers. Mounted here because the seller shell is always present.
+  useWaUserChannel(session?.user.id ?? null)
 
   // User-picked active instance survives a reload. Namespaced separately from
   // admin so a browser session that toggles roles doesn't cross-pollute.
@@ -65,17 +70,6 @@ export function ActiveInstanceProvider({ children }: { children: ReactNode }) {
 
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
-  // Stage-2 list-bump / Stage C: the agent receives bumps for their assigned
-  // conversations on a private per-user channel (wa:user:<uid>). This single hook
-  // drives BOTH the live list AND the navbar unread badge (['instances-unread']
-  // invalidate) — it replaced the retired useInstancesUnreadRealtime after
-  // conversations left the realtime publication. Keyed on uid so it stays live
-  // across the zero-assignment empty state.
-  const bumpTopics = useMemo(
-    () => (session?.user.id ? [`wa:user:${session.user.id}`] : []),
-    [session?.user.id],
-  )
-  useConversationsBumpRealtime(bumpTopics)
 
   const value = useMemo<ActiveInstanceValue>(
     () => ({ instances, instancesLoading, activeInstanceId, switchInstance, unreadByInstance }),
