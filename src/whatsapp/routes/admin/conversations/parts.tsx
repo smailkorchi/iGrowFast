@@ -86,6 +86,7 @@ import {
   IconUnreadBadge,
   IconUser,
   IconUserPlus,
+  IconViewOnce,
   IconUsers,
   IconVideo,
   IconSmileyFace,
@@ -878,7 +879,9 @@ function ChatRow({
         if (isGroup && senderName) return <>{senderName} a réagi par {emoji}</>
         return <>A réagi par {emoji}</>
       }
-      case 'system': return bodyPreview || <span style={{ opacity: 0.6 }}>—</span>
+      case 'system': return meta.subtype === 'view_once'
+        ? <><IconViewOnce size={14} /> Message à vue unique</>
+        : bodyPreview || <span style={{ opacity: 0.6 }}>—</span>
       default: return bodyPreview || <span style={{ opacity: 0.6 }}>—</span>
     }
   })()
@@ -4675,7 +4678,10 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
   const isContact = kind === 'contact' || meta.subtype === 'contact' || meta.subtype === 'contact_list'
   const isLocation = kind === 'location' || meta.subtype === 'location'
   const isWaitingForMessage = kind === 'system' && meta.subtype === 'waiting_for_message'
-  const isHiddenSystem = kind === 'system' && !isWaitingForMessage && !msg.body
+  // View-once placeholder (WhatsApp model): a real, visible bubble with time +
+  // ticks — never the media (matching WhatsApp: openable only on the phone).
+  const isViewOnce = kind === 'system' && meta.subtype === 'view_once'
+  const isHiddenSystem = kind === 'system' && !isWaitingForMessage && !isViewOnce && !msg.body
   // Forwarded: dashboard-originated forwards set the `forwarded` column;
   // inbound (and phone-synced) forwards carry it in media_meta (captured from
   // WhatsApp's contextInfo.isForwarded at ingest). Either marks "Transféré".
@@ -4983,6 +4989,7 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
         {/* Body */}
         {isTemplate && <TemplateBubbleBody msg={msg} time={time} status={status} tickIcon={tickIcon} isOut={isOut} onOpenMedia={onOpenMedia} />}
         {isWaitingForMessage && <WaitingForMessageBody time={time} />}
+        {isViewOnce && <ViewOnceBody isOut={isOut} time={time} status={status} tickIcon={tickIcon} />}
         {isMedia && <MediaBody msg={msg} time={time} status={status} tickIcon={tickIcon} isOut={isOut} onOpenMedia={onOpenMedia} />}
         {isVoice && (
           <VoiceBody
@@ -6430,6 +6437,28 @@ function TemplateBubbleBody({ msg, time, status, tickIcon, isOut, onOpenMedia }:
  * Visual: lock icon + italic gray text + timestamp. No clickable action
  * since we can't retry decryption from the admin panel.
  */
+// View-once placeholder — real-WhatsApp copy, no "En savoir plus" (owner
+// ruling). Direction decides the sentence: inbound = "reçu … ouvrir que sur
+// votre téléphone", outbound = "envoyé … depuis un autre appareil".
+function ViewOnceBody({ isOut, time, status, tickIcon }: { isOut: boolean; time: string; status: string; tickIcon: ReactNode }) {
+  return (
+    <div className="wac__bubble-text wac__viewonce-body">
+      <span className="wac__viewonce-icon" aria-hidden="true">
+        <IconViewOnce size={18} />
+      </span>
+      <span className="wac__viewonce-text">
+        {isOut
+          ? 'Vous avez envoyé un message à vue unique depuis un autre appareil.'
+          : "Vous avez reçu un message à vue unique. Pour plus de confidentialité, vous ne pouvez l'ouvrir que sur votre téléphone."}
+      </span>
+      <span className={'wac__bubble-meta' + (status === 'read' ? ' is-read' : '')}>
+        <span>{time}</span>
+        {isOut && tickIcon}
+      </span>
+    </div>
+  )
+}
+
 function WaitingForMessageBody({ time }: { time: string }) {
   return (
     <div className="wac__bubble-text wac__waiting-body">

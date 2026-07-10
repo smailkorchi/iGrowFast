@@ -2912,6 +2912,31 @@
   line-height: 1.4;
 }
 
+/* View-once ("vue unique") placeholder — WhatsApp model: italic sentence with
+   the dashed ①, normal in/out bubble colors, time + ticks in the meta. */
+.wac__viewonce-body {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-style: italic;
+  color: var(--wa-text-secondary, #8696a0);
+  padding-right: 72px;
+}
+
+.wac__viewonce-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--wa-text-secondary, #8696a0);
+  position: relative;
+  top: 3px;
+}
+
+.wac__viewonce-text {
+  font-size: 13.6px;
+  line-height: 1.4;
+}
+
 /* Bubble column: wraps bubble + reactions so avatar stays to the left */
 .wac__bubble-col {
   display: flex;

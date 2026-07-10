@@ -23,6 +23,16 @@ function Svg({ size = 22, children, ...rest }: IconProps & { children: React.Rea
   )
 }
 
+/** View-once ("vue unique") glyph — WhatsApp's dashed circle around a 1. */
+export function IconViewOnce(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" strokeDasharray="3.2 2.6" />
+      <path d="M10.6 9.6l1.9-1.3v7.4" />
+    </Svg>
+  )
+}
+
 export function IconNewChat(p: IconProps) {
   return (
     <Svg {...p}>

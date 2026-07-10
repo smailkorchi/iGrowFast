@@ -2201,6 +2201,35 @@ function extractContent(message: WAMessageContent | undefined): {
       mediaMeta: Object.keys(meta).length > 0 ? meta : null,
     }
   }
+  // ── View-once ("vue unique") — WhatsApp-model placeholder, never media ────
+  // Two shapes reach a companion session (verified live 2026-07-10, both
+  // instances): (a) history sync delivers the UNWRAPPED form — a plain
+  // image/video/audioMessage carrying viewOnce:true (Baileys normalizes the
+  // wrapper away; macaron holds 10 such rows in Evolution's store); (b) the
+  // raw wrappers viewOnceMessage / V2 / V2Extension, kept defensively for
+  // Evolution/Baileys versions that don't normalize. Current WhatsApp does NOT
+  // deliver LIVE view-once to companions at all (neither direction — the
+  // official Web client synthesizes its placeholder from a private sync
+  // channel Evolution 2.3.7 never surfaces), so today these rows come from
+  // history sync; if a future Evolution starts emitting live events, this
+  // branch already catches them. Matching real WhatsApp: render a placeholder
+  // bubble, never download or expose the media.
+  {
+    const raw = message as Record<string, unknown>
+    const wrapper = (raw.viewOnceMessage ?? raw.viewOnceMessageV2 ?? raw.viewOnceMessageV2Extension) as
+      { message?: Record<string, unknown> } | undefined
+    const inner = wrapper?.message ?? (
+      (message.imageMessage as Record<string, unknown> | undefined)?.viewOnce === true
+      || (message.videoMessage as Record<string, unknown> | undefined)?.viewOnce === true
+      || (message.audioMessage as Record<string, unknown> | undefined)?.viewOnce === true
+        ? (raw as Record<string, unknown>) : undefined
+    )
+    if (inner) {
+      const media = inner.imageMessage ? 'image' : inner.videoMessage ? 'video' : 'audio'
+      return { kind: 'system', body: null, mediaMeta: { subtype: 'view_once', media } }
+    }
+  }
+
   // For media kinds the Evolution-provided URL is no longer stored -- the
   // worker downloads via getBase64FromMediaMessage and uploads to R2 in the
   // media-ingest loop. media_meta carries only the durable metadata
