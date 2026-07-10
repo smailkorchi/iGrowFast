@@ -31,6 +31,7 @@ import {
 } from '../../lib/queries/messages'
 import { useActiveInstance } from '../../lib/userInbox/activeInstance'
 import { useInboxAttendance } from '../../lib/queries/waPresence'
+import { activeConversationRef } from '../../lib/messageNotify'
 import { toast, normalizeError } from '../../lib/toast/store'
 import { getDraft, setDraft, clearDraft } from '../../lib/drafts'
 import type { ConversationDecrypted } from '../../lib/database.types'
@@ -238,11 +239,20 @@ export default function UserWhatsapp() {
   useEffect(() => { setActiveId(null) }, [activeInstanceId])
   const { data: activeConvTags } = useConversationTags(activeId)
 
+  // Toast suppression: the notify engine skips the open conversation while the
+  // tab is focused (WhatsApp Web behavior — an unfocused tab still toasts).
+  useEffect(() => {
+    activeConversationRef.current = activeId
+    return () => { activeConversationRef.current = null }
+  }, [activeId])
+
   const [searchParams, setSearchParams] = useSearchParams()
   const deepLinkHandled = useRef(false)
   useEffect(() => {
     const jid = searchParams.get('jid')
-    if (!jid || deepLinkHandled.current) return
+    // Re-arm once the params clear so the NEXT toast click deep-links too.
+    if (!jid) { deepLinkHandled.current = false; return }
+    if (deepLinkHandled.current) return
     // A deep link may target a conversation on a NON-active number (the
     // dashboard passes &instance=). Switch to that instance first and bail —
     // the effect re-runs once activeInstanceId catches up and convs reloads,

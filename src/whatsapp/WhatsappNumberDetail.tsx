@@ -5,12 +5,11 @@
 // (tuned defaults + mutation-error toasts) and Toaster.
 import NumberDetail from './routes/numbers/NumberDetail'
 import WaShell from './WaShell'
-import { AdminWaRealtime } from './lib/queries/waChannels'
 
 export default function WhatsappNumberDetail() {
   return (
     <WaShell>
-      <AdminWaRealtime />
+      {/* wa:biz realtime mounts persistently in AppLayout (<AdminWaRealtime/>). */}
       <NumberDetail />
     </WaShell>
   )

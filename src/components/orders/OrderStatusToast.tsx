@@ -1,4 +1,4 @@
-import { Package } from 'lucide-react';
+import { Package, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { DynamicIcon } from '@/lib/renderReactIcon';
@@ -50,12 +50,27 @@ function StatusToastCard({
                 }
             }}
             className={cn(
-                'group w-[360px] cursor-pointer rounded-2xl border border-ant-line bg-ant-paper p-3',
+                'group relative w-[360px] cursor-pointer rounded-2xl border border-ant-line bg-ant-paper p-3',
                 'shadow-[0_24px_60px_-24px_rgba(20,20,19,0.22)] transition-all',
                 'hover:border-ant-ink/25 hover:shadow-[0_28px_72px_-24px_rgba(20,20,19,0.28)]',
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-ant-ink/40'
             )}
         >
+            {/* Dismiss WITHOUT opening — the whole card is the open button, so the
+                X must stop both click and keydown from bubbling to the card. */}
+            <button
+                type="button"
+                aria-label="Fermer"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    toast.dismiss(toastId);
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-ant-line bg-ant-paper text-ant-mid shadow-sm transition-colors hover:bg-ant-ink hover:text-ant-paper"
+            >
+                <X className="h-3 w-3" />
+            </button>
+
             <div className="flex items-center gap-3">
                 <div className="relative shrink-0">
                     <div className="h-10 w-10 rounded-xl border border-ant-line bg-white flex items-center justify-center overflow-hidden">

@@ -1,6 +1,7 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import { OrderStatusNotifications } from '@/components/orders/OrderStatusNotifications';
+import { AdminWaRealtime } from '@/whatsapp/lib/queries/waChannels';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -21,6 +22,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
             {/* Mounted once per session — surfaces webhook-driven status changes on every admin page. */}
             <OrderStatusNotifications role="admin" targetPath="/orders" />
+
+            {/* Persistent wa:biz realtime — WhatsApp cache sync + inbound-message
+                toasts on every admin page (self-wraps in the WA QueryClient). */}
+            <AdminWaRealtime />
         </div>
     );
 };

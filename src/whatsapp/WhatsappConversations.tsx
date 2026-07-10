@@ -13,12 +13,11 @@ import './styles/whatsapp.css'
 import './styles/wa-responsive.css'
 import WaShell from './WaShell'
 import Conversations from './routes/admin/Conversations'
-import { AdminWaRealtime } from './lib/queries/waChannels'
 
 export default function WhatsappConversations() {
   return (
     <WaShell>
-      <AdminWaRealtime />
+      {/* wa:biz realtime mounts persistently in AppLayout (<AdminWaRealtime/>). */}
       {/* Host-integration seam (#6): WA's shell gave the inbox a definite-height,
           non-scrolling box (`:root[data-route="conversations"] .layout__main` =
           calc(100vh - 28px) + overflow hidden). IGF's AppLayout wraps pages in

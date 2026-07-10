@@ -8,20 +8,22 @@
 // each of which opened its OWN channel to the same topic — channel proliferation
 // that defeated the point of collapsing onto wa:biz.
 //
-// MOUNT: the admin channel mounts via <AdminWaRealtime/> in each admin page
-// wrapper, and only ONE admin WhatsApp page is mounted at a time, so there is
-// exactly one wa:biz channel live per admin (it re-subscribes on sub-navigation
-// between WhatsApp pages; the module-level waQueryClient cache persists across the
-// remount, so the on-mount refetch covers the sub-second gap — no data loss). The
-// agent channel mounts once in ActiveInstanceProvider (persistent). A future
-// optimization could hoist AdminWaRealtime above an <Outlet/> layout route to make
-// the admin channel persistent too; not required for correctness.
+// MOUNT: <AdminWaRealtime/> mounts ONCE in the admin shell (AppLayout, next to
+// OrderStatusNotifications) so the wa:biz channel is PERSISTENT — cache sync +
+// inbound-message toasts fire on EVERY admin page, not just the WhatsApp ones
+// (this replaced the former per-page-wrapper mounts and their re-subscribe on
+// sub-navigation). <WaUserRealtime/> is the agent mirror, mounted ONCE in
+// SellerLayout (it replaced the ActiveInstanceProvider mount). Both self-wrap
+// in QueryClientProvider(waQueryClient): the layouts sit OUTSIDE WaShell, and
+// the channels' cache writes must land in the WA module's own singleton client,
+// never IGF's global one.
 //
 // Per-thread wa:conv (messages) and presence (wa-typing) stay per-thread — they are
 // inherently scoped to the one open conversation, not the whole business.
 //
 // Event → cache map (all DB triggers land these; see migs 036/040/044/048/049/051/052):
 //   bump        → applyBump (patches list caches in place, routes by instance_id)
+//                 + maybeNotifyFromBump (inbound-message toast, lib/messageNotify.ts)
 //   instance    → ['instances'] (+ the changed one)         [wa:biz only]
 //   quick_reply → ['quick_replies']                         [wa:biz only]
 //   scheduled   → ['scheduled_messages']                    [wa:biz only]
@@ -32,10 +34,14 @@
 // Broadcast is at-most-once: on reconnect we invalidate every prefix the channel
 // feeds so anything missed while the socket was down self-heals.
 
-import { useEffect } from 'react'
-import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { QueryClientProvider, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
+import { waQueryClient } from '../queryClient'
+import { useAuth } from '../auth'
 import { applyBump } from './conversations'
+import { maybeNotifyFromBump } from '../messageNotify'
 import { useInstances } from './instances'
 
 // Coalesce bursts (a bulk assign/tag op emits one event per row) into one trailing
@@ -65,6 +71,11 @@ function reconcile(qc: QueryClient, keys: readonly (readonly unknown[])[]): void
 /** Admin: one wa:biz channel carrying every business-scoped event. Mount once. */
 export function useWaBizChannel(businessId: string | null) {
   const qc = useQueryClient()
+  // navigate identity churns per location — keep it in a ref so the channel
+  // effect never re-subscribes because of it.
+  const navigate = useNavigate()
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
   useEffect(() => {
     if (!businessId) return
     const inval = makeDebouncer()
@@ -73,6 +84,7 @@ export function useWaBizChannel(businessId: string | null) {
       .channel(`wa:biz:${businessId}`, { config: { private: true } })
       .on('broadcast', { event: 'bump' }, ({ payload }) => {
         applyBump(qc, payload)
+        maybeNotifyFromBump(qc, payload, { role: 'admin', navigate: (url) => navigateRef.current(url) })
         // Keep the Assignment console's server-side counts + list live when a
         // new inbound conversation arrives. Debounced + active-observer-only:
         // a no-op cost unless an admin is actually on /admin/assignment.
@@ -109,10 +121,19 @@ export function useWaBizChannel(businessId: string | null) {
 
 /**
  * Admin mounter: resolves the business id from the instances cache and opens the
- * single wa:biz channel. Drop <AdminWaRealtime/> into each admin WhatsApp page
- * wrapper (only one admin page is mounted at a time → one channel). Returns null.
+ * single wa:biz channel. Mount ONCE in AppLayout — self-wraps in the WA module's
+ * QueryClientProvider because the layout sits outside WaShell. No-ops (no
+ * channel) when the business has no instances (business_id resolves null).
  */
-export function AdminWaRealtime(): null {
+export function AdminWaRealtime() {
+  return (
+    <QueryClientProvider client={waQueryClient}>
+      <AdminWaRealtimeInner />
+    </QueryClientProvider>
+  )
+}
+
+function AdminWaRealtimeInner(): null {
   const { data: instances } = useInstances()
   useWaBizChannel(instances?.[0]?.business_id ?? null)
   return null
@@ -121,13 +142,20 @@ export function AdminWaRealtime(): null {
 /** Agent: one wa:user channel. bump + revocation-critical assignment + conv_tag. */
 export function useWaUserChannel(userId: string | null) {
   const qc = useQueryClient()
+  // Same ref mechanic as useWaBizChannel: navigate must not re-subscribe.
+  const navigate = useNavigate()
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
   useEffect(() => {
     if (!userId) return
     const inval = makeDebouncer()
     let hadError = false
     const ch = supabase
       .channel(`wa:user:${userId}`, { config: { private: true } })
-      .on('broadcast', { event: 'bump' }, ({ payload }) => applyBump(qc, payload))
+      .on('broadcast', { event: 'bump' }, ({ payload }) => {
+        applyBump(qc, payload)
+        maybeNotifyFromBump(qc, payload, { role: 'agent', navigate: (url) => navigateRef.current(url) })
+      })
       .on('broadcast', { event: 'assignment' }, () => {
         // Revocation-critical: a lost assignment must drop the number + conversation
         // from this agent's inbox (RLS re-scopes on refetch).
@@ -147,4 +175,25 @@ export function useWaUserChannel(userId: string | null) {
       })
     return () => { void supabase.removeChannel(ch) }
   }, [userId, qc])
+}
+
+/**
+ * Agent mounter (AdminWaRealtime mirror): resolves the auth user id and opens
+ * the single wa:user channel. Mount ONCE in SellerLayout — self-wraps in the WA
+ * module's QueryClientProvider (waQueryClient is a singleton, so bumps land in
+ * the exact cache the inbox reads). Cheap for unassigned sellers: topic authz
+ * is a pure claim compare and the triggers only send to assignees.
+ */
+export function WaUserRealtime() {
+  return (
+    <QueryClientProvider client={waQueryClient}>
+      <WaUserRealtimeInner />
+    </QueryClientProvider>
+  )
+}
+
+function WaUserRealtimeInner(): null {
+  const { session } = useAuth()
+  useWaUserChannel(session?.user.id ?? null)
+  return null
 }

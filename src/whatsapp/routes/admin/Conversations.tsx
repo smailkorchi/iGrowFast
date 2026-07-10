@@ -35,6 +35,7 @@ import {
 } from '../../lib/queries/messages'
 import { useInstances } from '../../lib/queries/instances'
 import { useInboxAttendance } from '../../lib/queries/waPresence'
+import { activeConversationRef } from '../../lib/messageNotify'
 import { toast, normalizeError } from '../../lib/toast/store'
 import { getDraft, setDraft, clearDraft } from '../../lib/drafts'
 import type { ConversationDecrypted } from '../../lib/database.types'
@@ -136,8 +137,8 @@ export default function AdminConversations() {
   // wall). The DB bump trigger (mig 046) dual-publishes to wa:biz; applyBump still
   // routes each row by its own instance_id, so in-place list patching + the
   // per-instance unread badge (['instances-unread'] invalidate) are unchanged.
-  // Conversation bumps ride the unified wa:biz channel (AdminWaRealtime in the
-  // page wrapper) — one channel per admin, not one per hook.
+  // Conversation bumps ride the unified wa:biz channel (AdminWaRealtime,
+  // mounted persistently in AppLayout) — one channel per admin, not one per hook.
 
   // ─── lists + favourites (localStorage) ─────────────────────────────────────
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(activeInstanceId))
@@ -277,13 +278,31 @@ export default function AdminConversations() {
   useEffect(() => { setActiveId(null) }, [activeInstanceId])
   const { data: activeConvTags } = useConversationTags(activeId)
 
-  // Deep-link: ?jid=...@s.whatsapp.net → open or create that conversation
+  // Toast suppression: the notify engine skips the open conversation while the
+  // tab is focused (WhatsApp Web behavior — an unfocused tab still toasts).
+  useEffect(() => {
+    activeConversationRef.current = activeId
+    return () => { activeConversationRef.current = null }
+  }, [activeId])
+
+  // Deep-link: ?jid=...@s.whatsapp.net[&instance=...] → open or create that
+  // conversation. The message toast may target a NON-active number: switch to
+  // &instance first and bail — the effect re-runs once activeInstanceId catches
+  // up, so the jid resolves against the CORRECT instance (ensureConversation
+  // would otherwise open/create the thread on whichever number was active).
   const [searchParams, setSearchParams] = useSearchParams()
   const deepLinkHandled = useRef(false)
   useEffect(() => {
     const jid = searchParams.get('jid')
-    if (!jid || !activeInstanceId || deepLinkHandled.current) return
-    if (convs.isLoading) return
+    // Re-arm once the params clear so the NEXT toast click deep-links too.
+    if (!jid) { deepLinkHandled.current = false; return }
+    if (deepLinkHandled.current) return
+    const wantInstance = searchParams.get('instance')
+    if (wantInstance && wantInstance !== activeInstanceId && (instances ?? []).some((i) => i.id === wantInstance)) {
+      onSwitchInstance(wantInstance)
+      return
+    }
+    if (!activeInstanceId || convs.isLoading) return
     deepLinkHandled.current = true
     setSearchParams({}, { replace: true })
     const existing = convs.rows.find((c) => c.remote_jid === jid)
@@ -297,7 +316,7 @@ export default function AdminConversations() {
         void convs.refetch?.()
       })()
     }
-  }, [searchParams, activeInstanceId, convs.isLoading, convs.rows])
+  }, [searchParams, instances, activeInstanceId, convs.isLoading, convs.rows, onSwitchInstance, setSearchParams])
 
   const activeQ = useConversation(activeId)
   const activeConv: ConversationDecrypted | null = activeQ.data ?? null

@@ -13,8 +13,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useInstances } from '../queries/instances'
 import { useInstancesUnread } from '../queries/conversations'
-import { useWaUserChannel } from '../queries/waChannels'
-import { useAuth } from '../auth'
 import type { WhatsappInstance } from '../database.types'
 
 const ACTIVE_INSTANCE_KEY = 'wam.cv.user.active_instance'
@@ -38,17 +36,10 @@ export function useActiveInstance(): ActiveInstanceValue {
 export function ActiveInstanceProvider({ children }: { children: ReactNode }) {
   const { data: instances, isLoading: instancesLoading } = useInstances()
 
-  // ALWAYS-ON per-agent assignment sync — mounted here (the seller shell is
-  // always present, even at the empty state) so a newly-granted assignment
-  // makes a number appear live, and losing the last assignment drops to the
-  // empty state live, without a refresh. Keyed on the agent's own user id.
-  const { session } = useAuth()
-  // Unified per-agent realtime (Phase 2b): ONE wa:user:<uid> channel carries
-  // bumps + assignment (revocation-critical) + conv_tag. Replaces the former
-  // useMyAssignmentsRealtime (assignment postgres_changes) AND
-  // useConversationsBumpRealtime (a separate wa:user bump channel) — one channel,
-  // many handlers. Mounted here because the seller shell is always present.
-  useWaUserChannel(session?.user.id ?? null)
+  // Per-agent realtime (the wa:user:<uid> channel) now mounts app-wide in
+  // SellerLayout via <WaUserRealtime/> (queries/waChannels) so assignment
+  // grants/revocations and inbound-message toasts land on ANY seller page —
+  // not only while this provider (the inbox) is mounted.
 
   // User-picked active instance survives a reload. Namespaced separately from
   // admin so a browser session that toggles roles doesn't cross-pollute.

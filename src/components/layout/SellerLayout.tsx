@@ -4,6 +4,7 @@ import SuspensionOverlay from './SuspensionOverlay';
 import { supabase } from '@/lib/supabase';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 import { OrderStatusNotifications } from '@/components/orders/OrderStatusNotifications';
+import { WaUserRealtime } from '@/whatsapp/lib/queries/waChannels';
 
 interface SellerLayoutProps {
     children: React.ReactNode;
@@ -66,6 +67,9 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
             )}
             {/* Surfaces status changes on every seller page — only for orders attributed to this user. */}
             <OrderStatusNotifications role="seller" targetPath="/seller/orders" />
+            {/* Persistent wa:user realtime — WhatsApp cache sync + inbound-message
+                toasts on every seller page (self-wraps in the WA QueryClient). */}
+            <WaUserRealtime />
         </div>
     );
 };
