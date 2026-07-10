@@ -7645,14 +7645,22 @@ function Composer({
   // single active lock + a live countdown. The per-minute token bucket is soft
   // pacing (a few seconds), never a "lock", so it never shows a banner.
   const { data: capacity } = useInstanceCapacityStatus(instanceId ?? null)
+  // ALL matching replies — the picker itself scrolls (max-height 280px). The
+  // old .slice(0, 8) silently hid every reply past the 8th, so teams with more
+  // quick replies couldn't reach them from "/" at all.
   const slashHits = useMemo(() => {
     if (slashQuery === null || !allQuickReplies) return []
     const q = slashQuery.toLowerCase()
-    if (!q) return allQuickReplies.slice(0, 8)
-    return allQuickReplies.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 8)
+    if (!q) return allQuickReplies
+    return allQuickReplies.filter((r) => r.name.toLowerCase().includes(q))
   }, [slashQuery, allQuickReplies])
 
   useEffect(() => { setSlashIdx(0) }, [slashHits.length])
+  // Keep the keyboard-selected item visible now that the list scrolls.
+  const slashListRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    slashListRef.current?.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' })
+  }, [slashIdx])
 
   // '#' hash picker — scheduled messages for the active conversation. Shows
   // ALL items with their status; pending (still actionable) sorted first by
@@ -8096,7 +8104,7 @@ function Composer({
         </div>
       )}
       {slashQuery !== null && slashHits.length > 0 && (
-        <div className="wac__slash-picker">
+        <div className="wac__slash-picker" ref={slashListRef}>
           {slashHits.map((qr, i) => (
             <div
               key={qr.id}
