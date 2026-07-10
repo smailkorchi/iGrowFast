@@ -7,6 +7,7 @@
 // queue row and its real WA message happens via `evolution_message_id`
 // match when the corresponding messages.upsert webhook arrives.
 
+import { hkdfSync, createDecipheriv } from 'node:crypto'
 import { pool, supabase } from '../db.js'
 import { config } from '../config.js'
 import { log } from '../logger.js'
@@ -449,25 +450,24 @@ async function ingestMessage(instanceId: string, m: WAMessageData, fromHistorySy
     if (fwd.score > 0) mediaMeta.forwardingScore = fwd.score
   }
 
-  // Secret-encrypted envelope (WhatsApp's newer E2E form for inbound message
-  // EDITS — secretEncType=2 — plus poll edits / encrypted reactions). Companion
-  // sessions receive the ciphertext but NOT the plaintext; bundled Baileys does
-  // not decrypt it, so extractContent falls through to a {system,
-  // waiting_for_message} row that renders as "Ce message n'a pas pu être
-  // chargé" (owner-reported). Suppress that broken placeholder here. Decrypting
-  // it to actually apply the inbound edit (via the target message's
-  // messageSecret) is Evolution patch 004 — until that lands, dropping the
-  // signal is strictly better than a broken bubble; the original keeps its
-  // pre-edit text.
+  // Secret-encrypted envelope (WhatsApp's newer E2E form). secretEncType=2 is a
+  // message EDIT (customer edited a message they sent us): decrypt it via the
+  // ORIGINAL message's captured messageSecret and apply the new text (mig 065).
+  // Other secret types (poll edit / encrypted reaction) have no plaintext for us
+  // and would otherwise fall through to a broken "…n'a pas pu être chargé"
+  // bubble — drop them. Either way this envelope never becomes a stored row.
   {
     const sec = (m.message as Record<string, unknown> | undefined)?.secretEncryptedMessage as
-      { secretEncType?: number; targetMessageKey?: { id?: string } } | undefined
+      { secretEncType?: number; targetMessageKey?: { id?: string; remoteJid?: string };
+        encPayload?: unknown; encIv?: unknown } | undefined
     if (sec) {
-      log.info('webhook.secret_encrypted.skipped', {
-        instance_id: instanceId, remote_jid: remoteJid,
-        sec_type: sec.secretEncType ?? null,
-        target_id: sec.targetMessageKey?.id ?? null,
-      })
+      if (Number(sec.secretEncType) === 2 && sec.targetMessageKey?.id) {
+        await handleInboundEdit(instanceId, remoteJid, m, sec)
+      } else {
+        log.info('webhook.secret_encrypted.skipped', {
+          instance_id: instanceId, remote_jid: remoteJid, sec_type: sec.secretEncType ?? null,
+        })
+      }
       return
     }
   }
@@ -696,6 +696,25 @@ async function ingestMessage(instanceId: string, m: WAMessageData, fromHistorySy
   //                              so the player has no R2 URL to load.
   const newMsgId = ingestResult.rows[0]?.ingest_message ?? null
   const evolutionMsgId = m.key?.id ?? null
+
+  // Capture the messageSecret of inbound text messages so a later inbound EDIT
+  // (secretEncryptedMessage, mig 065) can be decrypted. Only on a real INSERT,
+  // only inbound text — outbound edits use our own edit_message RPC. Key
+  // material: write-once, never surfaced to clients.
+  if (newMsgId && direction === 'inbound' && kind === 'text') {
+    const secretRaw = (m.message as Record<string, unknown> | undefined)
+      ?.['messageContextInfo'] as { messageSecret?: unknown } | undefined
+    const secretBuf = coerceBytes(secretRaw?.messageSecret)
+    if (secretBuf) {
+      pool.query(`SELECT whatsapp.set_message_secret($1, $2)`, [newMsgId, secretBuf])
+        .then(() => log.debug('webhook.message_secret.captured', { message_id: newMsgId }))
+        .catch((err) => log.warn('webhook.message_secret.failed', {
+          message_id: newMsgId, error: err instanceof Error ? err.message : String(err),
+        }))
+    } else {
+      log.debug('webhook.message_secret.absent', { message_id: newMsgId })
+    }
+  }
   // Templates with header images need media-fetch too. Evolution's getBase64
   // can't serve them, but the worker's media-ingest has a direct-download
   // fallback using the headerMediaKey + headerDirectPath stored in media_meta.
@@ -1786,6 +1805,170 @@ function isRevokeProtocol(t: number | string | undefined): boolean {
     return v === '0' || v === 'REVOKE'
   }
   return false
+}
+
+// ── inbound message EDIT (secretEncryptedMessage, secretEncType=2) ───────────
+//
+// WhatsApp delivers an inbound edit to a companion ONLY as an encrypted secret
+// envelope (no plaintext event). We decrypt it with the ORIGINAL message's
+// captured messageSecret (mig 065) using the authoritative whatsmeow derivation:
+//   secretKey = HKDF-SHA256(ikm=messageSecret, salt=0^32,
+//                           info = origMsgId ++ origSenderJid ++ editSenderJid
+//                                  ++ "Message Edit", 32)
+//   plaintext = AES-256-GCM(secretKey, encIv, encPayload, aad=∅)   -- a Message
+// AES-GCM's auth tag makes a wrong key/JID-form FAIL cleanly — never corrupt —
+// so we can safely try candidate JID forms (phone vs @lid, per the lid
+// migration) until the tag verifies, then apply the new text.
+
+/** Coerce Evolution's many byte encodings (base64 string / number[] /
+ *  {type:'Buffer',data} / object-keyed {0:..,1:..}) into a Buffer. */
+function coerceBytes(x: unknown): Buffer | null {
+  if (x == null) return null
+  if (Buffer.isBuffer(x)) return x
+  if (x instanceof Uint8Array) return Buffer.from(x)
+  if (typeof x === 'string') return x.length ? Buffer.from(x, 'base64') : null
+  if (Array.isArray(x)) return Buffer.from(x as number[])
+  if (typeof x === 'object') {
+    const o = x as Record<string, unknown>
+    if (o['type'] === 'Buffer' && Array.isArray(o['data'])) return Buffer.from(o['data'] as number[])
+    const keys = Object.keys(o)
+    if (keys.length && keys.every((k) => /^\d+$/.test(k))) {
+      return Buffer.from(keys.sort((a, b) => Number(a) - Number(b)).map((k) => Number(o[k])))
+    }
+  }
+  return null
+}
+
+function readVarint(buf: Buffer, i: number): [number, number] {
+  let result = 0, shift = 0, pos = i
+  for (; pos < buf.length; pos += 1) {
+    const b = buf[pos]!
+    result += (b & 0x7f) * Math.pow(2, shift)
+    if ((b & 0x80) === 0) { pos += 1; break }
+    shift += 7
+  }
+  return [result, pos]
+}
+
+/** Minimal protobuf field walker (wire types 0/1/2/5). */
+function pbFields(buf: Buffer): Array<{ field: number; wire: number; bytes?: Buffer; num?: number }> {
+  const out: Array<{ field: number; wire: number; bytes?: Buffer; num?: number }> = []
+  let i = 0
+  while (i < buf.length) {
+    const [tag, ni] = readVarint(buf, i); i = ni
+    const field = tag >>> 3, wire = tag & 7
+    if (wire === 2) { const [len, nj] = readVarint(buf, i); i = nj; out.push({ field, wire, bytes: buf.subarray(i, i + len) }); i += len }
+    else if (wire === 0) { const [v, nk] = readVarint(buf, i); i = nk; out.push({ field, wire, num: v }) }
+    else if (wire === 5) { out.push({ field, wire, num: buf.readUInt32LE(i) }); i += 4 }
+    else if (wire === 1) { i += 8 }
+    else break
+  }
+  return out
+}
+
+/** Text of a WA Message: conversation (field 1) or extendedTextMessage.text
+ *  (field 14 → field 1). NOT recursive — so it never mistakes a MessageKey's
+ *  remoteJid (also field 1) for the body. */
+function messageText(msg: Buffer): string | null {
+  const f = pbFields(msg)
+  const conv = f.find((x) => x.field === 1 && x.wire === 2)?.bytes
+  if (conv) return conv.toString('utf8')
+  const ext = f.find((x) => x.field === 14 && x.wire === 2)?.bytes
+  if (ext) {
+    const t = pbFields(ext).find((x) => x.field === 1 && x.wire === 2)?.bytes
+    if (t) return t.toString('utf8')
+  }
+  return null
+}
+
+/** Pull the edited text out of a decrypted MESSAGE_EDIT plaintext. Verified
+ *  byte layout (2026-07-10): Message.protocolMessage(12).editedMessage(14) →
+ *  Message.conversation(1) / extendedTextMessage(14).text(1). Falls back to a
+ *  bare edited Message. */
+function extractEditedText(pt: Buffer): string | null {
+  const proto = pbFields(pt).find((f) => f.field === 12 && f.wire === 2)?.bytes
+  if (proto) {
+    const edited = pbFields(proto).find((f) => f.field === 14 && f.wire === 2)?.bytes
+    if (edited) { const t = messageText(edited); if (t != null) return t }
+  }
+  return messageText(pt)
+}
+
+function deriveEditKey(messageSecret: Buffer, origMsgId: string, origSenderJid: string, editSenderJid: string): Buffer {
+  const info = Buffer.concat([
+    Buffer.from(origMsgId, 'utf8'),
+    Buffer.from(origSenderJid, 'utf8'),
+    Buffer.from(editSenderJid, 'utf8'),
+    Buffer.from('Message Edit', 'utf8'),
+  ])
+  // HKDF-Extract with an all-zero salt == whatsmeow's nil salt (HMAC zero-pads
+  // the key to the block size, so 0^32 and "" are equivalent).
+  return Buffer.from(hkdfSync('sha256', messageSecret, Buffer.alloc(32, 0), info, 32))
+}
+
+function gcmDecrypt(key: Buffer, iv: Buffer, payload: Buffer): Buffer {
+  const tag = payload.subarray(payload.length - 16)
+  const ct = payload.subarray(0, payload.length - 16)
+  const d = createDecipheriv('aes-256-gcm', key, iv)
+  d.setAuthTag(tag)
+  return Buffer.concat([d.update(ct), d.final()])   // throws on tag mismatch
+}
+
+interface SecretEnvelope {
+  targetMessageKey?: { id?: string; remoteJid?: string }
+  encPayload?: unknown
+  encIv?: unknown
+}
+
+async function handleInboundEdit(
+  instanceId: string,
+  remoteJid: string,
+  m: { key?: { remoteJid?: string; participant?: string; remoteJidLid?: string } },
+  sec: SecretEnvelope,
+): Promise<void> {
+  const targetId = sec.targetMessageKey?.id
+  if (!targetId) return
+  const encPayload = coerceBytes(sec.encPayload)
+  const encIv = coerceBytes(sec.encIv)
+  if (!encPayload || !encIv) { log.warn('inbound_edit.bad_envelope', { instance_id: instanceId, target_id: targetId }); return }
+
+  const row = await pool.query<{ message_secret: Buffer | null; sender_jid: string | null }>(
+    `SELECT message_secret, sender_jid FROM whatsapp.messages
+      WHERE evolution_message_id = $1 AND instance_id = $2
+      ORDER BY whatsapp_timestamp DESC LIMIT 1`,
+    [targetId, instanceId],
+  )
+  const secret = row.rows[0]?.message_secret ? Buffer.from(row.rows[0].message_secret) : null
+  if (!secret) { log.info('inbound_edit.no_secret', { instance_id: instanceId, target_id: targetId }); return }
+
+  // Candidate sender JIDs (both slots are the same editing customer). GCM tells
+  // us which form WhatsApp used for the secret derivation.
+  const lid = (m.key as { remoteJidLid?: string })?.remoteJidLid ?? null
+  const cands = [...new Set([remoteJid, lid, row.rows[0]?.sender_jid ?? null, sec.targetMessageKey?.remoteJid ?? null].filter((x): x is string => !!x))]
+
+  let newText: string | null = null, usedForm: string | null = null, decryptOk = false
+  outer: for (const os of cands) for (const es of cands) {
+    let pt: Buffer
+    try { pt = gcmDecrypt(deriveEditKey(secret, targetId, os, es), encIv, encPayload) }
+    catch { continue }   // wrong candidate — auth tag rejected
+    decryptOk = true
+    const text = extractEditedText(pt)
+    if (text != null) { newText = text; usedForm = `${os} | ${es}`; break outer }
+    log.warn('inbound_edit.decrypted_but_no_text', { instance_id: instanceId, target_id: targetId, plaintext_hex: pt.subarray(0, 200).toString('hex') })
+  }
+
+  if (newText == null) {
+    log.warn('inbound_edit.decrypt_failed', { instance_id: instanceId, target_id: targetId, decrypt_ok: decryptOk, candidates: cands })
+    return
+  }
+  log.info('inbound_edit.decrypted', { instance_id: instanceId, target_id: targetId, form: usedForm, text_len: newText.length })
+
+  try {
+    const r = await pool.query<{ r: unknown }>(`SELECT whatsapp.apply_inbound_edit($1, $2) AS r`, [targetId, newText])
+    log.info('inbound_edit.applied', { instance_id: instanceId, target_id: targetId, result: r.rows[0]?.r })
+  } catch (err) {
+    log.warn('inbound_edit.apply_failed', { instance_id: instanceId, target_id: targetId, error: err instanceof Error ? err.message : String(err) })
+  }
 }
 
 // Tombstone our stored INBOUND copy of a message the contact deleted. We keep

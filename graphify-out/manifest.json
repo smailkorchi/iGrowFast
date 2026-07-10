@@ -920,8 +920,8 @@
     "semantic_hash": "efe00f4da39b60c61c87ae6bd49e2501"
   },
   "ops/whatsapp-node/worker/src/webhook/handlers.ts": {
-    "mtime": 1783692845.0940661,
-    "ast_hash": "5b8f381e440055e810a3ace9012bc31e",
+    "mtime": 1783694419.0090384,
+    "ast_hash": "bcb7587ac418022cea5140b2b96a8c2b",
     "semantic_hash": ""
   },
   "ops/whatsapp-node/worker/src/webhook/server.ts": {
@@ -5182,6 +5182,11 @@
   "ops/whatsapp-node/evolution-patches/003-view-once-companion-passthrough.md": {
     "mtime": 1783690680.492377,
     "ast_hash": "81f2495457908caba57c9c93fc5fc688",
+    "semantic_hash": ""
+  },
+  "ops/box/whatsapp-schema/migrations/whatsapp_065_inbound_edit.sql": {
+    "mtime": 1783693471.2014484,
+    "ast_hash": "3902b1b3f30c86ce5990cac72ba46a0d",
     "semantic_hash": ""
   }
 }
