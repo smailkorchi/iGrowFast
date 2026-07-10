@@ -2225,7 +2225,10 @@ function extractContent(message: WAMessageContent | undefined): {
         ? (raw as Record<string, unknown>) : undefined
     )
     if (inner) {
-      const media = inner.imageMessage ? 'image' : inner.videoMessage ? 'video' : 'audio'
+      // Evolution patch 003 synthesizes an EMPTY inner ({}) for the live
+      // companion placeholder (content is never delivered) — media 'unknown'
+      // there; history-synced rows carry the real inner media message.
+      const media = inner.imageMessage ? 'image' : inner.videoMessage ? 'video' : inner.audioMessage ? 'audio' : 'unknown'
       return { kind: 'system', body: null, mediaMeta: { subtype: 'view_once', media } }
     }
   }

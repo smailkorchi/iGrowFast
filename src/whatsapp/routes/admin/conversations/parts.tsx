@@ -4807,7 +4807,7 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
   // WhatsApp jumbo: a text message whose body is exactly ONE emoji renders
   // large and bubble-less. 2+ emojis stay in the normal bubble. Only the clean
   // case (no quote/forward) gets the bubble-less treatment.
-  const isTextKind = !isMedia && !isVoice && !isWaitingForMessage && !isTemplate
+  const isTextKind = !isMedia && !isVoice && !isWaitingForMessage && !isViewOnce && !isTemplate
     && !isSticker && !isLocation && !isContact
   const jumboEmoji = isTextKind && !msg.reply_to_message_id && !isForwardedMsg
     && isSingleEmoji(msg.body)

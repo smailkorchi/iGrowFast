@@ -100,6 +100,7 @@
   "98": "WhatsApp Ops",
   "99": "WhatsApp Ops",
   "100": "Package Scripts",
+  "101": "MediaBuyerSidebar.tsx",
   "102": "WhatsApp Ops",
   "103": "UI Components",
   "104": "UI Components",
@@ -110,6 +111,7 @@
   "109": "WhatsApp Ops",
   "110": "WhatsApp Frontend",
   "111": "Shared Libs",
+  "112": "chart.tsx",
   "113": "Shared Libs",
   "114": "Edge Functions",
   "115": "Edge Functions",
@@ -117,11 +119,14 @@
   "117": "Tsconfig Compileroptions",
   "118": "UI Components",
   "119": "UI Components",
+  "120": "Demands.tsx",
   "121": "Edge Functions",
   "122": "WA Recon Docs",
   "123": "Ops Agent",
   "124": "Ops Scripts",
   "125": "Public Manifest",
+  "126": "EmailPreview.tsx",
+  "127": "Evolution patch 003 — companion view-once passthrough (the \"message à vue unique\" indicator)",
   "128": "Edge Functions",
   "129": "Edge Functions",
   "130": "WA Recon Docs",
@@ -350,6 +355,5 @@
   "363": "fetchUrlAsDataUri",
   "366": "BonLivraisonPdfDocument.tsx",
   "367": "DevisPdfDocument.tsx",
-  "368": "FacturePdfDocument.tsx",
-  "371": "ConfigSection.tsx"
+  "368": "FacturePdfDocument.tsx"
 }
