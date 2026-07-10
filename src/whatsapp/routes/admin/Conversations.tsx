@@ -274,8 +274,15 @@ export default function AdminConversations() {
   )
 
   // ─── active conversation ───────────────────────────────────────────────────
-  const [activeId, setActiveId] = useState<string | null>(null)
-  useEffect(() => { setActiveId(null) }, [activeInstanceId])
+  const [activeId, setActiveIdState] = useState<string | null>(null)
+  // Synchronous ref write: a bump can land on the websocket BEFORE the
+  // [activeId] effect below commits — the thread being opened must already be
+  // suppressed by then.
+  const setActiveId = useCallback((id: string | null) => {
+    activeConversationRef.current = id
+    setActiveIdState(id)
+  }, [])
+  useEffect(() => { setActiveId(null) }, [activeInstanceId, setActiveId])
   const { data: activeConvTags } = useConversationTags(activeId)
 
   // Toast suppression: the notify engine skips the open conversation while the
@@ -298,9 +305,21 @@ export default function AdminConversations() {
     if (!jid) { deepLinkHandled.current = false; return }
     if (deepLinkHandled.current) return
     const wantInstance = searchParams.get('instance')
-    if (wantInstance && wantInstance !== activeInstanceId && (instances ?? []).some((i) => i.id === wantInstance)) {
-      onSwitchInstance(wantInstance)
-      return
+    if (wantInstance) {
+      if (!instances) return   // wait for the list before deciding anything
+      if (!instances.some((i) => i.id === wantInstance)) {
+        // Target number gone (deleted/disconnected-and-removed): NEVER fall
+        // through to the active instance — ensureConversation would create the
+        // customer's thread on the wrong number.
+        deepLinkHandled.current = true
+        setSearchParams({}, { replace: true })
+        toast.error('Numéro WhatsApp introuvable.')
+        return
+      }
+      if (wantInstance !== activeInstanceId) {
+        onSwitchInstance(wantInstance)
+        return
+      }
     }
     if (!activeInstanceId || convs.isLoading) return
     deepLinkHandled.current = true

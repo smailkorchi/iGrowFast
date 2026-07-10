@@ -24,6 +24,7 @@
 
 import { MutationCache, QueryClient } from '@tanstack/react-query'
 import { normalizeError, toast } from './toast/store'
+import { supabase } from './supabase'
 
 export const waQueryClient = new QueryClient({
   // Baseline error feedback for EVERY useMutation: a failed mutation auto-shows a toast.
@@ -48,4 +49,13 @@ export const waQueryClient = new QueryClient({
       retry: 0,
     },
   },
+})
+
+// The WA channels (waChannels) now live for the whole session in the layouts,
+// and this client is a module singleton — after a same-tab account switch the
+// previous user's instances would be served stale-while-revalidating and
+// wa:biz could transiently subscribe the OLD business with the NEW token.
+// Purge everything on sign-out.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') waQueryClient.clear()
 })

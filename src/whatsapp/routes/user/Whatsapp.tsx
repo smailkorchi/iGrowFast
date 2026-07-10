@@ -122,7 +122,7 @@ export default function UserWhatsapp() {
 
   const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter))
   // conversations + tags realtime ride the unified wa:user channel
-  // (useWaUserChannel in ActiveInstanceProvider) — one channel per agent.
+  // (WaUserRealtime, mounted app-wide in SellerLayout) — one channel per agent.
   // Keep the active number ONLINE while this inbox is open+visible so peer
   // typing always arrives. Reverts to ban-safe offline shortly after hide.
   useInboxAttendance(activeInstance?.status === 'connected' ? activeInstanceId : null)
@@ -235,8 +235,15 @@ export default function UserWhatsapp() {
     [archivedByInstance, activeInstanceId],
   )
 
-  const [activeId, setActiveId] = useState<string | null>(null)
-  useEffect(() => { setActiveId(null) }, [activeInstanceId])
+  const [activeId, setActiveIdState] = useState<string | null>(null)
+  // Synchronous ref write: a bump can land on the websocket BEFORE the
+  // [activeId] effect below commits — the thread being opened must already be
+  // suppressed by then.
+  const setActiveId = useCallback((id: string | null) => {
+    activeConversationRef.current = id
+    setActiveIdState(id)
+  }, [])
+  useEffect(() => { setActiveId(null) }, [activeInstanceId, setActiveId])
   const { data: activeConvTags } = useConversationTags(activeId)
 
   // Toast suppression: the notify engine skips the open conversation while the
@@ -260,9 +267,20 @@ export default function UserWhatsapp() {
     // active). Without this, ensureConversation would open/create the thread
     // on the wrong number.
     const wantInstance = searchParams.get('instance')
-    if (wantInstance && wantInstance !== activeInstanceId && (instances ?? []).some((i) => i.id === wantInstance)) {
-      onSwitchInstance(wantInstance)
-      return
+    if (wantInstance) {
+      if (!instances) return   // wait for the list before deciding anything
+      if (!instances.some((i) => i.id === wantInstance)) {
+        // The agent lost (or never had) this number — do NOT fall through to
+        // resolving the jid against whichever instance happens to be active.
+        deepLinkHandled.current = true
+        setSearchParams({}, { replace: true })
+        toast.error('Ce numéro ne vous est pas assigné.')
+        return
+      }
+      if (wantInstance !== activeInstanceId) {
+        onSwitchInstance(wantInstance)
+        return
+      }
     }
     if (!activeInstanceId || convs.isLoading) return
     deepLinkHandled.current = true
@@ -272,27 +290,33 @@ export default function UserWhatsapp() {
       setActiveId(existing.id)
       return
     }
-    // A @lid deep link may no longer string-match: its conversation was
-    // canonicalized/consolidated into the phone-keyed thread. Resolve the lid to
-    // its contact (RLS-scoped to the agent's assignments) and match by contact_id.
-    if (jid.endsWith('@lid') && activeInstanceId) {
-      void (async () => {
-        try {
+    // A list miss is NOT "not assigned": the row may be archived, resolved,
+    // hidden by the active filter or beyond the loaded pages. Resolve directly
+    // against the RLS-scoped view (a real non-assignment yields no row), then
+    // try the @lid → contact consolidation match (the lid conversation may have
+    // been merged into the phone-keyed thread). Only then declare not-assigned.
+    // ensure_conversation is admin-only and would throw 'forbidden'.
+    const instanceId = activeInstanceId
+    void (async () => {
+      try {
+        const { data: conv } = await supabase
+          .schema('whatsapp')
+          .from('conversations_decrypted').select('id')
+          .eq('instance_id', instanceId).eq('remote_jid', jid)
+          .order('created_at', { ascending: false })
+          .limit(1).maybeSingle()
+        if (conv?.id) { setActiveId(conv.id); return }
+        if (jid.endsWith('@lid')) {
           const { data: ct } = await supabase
             .schema('whatsapp')
             .from('contacts').select('id')
-            .eq('instance_id', activeInstanceId).eq('lid', jid).maybeSingle()
+            .eq('instance_id', instanceId).eq('lid', jid).maybeSingle()
           const byContact = ct?.id ? convs.rows.find((c) => c.contact_id === ct.id) : null
           if (byContact?.id) { setActiveId(byContact.id); return }
-          toast.error('Cette conversation ne vous est pas assignée.')
-        } catch { toast.error('Cette conversation ne vous est pas assignée.') }
-      })()
-      return
-    }
-    // Agents can only open conversations assigned to them (convs.rows is
-    // RLS-scoped). ensure_conversation is admin-only and would throw
-    // 'forbidden'; surface a notice instead of an unhandled rejection.
-    toast.error('Cette conversation ne vous est pas assignée.')
+        }
+        toast.error('Cette conversation ne vous est pas assignée.')
+      } catch { toast.error('Cette conversation ne vous est pas assignée.') }
+    })()
   }, [searchParams, instances, activeInstanceId, convs.isLoading, convs.rows, onSwitchInstance, setSearchParams])
 
   const activeQ = useConversation(activeId)

@@ -12,8 +12,8 @@ import { PairDialog } from '../../components/numbers/PairDialog'
 // fleet-operator telemetry; removed from the admin surface.
 
 export default function AdminNumbers() {
-  // Realtime for instance changes rides the unified wa:biz channel (AdminWaRealtime
-  // in the page wrapper) — no per-page channel here.
+  // Realtime for instance changes rides the unified wa:biz channel (AdminWaRealtime,
+  // mounted app-wide in AppLayout) — no per-page channel here.
   const { data: instances, isLoading } = useInstances()
 
   const [createOpen, setCreateOpen] = useState(false)

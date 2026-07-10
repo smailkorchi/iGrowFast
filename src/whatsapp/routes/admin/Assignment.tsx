@@ -7,7 +7,7 @@
 //
 // All writes go through the SECURITY DEFINER RPCs in assignmentApi.ts —
 // is_admin() gates inside the function. Realtime sync rides the unified wa:biz
-// broadcast (AdminWaRealtime, mounted in the page wrapper) so every admin
+// broadcast (AdminWaRealtime, mounted app-wide in AppLayout) so every admin
 // session reflects the same state without polling.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -71,7 +71,7 @@ export default function AdminAssignment() {
   // 1,221-conversation instance read 50/50/0 and an agent owning 1,076 showed
   // "0 ouvertes" (her rows sat past the loaded page). Now: one summary RPC for
   // all counts, one keyset-paginated RPC for the visible page. Realtime still
-  // rides the unified wa:biz channel (AdminWaRealtime in the page wrapper),
+  // rides the unified wa:biz channel (AdminWaRealtime, mounted in AppLayout),
   // which invalidates these caches.
 
   // ── chip + debounced server-side search ────────────────────────────────────

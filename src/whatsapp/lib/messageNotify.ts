@@ -36,6 +36,7 @@ type BumpRow = {
   contact_book_name?: unknown
   last_message_direction?: unknown
   last_inbound_at?: unknown
+  unread_count?: unknown
   last_message_kind?: unknown
   last_message_preview?: unknown
   last_message_media_meta?: unknown
@@ -45,18 +46,37 @@ type BumpRow = {
 // Per-conversation newest-seen last_inbound_at. A toast requires an ADVANCE
 // past this; non-message bumps (archive/pin/read/tag) re-carry the old value
 // and stay silent. Module-scoped: survives route changes, resets on page load
-// (the freshness window below covers that gap).
+// (the cache baseline + freshness window below cover that gap). Bounded: the
+// channels are now mounted for the whole session, so a long-lived tab on a
+// high-volume business would otherwise grow this forever.
 const lastInboundSeen = new Map<string, string>()
+const TRACKED_MAX = 4000
 
 // Cross-channel dedupe — a user receiving the same bump on wa:biz AND wa:user
 // must toast once. Insertion-ordered Set, pruned at >300 entries.
 const seenKeys = new Set<string>()
 const SEEN_MAX = 300
 
-// First bump for a conversation since page load has no tracked baseline: only
-// toast when the inbound is genuinely recent, else an archive/pin flip on a
-// conversation whose last message was inbound weeks ago would toast.
-const FRESH_WINDOW_MS = 120_000
+// Last resort for a first sighting with NO tracked baseline AND no cached list
+// row to compare against: only toast when the inbound is genuinely recent, else
+// an archive/pin flip on a conversation whose last message was inbound long ago
+// would toast. Kept narrow — the cache baseline handles the common case.
+const FRESH_WINDOW_MS = 60_000
+
+// Baseline for an untracked conversation: the PRE-bump cached list row (the
+// notify call runs BEFORE applyBump patches the caches — ordering contract with
+// waChannels). Same last_inbound_at as the bump ⇒ metadata-only change (archive,
+// pin, read-flip, profile refresh, receipt) ⇒ silent. Older ⇒ real new inbound.
+function cachedLastInboundAt(qc: QueryClient, conversationId: string): string | null | undefined {
+  type CachedList = { pages?: Array<{ rows?: Array<{ id?: string; last_inbound_at?: string | null }> }> }
+  for (const [, data] of qc.getQueriesData<CachedList>({ queryKey: ['conversations', 'list'] })) {
+    for (const pg of data?.pages ?? []) {
+      const hit = pg.rows?.find((r) => r.id === conversationId)
+      if (hit) return hit.last_inbound_at ?? null
+    }
+  }
+  return undefined   // conversation not in any loaded list
+}
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v ? v : null
@@ -112,9 +132,12 @@ export function waMessagePreviewLabel(row: {
 }
 
 /**
- * Called from the wa:biz / wa:user bump handlers AFTER applyBump. Decides
- * whether the bump is a new inbound message and toasts it. NEVER throws — a
- * notify failure must not break the cache patching that shares the handler.
+ * Called from the wa:biz / wa:user bump handlers BEFORE applyBump — the
+ * untracked-conversation baseline reads the PRE-bump cached row; after
+ * applyBump the cache already carries the new last_inbound_at and every
+ * metadata bump would look like a new message. Decides whether the bump is a
+ * new inbound message and toasts it. NEVER throws — a notify failure must not
+ * break the cache patching that shares the handler.
  */
 export function maybeNotifyFromBump(
   qc: QueryClient,
@@ -130,6 +153,10 @@ export function maybeNotifyFromBump(
     if (row.last_message_direction !== 'inbound') return
     const lastInboundAt = str(row.last_inbound_at)
     if (!lastInboundAt) return
+    // A genuine new inbound always arrives unread (mark-read is a LATER bump
+    // with unread_count=0) — blocks the trailing read-flip after the thread
+    // closes, which re-carries direction='inbound' + the same last_inbound_at.
+    if (!(typeof row.unread_count === 'number' && row.unread_count > 0)) return
 
     // ADVANCE gate. The tracked value updates even when the toast is
     // suppressed below, so later non-message bumps never toast.
@@ -137,7 +164,22 @@ export function maybeNotifyFromBump(
     const tracked = lastInboundSeen.get(id)
     if (tracked === undefined) {
       lastInboundSeen.set(id, lastInboundAt)
-      if (!(Date.now() - t < FRESH_WINDOW_MS)) return   // stale first sighting
+      if (lastInboundSeen.size > TRACKED_MAX) {
+        for (const k of lastInboundSeen.keys()) {
+          lastInboundSeen.delete(k)
+          if (lastInboundSeen.size <= TRACKED_MAX) break
+        }
+      }
+      // No in-session baseline (fresh page load / evicted): compare against the
+      // PRE-bump cached list row; only when the row isn't cached anywhere fall
+      // back to the wall-clock freshness window.
+      const cached = cachedLastInboundAt(qc, id)
+      if (cached !== undefined) {
+        if (cached === lastInboundAt) return               // metadata-only bump
+        if (cached && !(t > Date.parse(cached))) return    // not an advance
+      } else if (!(Date.now() - t < FRESH_WINDOW_MS)) {
+        return                                             // stale first sighting
+      }
     } else {
       if (!(t > Date.parse(tracked))) return
       lastInboundSeen.set(id, lastInboundAt)
@@ -183,7 +225,9 @@ export function maybeNotifyFromBump(
         conversationId: id,
         name: conversationLabel(remoteJid, str(row.peer_display_name), str(row.contact_book_name)),
         preview,
-        avatarUrl: str(row.peer_profile_pic),
+        // Owner ruling: the avatar identifies the RECEIVING NUMBER (instance
+        // profile picture), not the customer.
+        avatarUrl: inst?.profile_pic_url ?? null,
         instanceName,
       },
       () => opts.navigate(url),

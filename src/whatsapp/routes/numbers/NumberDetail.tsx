@@ -49,7 +49,7 @@ const PROTECTION_PRESETS: Record<'conservative'|'balanced'|'aggressive', Protect
 }
 
 export default function NumberDetail() {
-  // instance realtime rides the unified wa:biz channel (AdminWaRealtime wrapper).
+  // instance realtime rides the unified wa:biz channel (AdminWaRealtime in AppLayout).
   const { id } = useParams<{ id: string }>()
   const nav = useNavigate()
   const { data: instance, isLoading } = useInstance(id ?? null)

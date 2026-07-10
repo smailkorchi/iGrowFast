@@ -83,8 +83,10 @@ export function useWaBizChannel(businessId: string | null) {
     const ch = supabase
       .channel(`wa:biz:${businessId}`, { config: { private: true } })
       .on('broadcast', { event: 'bump' }, ({ payload }) => {
-        applyBump(qc, payload)
+        // Notify FIRST: its untracked-conversation baseline reads the PRE-bump
+        // cached row; applyBump would overwrite it with the new value.
         maybeNotifyFromBump(qc, payload, { role: 'admin', navigate: (url) => navigateRef.current(url) })
+        applyBump(qc, payload)
         // Keep the Assignment console's server-side counts + list live when a
         // new inbound conversation arrives. Debounced + active-observer-only:
         // a no-op cost unless an admin is actually on /admin/assignment.
@@ -153,8 +155,9 @@ export function useWaUserChannel(userId: string | null) {
     const ch = supabase
       .channel(`wa:user:${userId}`, { config: { private: true } })
       .on('broadcast', { event: 'bump' }, ({ payload }) => {
-        applyBump(qc, payload)
+        // Same ordering contract as useWaBizChannel: notify before applyBump.
         maybeNotifyFromBump(qc, payload, { role: 'agent', navigate: (url) => navigateRef.current(url) })
+        applyBump(qc, payload)
       })
       .on('broadcast', { event: 'assignment' }, () => {
         // Revocation-critical: a lost assignment must drop the number + conversation
@@ -194,6 +197,10 @@ export function WaUserRealtime() {
 
 function WaUserRealtimeInner(): null {
   const { session } = useAuth()
+  // Keep the (RLS-scoped) instances cache warm app-wide: the toast resolves the
+  // instance name + profile picture from it, and without a subscriber the 5min
+  // gcTime drops it as soon as the seller leaves the inbox.
+  useInstances()
   useWaUserChannel(session?.user.id ?? null)
   return null
 }
