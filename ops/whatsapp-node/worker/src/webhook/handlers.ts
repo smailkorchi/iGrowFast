@@ -449,6 +449,29 @@ async function ingestMessage(instanceId: string, m: WAMessageData, fromHistorySy
     if (fwd.score > 0) mediaMeta.forwardingScore = fwd.score
   }
 
+  // Secret-encrypted envelope (WhatsApp's newer E2E form for inbound message
+  // EDITS — secretEncType=2 — plus poll edits / encrypted reactions). Companion
+  // sessions receive the ciphertext but NOT the plaintext; bundled Baileys does
+  // not decrypt it, so extractContent falls through to a {system,
+  // waiting_for_message} row that renders as "Ce message n'a pas pu être
+  // chargé" (owner-reported). Suppress that broken placeholder here. Decrypting
+  // it to actually apply the inbound edit (via the target message's
+  // messageSecret) is Evolution patch 004 — until that lands, dropping the
+  // signal is strictly better than a broken bubble; the original keeps its
+  // pre-edit text.
+  {
+    const sec = (m.message as Record<string, unknown> | undefined)?.secretEncryptedMessage as
+      { secretEncType?: number; targetMessageKey?: { id?: string } } | undefined
+    if (sec) {
+      log.info('webhook.secret_encrypted.skipped', {
+        instance_id: instanceId, remote_jid: remoteJid,
+        sec_type: sec.secretEncType ?? null,
+        target_id: sec.targetMessageKey?.id ?? null,
+      })
+      return
+    }
+  }
+
   // Protocol messages (disappearing mode, key distribution, edits, revokes…)
   // are control signals invisible in WhatsApp Web — we don't STORE them. But a
   // REVOKE protocol message means the remote party deleted a message they sent
