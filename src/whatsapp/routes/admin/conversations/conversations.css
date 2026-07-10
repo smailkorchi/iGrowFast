@@ -8259,6 +8259,7 @@
   border-radius: 14px;
   width: 560px;
   max-width: 92vw;
+  max-height: 92vh;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   display: flex;
@@ -8319,7 +8320,17 @@
   line-height: 19px;
   box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
 }
-.wac__editmsg-bubble-text { white-space: pre-wrap; word-break: break-word; padding-right: 56px; }
+/* Bound the preview text itself (NOT the bubble/preview: the meta timestamp is
+   absolutely positioned in the bubble and the wallpaper ::before in the preview —
+   scrolling either would detach them). */
+.wac__editmsg-bubble-text {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: 56px;
+  max-height: 24vh;
+  overflow-y: auto;
+}
 .wac__editmsg-bubble-meta {
   position: absolute;
   bottom: 5px;
@@ -8332,7 +8343,9 @@
   font-variant-numeric: tabular-nums;
 }
 .wac__editmsg-bubble-meta svg { width: 15px; height: 11px; }
-.wac__editmsg-inputrow { display: flex; align-items: center; gap: 12px; padding: 14px 18px 18px; }
+/* flex-end: emoji + confirm buttons stay pinned to the bottom edge as the
+   textarea grows (matches .wac__composer-pill). */
+.wac__editmsg-inputrow { display: flex; align-items: flex-end; gap: 12px; padding: 14px 18px 18px; }
 .wac__editmsg-input {
   flex: 1;
   min-width: 0;
@@ -8341,8 +8354,13 @@
   border-bottom: 2px solid var(--wa-green);
   color: var(--wa-text-primary);
   font-size: 15px;
+  line-height: 1.4;
   padding: 8px 2px;
   outline: none;
+  resize: none;
+  font-family: inherit;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 .wac__editmsg-emoji-wrap { position: relative; flex-shrink: 0; }
 .wac__editmsg-emoji {

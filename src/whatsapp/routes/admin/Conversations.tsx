@@ -11,7 +11,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useSidebarCollapse } from '../../components/AppLayout'
-import { parseJid } from '../../lib/jid'
+import { parseJid, jidUserToLocalPhone } from '../../lib/jid'
 
 // IGF ADDITION (e-commerce seam): chat-header cart → admin create-order
 // dialog (mirror of the admin Orders page create flow, incl. exchange split).
@@ -24,6 +24,7 @@ import {
   useFlattenedConversations,
   useConversation,
   useInstancesUnread,
+  useInstancesArchived,
   useMarkConversationRead,
   type ConversationFilter,
 } from '../../lib/queries/conversations'
@@ -35,6 +36,7 @@ import {
 import { useInstances } from '../../lib/queries/instances'
 import { useInboxAttendance } from '../../lib/queries/waPresence'
 import { toast, normalizeError } from '../../lib/toast/store'
+import { getDraft, setDraft, clearDraft } from '../../lib/drafts'
 import type { ConversationDecrypted } from '../../lib/database.types'
 import type { MessageDecrypted } from '../../lib/database.types'
 import {
@@ -82,11 +84,12 @@ function saveFavorites(instanceId: string, favs: Set<string>) {
 
 function dataFilter(f: Filter): ConversationFilter {
   switch (f.kind) {
-    case 'toutes':  return 'all'
-    case 'unread':  return 'unread'
-    case 'favoris': return 'all'   // favoris filtered client-side
-    case 'groups':  return 'groups'
-    case 'tag':     return 'all'   // tag members filtered client-side
+    case 'toutes':   return 'all'
+    case 'unread':   return 'unread'
+    case 'favoris':  return 'all'   // favoris filtered client-side
+    case 'groups':   return 'groups'
+    case 'archived': return 'archived'
+    case 'tag':      return 'all'   // tag members filtered client-side
   }
 }
 
@@ -126,6 +129,7 @@ export default function AdminConversations() {
 
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
+  const { data: archivedByInstance } = useInstancesArchived(instanceIds)
   // Stage 2a (W5): admins receive conversation bumps on ONE business-scoped
   // broadcast channel (wa:biz:<business_id>) instead of one wa:inst:<id> channel
   // PER instance — a business with 93 numbers opened 93 channels/tab (the channel
@@ -233,6 +237,15 @@ export default function AdminConversations() {
       // immediately and keeps it cleared across tab switches.
       rows = rows.filter((c) => (c.unread_count ?? 0) > 0)
     }
+    // Same mechanic for archive: the ctx-menu toggle optimistically flips
+    // is_archived in the list caches, so filtering at render moves the row
+    // between the operational tabs and "Archivées" instantly, without waiting
+    // for the server refetch.
+    if (filter.kind === 'archived') {
+      rows = rows.filter((c) => !!c.is_archived)
+    } else {
+      rows = rows.filter((c) => !c.is_archived)
+    }
     const q = query.trim().toLowerCase()
     if (q) {
       rows = rows.filter((c) => {
@@ -251,6 +264,12 @@ export default function AdminConversations() {
   const unreadTotal = useMemo(
     () => (activeInstanceId ? unreadByInstance?.get(activeInstanceId) ?? 0 : 0),
     [unreadByInstance, activeInstanceId],
+  )
+
+  // "Archivées" pill badge — same server-authoritative shape (mig 062 aggregate).
+  const archivedTotal = useMemo(
+    () => (activeInstanceId ? archivedByInstance?.get(activeInstanceId) ?? 0 : 0),
+    [archivedByInstance, activeInstanceId],
   )
 
   // ─── active conversation ───────────────────────────────────────────────────
@@ -297,7 +316,8 @@ export default function AdminConversations() {
     const parsed = parseJid(activeConv.remote_jid ?? '')
     return {
       name: activeConv.contact_book_name ?? activeConv.peer_display_name ?? undefined,
-      phone: parsed.kind === 'phone' ? parsed.user : undefined,
+      // Orders store the local "06…" form, not the JID's "212…" digits.
+      phone: parsed.kind === 'phone' ? jidUserToLocalPhone(parsed.user) : undefined,
     }
   }, [activeConv])
 
@@ -352,13 +372,21 @@ export default function AdminConversations() {
   // ─── composer ──────────────────────────────────────────────────────────────
   const [composer, setComposer] = useState<ComposerState>({ text: '', replyTo: null, mentionedJids: [] })
   const [pendingQr, setPendingQr] = useState<QuickReply | null>(null)
-  useEffect(() => { setComposer({ text: '', replyTo: null, mentionedJids: [] }) }, [activeId])
+  // Switching conversations restores that conversation's unsent draft.
+  useEffect(() => { setComposer({ text: activeId ? getDraft(activeId) : '', replyTo: null, mentionedJids: [] }) }, [activeId])
+  // Composer changes coming from the pane write through to the draft store;
+  // the plain setComposer above stays draft-silent (restore / send reset).
+  const setComposerDraft = useCallback((s: ComposerState) => {
+    setComposer(s)
+    if (activeId) setDraft(activeId, s.text)
+  }, [activeId])
 
   function handleSend() {
     if (!activeId) return
     const { text, replyTo, mentionAll } = composer
     if (!text.trim()) return
     setComposer({ text: '', replyTo: null, mentionedJids: [] })
+    clearDraft(activeId)
 
     void (async () => {
       try {
@@ -386,7 +414,7 @@ export default function AdminConversations() {
     // order immediately with canned-origin humanization.
     if (steps.length === 1 && steps[0].type === 'text') {
       const body = steps[0].body
-      setComposer({ ...composer, text: body })
+      setComposerDraft({ ...composer, text: body })
       setView('list')
       requestAnimationFrame(() => {
         const el = document.querySelector<HTMLTextAreaElement>('.wac__composer-input')
@@ -483,6 +511,7 @@ export default function AdminConversations() {
           filter={filter}
           onFilterChange={setFilter}
           unreadTotal={unreadTotal}
+          archivedTotal={archivedTotal}
           tags={(tags ?? []).map((t) => ({ id: t.id, name: t.name, color: t.color }))}
           onManageTags={() => setView('tags')}
           onNewChat={() => setView('new-chat')}
@@ -561,7 +590,7 @@ export default function AdminConversations() {
           hasMoreOlder={!!threadQ.hasNextPage}
           isFetchingOlder={threadQ.isFetchingNextPage}
           composer={composer}
-          setComposer={setComposer}
+          setComposer={setComposerDraft}
           onSend={handleSend}
           selfJid={activeInstance?.wa_owner_jid ?? null}
           ownerPic={activeInstance?.profile_pic_url ?? null}

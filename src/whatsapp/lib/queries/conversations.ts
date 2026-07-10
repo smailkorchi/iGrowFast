@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
-import { markConversationRead } from '../conversationsApi'
+import { markConversationRead, markConversationUnread } from '../conversationsApi'
 import type { ConversationDecrypted, ConversationStatus } from '../database.types'
 
 // ─── keys ───────────────────────────────────────────────────────────────────
@@ -205,6 +205,38 @@ export function useInstancesUnread(instanceIds: string[]) {
   })
 }
 
+// ─── per-instance archived aggregate ───────────────────────────────────────
+//
+// Map<instance_id, archived_conversation_COUNT> — feeds the "Archivées" filter
+// pill badge. Server-side aggregate (whatsapp.instances_archived_counts, mig
+// 062): mirrors mig 060 but counts over the ARCHIVED-list visibility (view +
+// is_archived=true, NO status narrowing) so the badge equals the number of rows
+// the 'archived' filter yields. SECURITY INVOKER → RLS scopes per caller
+// (admin=all-of-instance, agent=assigned-only). Never tally client-side rows —
+// PostgREST caps reads at 1000 (undercount at scale).
+
+export function useInstancesArchived(instanceIds: string[]) {
+  // Stable key so dropping/reordering ids doesn't refire the query.
+  const key = [...instanceIds].sort().join(',')
+  return useQuery<Map<string, number>>({
+    queryKey: ['instances-archived', key],
+    enabled: instanceIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('whatsapp').rpc('instances_archived_counts', { p_instance_ids: instanceIds })
+      if (error) throw new Error(error.message)
+      const m = new Map<string, number>()
+      for (const row of (data ?? []) as { instance_id: string | null; archived_conversations: number | null }[]) {
+        if (!row.instance_id) continue
+        m.set(row.instance_id, row.archived_conversations ?? 0)
+      }
+      return m
+    },
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
 // ─── per-instance unread live-sync ─────────────────────────────────────────
 // RETIRED at Stage C (2026-07-08). The switcher/navbar unread badge aggregate
 // (['instances-unread']) was refreshed by a postgres_changes subscription on
@@ -285,6 +317,70 @@ export function useMarkConversationRead() {
 
     // Fire the RPC; reconcile the per-instance map from the server on settle.
     void markConversationRead(conversationId)
+      .catch(() => { /* best-effort */ })
+      .finally(() => { void qc.invalidateQueries({ queryKey: ['instances-unread'] }) })
+  }, [qc])
+}
+
+// ─── mark-unread (optimistic) ──────────────────────────────────────────────
+// Exact inverse of useMarkConversationRead, backing the ctx-menu "Marquer
+// comme non lu". The server (mark_conversation_unread, mig 063) bumps
+// unread_count to greatest(unread_count, 1) — a read thread gets a 1-badge, a
+// real backlog is untouched — so the optimistic patches mirror that: only a
+// 0→1 transition adds a conversation to the per-instance unread COUNT.
+export function useMarkConversationUnread() {
+  const qc = useQueryClient()
+  return useCallback((conversationId: string | null) => {
+    if (!conversationId) return
+
+    // Resolve this conversation's current unread + instance from cache so we
+    // know whether the instance total gains a conversation (0→1 only).
+    let unread = 0
+    let instanceId: string | null = null
+    const one = qc.getQueryData<ConversationDecrypted | null>(conversationKeys.one(conversationId))
+    if (one) { unread = one.unread_count ?? 0; instanceId = one.instance_id ?? null }
+    if (instanceId == null) {
+      const lists = qc.getQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] })
+      outer: for (const [, data] of lists) {
+        for (const page of data?.pages ?? []) {
+          const row = page.rows.find((r) => r.id === conversationId)
+          if (row) { unread = row.unread_count ?? 0; instanceId = row.instance_id ?? null; break outer }
+        }
+      }
+    }
+
+    // Optimistic: the map holds a COUNT of unread conversations — flagging an
+    // already-unread thread changes nothing; a read one adds exactly one.
+    if (instanceId && unread === 0) {
+      const inst = instanceId
+      qc.setQueriesData<Map<string, number>>({ queryKey: ['instances-unread'] }, (old) => {
+        if (!old) return old
+        const next = new Map(old)
+        next.set(inst, (old.get(inst) ?? 0) + 1)
+        return next
+      })
+    }
+
+    // Optimistic: badge the row in the chat-list caches (greatest(cur, 1)).
+    qc.setQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] }, (old) => {
+      if (!old?.pages) return old
+      let touched = false
+      const pages = old.pages.map((p) => {
+        const rows = p.rows.map((r) => {
+          if (r.id === conversationId && (r.unread_count ?? 0) === 0) { touched = true; return { ...r, unread_count: 1 } }
+          return r
+        })
+        return touched ? { ...p, rows } : p
+      })
+      return touched ? { ...old, pages } : old
+    })
+
+    // Optimistic: badge the single-conversation cache.
+    qc.setQueryData<ConversationDecrypted | null>(conversationKeys.one(conversationId), (old) =>
+      old && (old.unread_count ?? 0) === 0 ? { ...old, unread_count: 1 } : old)
+
+    // Fire the RPC; reconcile the per-instance map from the server on settle.
+    void markConversationUnread(conversationId)
       .catch(() => { /* best-effort */ })
       .finally(() => { void qc.invalidateQueries({ queryKey: ['instances-unread'] }) })
   }, [qc])
@@ -377,6 +473,20 @@ function scheduleUnreadInvalidate(qc: QueryClient): void {
   }, 150)
 }
 
+// Archived pill badge (['instances-archived']) — same debounced-invalidate
+// mechanic as scheduleUnreadInvalidate, but NOT fired on every bump: archived
+// counts only move when is_archived flips (or an archived row appears/dies), so
+// applyBump fires this only on a flip / unknown row / tombstone, sparing a
+// count-RPC refetch per ordinary message.
+let _archivedInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleArchivedInvalidate(qc: QueryClient): void {
+  if (_archivedInvalidateTimer) clearTimeout(_archivedInvalidateTimer)
+  _archivedInvalidateTimer = setTimeout(() => {
+    _archivedInvalidateTimer = null
+    void qc.invalidateQueries({ queryKey: ['instances-archived'] })
+  }, 150)
+}
+
 // Filter-membership signature: the columns that decide which list tab(s) a row
 // belongs to (mirrors the useConversations server predicates: is_archived, status
 // in open/pending, is_group, unread_count>0). If this differs between the cached
@@ -423,6 +533,7 @@ export function applyBump(qc: QueryClient, rawPayload: unknown): void {
   if ((row as { deleted?: unknown }).deleted === true) {
     removeConversationFromCaches(qc, row.id)
     scheduleUnreadInvalidate(qc)
+    scheduleArchivedInvalidate(qc)   // the dropped row may have been archived
     return
   }
 
@@ -431,13 +542,18 @@ export function applyBump(qc: QueryClient, rawPayload: unknown): void {
   let found = false
   let hasInstanceList = false
   let membershipChanged = false
+  let archivedFlipped = false
   const newSig = membershipSig(row)
   const lists = qc.getQueriesData<ListInfinite>({ queryKey: ['conversations', 'list'] })
   for (const [qkey, data] of lists) {
     if (Array.isArray(qkey) && qkey[2] === row.instance_id) hasInstanceList = true
     for (const pg of data?.pages ?? []) {
       const cached = pg.rows.find((r) => r.id === row.id)
-      if (cached) { found = true; if (membershipSig(cached) !== newSig) membershipChanged = true }
+      if (cached) {
+        found = true
+        if (membershipSig(cached) !== newSig) membershipChanged = true
+        if ((cached.is_archived ?? false) !== (row.is_archived ?? false)) archivedFlipped = true
+      }
     }
   }
 
@@ -477,6 +593,16 @@ export function applyBump(qc: QueryClient, rawPayload: unknown): void {
 
   // 3) Per-instance unread badge aggregate (debounced refetch).
   scheduleUnreadInvalidate(qc)
+
+  // 4) Archived pill badge — only when the flag flipped on a loaded row, or an
+  //    UNLOADED row arrives already-archived (archive-elsewhere / message on an
+  //    archived thread). A bare !found is NOT enough: on a multi-instance
+  //    business wa:biz delivers bumps for every instance while only the active
+  //    one's list is cached, so !found is the COMMON case and would refetch the
+  //    archived aggregate at unread-badge cadence. The one miss this accepts —
+  //    unarchive-elsewhere with no archived cache loaded — self-heals on the
+  //    hook's staleTime; correctness is kept by the tombstone path above.
+  if (archivedFlipped || (!found && (row.is_archived ?? false))) scheduleArchivedInvalidate(qc)
 }
 
 // ─── flatten infinite query for consumers ──────────────────────────────────

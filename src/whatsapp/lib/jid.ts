@@ -74,6 +74,19 @@ export function formatPhone(rawDigits: string): string {
 }
 
 /**
+ * Local Moroccan phone form for order prefill. The JID user part carries the
+ * international number without "+" ("212600123456") while orders store the
+ * local "0600123456" form. Accepts a raw JID or bare digits (strips the
+ * "@s.whatsapp.net" domain and ":device" suffix); anything that isn't a
+ * 12-digit 212-prefixed number passes through unchanged.
+ */
+export function jidUserToLocalPhone(raw: string): string {
+  const digits = (raw.split('@')[0] ?? '').split(':')[0] ?? ''
+  if (digits.startsWith('212') && digits.length === 12) return '0' + digits.slice(3)
+  return digits
+}
+
+/**
  * Resolve the best human label for a conversation.
  * Priority: bookName (phone book) > peerDisplayName (pushName) > formatted JID.
  */

@@ -129,6 +129,16 @@ export function IconWaUnpin(p: IconProps) {
   )
 }
 
+// Chat bubble with an unread-dot badge — ctx-menu "Marquer comme non lu".
+export function IconUnreadBadge(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z" />
+      <circle cx="12.5" cy="11.5" r="1.6" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
 export function IconMuted(p: IconProps) {
   return (
     <Svg {...p}>

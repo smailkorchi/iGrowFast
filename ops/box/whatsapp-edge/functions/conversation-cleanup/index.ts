@@ -1,6 +1,6 @@
 // conversation-cleanup
 //
-// Admin-only. Two modes:
+// Admin-only. Four modes:
 //
 //   mode = 'clear'  → deletes every message in the conversation + their R2
 //                     media, resets conversation summary columns. Conversation
@@ -11,12 +11,21 @@
 //                     media_fetch_jobs CASCADE from messages. R2 media is
 //                     wiped first so we don't orphan storage.
 //
+//   mode = 'clear_all' | 'delete_all' (body: { instance_id }) → instance-wide
+//                     twins ("Vider/Supprimer toutes les discussions", mig 064).
+//                     Same preflight→R2→DB order via the bulk preflight RPC +
+//                     conversations_clear_all / conversations_delete_all, so
+//                     the bulk path never orphans R2 media either. delete_all
+//                     additionally purge_peer's every DM jid (chunked).
+//
 // Pipeline mirrors instance-delete:
 //   1. Preflight RPC (admin-gated) returns counts + r2_keys.
 //   2. R2 batch DeleteObjects (1000 keys per request).
 //   3. DB op:
-//        clear  → admin_conversation_clear RPC
-//        delete → DELETE FROM conversations WHERE id = $1 (RLS allows admin)
+//        clear      → admin_conversation_clear RPC
+//        delete     → DELETE FROM conversations WHERE id = $1 (RLS allows admin)
+//        clear_all  → conversations_clear_all RPC
+//        delete_all → conversations_delete_all RPC
 //
 // Return shape:
 //   { ok: true, mode, summary: { counts, r2_objects_deleted, db_result } }
@@ -101,7 +110,101 @@ Deno.serve(async (req) => {
   catch { return json({ ok: false, reason: 'invalid_input' }, { status: 400 }) }
 
   const conversationId = (raw as { conversation_id?: unknown })?.conversation_id
+  const instanceId     = (raw as { instance_id?: unknown })?.instance_id
   const mode           = (raw as { mode?: unknown })?.mode
+
+  // ── Bulk modes: instance-wide clear/delete (mig 064) ─────────────────────
+  // Same preflight → R2 wipe → DB order as the per-conversation pipeline; the
+  // bulk RPCs re-check is_wa_admin under the caller's JWT.
+  if (mode === 'clear_all' || mode === 'delete_all') {
+    if (typeof instanceId !== 'string' || !UUID_RE.test(instanceId)) {
+      return json({ ok: false, reason: 'invalid_instance_id' }, { status: 400 })
+    }
+    try {
+      // 1. Bulk preflight — caller-scoped so is_wa_admin runs against the JWT.
+      const { data: pfData, error: pfErr } = await caller.client.schema('whatsapp').rpc(
+        'admin_conversations_bulk_purge_preflight',
+        { p_instance_id: instanceId },
+      )
+      if (pfErr) {
+        return json({ ok: false, reason: 'preflight_failed', error: pfErr.message }, { status: 500 })
+      }
+      const pf = pfData as unknown as { counts: Record<string, number>; r2_keys: string[]; remote_jids: string[] }
+      const keys = pf?.r2_keys ?? []
+
+      // 2. R2 wipe (best-effort — orphan R2 < orphan DB).
+      let r2Deleted = 0
+      const r2Errors: { key: string; code: string }[] = []
+      for (let i = 0; i < keys.length; i += 1000) {
+        const slice = keys.slice(i, i + 1000)
+        try {
+          const r = await r2DeleteBatch(slice)
+          r2Deleted += r.deleted
+          if (r.errors.length) r2Errors.push(...r.errors)
+        } catch (err) {
+          console.error('r2_batch_failed', err instanceof Error ? err.message : err)
+          r2Errors.push({ key: slice[0] ?? '?', code: 'batch_threw' })
+        }
+      }
+
+      // 3. DB op (caller-scoped RPC — gate + set-based op in one transaction).
+      const rpcName = mode === 'clear_all' ? 'conversations_clear_all' : 'conversations_delete_all'
+      const { data: dbResult, error: dbErr } = await caller.client.schema('whatsapp').rpc(
+        rpcName, { p_instance_id: instanceId },
+      )
+      if (dbErr) {
+        return json({
+          ok: false, reason: 'db_bulk_failed', error: dbErr.message,
+          partial: { r2_objects_deleted: r2Deleted, r2_errors: r2Errors },
+        }, { status: 500 })
+      }
+
+      // 4. delete_all: purge the worker's peer-subscription cache for every DM
+      //    peer (mirrors the single-delete pipeline). One channel, chunked
+      //    sends, best-effort — the 20-min warmup loop recovers any miss.
+      if (mode === 'delete_all') {
+        const jids = pf?.remote_jids ?? []
+        if (jids.length > 0) {
+          try {
+            const ch = admin.channel(`wa-typing:${instanceId}`, {
+              config: { broadcast: { self: false, ack: false } },
+            })
+            await new Promise<void>((resolve) => {
+              ch.subscribe(async (status) => {
+                if (status !== 'SUBSCRIBED') return
+                for (let i = 0; i < jids.length; i += 50) {
+                  await Promise.all(jids.slice(i, i + 50).map((jid) =>
+                    ch.send({ type: 'broadcast', event: 'purge_peer', payload: { remote_jid: jid } }),
+                  ))
+                }
+                await admin.removeChannel(ch)
+                resolve()
+              })
+              setTimeout(() => { void admin.removeChannel(ch); resolve() }, 10_000)
+            })
+          } catch (err) {
+            console.error('purge_peer_bulk_broadcast_failed', err instanceof Error ? err.message : err)
+          }
+        }
+      }
+
+      return json({
+        ok: true,
+        mode,
+        summary: {
+          counts:             pf?.counts ?? {},
+          r2_objects_deleted: r2Deleted,
+          r2_errors:          r2Errors,
+          db_result:          dbResult,
+        },
+      }, { status: 200 })
+    } catch (err) {
+      return json({
+        ok: false, reason: 'handler_threw',
+        error: err instanceof Error ? err.message : String(err),
+      }, { status: 500 })
+    }
+  }
 
   if (typeof conversationId !== 'string' || !UUID_RE.test(conversationId)) {
     return json({ ok: false, reason: 'invalid_conversation_id' }, { status: 400 })

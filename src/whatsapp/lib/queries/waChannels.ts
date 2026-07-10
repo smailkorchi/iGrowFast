@@ -25,7 +25,7 @@
 //   instance    → ['instances'] (+ the changed one)         [wa:biz only]
 //   quick_reply → ['quick_replies']                         [wa:biz only]
 //   scheduled   → ['scheduled_messages']                    [wa:biz only]
-//   assignment  → ['assignments']+['conversations']+['instances']+['instances-unread']
+//   assignment  → ['assignments']+['conversations']+['instances']+['instances-unread']+['instances-archived']
 //   conv_tag    → ['conversation_tags']+['conversations','list']
 //   tag         → ['tags']                                  [wa:biz only; agents use 60s staleTime]
 //
@@ -51,11 +51,11 @@ function makeDebouncer() {
 }
 
 const ADMIN_RECONCILE_KEYS: readonly (readonly unknown[])[] = [
-  ['conversations'], ['instances'], ['instances-unread'],
+  ['conversations'], ['instances'], ['instances-unread'], ['instances-archived'],
   ['quick_replies'], ['scheduled_messages'], ['tags'], ['conversation_tags'], ['assignments'],
 ]
 const AGENT_RECONCILE_KEYS: readonly (readonly unknown[])[] = [
-  ['conversations'], ['instances'], ['instances-unread'], ['conversation_tags'],
+  ['conversations'], ['instances'], ['instances-unread'], ['instances-archived'], ['conversation_tags'],
 ]
 
 function reconcile(qc: QueryClient, keys: readonly (readonly unknown[])[]): void {
@@ -89,6 +89,7 @@ export function useWaBizChannel(businessId: string | null) {
       .on('broadcast', { event: 'assignment' }, () => {
         inval(qc, ['assignments']); inval(qc, ['conversations'])
         inval(qc, ['instances']); inval(qc, ['instances-unread'])
+        inval(qc, ['instances-archived'])
       })
       .on('broadcast', { event: 'conv_tag' }, () => {
         inval(qc, ['conversation_tags']); inval(qc, ['conversations', 'list'])
@@ -131,6 +132,7 @@ export function useWaUserChannel(userId: string | null) {
         // Revocation-critical: a lost assignment must drop the number + conversation
         // from this agent's inbox (RLS re-scopes on refetch).
         inval(qc, ['instances']); inval(qc, ['conversations']); inval(qc, ['instances-unread'])
+        inval(qc, ['instances-archived'])
       })
       .on('broadcast', { event: 'conv_tag' }, () => {
         inval(qc, ['conversation_tags']); inval(qc, ['conversations', 'list'])

@@ -23,12 +23,14 @@ import { isThumbnailable } from '../../../lib/docThumbnail'
 import { useContacts, type Contact } from '../../../lib/queries/contacts'
 import { buildContactCard, buildContactShare, type ContactCardData } from '../../../lib/vCardBuilder'
 import { useWaPeerPresence } from '../../../lib/queries/waPresence'
+import { useDraft } from '../../../lib/drafts'
 import { TypingIndicator } from '../../../components/conversations/TypingIndicator'
 import { supabase, fetchAllWa } from '../../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
+  IconArchive,
   IconArrowBack,
   IconBackspace,
   IconBan,
@@ -57,6 +59,7 @@ import {
   IconCart,
   IconHeart,
   IconHeartFilled,
+  IconMenuDots,
   IconMic,
   IconMinusCircle,
   IconNewChat,
@@ -80,6 +83,7 @@ import {
   IconStarFilled,
   IconTrash,
   IconExit,
+  IconUnreadBadge,
   IconUser,
   IconUserPlus,
   IconUsers,
@@ -90,7 +94,7 @@ import {
   IconCopy,
   IconReply,
 } from './icons'
-import { sendReaction, toggleStar, setMessagePin, forwardMessage, sendMessage, cancelOutboundMessage, forceDispatchNow, sendTyping, uploadChatMedia, editMessage, deleteMessageForMe, deleteMessageForEveryone, togglePin } from '../../../lib/conversationsApi'
+import { sendReaction, toggleStar, setMessagePin, forwardMessage, sendMessage, cancelOutboundMessage, forceDispatchNow, sendTyping, uploadChatMedia, editMessage, deleteMessageForMe, deleteMessageForEveryone, togglePin, toggleArchive, markAllConversationsRead, markAllConversationsUnread, clearAllConversations, deleteAllConversations } from '../../../lib/conversationsApi'
 import { toast, normalizeError, mediaSizeError } from '../../../lib/toast/store'
 import { EMOJI_DATA, EMOJI_KEYWORDS } from './emoji-data'
 import { useUpsertContact } from '../../../lib/queries/contacts'
@@ -104,6 +108,8 @@ import type { Tag } from '../../../lib/queries/tags'
 import {
   useClearConversation,
   useDeleteConversation,
+  useMarkConversationRead,
+  useMarkConversationUnread,
 } from '../../../lib/queries/conversations'
 import {
   useConversationAssignees,
@@ -125,7 +131,7 @@ import { checkWhatsApp, createGroup, leaveGroup, updateGroupParticipants, update
  * Visible chips depend on context:
  *   - default mode (active in {toutes,unread,favoris})
  *       → [Toutes] [Non lues N] [Favoris] [▾]
- *   - custom mode (active in {groups, list:X})
+ *   - custom mode (active in {groups, archived, list:X})
  *       → [Toutes] [<active>] [▾]
  * The chevron opens a dropdown with everything not already visible
  * (in custom mode it shows the defaults too as quick-access).
@@ -135,6 +141,7 @@ export type Filter =
   | { kind: 'unread' }
   | { kind: 'favoris' }
   | { kind: 'groups' }
+  | { kind: 'archived' }
   | { kind: 'tag'; tagId: string }
 
 /** A tag usable as a chat-list filter (created in the Tags panel). */
@@ -218,6 +225,9 @@ export interface ChatListProps {
   filter: Filter
   onFilterChange: (f: Filter) => void
   unreadTotal: number
+  /** COUNT of archived conversations on the active instance (mig 062 RPC,
+   *  RLS-scoped per caller). Powers the "Archivées" filter pill badge. */
+  archivedTotal?: number
   /** DB-level tags (shared across agents) usable as chat-list filters. */
   tags: TagOption[]
   /** Open the Tags panel (create/manage tags). */
@@ -249,17 +259,30 @@ export function ChatList(p: ChatListProps) {
   // chat — the ChatPane subscribes separately when a conversation is opened.
   const listPeerPresence = useWaPeerPresence(p.instance?.id ?? null, null)
 
-  // ── Right-click conversation menu (pin / clear / delete / leave) ───────────
-  // Pin works for everyone (toggle_pin is assignment-scoped). Clear/Delete/Leave
-  // are admin-only (their edge fns requireAdmin), so agents see only Pin.
+  // ── Right-click conversation menu (pin / read / clear / delete / leave) ────
+  // Pin and read/unread work for everyone (toggle_pin and the mark-read pair
+  // are assignment-scoped). Clear/Delete/Leave are admin-only (their edge fns
+  // requireAdmin), so agents see only Pin + Marquer lu/non lu.
   const ctxIsAdmin = useAuth().profile?.role === 'admin'
   const ctxQc = useQueryClient()
   const ctxClearMut = useClearConversation()
   const ctxDeleteMut = useDeleteConversation()
+  const ctxMarkRead = useMarkConversationRead()
+  const ctxMarkUnread = useMarkConversationUnread()
   const [ctxMenu, setCtxMenu] = useState<{ row: ConversationDecrypted; x: number; y: number } | null>(null)
   const [ctxDanger, setCtxDanger] = useState<{ row: ConversationDecrypted; action: 'clear' | 'delete' | 'leave' } | null>(null)
   const [ctxBusy, setCtxBusy] = useState(false)
   const [ctxError, setCtxError] = useState<string | null>(null)
+
+  // ── Header ⋮ bulk menu (instance-wide ops, mig 064) ────────────────────────
+  // Mark all read/unread work for everyone (server scopes admin=whole instance,
+  // agent=assigned-only). Clear-all/Delete-all are admin-gated server-side
+  // (is_wa_admin), so agents only see the two mark items.
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const bulkRef = useRef<HTMLDivElement | null>(null)
+  const [bulkDanger, setBulkDanger] = useState<'clear-all' | 'delete-all' | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
 
   // Pin/unpin: optimistic flip of is_pinned across the list caches (instant
   // indicator), then server toggle + invalidate so the list re-sorts pinned-first.
@@ -274,6 +297,39 @@ export function ChatList(p: ChatListProps) {
     void togglePin(row.id)
       .catch((e) => toast.error(normalizeError(e)))
       .finally(() => { void ctxQc.invalidateQueries({ queryKey: ['conversations'] }) })
+  }
+
+  // Archive/unarchive: optimistic is_archived flip (the wrappers' render filter
+  // drops the row from the current tab instantly), then server toggle +
+  // invalidate — list, "Archivées" pill badge (mig 062) and unread count
+  // (archived rows leave the operational scope, mig 060). toggle_archive gates
+  // admin-OR-assigned server-side, and its bump trigger live-syncs every other
+  // client (admin + seller) on its own.
+  function ctxToggleArchive(row: ConversationDecrypted) {
+    setCtxMenu(null)
+    if (!row.id) return
+    const next = !row.is_archived
+    ctxQc.setQueriesData<{ pages: { rows: ConversationDecrypted[] }[] }>({ queryKey: ['conversations', 'list'] }, (old) => {
+      if (!old?.pages) return old
+      return { ...old, pages: old.pages.map((pg) => ({ ...pg, rows: pg.rows.map((r) => (r.id === row.id ? { ...r, is_archived: next } : r)) })) }
+    })
+    void toggleArchive(row.id)
+      .catch((e) => toast.error(normalizeError(e)))
+      .finally(() => {
+        void ctxQc.invalidateQueries({ queryKey: ['conversations'] })
+        void ctxQc.invalidateQueries({ queryKey: ['instances-archived'] })
+        void ctxQc.invalidateQueries({ queryKey: ['instances-unread'] })
+      })
+  }
+
+  // Read/unread: both hooks patch every cache optimistically (list row badge +
+  // per-instance switcher count) then reconcile from the server, so the menu
+  // action lands instantly like WhatsApp's "Marquer comme lu/non lu".
+  function ctxToggleRead(row: ConversationDecrypted) {
+    setCtxMenu(null)
+    if (!row.id) return
+    if ((row.unread_count ?? 0) > 0) ctxMarkRead(row.id)
+    else ctxMarkUnread(row.id)
   }
 
   async function ctxConfirmDanger() {
@@ -299,6 +355,61 @@ export function ChatList(p: ChatListProps) {
       setCtxBusy(false)
     }
   }
+
+  // After any bulk op: list rows, unread pill (mig 060) and instance rows all
+  // move at once — invalidate the three roots and let the queries reconcile.
+  function bulkInvalidate() {
+    void ctxQc.invalidateQueries({ queryKey: ['conversations'] })
+    void ctxQc.invalidateQueries({ queryKey: ['instances-unread'] })
+    void ctxQc.invalidateQueries({ queryKey: ['instances'] })
+  }
+
+  // Non-destructive bulk marks fire directly (like the per-row ctx items).
+  function bulkMarkAll(read: boolean) {
+    setBulkOpen(false)
+    const instanceId = p.instance?.id
+    if (!instanceId) return
+    void (read ? markAllConversationsRead(instanceId) : markAllConversationsUnread(instanceId))
+      .catch((e) => toast.error(normalizeError(e)))
+      .finally(() => { bulkInvalidate() })
+  }
+
+  // Destructive bulk ops go through the same danger-modal flow as the per-row
+  // clear/delete; on success also drop message caches + the archived pill
+  // (mig 062) since delete-all removes archived rows too.
+  async function bulkConfirmDanger() {
+    const instanceId = p.instance?.id
+    if (!bulkDanger || !instanceId) return
+    setBulkBusy(true); setBulkError(null)
+    try {
+      if (bulkDanger === 'clear-all') await clearAllConversations(instanceId)
+      else await deleteAllConversations(instanceId)
+      setBulkDanger(null)
+      bulkInvalidate()
+      void ctxQc.invalidateQueries({ queryKey: ['messages'] })
+      void ctxQc.invalidateQueries({ queryKey: ['instances-archived'] })
+    } catch (e) {
+      setBulkError(normalizeError(e))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  // Close the ⋮ bulk menu on outside-click / Escape (same recipe as the
+  // instance switcher below).
+  useEffect(() => {
+    if (!bulkOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (bulkRef.current && !bulkRef.current.contains(e.target as Node)) setBulkOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBulkOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [bulkOpen])
 
   // Close the instance switcher on outside-click / Escape.
   useEffect(() => {
@@ -435,6 +546,46 @@ export function ChatList(p: ChatListProps) {
           >
             <IconNewChat />
           </button>
+          {p.instance?.id && (
+            // position:relative wrapper anchors the dropdown to the button
+            // (wac__ctx-menu is position:fixed by default, overridden inline).
+            <div ref={bulkRef} style={{ position: 'relative' }}>
+              <button
+                className={'wac__icon-btn' + (bulkOpen ? ' is-active' : '')}
+                aria-label="Menu"
+                title="Menu"
+                aria-haspopup="menu"
+                aria-expanded={bulkOpen}
+                onClick={() => setBulkOpen((v) => !v)}
+              >
+                <IconMenuDots />
+              </button>
+              {bulkOpen && (
+                <div
+                  className="wac__ctx-menu"
+                  role="menu"
+                  style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30 }}
+                >
+                  <button type="button" className="wac__ctx-item" role="menuitem" onClick={() => bulkMarkAll(true)}>
+                    <IconCheckDouble size={17} /><span>Tout marquer comme lu</span>
+                  </button>
+                  <button type="button" className="wac__ctx-item" role="menuitem" onClick={() => bulkMarkAll(false)}>
+                    <IconUnreadBadge size={17} /><span>Tout marquer comme non lu</span>
+                  </button>
+                  {ctxIsAdmin && (
+                    <button type="button" className="wac__ctx-item" role="menuitem" onClick={() => { setBulkDanger('clear-all'); setBulkOpen(false) }}>
+                      <IconBan size={17} /><span>Vider toutes les discussions</span>
+                    </button>
+                  )}
+                  {ctxIsAdmin && (
+                    <button type="button" className="wac__ctx-item wac__ctx-item--danger" role="menuitem" onClick={() => { setBulkDanger('delete-all'); setBulkOpen(false) }}>
+                      <IconTrash size={17} /><span>Supprimer toutes les discussions</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -465,6 +616,7 @@ export function ChatList(p: ChatListProps) {
         filter={p.filter}
         unreadTotal={p.unreadTotal}
         favCount={p.favCount}
+        archivedTotal={p.archivedTotal}
         tags={p.tags}
         onChange={p.onFilterChange}
         onManageTags={p.onManageTags}
@@ -507,6 +659,8 @@ export function ChatList(p: ChatListProps) {
           isAdmin={ctxIsAdmin}
           onClose={() => setCtxMenu(null)}
           onPin={() => ctxTogglePin(ctxMenu.row)}
+          onToggleRead={() => ctxToggleRead(ctxMenu.row)}
+          onArchive={() => ctxToggleArchive(ctxMenu.row)}
           onClear={() => { setCtxDanger({ row: ctxMenu.row, action: 'clear' }); setCtxMenu(null) }}
           onDelete={() => { setCtxDanger({ row: ctxMenu.row, action: 'delete' }); setCtxMenu(null) }}
           onLeave={() => { setCtxDanger({ row: ctxMenu.row, action: 'leave' }); setCtxMenu(null) }}
@@ -523,6 +677,17 @@ export function ChatList(p: ChatListProps) {
           onClose={() => { if (!ctxBusy) { setCtxDanger(null); setCtxError(null) } }}
         />
       )}
+
+      {bulkDanger && (
+        <ConversationDangerModal
+          action={bulkDanger}
+          isGroup={false}
+          busy={bulkBusy}
+          error={bulkError}
+          onConfirm={() => void bulkConfirmDanger()}
+          onClose={() => { if (!bulkBusy) { setBulkDanger(null); setBulkError(null) } }}
+        />
+      )}
     </div>
   )
 }
@@ -530,23 +695,25 @@ export function ChatList(p: ChatListProps) {
 // Right-click menu for a conversation row. position:fixed at the cursor; a full
 // scrim closes it. Mirrors the info-panel actions; pin uses the message glyph.
 function ConversationContextMenu({
-  row, x, y, isAdmin, onClose, onPin, onClear, onDelete, onLeave,
+  row, x, y, isAdmin, onClose, onPin, onToggleRead, onArchive, onClear, onDelete, onLeave,
 }: {
   row: ConversationDecrypted
   x: number; y: number
   isAdmin: boolean
   onClose: () => void
-  onPin: () => void; onClear: () => void; onDelete: () => void; onLeave: () => void
+  onPin: () => void; onToggleRead: () => void; onArchive: () => void; onClear: () => void; onDelete: () => void; onLeave: () => void
 }) {
   const isGroup = !!row.is_group
   const pinned = !!row.is_pinned
+  const unread = (row.unread_count ?? 0) > 0
+  const archived = !!row.is_archived
   // Already left this group? Hide the Leave action (left_at set by group-leave /
   // a participants.update where the owner was removed).
   const alreadyLeft = !!(row as { left_at?: string | null }).left_at
   const canLeave = isGroup && !alreadyLeft
   // Keep the menu on-screen (flip up/left near edges). Height depends on which
-  // items show (agents see Pin only).
-  const itemCount = 1 + (isAdmin ? (1 + (isGroup ? 1 : 1) + (canLeave ? 1 : 0)) : 0)
+  // items show (agents see Pin + Marquer lu/non lu + Archiver only).
+  const itemCount = 3 + (isAdmin ? (1 + (isGroup ? 1 : 1) + (canLeave ? 1 : 0)) : 0)
   const MENU_W = 220, MENU_H = 14 + itemCount * 41
   const left = Math.min(x, window.innerWidth - MENU_W - 8)
   const top = Math.min(y, window.innerHeight - MENU_H - 8)
@@ -562,6 +729,14 @@ function ConversationContextMenu({
         <button type="button" className="wac__ctx-item" role="menuitem" onClick={onPin}>
           {pinned ? <IconWaUnpin size={17} /> : <IconWaPin size={17} />}
           <span>{pinned ? 'Détacher du haut' : 'Épingler en haut'}</span>
+        </button>
+        <button type="button" className="wac__ctx-item" role="menuitem" onClick={onToggleRead}>
+          {unread ? <IconCheckDouble size={17} /> : <IconUnreadBadge size={17} />}
+          <span>{unread ? 'Marquer comme lu' : 'Marquer comme non lu'}</span>
+        </button>
+        <button type="button" className="wac__ctx-item" role="menuitem" onClick={onArchive}>
+          <IconArchive size={17} />
+          <span>{archived ? 'Désarchiver la discussion' : 'Archiver la discussion'}</span>
         </button>
         {isAdmin && (
           <button type="button" className="wac__ctx-item" role="menuitem" onClick={onClear}>
@@ -588,11 +763,12 @@ function ConversationContextMenu({
   )
 }
 
-// Confirmation for the destructive conversation actions (clear/delete/leave).
+// Confirmation for the destructive conversation actions (clear/delete/leave
+// per row, clear-all/delete-all instance-wide via the header ⋮ menu).
 function ConversationDangerModal({
   action, isGroup, busy, error, onConfirm, onClose,
 }: {
-  action: 'clear' | 'delete' | 'leave'
+  action: 'clear' | 'delete' | 'leave' | 'clear-all' | 'delete-all'
   isGroup: boolean
   busy: boolean
   error: string | null
@@ -602,6 +778,10 @@ function ConversationDangerModal({
   const copy =
     action === 'clear'
       ? { title: 'Vider la discussion ?', body: 'Tous les messages de cette discussion seront supprimés. La discussion reste dans la liste.', cta: 'Vider' }
+    : action === 'clear-all'
+      ? { title: 'Vider toutes les discussions ?', body: 'Tous les messages de toutes les discussions de ce numéro seront supprimés. Les discussions restent dans la liste.', cta: 'Tout vider' }
+    : action === 'delete-all'
+      ? { title: 'Supprimer toutes les discussions ?', body: 'Toutes les discussions de ce numéro et tout leur historique seront définitivement supprimés.', cta: 'Tout supprimer' }
     : action === 'leave'
       ? { title: 'Quitter le groupe ?', body: 'Vous quitterez ce groupe. La discussion reste visible mais vous ne recevrez plus ses messages.', cta: 'Quitter' }
     : { title: isGroup ? 'Supprimer le groupe ?' : 'Supprimer la discussion ?', body: 'La discussion et tout son historique seront définitivement supprimés.', cta: 'Supprimer' }
@@ -646,6 +826,10 @@ function ChatRow({
     (row as unknown as { last_outbound_status?: string | null }).last_outbound_status,
   )
   const bodyPreview = isGroup ? rawPreview.replace(/@\d{10,20}/g, '@mention') : rawPreview
+  // Unsent composer draft — previewed only on inactive rows (the active one
+  // shows the composer itself) and never over a live typing indicator.
+  const draft = useDraft(row.id)
+  const draftPreview = !isActive && !typingPresence && draft ? draft : null
 
   // Tick icon for the preview — only for outbound non-reaction last messages.
   const previewTick = (() => {
@@ -736,13 +920,19 @@ function ChatRow({
               ? (typingPresence === 'recording'
                   ? "enregistrement d’un audio…"
                   : 'écrit…')
-              : (
-                <>
-                  {previewTick}
-                  {isGroup && senderName && kind !== 'reaction' && kind !== 'system' && <span className="wac__row-preview-sender">{senderName}:{' '}</span>}
-                  {previewContent}
-                </>
-              )}
+              : draftPreview
+                ? (
+                  <>
+                    <span style={{ color: 'var(--wa-green, #25d366)' }}>Brouillon{' '}:</span> {draftPreview}
+                  </>
+                )
+                : (
+                  <>
+                    {previewTick}
+                    {isGroup && senderName && kind !== 'reaction' && kind !== 'system' && <span className="wac__row-preview-sender">{senderName}:{' '}</span>}
+                    {previewContent}
+                  </>
+                )}
           </span>
           <span className="wac__row-meta">
             {isPinned && <IconWaPin className="wac__row-meta-icon" size={15} aria-hidden />}
@@ -895,13 +1085,14 @@ interface FilterChipRowProps {
   filter: Filter
   unreadTotal: number
   favCount?: number
+  archivedTotal?: number
   tags: TagOption[]
   onChange: (f: Filter) => void
   onManageTags: () => void
 }
 
 function FilterChipRow({
-  filter, unreadTotal, favCount, tags, onChange, onManageTags,
+  filter, unreadTotal, favCount, archivedTotal, tags, onChange, onManageTags,
 }: FilterChipRowProps) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -953,6 +1144,13 @@ function FilterChipRow({
         </>
       ) : filter.kind === 'groups' ? (
         <Chip label="Groupes" active onClick={() => { /* already active */ }} />
+      ) : filter.kind === 'archived' ? (
+        <Chip
+          label="Archivées"
+          count={archivedTotal && archivedTotal > 0 ? archivedTotal : undefined}
+          active
+          onClick={() => { /* already active */ }}
+        />
       ) : filter.kind === 'tag' && activeTag ? (
         <Chip label={activeTag.name} dotColor={activeTag.color} active onClick={() => { /* already active */ }} />
       ) : null}
@@ -972,6 +1170,7 @@ function FilterChipRow({
         <FilterDropdown
           filter={filter}
           unreadTotal={unreadTotal}
+          archivedTotal={archivedTotal}
           tags={tags}
           showDefaults={!isDefault}
           onSelect={(f) => { setOpen(false); onChange(f) }}
@@ -1009,6 +1208,7 @@ function Chip({
 interface FilterDropdownProps {
   filter: Filter
   unreadTotal: number
+  archivedTotal?: number
   tags: TagOption[]
   /** When true, include the default filters (Toutes/Non lues/Favoris) too. */
   showDefaults: boolean
@@ -1017,7 +1217,7 @@ interface FilterDropdownProps {
 }
 
 function FilterDropdown({
-  filter, unreadTotal, tags, showDefaults, onSelect, onManageTags,
+  filter, unreadTotal, archivedTotal, tags, showDefaults, onSelect, onManageTags,
 }: FilterDropdownProps) {
   return (
     <div className="wac__chip-dropdown" role="menu">
@@ -1048,6 +1248,16 @@ function FilterDropdown({
           label="Groupes"
           checked={false}
           onClick={() => onSelect({ kind: 'groups' })}
+        />
+      )}
+
+      {/* "Archivées" likewise — count badge from the mig 062 server aggregate */}
+      {filter.kind !== 'archived' && (
+        <DropdownItem
+          label="Archivées"
+          count={archivedTotal && archivedTotal > 0 ? archivedTotal : undefined}
+          checked={false}
+          onClick={() => onSelect({ kind: 'archived' })}
         />
       )}
 
@@ -5033,8 +5243,24 @@ function EditMessageModal({ msg, onClose }: { msg: MessageDecrypted; onClose: ()
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => { inputRef.current?.focus() }, [])
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Focus with the caret at the end (plain focus() leaves it at the start in Firefox).
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [])
+  // Auto-resize (composer mechanic): height follows content; the CSS
+  // max-height clamps and overflow-y takes over past it. +2 absorbs the
+  // border-bottom under global border-box (scrollHeight is content-only),
+  // else a 2px scroll remainder shows a gutter on classic scrollbars.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = (el.scrollHeight + 2) + 'px'
+  }, [text])
 
   const trimmed = text.trim()
   const unchanged = trimmed === (msg.body ?? '').trim()
@@ -5072,12 +5298,19 @@ function EditMessageModal({ msg, onClose }: { msg: MessageDecrypted; onClose: ()
           </div>
         </div>
         <div className="wac__editmsg-inputrow">
-          <input
+          <textarea
             ref={inputRef}
             className="wac__editmsg-input"
             value={text}
+            rows={1}
             onChange={(e) => { setText(e.target.value); if (error) setError(null) }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) { e.preventDefault(); void submit() } }}
+            onKeyDown={(e) => {
+              // Enter = save, Shift+Enter = newline — same convention as the composer.
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (canSubmit) void submit()
+              }
+            }}
             placeholder="Modifier le message"
           />
           <div className="wac__editmsg-emoji-wrap">
@@ -7367,13 +7600,22 @@ function Composer({
     [profile],
   )
   const { typers: otherTypingAgents, ping: pingAgentTyping, stop: stopAgentTyping } = useAgentTyping(conversationId ?? null, typingSelf)
+  // TYPED-SINCE-OPEN GATE (drafts, T7): restoring a saved draft populates
+  // state.text on mere conversation open. Text-presence-driven effects would
+  // then broadcast composing to the CUSTOMER (fake typing, 4s worker holds,
+  // ban signal) and flash agent-typing to teammates — for an untouched draft.
+  // Both presence FIRE paths below require an actual keystroke in THIS
+  // conversation (handleTextChange sets the flag; a conversation switch resets
+  // it). Stop/clear paths stay unconditional.
+  const typedSinceOpenRef = useRef(false)
+  useEffect(() => { typedSinceOpenRef.current = false }, [conversationId])
   // Drive the indicator off ACTUAL keystrokes: ping while typing, stop the
   // moment the box is empty (send/clear). No keystroke for ~2s → the receiver's
   // TTL prunes it. So it tracks typing, not mere text presence.
   useEffect(() => {
     if (!conversationId) return
     if (state.text.trim().length === 0) stopAgentTyping()
-    else pingAgentTyping()
+    else if (typedSinceOpenRef.current) pingAgentTyping()
   }, [state.text, conversationId, pingAgentTyping, stopAgentTyping])
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionStart, setMentionStart] = useState(-1)
@@ -7387,6 +7629,14 @@ function Composer({
   const [hashQuery, setHashQuery] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const ref = useRef<HTMLTextAreaElement | null>(null)
+
+  // Autofocus on conversation open (and on mount — ChatPane isn't keyed, so
+  // switching conversations only changes the prop). Pulls focus out of the
+  // list row the agent just clicked so they can type immediately; preventScroll
+  // keeps the message stream where the scroll-to-bottom logic put it.
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true })
+  }, [conversationId])
 
   const { data: allQuickReplies } = useQuickReplies(instanceId ?? null)
 
@@ -7546,19 +7796,25 @@ function Composer({
   // via PARENT state (handleSend → setComposer), which never calls
   // handleTextChange. Watching state.text here catches every path: typing,
   // sending (clears → stop), manual clear, quick-reply insert, etc.
+  // EXCEPTION (typedSinceOpenRef): a restored draft populates text on mere
+  // conversation open — that must NOT show the customer a fake "typing…"
+  // (ban signal + a 4s-cadence worker hold while the agent idles). The FIRE
+  // path requires a real keystroke in this conversation; the stop path stays
+  // unconditional so send/clear always retract the indicator.
   useEffect(() => {
     if (isRecording) return  // recording effect owns presence while recording
-    if (state.text.trim().length > 0 && conversationId) {
+    if (state.text.trim().length > 0 && conversationId && typedSinceOpenRef.current) {
       if (typingActiveRef.current !== 'composing' || typingConvRef.current !== conversationId) {
         firePresenceLoop(conversationId, 'composing')
       }
-    } else if (typingActiveRef.current === 'composing') {
+    } else if (typingActiveRef.current === 'composing' && !(state.text.trim().length > 0)) {
       stopTyping()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.text, conversationId, isRecording])
 
   function handleTextChange(newText: string) {
+    typedSinceOpenRef.current = true   // real user input → presence may fire
     setState({ ...state, text: newText })
 
     // "/" quick-reply trigger: fires whenever "/" begins the current token

@@ -205,6 +205,64 @@ export async function markConversationRead(conversationId: string): Promise<void
   if (error) throw new Error(error.message)
 }
 
+// Inverse of markConversationRead: flags the conversation unread (server bumps
+// unread_count to at least 1, never clobbers a real backlog). Same gate as
+// mark-read (_assert_conversation_access), so agents can use it too.
+export async function markConversationUnread(conversationId: string): Promise<void> {
+  const { error } = await supabase.schema('whatsapp').rpc('mark_conversation_unread', {
+    p_conversation_id: conversationId,
+  })
+  if (error) throw new Error(error.message)
+}
+
+// ─── bulk instance-wide ops (mig 064) ──────────────────────────────────────
+// One RPC = one set-based statement server-side; the caller scope is resolved
+// there (admin = every conversation of the instance, agent = assigned-only)
+// and the bump/delete row triggers live-sync every open client. Mark read/
+// unread are open to anyone who can use the instance; clear/delete are
+// admin-gated (mirrors the per-conversation clear/delete gates). Each returns
+// the number of conversations touched.
+
+export async function markAllConversationsRead(instanceId: string): Promise<number> {
+  const { data, error } = await supabase.schema('whatsapp').rpc('conversations_mark_all_read', {
+    p_instance_id: instanceId,
+  })
+  if (error) throw new Error(error.message)
+  return (data as unknown as number) ?? 0
+}
+
+export async function markAllConversationsUnread(instanceId: string): Promise<number> {
+  const { data, error } = await supabase.schema('whatsapp').rpc('conversations_mark_all_unread', {
+    p_instance_id: instanceId,
+  })
+  if (error) throw new Error(error.message)
+  return (data as unknown as number) ?? 0
+}
+
+// Destructive bulk ops go through the conversation-cleanup EDGE FN, never the
+// bare RPC: the edge fn runs the bulk purge preflight, wipes the R2 media
+// batches FIRST (else every media object of the instance orphans in the
+// bucket — no GC cron exists), then calls the mig 064 RPC, then (delete_all)
+// purge_peer's the worker cache. Same pipeline as the per-conversation
+// clear/delete in queries/conversations.ts.
+async function invokeBulkCleanup(instanceId: string, mode: 'clear_all' | 'delete_all'): Promise<number> {
+  const { data, error } = await supabase.functions.invoke<{
+    ok: boolean; reason?: string; error?: string
+    summary?: { db_result?: unknown }
+  }>('conversation-cleanup', { body: { instance_id: instanceId, mode } })
+  if (error) throw new Error(`conversation-cleanup ${mode} failed: ${error.message}`)
+  if (!data?.ok) throw new Error(data?.reason || data?.error || `conversation-cleanup ${mode} returned not-ok`)
+  return (data.summary?.db_result as number) ?? 0
+}
+
+export function clearAllConversations(instanceId: string): Promise<number> {
+  return invokeBulkCleanup(instanceId, 'clear_all')
+}
+
+export function deleteAllConversations(instanceId: string): Promise<number> {
+  return invokeBulkCleanup(instanceId, 'delete_all')
+}
+
 // ─── assignment / status / pin / archive / star ────────────────────────────
 
 export async function assignConversation(conversationId: string, userIds: string[]): Promise<void> {
