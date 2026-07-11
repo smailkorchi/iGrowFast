@@ -35,6 +35,10 @@ export type ConversationFilter =
   | 'resolved'
   | 'snoozed'
   | 'archived'
+  // Server-side tag filter ('tag:<tag uuid>'). MUST be server-side: the old
+  // client-side pass over the loaded pages hid tagged conversations the user
+  // hadn't scrolled to yet (same class of bug as the assignment .in() filter).
+  | `tag:${string}`
 
 const PAGE_SIZE = 50
 
@@ -55,9 +59,14 @@ export function useConversations(instanceId: string | null, filter: Conversation
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       if (!instanceId) return { rows: [] as ConversationListRow[], nextOffset: null as number | null }
+      const tagId = filter.startsWith('tag:') ? filter.slice(4) : null
       let q = supabase
         .schema('whatsapp').from('conversations_decrypted')
-        .select('*')
+        // Tag filter joins conversation_tags server-side (!inner embed through
+        // the view — PostgREST traces the view's id column to conversations).
+        // The `as '*'` only silences supabase-js's select-string type parser
+        // (it can't parse the dynamic embed); the runtime string is unchanged.
+        .select((tagId ? '*, conversation_tags!inner(tag_id)' : '*') as '*')
         .eq('instance_id', instanceId)
         // Defensive: never surface WhatsApp pseudo-chats
         .not('remote_jid', 'like', '%@broadcast')
@@ -74,6 +83,7 @@ export function useConversations(instanceId: string | null, filter: Conversation
       if (filter === 'dms')    q = q.eq('is_group', false)
       if (filter === 'resolved') q = q.eq('status', 'resolved')
       if (filter === 'snoozed')  q = q.eq('status', 'snoozed')
+      if (tagId) q = q.eq('conversation_tags.tag_id', tagId)
       if (filter !== 'resolved' && filter !== 'snoozed' && filter !== 'archived') {
         // default: hide resolved/snoozed from operational tabs
         q = q.in('status', ['open', 'pending'])
@@ -106,7 +116,11 @@ export function useConversations(instanceId: string | null, filter: Conversation
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(from, to)
       if (error) throw new Error(error.message)
-      const rows = (data ?? []) as ConversationListRow[]
+      // Strip the filter-only embed so cached rows keep the flat envelope shape
+      // (applyBump spreads bump payloads over these rows).
+      const rows = (tagId
+        ? (data ?? []).map((r: Record<string, unknown>) => { const { conversation_tags: _ct, ...rest } = r; return rest })
+        : (data ?? [])) as ConversationListRow[]
       return {
         rows,
         nextOffset: rows.length === PAGE_SIZE ? from + PAGE_SIZE : null,

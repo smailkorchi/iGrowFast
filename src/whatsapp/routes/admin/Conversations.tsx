@@ -90,7 +90,9 @@ function dataFilter(f: Filter): ConversationFilter {
     case 'favoris':  return 'all'   // favoris filtered client-side
     case 'groups':   return 'groups'
     case 'archived': return 'archived'
-    case 'tag':      return 'all'   // tag members filtered client-side
+    // Server-side: the old client-side pass over loaded pages hid tagged
+    // conversations the user hadn't scrolled to yet.
+    case 'tag':      return `tag:${f.tagId}`
   }
 }
 
