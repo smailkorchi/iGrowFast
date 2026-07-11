@@ -3561,6 +3561,10 @@
   height: 22px;
   width: 190px;
   flex-shrink: 0;
+  /* Seek target: click/drag scrubs playback (pointer capture in VoiceBody);
+     touch-action none keeps touch drags from scrolling the thread instead. */
+  cursor: pointer;
+  touch-action: none;
 }
 
 .wac__voice-bar {

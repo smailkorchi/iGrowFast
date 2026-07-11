@@ -3576,6 +3576,11 @@ export function ChatPane(p: ChatPaneProps) {
                 }
 
                 const m = item.msg
+                // Consecutive-audio chain (WhatsApp): when this audio ends,
+                // the bubble below auto-plays IFF it is also an audio — any
+                // other kind (text, image, …) breaks the chain.
+                const autoAdvanceToId =
+                  m.kind === 'audio' && nextMsg?.kind === 'audio' ? nextMsg.id ?? null : null
                 return (
                   <Bubble
                     key={m.id ?? `${m.whatsapp_timestamp}-${idx}`}
@@ -3600,6 +3605,7 @@ export function ChatPane(p: ChatPaneProps) {
                     deleteSelected={deleteSelected.has(m.id!)}
                     onDeleteToggle={handleDeleteToggle}
                     onNavigateToJid={p.onNavigateToJid}
+                    autoAdvanceToId={autoAdvanceToId}
                     instanceCapacity={instanceCapacity ?? null}
                     groupMemberCount={participantsQ.data?.length ?? 0}
                   />
@@ -4416,6 +4422,9 @@ interface BubbleProps {
   deleteSelected?: boolean
   onDeleteToggle?: (msgId: string) => void
   onNavigateToJid?: (jid: string, name?: string) => void
+  /** Consecutive-audio chain: id of the audio bubble directly below, when it
+   *  should auto-play after this one ends. */
+  autoAdvanceToId?: string | null
   /** Capacity snapshot for the instance this conversation belongs to.
    *  Used to decide whether a PENDING bubble is "blocked" by a gate
    *  (business hours, caps, worker_paused) and render the appropriate
@@ -4611,7 +4620,7 @@ function ComposerCapacityBanner({ capacity }: {
   )
 }
 
-function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic, onOpenMedia, contactMap, quotedMap, convName, onReply, onAction, forwardMode, forwardSelected, onForwardToggle, deleteMode, deleteSelected, onDeleteToggle, onNavigateToJid, instanceCapacity, groupMemberCount }: BubbleProps) {
+function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic, onOpenMedia, contactMap, quotedMap, convName, onReply, onAction, forwardMode, forwardSelected, onForwardToggle, deleteMode, deleteSelected, onDeleteToggle, onNavigateToJid, autoAdvanceToId, instanceCapacity, groupMemberCount }: BubbleProps) {
   // Forward and delete share one visual select-mode (checkbox + row shift).
   // Only one is ever active at a time (mutually exclusive at the parent).
   const selectMode = !!forwardMode || !!deleteMode
@@ -5000,6 +5009,7 @@ function Bubble({ msg, isOut, streakHead, streakTail, isGroup, peerPic, ownerPic
             tickIcon={tickIcon}
             avatarUrl={isOut ? (ownerPic ?? null) : (isGroup && msg.sender_jid ? (contactMap?.get(msg.sender_jid)?.pic ?? null) : (peerPic ?? null))}
             avatarFallback={!isOut && isGroup && !senderPic ? { color: senderColor, initials: senderInitials } : undefined}
+            autoAdvanceToId={autoAdvanceToId ?? null}
           />
         )}
         {isDoc   && <DocumentBody msg={msg} />}
@@ -6163,8 +6173,22 @@ function LocationBody({
   )
 }
 
+// ── Inbox-wide audio playback manager ────────────────────────────────────────
+// WhatsApp Web semantics: only ONE audio plays at a time (starting any voice
+// note / audio file pauses whatever else was playing), and when one ends the
+// registry auto-plays its chain successor — the bubble immediately below, IFF
+// the render map declared it is also an audio (any other kind breaks the chain).
+const audioRegistry = new Map<string, () => void>()
+let exclusiveAudioEl: HTMLAudioElement | null = null
+function claimExclusiveAudio(el: HTMLAudioElement): void {
+  if (exclusiveAudioEl && exclusiveAudioEl !== el && !exclusiveAudioEl.paused) {
+    exclusiveAudioEl.pause()
+  }
+  exclusiveAudioEl = el
+}
+
 function VoiceBody({
-  msg, isOut, time, status, tickIcon, avatarUrl, avatarFallback,
+  msg, isOut, time, status, tickIcon, avatarUrl, avatarFallback, autoAdvanceToId,
 }: {
   msg: MessageDecrypted
   isOut: boolean
@@ -6173,6 +6197,9 @@ function VoiceBody({
   tickIcon: ReactNode
   avatarUrl: string | null
   avatarFallback?: { color: string; initials: string }
+  /** Message id of the audio bubble directly below, when it should auto-play
+   *  after this one ends (consecutive-audio chain). */
+  autoAdvanceToId?: string | null
 }) {
   const meta = (msg.media_meta ?? {}) as {
     duration_ms?: number
@@ -6197,10 +6224,26 @@ function VoiceBody({
   const url = resolved.url
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const waveRef = useRef<HTMLDivElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(0)
   const [duration, setDuration] = useState(metaMs / 1000)
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1)
+
+  // Auto-advance registry entry: lets the PREVIOUS audio in the chain start
+  // this one when it ends (scrolled into view, WhatsApp-style).
+  useEffect(() => {
+    const id = msg.id
+    if (!id) return
+    audioRegistry.set(id, () => {
+      const el = audioRef.current
+      if (!el) return
+      el.currentTime = 0
+      void el.play()
+      waveRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    })
+    return () => { audioRegistry.delete(id) }
+  }, [msg.id])
 
   // Deterministic pseudo-waveform when metadata doesn't carry one.
   const bars = useMemo(() => {
@@ -6230,6 +6273,21 @@ function VoiceBody({
     if (audioRef.current) audioRef.current.playbackRate = next
   }
 
+  // Click / drag anywhere on the waveform to seek (pointer capture keeps the
+  // drag tracking outside the bar). Seeking while paused just moves the
+  // playhead; play resumes from there.
+  function seekToClientX(clientX: number) {
+    const el = audioRef.current
+    const wave = waveRef.current
+    if (!el || !wave) return
+    const total = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : totalSec
+    if (!(total > 0)) return
+    const rect = wave.getBoundingClientRect()
+    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    el.currentTime = frac * total
+    setCurrent(frac * total)
+  }
+
   const totalSec   = duration > 0 ? duration : metaMs / 1000
   const elapsed    = current > 0 ? current : 0
   const playedFrac = totalSec > 0 ? Math.min(1, elapsed / totalSec) : 0
@@ -6247,9 +6305,12 @@ function VoiceBody({
           ref={audioRef}
           src={url}
           preload="metadata"
-          onPlay={() => setPlaying(true)}
+          onPlay={(e) => { claimExclusiveAudio(e.currentTarget); setPlaying(true) }}
           onPause={() => setPlaying(false)}
-          onEnded={() => { setPlaying(false); setCurrent(0) }}
+          onEnded={() => {
+            setPlaying(false); setCurrent(0)
+            if (autoAdvanceToId) audioRegistry.get(autoAdvanceToId)?.()
+          }}
           onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
           onLoadedMetadata={(e) => {
             const d = e.currentTarget.duration
@@ -6296,7 +6357,21 @@ function VoiceBody({
         {playing ? <IconPause /> : <IconPlay />}
       </button>
 
-      <div className="wac__voice-wave">
+      <div
+        className="wac__voice-wave"
+        ref={waveRef}
+        role="slider"
+        aria-label="Position de lecture"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(totalSec)}
+        aria-valuenow={Math.round(elapsed)}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          e.currentTarget.setPointerCapture(e.pointerId)
+          seekToClientX(e.clientX)
+        }}
+        onPointerMove={(e) => { if (e.buttons & 1) seekToClientX(e.clientX) }}
+      >
         {bars.map((amp, i) => {
           const h = 4 + Math.round((amp / 100) * 18)
           const played = i < playedIdx
