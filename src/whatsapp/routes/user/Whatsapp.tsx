@@ -387,7 +387,11 @@ export default function UserWhatsapp() {
           conversationId: activeId,
           body: text.trim(),
           kind: 'text',
-          replyTo: replyTo?.evolution_message_id ?? undefined,
+          // send_message takes the quoted row's UUID (p_reply_to uuid →
+          // reply_to_message_id FK); the dispatcher resolves the Evolution
+          // quoted key itself. Passing evolution_message_id (donor bug,
+          // transplanted) 22P02-failed EVERY quoted reply.
+          replyTo: replyTo?.id ?? undefined,
           ...(mentionAll ? { mediaMeta: { mentionAll: true } } : {}),
         })
       } catch (err) {
