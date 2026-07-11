@@ -8097,6 +8097,15 @@ function Composer({
               const cJid = tel ? `${tel}@s.whatsapp.net` : null
               return <QuoteContactThumb jid={cJid} instanceId={state.replyTo.instance_id} />
             })()}
+            {(state.replyTo.kind === 'image' || state.replyTo.kind === 'video' || state.replyTo.kind === 'sticker') &&
+              state.replyTo.media_storage_key && (
+              <QuoteMediaThumb
+                storageKey={state.replyTo.media_storage_key}
+                pending={!!state.replyTo.media_pending}
+                mime={state.replyTo.media_mime ?? null}
+                isVideo={state.replyTo.kind === 'video'}
+              />
+            )}
             <button
               className="wac__icon-btn wac__composer-reply-dismiss"
               onClick={() => setState({ ...state, replyTo: null })}
