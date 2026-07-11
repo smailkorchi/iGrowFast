@@ -3077,6 +3077,44 @@ export function ChatPane(p: ChatPaneProps) {
     if (files && files.length > 0) addStagedFiles(files)
   }
 
+  // ── Paste image/video from the clipboard → stage like a drop (WhatsApp Web
+  //    parity: Ctrl/Cmd+V a copied image and it goes straight to the send tray).
+  //    Window-level so it works whether or not the composer is focused; only
+  //    acts on media files, so plain-text paste into the composer is untouched.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (forwardMode || deleteMode) return
+      const dt = e.clipboardData
+      if (!dt) return
+      const isMedia = (t: string) => /^(image|video)\//.test(t)
+      const picked: File[] = []
+      // Files first (most browsers), then items (Safari / older paths).
+      if (dt.files && dt.files.length) {
+        for (const f of Array.from(dt.files)) if (isMedia(f.type)) picked.push(f)
+      }
+      if (picked.length === 0 && dt.items) {
+        for (const it of Array.from(dt.items)) {
+          if (it.kind === 'file' && isMedia(it.type)) {
+            const f = it.getAsFile()
+            if (f) picked.push(f)
+          }
+        }
+      }
+      if (picked.length === 0) return   // no media on the clipboard → default paste
+      e.preventDefault()
+      // Clipboard blobs are usually nameless — synthesize one so the caption,
+      // filename and kind inference all work like a picked file.
+      const named = picked.map((f) => {
+        if (f.name && f.name.trim()) return f
+        const ext = (f.type.split('/')[1] || 'png').split('+')[0]
+        return new File([f], `image-collée.${ext}`, { type: f.type })
+      })
+      addStagedFiles(named)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [forwardMode, deleteMode, addStagedFiles])
+
   const removeStaged = useCallback((id: string) => {
     setStaged((prev) => {
       const idx = prev.findIndex((i) => i.id === id)
