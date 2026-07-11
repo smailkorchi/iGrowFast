@@ -2350,8 +2350,8 @@
     "semantic_hash": "389f4bf044364e4fbf6f249e67c51bc6"
   },
   "src/pages/admin/Orders.tsx": {
-    "mtime": 1783733681.5000196,
-    "ast_hash": "cb375027f4bc82b2048596591606d65a",
+    "mtime": 1783736786.444763,
+    "ast_hash": "95fc8ea9a8817e7ece308f33d0fde3cf",
     "semantic_hash": ""
   },
   "src/pages/admin/Payments.tsx": {
@@ -5222,6 +5222,16 @@
   "supabase/migrations/20260711120000_chat_customer_orders_rpcs.sql": {
     "mtime": 1783732919.490635,
     "ast_hash": "965f62e4c724123fd714b85db4a7080b",
+    "semantic_hash": ""
+  },
+  "src/components/orders/OrdersExportWizard.tsx": {
+    "mtime": 1783738262.3735263,
+    "ast_hash": "918786dbe4389a60d7b63d3afa341a6e",
+    "semantic_hash": ""
+  },
+  "src/lib/ordersExport.ts": {
+    "mtime": 1783738073.4201276,
+    "ast_hash": "d3d3199c0bbb2a82ba3a2bdc8801112b",
     "semantic_hash": ""
   }
 }

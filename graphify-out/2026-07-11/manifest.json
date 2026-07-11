@@ -2350,8 +2350,8 @@
     "semantic_hash": "389f4bf044364e4fbf6f249e67c51bc6"
   },
   "src/pages/admin/Orders.tsx": {
-    "mtime": 1783733681.5000196,
-    "ast_hash": "cb375027f4bc82b2048596591606d65a",
+    "mtime": 1783736786.444763,
+    "ast_hash": "95fc8ea9a8817e7ece308f33d0fde3cf",
     "semantic_hash": ""
   },
   "src/pages/admin/Payments.tsx": {
@@ -2690,8 +2690,8 @@
     "semantic_hash": "9beea14051dbae828940bad857181551"
   },
   "src/pages/seller/Orders.tsx": {
-    "mtime": 1783733643.3026564,
-    "ast_hash": "1dea68fc545ef529cfe467aec3dbf6d0",
+    "mtime": 1783734482.8719943,
+    "ast_hash": "1561249ec62311fa05eb3341d12caceb",
     "semantic_hash": ""
   },
   "src/pages/seller/Payments.tsx": {
@@ -2985,8 +2985,8 @@
     "semantic_hash": "0e19ce97a15646956c4910bfe3ae514f"
   },
   "src/whatsapp/routes/admin/Conversations.tsx": {
-    "mtime": 1783733568.3391404,
-    "ast_hash": "dd7b811f13645482072725191f456be7",
+    "mtime": 1783734487.1613069,
+    "ast_hash": "33dc7f886d02e6fffbced1a00849e90c",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/admin/conversations/CreatorBadge.tsx": {
@@ -3050,8 +3050,8 @@
     "semantic_hash": ""
   },
   "src/whatsapp/routes/user/Whatsapp.tsx": {
-    "mtime": 1783733589.0685816,
-    "ast_hash": "2c252e779e37310228ff34b952bda124",
+    "mtime": 1783734490.5234308,
+    "ast_hash": "e17c87f6e14e6b290f1a1a633aeecfdc",
     "semantic_hash": ""
   },
   "src/whatsapp/styles/theme.ts": {
@@ -5200,28 +5200,38 @@
     "semantic_hash": ""
   },
   "src/components/orders/OrderViewDialog.tsx": {
-    "mtime": 1783733547.533096,
-    "ast_hash": "a82409d84d87341f57a90eb5f834acab",
+    "mtime": 1783734404.365238,
+    "ast_hash": "aa5d686346c317f81eb79d05cb420d8e",
     "semantic_hash": ""
   },
   "src/components/orders/SellerOrderViewDialog.tsx": {
-    "mtime": 1783733500.9162407,
-    "ast_hash": "b18e841395d8ff6d0156dae9449a0819",
+    "mtime": 1783734379.8560674,
+    "ast_hash": "b767dd66a73bd12a7c2079eb660a3ba8",
     "semantic_hash": ""
   },
   "src/whatsapp/lib/queries/customerOrders.ts": {
-    "mtime": 1783733463.5821853,
-    "ast_hash": "e1f1cf336bd791f08c5823f035b55c95",
+    "mtime": 1783734428.7498286,
+    "ast_hash": "e7ea341fc3cfd4eca3502838276a0a8d",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/admin/conversations/CustomerOrdersButton.tsx": {
-    "mtime": 1783733491.9638112,
-    "ast_hash": "760a67755cfbbf1a6df5e254c4da9d8b",
+    "mtime": 1783734447.8262937,
+    "ast_hash": "d3fd8177aa4214d88fea1e5e26cf3795",
     "semantic_hash": ""
   },
   "supabase/migrations/20260711120000_chat_customer_orders_rpcs.sql": {
     "mtime": 1783732919.490635,
     "ast_hash": "965f62e4c724123fd714b85db4a7080b",
+    "semantic_hash": ""
+  },
+  "src/components/orders/OrdersExportWizard.tsx": {
+    "mtime": 1783736840.2603521,
+    "ast_hash": "5edff2366cd5bf6f782eb3ff672be32d",
+    "semantic_hash": ""
+  },
+  "src/lib/ordersExport.ts": {
+    "mtime": 1783736532.2065642,
+    "ast_hash": "ef6d5ddc9a6ba4d1e8f601deab5bc90a",
     "semantic_hash": ""
   }
 }

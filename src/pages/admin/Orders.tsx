@@ -125,7 +125,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, FileSpreadsheet } from "lucide-react";
+import { Check, ChevronsUpDown, FileSpreadsheet, FileDown } from "lucide-react";
 import { buildOrderItemRecords, type OrderLineForRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
 import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
 import { Switch } from "@/components/ui/switch";
@@ -141,6 +141,10 @@ import {
 } from '@/components/orders/OrderLineProductCombobox';
 import SourceIcon, { getSourceMeta } from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
+
+// Lazy-loaded so the export engine (and SheetJS, itself lazy inside it) stays
+// out of the Orders page bundle until the user actually opens the wizard.
+const OrdersExportWizard = React.lazy(() => import('@/components/orders/OrdersExportWizard'));
 
 // --- Stock error helper ---
 const friendlyStockError = (error: any): string => {
@@ -510,6 +514,7 @@ const Orders = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [isExportWizardOpen, setIsExportWizardOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -2620,6 +2625,14 @@ const Orders = () => {
                                 className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
                             />
                         </div>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setIsExportWizardOpen(true)}
+                            className="h-10 px-5 rounded-full border bg-ant-paper text-ant-ink border-ant-line hover:border-ant-ink/25 hover:text-ant-ink text-[12px] font-medium shadow-none gap-2 shrink-0"
+                        >
+                            <FileDown className="w-3.5 h-3.5" />
+                            Exporter
+                        </Button>
                         <Button
                             onClick={openNewOrder}
                             className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium shadow-none gap-2 shrink-0"
@@ -5221,6 +5234,17 @@ const Orders = () => {
                 order={historyDialogOrder}
                 isOrderInCategory={(statusId, cat) => isOrderCategory(statusId || '', cat as any)}
             />
+
+            {/* Export wizard — mounted only while open (lazy chunk loads on demand). */}
+            {isExportWizardOpen && (
+                <React.Suspense fallback={null}>
+                    <OrdersExportWizard
+                        isOpen={isExportWizardOpen}
+                        onClose={() => setIsExportWizardOpen(false)}
+                        activeBusinessId={activeBusinessId}
+                    />
+                </React.Suspense>
+            )}
         </div>
     );
 };
