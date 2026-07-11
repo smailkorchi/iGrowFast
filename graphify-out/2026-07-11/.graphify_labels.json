@@ -367,5 +367,8 @@
   "365": "Profile.tsx",
   "366": "useCreateInstance",
   "367": "DevisPdfDocument.tsx",
-  "368": "EmailTemplateModal"
+  "368": "EmailTemplateModal",
+  "369": "PixelDashboard.tsx",
+  "370": "docThumbnail.ts",
+  "371": "ogPreview.ts"
 }

@@ -7774,6 +7774,12 @@ function Composer({
     el.style.height = Math.min(200, el.scrollHeight) + 'px'
   }, [state.text])
 
+  // "Répondre" sets replyTo from a bubble menu — pull focus to the composer so
+  // typing starts immediately (WhatsApp Web behavior), no re-click needed.
+  useEffect(() => {
+    if (state.replyTo) ref.current?.focus()
+  }, [state.replyTo])
+
   const hasText = state.text.trim().length > 0
   const { preview, loading: previewLoading, dismiss } = useComposerLinkPreview(state.text)
 
