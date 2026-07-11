@@ -243,6 +243,10 @@ export interface ChatListProps {
   tagColorMap?: Map<string, string[]>
   ownerJid?: string | null
   favCount?: number
+  /** Server aggregate (mig 066): non-archived open/pending group conversations. */
+  groupCount?: number
+  /** Server aggregate (mig 066): tag_id → conversation count for the filter badges. */
+  tagCounts?: Record<string, number>
   /** Full list of instances the caller can choose from. When length > 1 the
    *  sidebar header becomes a switcher; with 0/1 it stays a static label. */
   availableInstances?: ChatListHeaderInstance[]
@@ -622,6 +626,8 @@ export function ChatList(p: ChatListProps) {
         unreadTotal={p.unreadTotal}
         favCount={p.favCount}
         archivedTotal={p.archivedTotal}
+        groupCount={p.groupCount}
+        tagCounts={p.tagCounts}
         tags={p.tags}
         onChange={p.onFilterChange}
         onManageTags={p.onManageTags}
@@ -1093,13 +1099,15 @@ interface FilterChipRowProps {
   unreadTotal: number
   favCount?: number
   archivedTotal?: number
+  groupCount?: number
+  tagCounts?: Record<string, number>
   tags: TagOption[]
   onChange: (f: Filter) => void
   onManageTags: () => void
 }
 
 function FilterChipRow({
-  filter, unreadTotal, favCount, archivedTotal, tags, onChange, onManageTags,
+  filter, unreadTotal, favCount, archivedTotal, groupCount, tagCounts, tags, onChange, onManageTags,
 }: FilterChipRowProps) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -1150,7 +1158,12 @@ function FilterChipRow({
           />
         </>
       ) : filter.kind === 'groups' ? (
-        <Chip label="Groupes" active onClick={() => { /* already active */ }} />
+        <Chip
+          label="Groupes"
+          count={groupCount && groupCount > 0 ? groupCount : undefined}
+          active
+          onClick={() => { /* already active */ }}
+        />
       ) : filter.kind === 'archived' ? (
         <Chip
           label="Archivées"
@@ -1159,7 +1172,13 @@ function FilterChipRow({
           onClick={() => { /* already active */ }}
         />
       ) : filter.kind === 'tag' && activeTag ? (
-        <Chip label={activeTag.name} dotColor={activeTag.color} active onClick={() => { /* already active */ }} />
+        <Chip
+          label={activeTag.name}
+          dotColor={activeTag.color}
+          count={(tagCounts?.[activeTag.id] ?? 0) > 0 ? tagCounts![activeTag.id] : undefined}
+          active
+          onClick={() => { /* already active */ }}
+        />
       ) : null}
 
       <button
@@ -1178,6 +1197,9 @@ function FilterChipRow({
           filter={filter}
           unreadTotal={unreadTotal}
           archivedTotal={archivedTotal}
+          favCount={favCount}
+          groupCount={groupCount}
+          tagCounts={tagCounts}
           tags={tags}
           showDefaults={!isDefault}
           onSelect={(f) => { setOpen(false); onChange(f) }}
@@ -1216,6 +1238,12 @@ interface FilterDropdownProps {
   filter: Filter
   unreadTotal: number
   archivedTotal?: number
+  /** Favorites set size (client-side, complete). */
+  favCount?: number
+  /** Server aggregate (mig 066): non-archived open/pending group conversations. */
+  groupCount?: number
+  /** Server aggregate (mig 066): tag_id → count, matches the tag filter's result. */
+  tagCounts?: Record<string, number>
   tags: TagOption[]
   /** When true, include the default filters (Toutes/Non lues/Favoris) too. */
   showDefaults: boolean
@@ -1224,7 +1252,7 @@ interface FilterDropdownProps {
 }
 
 function FilterDropdown({
-  filter, unreadTotal, archivedTotal, tags, showDefaults, onSelect, onManageTags,
+  filter, unreadTotal, archivedTotal, favCount, groupCount, tagCounts, tags, showDefaults, onSelect, onManageTags,
 }: FilterDropdownProps) {
   return (
     <div className="wac__chip-dropdown" role="menu">
@@ -1243,6 +1271,7 @@ function FilterDropdown({
           />
           <DropdownItem
             label="Favoris"
+            count={favCount && favCount > 0 ? favCount : undefined}
             checked={filter.kind === 'favoris'}
             onClick={() => onSelect({ kind: 'favoris' })}
           />
@@ -1253,6 +1282,7 @@ function FilterDropdown({
       {filter.kind !== 'groups' && (
         <DropdownItem
           label="Groupes"
+          count={groupCount && groupCount > 0 ? groupCount : undefined}
           checked={false}
           onClick={() => onSelect({ kind: 'groups' })}
         />
@@ -1272,11 +1302,13 @@ function FilterDropdown({
         // Skip the active tag when it's already the visible chip.
         if (filter.kind === 'tag' && filter.tagId === t.id && !showDefaults) return null
         const isActive = filter.kind === 'tag' && filter.tagId === t.id
+        const tc = tagCounts?.[t.id] ?? 0
         return (
           <DropdownItem
             key={t.id}
             label={t.name}
             dot={t.color}
+            count={tc > 0 ? tc : undefined}
             checked={isActive}
             onClick={() => onSelect({ kind: 'tag', tagId: t.id })}
           />

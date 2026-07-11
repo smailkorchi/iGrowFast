@@ -251,6 +251,34 @@ export function useInstancesArchived(instanceIds: string[]) {
   })
 }
 
+// ─── filter-dropdown counts (Groupes + per-tag) ────────────────────────────
+// Server-side aggregate (whatsapp.conversation_filter_counts, mig 066), SAME
+// predicates as the operational list — so a badge equals what the user sees
+// after clicking that filter, and (unlike a loaded-page tally) a tag's count
+// shows even when none of its conversations are on screen yet. Favoris is a
+// client-side set; Non lues / Archivées have their own aggregates.
+export interface ConversationFilterCounts {
+  groups: number
+  tags: Record<string, number>
+}
+export function useConversationFilterCounts(instanceId: string | null) {
+  return useQuery<ConversationFilterCounts>({
+    queryKey: ['wa-filter-counts', instanceId ?? '_'],
+    enabled: !!instanceId,
+    queryFn: async () => {
+      // RPC newer than the generated types → untyped rpc cast (same escape
+      // hatch as instance_capacity_status / send_message).
+      const { data, error } = await (supabase.schema('whatsapp').rpc as unknown as (fn: string, args: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        'conversation_filter_counts', { p_instance_id: instanceId })
+      if (error) throw new Error(error.message)
+      const d = (data ?? {}) as { groups?: number; tags?: Record<string, number> }
+      return { groups: d.groups ?? 0, tags: d.tags ?? {} }
+    },
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
 // ─── per-instance unread live-sync ─────────────────────────────────────────
 // RETIRED at Stage C (2026-07-08). The switcher/navbar unread badge aggregate
 // (['instances-unread']) was refreshed by a postgres_changes subscription on

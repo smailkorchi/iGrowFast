@@ -28,6 +28,7 @@ import {
   useConversation,
   useInstancesUnread,
   useInstancesArchived,
+  useConversationFilterCounts,
   useMarkConversationRead,
   type ConversationFilter,
 } from '../../lib/queries/conversations'
@@ -138,6 +139,9 @@ export default function AdminConversations() {
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: unreadByInstance } = useInstancesUnread(instanceIds)
   const { data: archivedByInstance } = useInstancesArchived(instanceIds)
+  // Groupes + per-tag counts for the filter dropdown badges (server aggregate,
+  // mig 066 — not derived from the loaded page window).
+  const { data: filterCounts } = useConversationFilterCounts(activeInstanceId)
   // Stage 2a (W5): admins receive conversation bumps on ONE business-scoped
   // broadcast channel (wa:biz:<business_id>) instead of one wa:inst:<id> channel
   // PER instance — a business with 93 numbers opened 93 channels/tab (the channel
@@ -590,6 +594,8 @@ export default function AdminConversations() {
           tagColorMap={tagColorMap}
           ownerJid={activeInstance?.wa_owner_jid ?? null}
           favCount={favorites.size}
+          groupCount={filterCounts?.groups}
+          tagCounts={filterCounts?.tags}
           availableInstances={(instances ?? []).map((i) => ({
             id: i.id,
             display_name: i.display_name,

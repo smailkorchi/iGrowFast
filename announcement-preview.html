@@ -334,7 +334,308 @@ h1.title {
   .wd-cursor { display: none !important; }
 }
 
-/* SLIDE-CSS-INSERT */
+/* ---- slide 2 ---- */
+.s2-row{position:absolute;left:6px;right:6px;height:68px;padding:10px 12px 10px 8px;border-radius:10px;display:grid;grid-template-columns:49px 1fr;gap:13px;align-items:center;transition:transform 480ms cubic-bezier(0.22,1,0.36,1),opacity 300ms ease}
+.s2-row.is-active{background:var(--wa-active)}
+.s2-row.is-hidden{opacity:0;pointer-events:none}
+.s2-rt{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.s2-namewrap{display:inline-flex;align-items:center;min-width:0;flex:1;overflow:hidden}
+.s2-name{font-size:15px;font-weight:500;color:var(--wa-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s2-tags{display:inline-flex;gap:2px;flex-shrink:0;margin-left:5px;align-items:center}
+.s2-tagico{display:inline-flex;transform-origin:center;animation:s2pop 340ms cubic-bezier(0.34,1.56,0.64,1) both}
+@keyframes s2pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.s2-time{font-size:12px;color:var(--wa-t2);font-variant-numeric:tabular-nums;flex-shrink:0}
+.s2-rb{margin-top:2px}
+.s2-prev{font-size:13.5px;color:var(--wa-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.s2-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;display:inline-block}
+.s2-vipchip{opacity:0;transform:scale(0.5);transform-origin:left center;transition:opacity 260ms ease,transform 320ms cubic-bezier(0.34,1.56,0.64,1)}
+.s2-vipchip.is-on{opacity:1;transform:scale(1)}
+.s2-picker{transform-origin:top right}
+.s2-pick-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;font-size:13px;font-weight:600;color:var(--wa-t1);border-bottom:1px solid var(--wa-border)}
+.s2-pick-list{padding:4px}
+.s2-pick-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:13px;color:var(--wa-t1)}
+.s2-pick-item.is-hover{background:rgba(255,255,255,0.06)}
+.s2-pick-name{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s2-pick-check{color:var(--wa-green);display:inline-flex;opacity:0;transition:opacity 180ms ease}
+.s2-pick-check.is-on{opacity:1}
+
+/* ---- slide 3 ---- */
+[data-demo="3"] .s3-chat{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:5px;padding:18px 28px 12px;min-height:0;overflow:hidden}
+[data-demo="3"] .s3-doodle{position:absolute;inset:0;background:url('public/BG.svg');filter:invert(1);opacity:0.06;pointer-events:none}
+[data-demo="3"] .s3-chat>.wd-day,[data-demo="3"] .s3-chat>.wd-wrap{position:relative;z-index:1}
+[data-demo="3"] .s3-composer{padding:8px 16px 12px}
+[data-demo="3"] .s3-stack{position:relative;display:flex;flex-direction:column}
+[data-demo="3"] .s3-attach-wrap{position:relative;display:flex}
+[data-demo="3"] .s3-attach-pop{position:absolute;left:-4px;bottom:calc(100% + 14px);min-width:220px;padding:12px 0;z-index:30}
+[data-demo="3"] .s3-attach-item{display:flex;align-items:center;gap:14px;width:calc(100% - 12px);margin:0 6px;padding:8px 12px;font-size:14.5px;color:#E9EDEF;border-radius:8px;background:none;border:0;white-space:nowrap;text-align:left;font-family:inherit;cursor:default}
+[data-demo="3"] .s3-attach-item.is-hover{background:rgba(255,255,255,0.08)}
+[data-demo="3"] .s3-attach-ic{width:22px;flex:0 0 22px;display:flex;align-items:center;justify-content:center}
+[data-demo="3"] .s3-qr-pick{position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#1A1A1A;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.45);padding:8px;z-index:20;opacity:0;transform:translateY(6px) scale(0.97);pointer-events:none;transition:opacity 0.12s ease-out,transform 0.12s ease-out}
+[data-demo="3"] .s3-qr-pick.is-open{opacity:1;transform:none;pointer-events:auto}
+[data-demo="3"] .s3-qr-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;min-width:0}
+[data-demo="3"] .s3-qr-row.is-hover{background:rgba(255,255,255,0.08)}
+[data-demo="3"] .s3-qr-ic{width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:rgba(245,197,66,0.15);color:#F5C542;display:flex;align-items:center;justify-content:center}
+[data-demo="3"] .s3-qr-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+[data-demo="3"] .s3-qr-name{font-size:14px;font-weight:500;color:#E9EDEF;line-height:1.25}
+[data-demo="3"] .s3-qr-prev{font-size:12px;color:#8696A0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-demo="3"] .wd-pill-btn.is-hover{background:rgba(255,255,255,0.06);color:#E9EDEF}
+[data-demo="3"] #s3-tick svg{vertical-align:middle}
+[data-demo="3"] #s3-tick .s3-tk2,[data-demo="3"] #s3-tick.s3-double .s3-tk1{display:none}
+[data-demo="3"] #s3-tick.s3-double .s3-tk2{display:inline-block}
+
+/* ---- slide 4 ---- */
+.s4-attach{padding:8px 0}
+.s4-attach-item{display:flex;align-items:center;gap:14px;padding:8px 14px;font-size:14.5px;color:var(--wa-t1)}
+.s4-attach-item.is-hover{background:rgba(255,255,255,0.08)}
+.s4-attach-ic{width:22px;display:inline-flex;justify-content:center}
+.s4-sched{padding:14px 16px 12px}
+.s4-sched-head{font-size:12px;font-weight:600;color:var(--wa-t2);margin-bottom:10px}
+.s4-sched-pills{display:flex;gap:8px}
+.s4-sched-pill{flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);font-size:13px;font-weight:500;color:var(--wa-t1);transition:border-color 200ms,background 200ms}
+.s4-sched-pill.is-flash{border-color:var(--wa-green);background:rgba(0,168,132,0.08)}
+.s4-sched-presets{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.s4-preset{padding:5px 12px;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);font-size:12px;color:var(--wa-t2);transition:all 180ms}
+.s4-preset.is-hover,.s4-preset.is-sel{color:#E9EDEF;background:rgba(0,168,132,0.1);border-color:rgba(0,168,132,0.45)}
+.s4-sched-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.s4-btn-cancel{padding:8px 18px;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--wa-t2);font-size:13px;font-weight:500}
+.s4-btn-save{padding:8px 20px;border-radius:8px;background:var(--wa-green);color:#fff;font-size:13px;font-weight:600}
+.s4-btn-save.is-hover{background:#00b892}
+.s4-confirm{align-self:center;max-width:420px;display:none;gap:12px;margin-top:8px;padding:11px 14px;border-radius:12px;background:#161616;border:1px solid rgba(0,168,132,0.25)}
+.s4-confirm.is-on{display:flex;animation:s4in 340ms cubic-bezier(0.22,1,0.36,1) both}
+@keyframes s4in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.s4-confirm-ic{width:34px;height:34px;flex-shrink:0;border-radius:9px;background:rgba(0,168,132,0.15);color:var(--wa-green);display:flex;align-items:center;justify-content:center}
+.s4-confirm-top{display:flex;align-items:center;gap:8px}
+.s4-confirm-name{font-size:14px;font-weight:500;color:var(--wa-t1)}
+.s4-confirm-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;padding:2px 7px;border-radius:999px;background:rgba(92,189,109,0.16);color:#5CBD6D}
+.s4-confirm-when{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--wa-green);margin:2px 0}
+.s4-confirm-prev{font-size:12px;color:var(--wa-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px}
+
+/* ---- slide 5 ---- */
+.s5-head{display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--wa-border)}
+.s5-head-txt{flex:1;min-width:0}
+.s5-head-name{font-size:16px;font-weight:600;color:var(--wa-t1);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s5-head-sub{font-size:12px;color:var(--wa-t2)}
+.s5-head-actions{margin-left:auto;display:flex;gap:4px}
+.s5-chat{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;padding:16px 24px 12px;min-height:0;overflow:hidden}
+.s5-chat::before{content:"";position:absolute;inset:0;background:url('/BG.svg') center/440px repeat;filter:invert(1);opacity:.06;pointer-events:none}
+.s5-chat>*{position:relative;z-index:1}
+.s5-composer{padding:8px 16px 10px}
+.s5-composer .s5-rec-pill{display:none}
+.s5-composer.is-rec .s5-pill-normal{display:none}
+.s5-composer.is-rec .s5-rec-pill{display:flex;align-items:center;gap:8px}
+.s5-rec-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--wa-t2);flex:0 0 auto}
+.s5-rec-ind{display:flex;align-items:center;gap:6px;flex:0 0 auto;padding:0 2px}
+.s5-rec-dot{width:10px;height:10px;border-radius:50%;background:#ef4444;animation:s5-pulse 1.2s ease-in-out infinite}
+@keyframes s5-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.s5-rec-time{font-size:14px;color:var(--wa-t1);font-variant-numeric:tabular-nums;min-width:30px}
+.s5-rec-wave{flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:1.5px;overflow:hidden}
+.s5-rec-bar{width:2.5px;flex:0 0 2.5px;height:3px;border-radius:2px;background:var(--wa-t2);transition:height .18s ease}
+.s5-rec-send{width:42px;height:42px;border-radius:50%;background:var(--wa-green);color:#000;display:flex;align-items:center;justify-content:center;flex:0 0 auto;cursor:pointer}
+.s5-vbubble{min-width:322px;max-width:360px;padding:6px 10px 8px}
+.s5-vmsg{display:none}
+.s5-vmsg.is-shown{display:flex;animation:s5-in .28s ease}
+@keyframes s5-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.s5-voice{display:grid;grid-template-columns:auto auto auto;grid-template-rows:18px 22px 4px 14px;column-gap:12px}
+.s5-vavatar{grid-column:1;grid-row:1/5;width:58px;height:58px;border-radius:50%;background:#2A2A2A;color:#F1B98D;display:flex;align-items:center;justify-content:center;position:relative}
+.s5-vmicb{position:absolute;right:0;bottom:0;width:20px;height:20px;border-radius:50%;background:var(--wa-green);color:#0B141A;border:2px solid #264C39;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.s5-vspeed{grid-column:1;grid-row:1/5;align-self:center;justify-self:center;height:22px;min-width:36px;padding:0 8px;border-radius:11px;background:rgba(255,255,255,.16);color:var(--wa-t1);font-size:12px;font-weight:600;display:none;align-items:center;justify-content:center}
+.s5-voice.is-playing .s5-vavatar{display:none}
+.s5-voice.is-playing .s5-vspeed{display:inline-flex}
+.s5-vplay{grid-column:2;grid-row:1/4;align-self:center;width:28px;height:28px;border:0;background:none;color:var(--wa-t1);padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.s5-ic-pause{display:none}
+.s5-voice.is-playing .s5-ic-play{display:none}
+.s5-voice.is-playing .s5-ic-pause{display:block}
+.s5-vwave{grid-column:3;grid-row:2;width:190px;height:22px;display:flex;align-items:center;gap:2px;position:relative;cursor:pointer}
+.s5-vbar{width:2px;flex:0 0 2px;border-radius:1px;background:var(--wa-t3)}
+.s5-vbar.is-played{background:var(--wa-t1)}
+.s5-playhead{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--wa-tick);top:50%;transform:translateY(-50%);left:calc(0% - 5px);transition:left .2s linear;z-index:2}
+.s5-vtime{grid-column:2/4;grid-row:4;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--wa-t2);padding:0 2px}
+.s5-vt-r{display:inline-flex;align-items:center;gap:4px}
+.s5-tick{color:var(--wa-t2)}
+.s5-tick.is-read{color:var(--wa-tick)}
+
+/* ---- slide 6 ---- */
+.s6-side{position:relative;display:grid;grid-template-rows:auto auto auto 1fr;grid-template-columns:minmax(0,1fr);border-right:1px solid rgba(255,255,255,0.04);min-width:0;min-height:0;overflow:hidden}
+.s6-head{height:64px;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.s6-pill{height:36px;padding:0 16px;border-radius:21px;background:var(--wa-input);display:flex;align-items:center;gap:12px;min-width:0}
+.s6-ph{font-size:14px;color:var(--wa-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s6-row{display:grid;grid-template-columns:49px minmax(0,1fr);gap:15px;align-items:center;padding:10px 12px 10px 8px;margin:0 6px;border-radius:10px}
+.s6-row.is-active{background:var(--wa-active)}
+.s6-rt{display:flex;align-items:baseline;gap:8px}
+.s6-name{flex:1;min-width:0;font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s6-time{flex-shrink:0;font-size:12px;color:var(--wa-t2);font-variant-numeric:tabular-nums}
+.s6-rb{margin-top:2px;min-width:0}
+.s6-prev{display:block;font-size:14px;color:var(--wa-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s6-prev .tick{display:inline-block;vertical-align:-1px;margin-right:3px;color:var(--wa-t2)}
+.s6-prev .tick.is-read{color:var(--wa-tick)}
+#s6-newrow{max-height:0;opacity:0;padding-top:0;padding-bottom:0;overflow:hidden;transition:max-height .34s ease,opacity .34s ease,padding .34s ease}
+#s6-newrow.is-shown{max-height:76px;opacity:1;padding-top:10px;padding-bottom:10px}
+.s6-panel{position:absolute;inset:0;z-index:6;background:var(--wa-bg);display:grid;grid-template-rows:auto auto minmax(0,1fr);grid-template-columns:minmax(0,1fr);transform:translateX(-102%);transition:transform .3s cubic-bezier(.32,.72,.24,1)}
+.s6-panel.is-open{transform:translateX(0)}
+.s6-phead{height:64px;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.s6-ptitle{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s6-nc{display:grid;grid-template-columns:49px minmax(0,1fr);gap:15px;align-items:center;padding:10px 12px;margin:0 6px;border-radius:8px;transition:background .12s}
+.s6-nc.is-hover{background:rgba(255,255,255,0.08)}
+.s6-nca{width:49px;height:49px;border-radius:999px;background:var(--wa-active);color:var(--wa-t2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.s6-nca--act{background:var(--wa-green);color:#fff}
+.s6-ncb{display:flex;flex-direction:column;gap:2px;min-width:0}
+.s6-ncn{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s6-ncs{font-size:13px;color:var(--wa-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s6-sec{font-size:13px;font-weight:500;color:var(--wa-t2);padding:14px 24px 6px}
+.s6-chathead{position:relative;z-index:2;height:58px;padding:0 16px;background:var(--wa-bg);display:flex;align-items:center;justify-content:space-between}
+.s6-chin{display:flex;align-items:center;gap:12px;min-width:0}
+.s6-chacts{display:flex;align-items:center}
+.s6-chin,.s6-chacts{opacity:0;transform:translateY(-5px);transition:opacity .28s ease,transform .28s ease}
+.s6-chathead.is-on .s6-chin,.s6-chathead.is-on .s6-chacts{opacity:1;transform:none}
+.s6-e2e{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:8px;background:var(--wa-system);color:var(--wa-t2);font-size:12.5px;opacity:0;transform:translateY(8px);transition:opacity .32s ease,transform .32s ease}
+.s6-e2e.is-on{opacity:1;transform:none}
+.s6-comp{opacity:0;transition:opacity .3s ease}
+.s6-comp.is-on{opacity:1}
+
+/* ---- slide 7 ---- */
+.s7-sec{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.22em;color:var(--mid);border-bottom:1px solid var(--line);padding-bottom:7px;margin-bottom:11px}
+.s7-fields{display:flex;flex-direction:column;gap:10px}
+.s7-lbl{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.18em;color:var(--mid);margin-bottom:4px}
+.s7-inp{height:38px;border-radius:9px;border:1px solid var(--line);background:var(--paper);font-size:13px;font-weight:500;color:var(--ink);display:flex;align-items:center;padding:0 12px}
+.s7-inp--area{height:auto;min-height:52px;padding:9px 12px;align-items:flex-start;line-height:1.4}
+.s7-notes{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.s7-line{border:1px solid rgba(20,20,19,0.1);background:#fff;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:11px;box-shadow:0 1px 3px rgba(20,20,19,0.05)}
+.s7-picker{border:1px solid rgba(20,20,19,0.1);border-radius:14px;background:#fff;min-height:60px;padding:9px 11px;transition:border-color 180ms}
+.s7-picker.is-hover{border-color:rgba(20,20,19,0.3)}
+.s7-pick-empty{display:flex;align-items:center;gap:11px}
+.s7-pick-filled{display:none;align-items:center;gap:11px}
+.s7-picker.is-filled .s7-pick-empty{display:none}
+.s7-picker.is-filled .s7-pick-filled{display:flex}
+.s7-thumb-ph{width:44px;height:44px;border-radius:11px;background:rgba(20,20,19,0.04);box-shadow:inset 0 0 0 1px rgba(20,20,19,0.1);display:flex;align-items:center;justify-content:center;color:rgba(20,20,19,0.4);flex-shrink:0}
+.s7-thumb{width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#8fbfa4,#4f8f6f);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
+.s7-thumb.sm{width:34px;height:34px;border-radius:9px;font-size:14px}
+.s7-uqt{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:8px}
+.s7-uq{border:1px solid rgba(20,20,19,0.1);background:rgba(20,20,19,0.03);border-radius:9px;padding:6px 8px;text-align:center}
+.s7-uq-l{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.16em;color:var(--mid)}
+.s7-uq-v{font-size:14px;font-weight:700;color:var(--ink);margin-top:2px}
+.s7-total{border-radius:9px;background:rgba(20,20,19,0.1);padding:6px 8px;text-align:center}
+.s7-total-v{font-family:'Poppins',sans-serif;font-size:14px;font-weight:600;color:var(--ink);margin-top:1px;font-variant-numeric:tabular-nums}
+.s7-pop{position:absolute;left:14px;right:14px;top:118px;z-index:20;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px -18px rgba(20,20,19,0.4);padding:6px;opacity:0;transform:translateY(-6px) scale(0.98);pointer-events:none;transform-origin:top;transition:opacity 200ms cubic-bezier(0.22,1,0.36,1),transform 200ms cubic-bezier(0.22,1,0.36,1)}
+.s7-pop.is-open{opacity:1;transform:none}
+.s7-pop-search{display:flex;align-items:center;gap:9px;padding:9px 11px;color:var(--mid);border-bottom:1px solid var(--line);margin-bottom:4px;font-size:12.5px}
+.s7-pop-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px}
+.s7-pop-item.is-hover{background:var(--light)}
+.s7-confirm{height:36px;padding:0 24px;border-radius:9px;background:var(--ink);color:var(--light);display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(20,20,19,0.2)}
+.s7-confirm.is-hover{background:#2a2926}
+.s7-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,0.35);border-top-color:#fff;border-radius:50%;animation:s7spin 0.7s linear infinite}
+@keyframes s7spin{to{transform:rotate(360deg)}}
+.s7-toast{position:absolute;top:18px;right:18px;z-index:40;display:flex;align-items:flex-start;gap:11px;width:290px;padding:13px 14px;border-radius:14px;background:var(--paper);border:1px solid var(--line);box-shadow:0 20px 50px -20px rgba(20,20,19,0.45);border-top:3px solid var(--ink);opacity:0;transform:translateX(20px);pointer-events:none;transition:opacity 320ms cubic-bezier(0.22,1,0.36,1),transform 320ms cubic-bezier(0.22,1,0.36,1)}
+.s7-toast.is-on{opacity:1;transform:none}
+
+/* ---- slide 8 ---- */
+.s8-ord-row{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px}
+.s8-ord-row.is-hover{background:rgba(255,255,255,0.06)}
+.s8-ord-thumb{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#2c3e33,#1d2a22);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#7fbfa4}
+.s8-pill{font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 7px}
+.s8-overlay{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);opacity:0;pointer-events:none;transition:opacity 300ms ease}
+.s8-overlay.is-open{opacity:1}
+.s8-dialog{width:860px;max-height:576px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 80px -24px rgba(20,20,19,0.5);overflow:hidden;display:flex;flex-direction:column;transform:scale(0.96);opacity:0;transition:transform 320ms cubic-bezier(0.22,1,0.36,1),opacity 320ms ease}
+.s8-overlay.is-open .s8-dialog{transform:none;opacity:1}
+.s8-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:11px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;box-shadow:0 1px 2px rgba(20,20,19,0.04)}
+.s8-h4{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:12px}
+.s8-drow{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.s8-tile{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.s8-dl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:rgba(107,106,99,0.6)}
+.s8-cart{background:var(--light);border:1px solid var(--line);border-radius:14px;padding:14px}
+.s8-cthumb{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#8fbfa4,#4f8f6f);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
+.s8-cl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:rgba(107,106,99,0.5);margin-bottom:2px}
+.s8-timeline{display:flex;gap:10px}
+.s8-tl-node{flex:1;display:flex;align-items:flex-start;gap:9px;position:relative}
+.s8-tl-node:not(:last-child)::after{content:'';position:absolute;left:9px;top:16px;right:-10px;height:2px;background:var(--line)}
+.s8-tl-dot{width:18px;height:18px;border-radius:999px;flex-shrink:0;border:3px solid #fff;box-shadow:0 0 0 1px var(--line);z-index:1;margin-top:1px}
+.s8-tl-dot.done{background:#e2e0d6}
+.s8-tl-dot.cur{background:var(--green);box-shadow:0 0 0 3px rgba(120,140,93,0.25)}
+.s8-tl-pill{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:3px 9px;border-radius:8px}
+.s8-tl-t{font-size:10px;font-weight:600;color:rgba(107,106,99,0.55);margin-top:4px}
+
+/* ---- slide 9 ---- */
+.s9-page{position:absolute;inset:0;padding:30px 34px 26px;display:flex;flex-direction:column;gap:20px}
+.s9-h1,.s9-h2,.s9-nm,.s9-dtitle,.s9-steps{margin:0}
+.s9-btn-ink,.s9-cta,.s9-cancel,.s9-refresh,.s9-x{font-family:inherit;cursor:pointer}
+.s9-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.s9-hl{min-width:0;display:flex;flex-direction:column;gap:8px}
+.s9-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.28em;color:var(--mid)}
+.s9-odot{width:6px;height:6px;border-radius:99px;background:var(--orange);flex:none}
+.s9-h1{font-size:34px;line-height:1.05;letter-spacing:-.02em;font-weight:600;color:var(--ink)}
+.s9-sub{font-size:14px;color:var(--mid)}
+.s9-btn-ink{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 20px;border-radius:99px;background:var(--ink);color:#fff;font-size:12px;font-weight:600;border:0;flex:none}
+.s9-btn-ink svg{width:16px;height:16px}
+.s9-sechead{display:flex;align-items:center;justify-content:space-between}
+.s9-h2{font-size:18px;font-weight:600}
+.s9-count{font-size:12px;color:var(--mid);font-variant-numeric:tabular-nums}
+.s9-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.s9-card{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--line);background:var(--paper)}
+.s9-stripe{height:3px;transition:background .35s}
+.s9-stripe2{background:var(--rose)}
+.s9-c2.s9-on .s9-stripe2{background:var(--green)}
+.s9-cbody{padding:16px;display:flex;flex-direction:column;gap:12px}
+.s9-r1{display:flex;align-items:center;gap:12px;min-width:0}
+.s9-av{width:44px;height:44px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:Poppins,Inter,sans-serif;font-weight:600;font-size:16px;flex:none}
+.s9-nb{min-width:0}
+.s9-nm{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s9-wan{font-size:12px;color:var(--mid)}
+.s9-r2{display:flex;flex-wrap:wrap;gap:6px}
+.s9-pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;border:1px solid;padding:2.5px 9px;font-size:11px;font-weight:600}
+.s9-pill svg{width:13px;height:13px}
+.s9-pdot{width:6px;height:6px;border-radius:99px;background:currentColor;flex:none}
+.s9-pl-g{background:rgba(120,140,93,.1);border-color:rgba(120,140,93,.25);color:var(--green)}
+.s9-pl-o{background:rgba(217,119,87,.1);border-color:rgba(217,119,87,.25);color:var(--orange)}
+.s9-pl-m{background:rgba(176,174,165,.12);border-color:rgba(176,174,165,.35);color:var(--muted)}
+.s9-pl-m .s9-pdot{background:var(--mid)}
+.s9-phone{font-family:Poppins,Inter,sans-serif;font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums}
+.s9-foot{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:12px}
+.s9-tr{text-align:right}
+.s9-lbl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--mid);margin-bottom:2px}
+.s9-val{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.s9-cta{height:36px;border-radius:99px;background:var(--ink);color:#fff;font-size:11px;font-weight:600;border:0;padding:0;width:100%;overflow:hidden;transition:opacity .3s,height .3s,margin-top .3s}
+.s9-c2.s9-on .s9-cta{opacity:0;height:0;margin-top:-12px;pointer-events:none}
+.s9-c2 .s9-yes{display:none}
+.s9-c2.s9-on .s9-yes{display:inline-flex}
+.s9-c2.s9-on .s9-no{display:none}
+.s9-ovl{position:absolute;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .28s;z-index:5}
+.s9-ovl.s9-open{opacity:1;pointer-events:auto}
+.s9-dlg{width:512px;border-radius:16px;border:1px solid var(--line);background:var(--paper);box-shadow:0 24px 80px -24px rgba(20,20,19,.28);overflow:hidden;transform:translateY(10px) scale(.98);transition:transform .28s}
+.s9-ovl.s9-open .s9-dlg{transform:none}
+.s9-dstripe{height:3px;background:var(--line);transition:background .3s}
+.s9-dlg.s9-done .s9-dstripe{background:var(--green)}
+.s9-dhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 24px 16px;border-bottom:1px solid var(--line)}
+.s9-dhl{min-width:0;display:flex;flex-direction:column;gap:7px}
+.s9-dtitle{font-size:20px;font-weight:600;line-height:1.2}
+.s9-dphone{display:block;font-size:13px;font-weight:400;color:var(--mid);font-variant-numeric:tabular-nums;margin-top:2px}
+.s9-x{width:36px;height:36px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;flex:none}
+.s9-x svg{width:15px;height:15px}
+.s9-dbody{display:grid;grid-template-columns:240px minmax(0,1fr);gap:26px;align-items:center;padding:20px 24px}
+.s9-qrcol{display:flex;flex-direction:column;align-items:center}
+.s9-qrcard{width:224px;height:224px;border-radius:16px;border:1px solid var(--line);background:#fff;padding:14px;box-shadow:0 16px 48px -20px rgba(20,20,19,.2);position:relative}
+.s9-qr{width:100%;height:100%;display:block;transition:opacity .35s}
+.s9-ok{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.55);transition:opacity .3s,transform .35s}
+.s9-okc{width:74px;height:74px;border-radius:99px;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px -14px rgba(120,140,93,.7)}
+.s9-okc svg{width:36px;height:36px}
+.s9-dlg.s9-done .s9-qr{opacity:.1}
+.s9-dlg.s9-done .s9-ok{opacity:1;transform:scale(1)}
+.s9-wait{margin-top:14px;display:inline-flex;align-items:center;gap:8px;border-radius:99px;border:1px solid rgba(217,119,87,.25);background:rgba(217,119,87,.1);padding:6px 13px;font-family:Poppins,Inter,sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);transition:color .3s,background .3s,border-color .3s}
+.s9-wdot{width:7px;height:7px;border-radius:99px;background:currentColor;flex:none;animation:s9p 1.5s ease-in-out infinite}
+@keyframes s9p{0%,100%{opacity:1}50%{opacity:.3}}
+.s9-dlg.s9-done .s9-wait{border-color:rgba(120,140,93,.25);background:rgba(120,140,93,.1);color:var(--green)}
+.s9-dlg.s9-done .s9-wdot{animation:none}
+.s9-eb2{display:none}
+.s9-dlg.s9-done .s9-eb1{display:none}
+.s9-dlg.s9-done .s9-eb2{display:inline}
+.s9-steps{list-style:none;padding:0;display:flex;flex-direction:column;gap:14px;transition:opacity .35s}
+.s9-dlg.s9-done .s9-steps{opacity:.4}
+.s9-step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
+.s9-sn{width:28px;height:28px;border-radius:99px;border:1px solid var(--line);background:rgba(20,20,19,.05);display:flex;align-items:center;justify-content:center;font-family:Poppins,Inter,sans-serif;font-size:12px;font-weight:600}
+.s9-st{font-family:Poppins,Inter,sans-serif;font-size:13.5px;font-weight:600;line-height:1.25}
+.s9-ss{font-size:12.5px;color:var(--mid);margin-top:2px}
+.s9-dfoot{display:flex;align-items:center;justify-content:space-between;padding:16px 24px 20px;border-top:1px solid var(--line)}
+.s9-cancel{height:40px;padding:0 18px;border-radius:99px;border:1px solid rgba(201,99,86,.28);background:#fff;color:var(--rose);font-size:12px;font-weight:600}
+.s9-refresh{height:40px;padding:0 18px;border-radius:99px;border:0;background:var(--orange);color:#fff;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:7px;box-shadow:0 8px 18px -10px rgba(217,119,87,.6)}
+.s9-refresh svg{width:15px;height:15px}
 </style>
 </head>
 <body>
@@ -618,7 +919,753 @@ h1.title {
       </div>
     </section>
 
-    <!-- SLIDE-HTML-INSERT -->
+    <!-- ===== SLIDE 2 : Étiquettes : chaque discussion à sa place ===== -->
+    <section class="step-pane" data-step="2">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/></svg></div>
+<h2>Chaque discussion à sa place, d'un seul clic</h2>
+<div class="sub">Des milliers de conversations, toujours classées.</div>
+<p class="lead">Posez une <strong>étiquette</strong> sur une conversation depuis l'en-tête du chat. Elle apparaît aussitôt sur la ligne et devient un <strong>filtre</strong> dans la barre latérale.</p>
+<div class="features">
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Étiquettes colorées</strong> — VIP, à rappeler, payé, litige… à votre main</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Filtre instantané</strong> — retrouvez toutes les discussions d'une étiquette</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Partagées par l'équipe</strong> — le même classement pour tous les agents</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="2" data-w="900" data-h="560">
+<div class="demo-stage wd-root" style="width:900px;height:560px;display:grid;grid-template-columns:340px minmax(0,1fr)">
+  <!-- SIDEBAR -->
+  <div style="display:grid;grid-template-rows:auto auto auto 1fr;border-right:1px solid rgba(255,255,255,0.04);min-width:0;min-height:0">
+    <div style="height:60px;padding:0 16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <div class="wd-avatar a40"><span class="init">B</span></div>
+        <div style="min-width:0"><div style="font-size:16px;font-weight:600;white-space:nowrap">Boutique Principale</div><div style="font-size:12.5px;color:var(--wa-t2)">iGrowFast</div></div>
+      </div>
+      <div style="display:flex">
+        <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg></div>
+        <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></div>
+      </div>
+    </div>
+    <div style="padding:8px 12px 7px">
+      <div style="height:36px;padding:0 16px;border-radius:21px;background:var(--wa-input);display:flex;align-items:center;gap:12px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span style="font-size:14px;color:var(--wa-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="s2-searchph">Rechercher ou démarrer une discussion</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;padding:6px 16px 12px;align-items:center" id="s2-chips">
+      <div class="wd-chip is-active" id="s2-chip-all">Toutes</div>
+      <div class="wd-chip" id="s2-chip-unread">Non lues</div>
+      <div class="wd-chip" id="s2-chip-fav">Favoris</div>
+      <div class="wd-chip s2-vipchip" id="s2-chip-vip"><span class="s2-dot" style="background:#FF9800"></span>VIP</div>
+    </div>
+    <div class="wd-fade" id="s2-list" style="position:relative;overflow:hidden;min-height:0">
+<div class="s2-row is-active" id="s2-fatima" data-slot="0" data-vip="0">
+  <div class="wd-avatar a49"><span class="init">F</span></div>
+  <div style="min-width:0">
+    <div class="s2-rt"><span class="s2-namewrap"><span class="s2-name">Fatima Zahra</span><span class="s2-tags" id="s2-tags-fatima"></span></span><span class="s2-time">12:47</span></div>
+    <div class="s2-rb"><span class="s2-prev">Merci beaucoup, à bientôt !</span></div>
+  </div>
+</div>
+<div class="s2-row" id="s2-yassine" data-slot="1" data-vip="0">
+  <div class="wd-avatar a49"><span class="init">Y</span></div>
+  <div style="min-width:0">
+    <div class="s2-rt"><span class="s2-namewrap"><span class="s2-name">Yassine El Amrani</span><span class="s2-tags" id="s2-tags-yassine"></span></span><span class="s2-time">12:20</span></div>
+    <div class="s2-rb"><span class="s2-prev">D'accord pour demain</span></div>
+  </div>
+</div>
+<div class="s2-row" id="s2-salma" data-slot="2" data-vip="1">
+  <div class="wd-avatar a49"><span class="init">S</span></div>
+  <div style="min-width:0">
+    <div class="s2-rt"><span class="s2-namewrap"><span class="s2-name">Salma Bennani</span><span class="s2-tags" id="s2-tags-salma"><span class="s2-tagico" style="color:#FF9800"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4" fill="#0A0A0A"/></svg></span></span></span><span class="s2-time">11:05</span></div>
+    <div class="s2-rb"><span class="s2-prev">Vous avez reçu ma commande ?</span></div>
+  </div>
+</div>
+<div class="s2-row" id="s2-mohamed" data-slot="3" data-vip="0">
+  <div class="wd-avatar a49"><span class="init">M</span></div>
+  <div style="min-width:0">
+    <div class="s2-rt"><span class="s2-namewrap"><span class="s2-name">Mohamed Benali</span><span class="s2-tags" id="s2-tags-mohamed"></span></span><span class="s2-time">10:18</span></div>
+    <div class="s2-rb"><span class="s2-prev">Votre colis est en route</span></div>
+  </div>
+</div>
+<div class="s2-row" id="s2-khadija" data-slot="4" data-vip="1">
+  <div class="wd-avatar a49"><span class="init">K</span></div>
+  <div style="min-width:0">
+    <div class="s2-rt"><span class="s2-namewrap"><span class="s2-name">Khadija Ouarzazi</span><span class="s2-tags" id="s2-tags-khadija"><span class="s2-tagico" style="color:#FF9800"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4" fill="#0A0A0A"/></svg></span></span></span><span class="s2-time">Hier</span></div>
+    <div class="s2-rb"><span class="s2-prev">Parfait, je prends les deux</span></div>
+  </div>
+</div>
+    </div>
+  </div>
+  <!-- CHAT -->
+  <div style="position:relative;display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0,1fr);min-width:0;min-height:0;background:var(--wa-bg)">
+    <div style="position:absolute;top:58px;left:0;right:0;bottom:0;background-image:url('public/BG.svg');background-repeat:repeat;background-size:374px 666px;filter:invert(1);opacity:0.06;pointer-events:none"></div>
+    <div style="position:relative;z-index:2;height:58px;padding:0 16px;background:var(--wa-bg);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <div class="wd-avatar a40"><span class="init">F</span></div>
+        <div><div style="font-size:16px;font-weight:500;white-space:nowrap">Fatima Zahra</div><div style="font-size:12.5px;color:var(--wa-t2)">en ligne</div></div>
+      </div>
+      <div style="display:flex;align-items:center">
+        <div class="wd-icon-btn" title="Commandes du client"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+        <div class="wd-icon-btn" title="Créer une commande"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
+        <div class="wd-icon-btn" title="Rechercher"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+        <div class="s2-tag-anchor" style="position:relative">
+          <div class="wd-icon-btn" id="s2-tag-btn" title="Étiquette"><span id="s2-tag-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/></svg></span></div>
+          <div class="wd-pop s2-picker" id="s2-picker" style="top:46px;right:0;width:220px">
+            <div class="s2-pick-head"><span>Étiquettes</span><span class="wd-icon-btn" style="width:26px;height:26px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+            <div class="s2-pick-list">
+<div class="s2-pick-item" id="s2-pick-0"><span class="s2-dot" style="background:#FF9800"></span><span class="s2-pick-name">VIP</span><span class="s2-pick-check" id="s2-pickchk-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+<div class="s2-pick-item" id="s2-pick-1"><span class="s2-dot" style="background:#2196F3"></span><span class="s2-pick-name">À rappeler</span><span class="s2-pick-check" id="s2-pickchk-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+<div class="s2-pick-item" id="s2-pick-2"><span class="s2-dot" style="background:#4CAF50"></span><span class="s2-pick-name">Payé</span><span class="s2-pick-check" id="s2-pickchk-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+<div class="s2-pick-item" id="s2-pick-3"><span class="s2-dot" style="background:#F44336"></span><span class="s2-pick-name">Litige</span><span class="s2-pick-check" id="s2-pickchk-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="wd-icon-btn" title="Ajouter aux favoris"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></div>
+      </div>
+    </div>
+    <div style="position:relative;z-index:1;padding:16px 40px;display:flex;flex-direction:column;gap:2px;overflow:hidden;min-height:0">
+      <div style="flex:1 0 0"></div>
+      <div class="wd-day">Aujourd'hui</div>
+      <div class="wd-wrap is-in"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg><div class="wd-bubble-text">Bonjour, je viens de recevoir ma commande. Tout est parfait, merci !</div><span class="wd-meta">12:41</span></div></div>
+      <div class="wd-wrap is-out"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M0 0h8L0 13V0Z" fill="#264C39"/></svg><div class="wd-bubble-text">Avec plaisir Fatima ! N'hésitez pas pour une prochaine commande.</div><span class="wd-meta">12:45 <span class="tick is-read"><svg width="16" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span></span></div></div>
+      <div class="wd-wrap is-in"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg><div class="wd-bubble-text">Merci beaucoup, à bientôt !</div><span class="wd-meta">12:47</span></div></div>
+    </div>
+  </div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — étiquettes</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 3 : Réponses rapides : vos modèles en un clic ===== -->
+    <section class="step-pane" data-step="3">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+<h2>Vos meilleures réponses, en un clic</h2>
+<div class="sub">Des modèles prêts à l'emploi, pour toute l'équipe.</div>
+<p class="lead">Enregistrez vos réponses types une fois pour toutes. Depuis le menu <strong>Réponses</strong>, un clic suffit : le message complet se place dans le champ, prêt à partir.</p>
+<div class="features">
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Modèles réutilisables</strong> — vos réponses types, enregistrées une seule fois</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Insertion instantanée</strong> — le texte complet remplit le champ, sans rien taper</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Cohérence d'équipe</strong> — la même réponse soignée, quel que soit l'agent</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="3" data-w="880" data-h="540">
+<div class="demo-stage wd-root" style="width:880px;height:540px;display:grid;grid-template-rows:minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);position:relative;overflow:hidden">
+<div class="s3-chat wd-fade">
+<div class="s3-doodle"></div>
+<div class="wd-day">Aujourd'hui</div>
+<div class="wd-wrap is-in"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13" width="8" height="13"><path d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568Z" fill="currentColor"/></svg><div class="wd-bubble-text">Bonjour, vous livrez à Casablanca ? C'est combien les frais de livraison ?</div><div class="wd-meta"><span>14:02</span></div></div></div>
+<div class="wd-wrap is-out anim" id="s3-out"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13" width="8" height="13"><path d="M5.188 1H0v11.193l6.467-8.625C7.526 2.156 6.958 1 5.188 1Z" fill="currentColor"/></svg><div class="wd-bubble-text">Bonjour ! Oui, nous livrons à Casablanca sous 24h. Frais : 30 DH, offerts dès 300 DH.</div><div class="wd-meta"><span>14:03</span><span class="tick" id="s3-tick"><svg class="s3-tk1" viewBox="0 0 16 15" width="16" height="15" fill="currentColor"><path d="M10.91 3.316l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/></svg><svg class="s3-tk2" viewBox="0 0 16 15" width="16" height="15" fill="currentColor"><path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/></svg></span></div></div></div>
+</div>
+<div class="s3-composer wd-fade">
+<div class="s3-stack">
+<div class="s3-qr-pick" id="s3-qr-pick">
+<div class="s3-qr-row" id="s3-qr-1"><span class="s3-qr-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="s3-qr-tx"><span class="s3-qr-name">/salutation</span><span class="s3-qr-prev">Bonjour et bienvenue chez iGrowFast ! Comment pouvons-nous vous aider ?</span></span></div>
+<div class="s3-qr-row" id="s3-qr-2"><span class="s3-qr-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="s3-qr-tx"><span class="s3-qr-name">/livraison</span><span class="s3-qr-prev">Bonjour ! Oui, nous livrons à Casablanca sous 24h. Frais : 30 DH, offerts dès 300 DH.</span></span></div>
+<div class="s3-qr-row" id="s3-qr-3"><span class="s3-qr-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="s3-qr-tx"><span class="s3-qr-name">/confirmation</span><span class="s3-qr-prev">Votre commande est confirmée, elle part aujourd'hui même.</span></span></div>
+</div>
+<div class="wd-composer-pill" id="s3-pill">
+<span class="s3-attach-wrap">
+<div class="wd-pop from-bottom s3-attach-pop" id="s3-attach-pop">
+<button class="s3-attach-item"><span class="s3-attach-ic" style="color:#7F66FF"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>Document</button>
+<button class="s3-attach-item"><span class="s3-attach-ic" style="color:#007BFC"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>Photos et vidéos</button>
+<button class="s3-attach-item"><span class="s3-attach-ic" style="color:#25D366"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span>Message vocal</button>
+<button class="s3-attach-item" id="s3-it-rep"><span class="s3-attach-ic" style="color:#F5C542"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>Réponses</button>
+<button class="s3-attach-item"><span class="s3-attach-ic" style="color:#5CBD6D"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></span>Programmer</button>
+</div>
+<button class="wd-pill-btn" id="s3-btn-attach" title="Joindre"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+</span>
+<button class="wd-pill-btn" title="Emoji"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
+<div class="wd-input" id="s3-input"><span class="ph">Entrez un message</span><span class="typed" id="s3-typed"></span><span class="wd-caret" id="s3-caret"></span></div>
+<button class="wd-mic-btn" title="Enregistrer un message vocal"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+<button class="wd-send-btn" id="s3-send" title="Envoyer"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M1.101 21.757 23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/></svg></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — réponses rapides</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 4 : Messages programmés : envoyez au bon moment ===== -->
+    <section class="step-pane" data-step="4">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/></svg></div>
+<h2>Écrivez maintenant, envoyez au bon moment</h2>
+<div class="sub">Vos relances partent seules, à l'heure choisie.</div>
+<p class="lead">Rédigez le message, cliquez sur <strong>Programmer</strong>, choisissez le jour et l'heure. iGrowFast l'enverra automatiquement — même la nuit, même le week-end.</p>
+<div class="features">
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Date et heure précises</strong> — ou des raccourcis : « Demain 9h », « Lundi 9h »</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Envoi automatique</strong> — la relance part sans que vous y pensiez</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Suivi clair</strong> — programmé, envoyé ou annulé, toujours visible</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="4" data-w="880" data-h="540">
+<div class="demo-stage wd-root" style="width:880px;height:540px;display:grid;grid-template-rows:58px minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);position:relative;overflow:hidden">
+  <div style="position:relative;z-index:2;height:58px;padding:0 16px;background:var(--wa-bg);display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:12px;min-width:0">
+      <div class="wd-avatar a40"><span class="init">Y</span></div>
+      <div><div style="font-size:16px;font-weight:500;white-space:nowrap">Yassine El Amrani</div><div style="font-size:12.5px;color:var(--wa-t2)">vu à 18:24</div></div>
+    </div>
+    <div style="display:flex;align-items:center">
+      <div class="wd-icon-btn" title="Rechercher"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+      <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></div>
+    </div>
+  </div>
+
+  <div style="position:relative;z-index:1;overflow:hidden;min-height:0">
+    <div style="position:absolute;inset:0;background-image:url('public/BG.svg');background-repeat:repeat;background-size:374px 666px;filter:invert(1);opacity:0.06;pointer-events:none"></div>
+    <div style="position:relative;z-index:1;height:100%;padding:16px 40px;display:flex;flex-direction:column;gap:2px;overflow:hidden">
+      <div style="flex:1 0 0"></div>
+      <div class="wd-day">Hier</div>
+      <div class="wd-wrap is-out"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M0 0h8L0 13V0Z" fill="#264C39"/></svg><div class="wd-bubble-text">Bonjour Yassine, votre commande est prête à être expédiée.</div><span class="wd-meta">17:02 <span class="tick is-read"><svg width="16" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span></span></div></div>
+      <div class="wd-wrap is-in"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg><div class="wd-bubble-text">Super, je vous réponds ce soir pour la date.</div><span class="wd-meta">17:20</span></div></div>
+      <div class="s4-confirm" id="s4-confirm">
+        <div class="s4-confirm-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/></svg></div>
+        <div style="min-width:0;flex:1">
+          <div class="s4-confirm-top"><span class="s4-confirm-name">#relance-livraison</span><span class="s4-confirm-badge">Programmé</span></div>
+          <div class="s4-confirm-when"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Demain à 09:00</div>
+          <div class="s4-confirm-prev">Bonjour ! Votre commande vous attend toujours. Souhaitez-vous confirmer la livraison ?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="s4-comp-wrap" style="position:relative;z-index:3;padding:8px 16px 10px">
+    <!-- Scheduling card -->
+    <div class="wd-pop from-bottom s4-sched" id="s4-sched" style="left:16px;right:16px;bottom:calc(100% - 2px)">
+      <div class="s4-sched-head">Programmé pour</div>
+      <div class="s4-sched-pills">
+        <div class="s4-sched-pill" id="s4-date-pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/></svg><span id="s4-date-val">sam. 11 juil. 2026</span></div>
+        <div class="s4-sched-pill" id="s4-time-pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span id="s4-time-val">17:30</span></div>
+      </div>
+      <div class="s4-sched-presets">
+        <div class="s4-preset">Dans 1 h</div>
+        <div class="s4-preset">Dans 3 h</div>
+        <div class="s4-preset" id="s4-preset-tom">Demain 9h</div>
+        <div class="s4-preset">Lundi 9h</div>
+      </div>
+      <div class="s4-sched-actions">
+        <div class="s4-btn-cancel">Annuler</div>
+        <div class="s4-btn-save" id="s4-btn-prog">Programmer</div>
+      </div>
+    </div>
+    <!-- Attach popover -->
+    <div class="wd-pop from-bottom s4-attach" id="s4-attach" style="left:-2px;bottom:calc(100% + 2px);min-width:230px">
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#7F66FF"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>Document</div>
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#007BFC"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>Photos et vidéos</div>
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#FF8A1F"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></span>Fichier audio</div>
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#25D366"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></span>Message vocal</div>
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#0095F6"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>Contact</div>
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#F5C542"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>Réponses</div>
+<div class="s4-attach-item" id="s4-attach-prog"><span class="s4-attach-ic" style="color:#5CBD6D"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/></svg></span>Programmer</div>
+<div class="s4-attach-item"><span class="s4-attach-ic" style="color:#4CAF50"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/></svg></span>Étiquettes</div>
+    </div>
+    <!-- Composer pill -->
+    <div class="wd-composer-pill has-text" id="s4-pill">
+      <div class="wd-pill-btn" id="s4-plus"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+      <div class="wd-pill-btn"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14.5c.9 1.2 2.3 2 4 2s3.1-.8 4-2"/><circle cx="9" cy="9.6" r="0.6" fill="currentColor" stroke="none"/><circle cx="15" cy="9.6" r="0.6" fill="currentColor" stroke="none"/></svg></div>
+      <div class="wd-input" id="s4-input"><span class="ph">Entrez un message</span><span class="typed" id="s4-typed">Bonjour ! Votre commande vous attend toujours. Souhaitez-vous confirmer la livraison ?</span></div>
+      <div class="wd-send-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M1.101 21.757 23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/></svg></div>
+    </div>
+  </div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — messages programmés</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 5 : Notes vocales : enregistrez, envoyez, écoutez ===== -->
+    <section class="step-pane" data-step="5">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></div>
+<h2>Répondez de vive voix, sans quitter l'inbox</h2>
+<div class="sub">La voix porte ce que le texte ne dit pas.</div>
+<p class="lead">Enregistrez une note vocale directement dans la conversation, ou envoyez un <strong>fichier audio</strong> qui devient une vraie note vocale — waveform, durée et lecture accélérée comprises.</p>
+<div class="features">
+  <div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Enregistreur natif</strong> — minuteur, waveform en direct, pause et envoi</span></div>
+  <div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Fichier audio → note vocale</strong> — n'importe quel audio devient un vrai vocal</span></div>
+  <div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Lecture réelle</strong> — vitesse 1×/1.5×/2×, avancement dans la waveform, enchaînement auto</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="5" data-w="880" data-h="540">
+  <div class="demo-stage wd-root" style="width:880px;height:540px;display:grid;grid-template-rows:56px minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr)">
+    <div class="s5-head">
+      <div class="wd-avatar a40"><span class="init">Y</span></div>
+      <div class="s5-head-txt"><div class="s5-head-name">Yassine Alaoui</div><div class="s5-head-sub">en ligne</div></div>
+      <div class="s5-head-actions">
+        <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.3" y2="16.3"/></svg></div>
+        <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></div>
+      </div>
+    </div>
+    <div class="s5-chat wd-fade">
+      <div class="wd-day"><span>Aujourd'hui</span></div>
+      <div class="wd-wrap is-in"><div class="wd-bubble"><div class="wd-bubble-text">Salam, possible d'avoir les infos en vocal svp ?</div><div class="wd-meta">14:30</div></div></div>
+      <div class="wd-wrap is-out s5-vmsg"><div class="wd-bubble s5-vbubble">
+        <div class="s5-voice">
+          <div class="s5-vavatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20.5v-.5a8 8 0 0 1 16 0v.5"/></svg><span class="s5-vmicb"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></span></div>
+          <span class="s5-vspeed" aria-label="Vitesse de lecture 1×">1×</span>
+          <button class="s5-vplay" aria-label="Lire le message vocal">
+            <svg class="s5-ic-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20"/></svg>
+            <svg class="s5-ic-pause" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          </button>
+          <div class="s5-vwave"><span class="s5-playhead"></span></div>
+          <div class="s5-vtime"><span class="s5-vt-l">0:03</span><span class="s5-vt-r">14:32<svg class="s5-tick" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 13 4 4L15 8"/><path d="m8.5 16.5 1.5 1.5L20 9"/></svg></span></div>
+        </div>
+      </div></div>
+    </div>
+    <div class="s5-composer wd-fade">
+      <div class="wd-composer-pill s5-pill-normal">
+        <div class="wd-pill-btn" aria-label="Joindre"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+        <div class="wd-pill-btn" aria-label="Emoji"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="M8 14.5s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9.5" x2="9.01" y2="9.5"/><line x1="15" y1="9.5" x2="15.01" y2="9.5"/></svg></div>
+        <div class="wd-input"><span class="ph">Entrez un message</span><span class="typed"></span><span class="wd-caret"></span></div>
+        <div class="wd-mic-btn s5-mic" aria-label="Enregistrer un message vocal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></div>
+      </div>
+      <div class="wd-composer-pill s5-rec-pill">
+        <div class="s5-rec-btn" aria-label="Supprimer l'enregistrement"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1.3 14.1a2 2 0 0 1-2 1.9H8.3a2 2 0 0 1-2-1.9L5 6"/><path d="M9.5 6V4.5A1.5 1.5 0 0 1 11 3h2a1.5 1.5 0 0 1 1.5 1.5V6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></div>
+        <div class="s5-rec-ind"><span class="s5-rec-dot"></span><span class="s5-rec-time">0:00</span></div>
+        <div class="s5-rec-wave"></div>
+        <div class="s5-rec-btn" aria-label="Pause"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></div>
+        <div class="s5-rec-send" aria-label="Envoyer le message vocal"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M1.101 21.757 23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/></svg></div>
+      </div>
+    </div>
+  </div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — notes vocales</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 6 : Nouvelle discussion : démarrez une vente en deux clics ===== -->
+    <section class="step-pane" data-step="6">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="m20.5 3.5-9 9-1 3 3-1 9-9-2-2z"/></svg></div>
+<h2>Démarrez une vente en deux clics</h2>
+<div class="sub">Votre répertoire vit dans l'inbox.</div>
+<p class="lead">Le bouton <strong>Nouvelle discussion</strong> ouvre votre répertoire directement dans la boîte de réception : choisissez un contact, saisissez un numéro ou créez un groupe — la conversation s'ouvre instantanément.</p>
+<div class="features">
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Répertoire intégré</strong> — contacts triés de A à Z, recherche par nom ou numéro</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Nouveau groupe</strong> — réunissez équipe et clients dans une même discussion</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Numéro direct</strong> — lancez une discussion avec n'importe quel numéro, même hors contacts</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="6" data-w="960" data-h="620">
+<div class="demo-stage wd-root" style="width:960px;height:620px;display:grid;grid-template-columns:360px minmax(0,1fr)">
+<div class="s6-side">
+<div class="s6-head">
+<div style="display:flex;align-items:center;gap:12px;min-width:0"><div class="wd-avatar a40"><span class="init">B</span></div><div style="min-width:0"><div style="font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap">Boutique Principale <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div><div style="font-size:12.5px;color:var(--wa-t2)">iGrowFast</div></div></div>
+<div style="display:flex"><div class="wd-icon-btn" id="s6-btn-new" title="Nouvelle discussion"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="m20.5 3.5-9 9-1 3 3-1 9-9-2-2z"/></svg></div><div class="wd-icon-btn" title="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></div></div>
+</div>
+<div style="padding:8px 12px 7px"><div class="s6-pill"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span class="s6-ph">Rechercher ou démarrer une discussion</span></div></div>
+<div style="display:flex;gap:8px;padding:6px 16px 12px"><div class="wd-chip is-active">Toutes</div><div class="wd-chip">Non lues</div><div class="wd-chip">Favoris</div></div>
+<div class="wd-fade" style="overflow:hidden;min-height:0">
+<div class="s6-row is-active" id="s6-newrow"><div class="wd-avatar a49"><span class="init">S</span></div><div style="min-width:0"><div class="s6-rt"><span class="s6-name">Salma Bennani</span><span class="s6-time">14:36</span></div><div class="s6-rb"><span class="s6-prev">+212 6 61 23 45 67</span></div></div></div>
+<div class="s6-row"><div class="wd-avatar a49"><span class="init">Y</span></div><div style="min-width:0"><div class="s6-rt"><span class="s6-name">Yassine El Amrani</span><span class="s6-time">12:47</span></div><div class="s6-rb"><span class="s6-prev">Parfait, merci !</span></div></div></div>
+<div class="s6-row"><div class="wd-avatar a49"><span class="init">F</span></div><div style="min-width:0"><div class="s6-rt"><span class="s6-name">Fatima Zahra</span><span class="s6-time">11:32</span></div><div class="s6-rb"><span class="s6-prev">D'accord, je vous tiens au courant</span></div></div></div>
+<div class="s6-row"><div class="wd-avatar a49"><span class="init">M</span></div><div style="min-width:0"><div class="s6-rt"><span class="s6-name">Mohamed Benali</span><span class="s6-time">10:18</span></div><div class="s6-rb"><span class="s6-prev"><span class="tick is-read"><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span>Votre colis est en route</span></div></div></div>
+<div class="s6-row"><div class="wd-avatar a49"><span class="init">O</span></div><div style="min-width:0"><div class="s6-rt"><span class="s6-name">Omar Tazi</span><span class="s6-time">Hier</span></div><div class="s6-rb"><span class="s6-prev">Commande confirmée, livraison demain</span></div></div></div>
+</div>
+<div class="s6-panel" id="s6-panel">
+<div class="s6-phead"><div style="display:flex;align-items:center;gap:14px;min-width:0"><div class="wd-icon-btn" title="Annuler"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></div><div class="s6-ptitle">Nouvelle discussion</div></div><div class="wd-icon-btn" title="Saisir un numéro de téléphone"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="19" cy="5" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="19" r="1.5"/><circle cx="12" cy="19" r="1.5"/><circle cx="19" cy="19" r="1.5"/></svg></div></div>
+<div style="padding:8px 12px 7px"><div class="s6-pill"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span class="s6-ph">Rechercher un nom ou un numéro</span></div></div>
+<div style="overflow:hidden;min-height:0;padding-bottom:18px">
+<div class="s6-nc" id="s6-nc-group"><span class="s6-nca s6-nca--act"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="s6-ncb"><span class="s6-ncn">Nouveau groupe</span></span></div>
+<div class="s6-nc" id="s6-nc-contact"><span class="s6-nca s6-nca--act"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></span><span class="s6-ncb"><span class="s6-ncn">Nouveau contact</span></span></div>
+<div class="s6-sec">F</div>
+<div class="s6-nc"><span class="s6-nca"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-3.5 3.6-6 8-6s8 2.5 8 6"/></svg></span><span class="s6-ncb"><span class="s6-ncn">Fatima Zahra</span><span class="s6-ncs">+212 6 62 11 87 40</span></span></div>
+<div class="s6-sec">H</div>
+<div class="s6-nc"><span class="s6-nca"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-3.5 3.6-6 8-6s8 2.5 8 6"/></svg></span><span class="s6-ncb"><span class="s6-ncn">Hamza Cherkaoui</span><span class="s6-ncs">+212 6 45 78 12 30</span></span></div>
+<div class="s6-sec">S</div>
+<div class="s6-nc" id="s6-nc-salma"><span class="s6-nca"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-3.5 3.6-6 8-6s8 2.5 8 6"/></svg></span><span class="s6-ncb"><span class="s6-ncn">Salma Bennani</span><span class="s6-ncs">+212 6 61 23 45 67</span></span></div>
+</div>
+</div>
+</div>
+<div style="position:relative;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);min-width:0;min-height:0;background:var(--wa-bg)">
+<div style="position:absolute;top:58px;left:0;right:0;bottom:0;background-image:url('public/BG.svg');background-repeat:repeat;background-size:374px 666px;filter:invert(1);opacity:0.06;pointer-events:none"></div>
+<div class="s6-chathead wd-fade" id="s6-chathead"><div class="s6-chin"><div class="wd-avatar a40"><span class="init">S</span></div><div style="min-width:0"><div style="font-size:16px;font-weight:500;white-space:nowrap">Salma Bennani</div><div style="font-size:12.5px;color:var(--wa-t2)">+212 6 61 23 45 67</div></div></div><div class="s6-chacts"><div class="wd-icon-btn" title="Créer une commande"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div><div class="wd-icon-btn" title="Rechercher"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div><div class="wd-icon-btn" title="Étiquette"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none"/></svg></div></div></div>
+<div class="wd-fade" style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:16px 42px;min-height:0"><div class="s6-e2e" id="s6-e2e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Les messages sont chiffrés de bout en bout.</div></div>
+<div class="s6-comp wd-fade" id="s6-comp" style="position:relative;z-index:2;padding:8px 16px 10px"><div class="wd-composer-pill"><div class="wd-pill-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><div class="wd-pill-btn"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14.5c.9 1.2 2.3 2 4 2s3.1-.8 4-2"/><circle cx="9" cy="9.6" r="0.6" fill="currentColor" stroke="none"/><circle cx="15" cy="9.6" r="0.6" fill="currentColor" stroke="none"/></svg></div><div class="wd-input"><span class="ph">Entrez un message</span></div><div class="wd-pill-btn wd-mic-btn"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div></div></div>
+</div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — nouvelle discussion</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 7 : Créez une commande sans quitter le chat ===== -->
+    <section class="step-pane" data-step="7">
+      <div class="copy">
+<div class="icon-tile tile-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
+<h2>La conversation devient une commande</h2>
+<div class="sub">Sans changer de page, sans reperdre le fil.</div>
+<p class="lead">Le bouton <strong>Créer une commande</strong> ouvre le bon de commande directement au-dessus du chat. Le nom et le numéro du client sont <strong>déjà remplis</strong> — ajoutez le produit, confirmez.</p>
+<div class="features f-orange">
+<div class="feature f-orange"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Client prérempli</strong> — nom et téléphone repris de la discussion</span></div>
+<div class="feature f-orange"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Produits, stock, total</strong> — calculés en direct dans le panier</span></div>
+<div class="feature f-orange"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Zéro navigation</strong> — la commande est créée sans quitter WhatsApp</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="7" data-w="900" data-h="600">
+<div class="demo-stage" style="width:900px;height:600px;position:relative;background:radial-gradient(120% 90% at 50% 0%,#141312 0%,#0b0b0a 100%);overflow:hidden">
+  <!-- dimmed inbox hint -->
+  <div style="position:absolute;inset:0;opacity:0.18;background-image:url('public/BG.svg');background-repeat:repeat;background-size:340px 605px;filter:invert(1)"></div>
+  <div style="position:absolute;inset:0;background:rgba(11,11,10,0.78)"></div>
+
+  <!-- DIALOG (light ant) -->
+  <div class="lt-root s7-dialog" style="position:absolute;left:30px;top:24px;width:840px;height:552px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 80px -24px rgba(20,20,19,0.5);overflow:hidden;display:flex;flex-direction:column">
+    <!-- header -->
+    <div style="padding:16px 22px;border-bottom:1px solid var(--line);position:relative">
+      <div style="display:inline-flex;align-items:center;gap:7px"><span style="width:5px;height:5px;border-radius:999px;background:var(--orange)"></span><span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.22em;color:var(--mid)">Create order</span></div>
+      <div class="lt-title" style="font-size:23px;font-weight:600;letter-spacing:-0.02em;margin-top:4px">New order</div>
+      <div class="lt-serif" style="font-size:13px;color:var(--muted);margin-top:2px">Customer on the left, cart on the right. Add as many lines as you need.</div>
+      <div style="position:absolute;right:16px;top:16px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+    </div>
+    <!-- body -->
+    <div style="flex:1;display:flex;min-height:0">
+      <!-- form -->
+      <div style="flex:1;min-width:0;padding:16px 20px;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+          <div>
+            <div class="s7-sec"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customer</div>
+            <div class="s7-fields">
+              <div class="s7-field"><div class="s7-lbl">Full Name</div><div class="s7-inp"><span class="">Fatima Zahra</span></div></div>
+              <div class="s7-field"><div class="s7-lbl">Contact Number</div><div class="s7-inp"><span class="">+212 6 61 23 45 67</span></div></div>
+              <div class="s7-field"><div class="s7-lbl">Target City</div><div class="s7-inp"><span class="">Casablanca</span></div></div>
+              <div class="s7-field"><div class="s7-lbl">Full Address</div><div class="s7-inp s7-inp--area">Rue Ibn Batouta, Résidence Al Andalous, Apt 4</div></div>
+            </div>
+          </div>
+          <div>
+            <div class="s7-sec"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>Logistics</div>
+            <div class="s7-fields">
+              <div class="s7-field"><div class="s7-lbl">Sales Channel</div><div class="s7-inp" style="gap:8px"><span style="width:15px;height:15px;border-radius:4px;background:#25D366;display:inline-flex;align-items:center;justify-content:center;color:#fff"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12.05 0C5.5 0 .16 5.33.16 11.9c0 2.1.55 4.14 1.6 5.95L0 24l6.3-1.65a11.9 11.9 0 0 0 5.74 1.46h.01c6.55 0 11.89-5.34 11.89-11.9C23.94 5.33 18.6 0 12.05 0Z"/></svg></span>WhatsApp</div></div>
+              <div class="s7-field"><div class="s7-lbl">Shipping Provider</div><div class="s7-inp lt-mid">Choose provider...</div></div>
+              <div class="s7-field"><div class="s7-lbl">Pipeline Stage</div><div class="s7-inp" style="gap:8px"><span style="width:11px;height:11px;border-radius:999px;background:var(--blue)"></span>New</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="s7-notes">
+          <div class="s7-sec" style="margin-bottom:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Notes</div>
+          <div class="s7-inp s7-inp--area lt-mid" style="min-height:44px">Emballage cadeau, remercier la cliente…</div>
+        </div>
+      </div>
+      <!-- cart aside -->
+      <div style="width:302px;flex-shrink:0;border-left:1px solid rgba(20,20,19,0.1);background:rgba(20,20,19,0.03);display:flex;flex-direction:column;min-height:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--paper)">
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="width:30px;height:30px;border-radius:8px;background:rgba(20,20,19,0.08);display:flex;align-items:center;justify-content:center;color:var(--ink)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+            <div><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.2em;color:var(--ink)">Order lines</div><div style="font-size:9px;color:rgba(20,20,19,0.45)">Scroll here only</div></div>
+          </div>
+          <div class="lt-btn-line" style="height:28px;padding:0 11px;font-size:10px;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Line</div>
+        </div>
+        <div style="flex:1;padding:14px;overflow:hidden">
+          <div class="s7-line">
+            <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:9.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.22em;color:var(--mid)">Line 1</span><span style="color:#d98a8a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span></div>
+            <!-- product picker -->
+            <div class="s7-picker" id="s7-picker">
+              <div class="s7-pick-empty" id="s7-pick-empty">
+                <div class="s7-thumb-ph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+                <div><div style="font-size:13px;font-weight:700;color:rgba(20,20,19,0.55)">Choose product…</div><div style="font-size:10px;color:rgba(20,20,19,0.35)">Search by name or SKU</div></div>
+                <svg style="margin-left:auto;color:var(--mid)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
+              </div>
+              <div class="s7-pick-filled" id="s7-pick-filled">
+                <div class="s7-thumb">S</div>
+                <div style="min-width:0"><div style="font-size:13px;font-weight:700;line-height:1.2">Sérum Vitamine C</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:rgba(20,20,19,0.45);margin-top:2px">SKU SER-VITC · <span style="color:#3f7d54">En stock : 24</span></div></div>
+              </div>
+            </div>
+            <!-- unit/qty/total -->
+            <div class="s7-uqt">
+              <div class="s7-uq"><div class="s7-uq-l">Unit</div><div class="s7-uq-v" id="s7-unit">—</div></div>
+              <div class="s7-uq"><div class="s7-uq-l">Qty</div><div class="s7-uq-v" id="s7-qty">—</div></div>
+              <div class="s7-total"><div class="s7-uq-l">Total</div><div class="s7-total-v"><span id="s7-linetotal">0</span><span style="font-size:10px;color:var(--mid);margin-left:2px">DH</span></div></div>
+            </div>
+          </div>
+          <!-- product dropdown -->
+          <div class="s7-pop" id="s7-pop">
+            <div class="s7-pop-search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span class="lt-mid">Search by name or SKU…</span></div>
+            <div class="s7-pop-item" id="s7-pop-0"><div class="s7-thumb sm">S</div><div style="min-width:0"><div style="font-size:12.5px;font-weight:600">Sérum Vitamine C</div><div style="font-size:10px;color:var(--mid)">189 DH · 24 en stock</div></div></div>
+            <div class="s7-pop-item"><div class="s7-thumb sm" style="background:linear-gradient(135deg,#d9c58f,#b89a55)">A</div><div style="min-width:0"><div style="font-size:12.5px;font-weight:600">Crème Argan Bio</div><div style="font-size:10px;color:var(--mid)">129 DH · 51 en stock</div></div></div>
+            <div class="s7-pop-item"><div class="s7-thumb sm" style="background:linear-gradient(135deg,#c9a3d9,#9a63b8)">H</div><div style="min-width:0"><div style="font-size:12.5px;font-weight:600">Huile de Ricin</div><div style="font-size:10px;color:var(--mid)">89 DH · 12 en stock</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- footer -->
+    <div style="padding:11px 20px;background:var(--line-soft);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:9px;background:var(--ink);color:var(--light);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div><div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:rgba(107,106,99,0.7)">Total</div><div class="lt-title" style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums"><span id="s7-total">0.00</span> DH</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="height:36px;padding:0 16px;border-radius:9px;display:flex;align-items:center;font-size:13px;font-weight:700;color:var(--ink)">Annuler</div>
+        <div class="s7-confirm" id="s7-confirm"><span id="s7-confirm-label">Confirm Order</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- success toast -->
+  <div class="lt-root s7-toast" id="s7-toast">
+    <div style="width:30px;height:30px;border-radius:8px;background:rgba(120,140,93,0.14);color:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <div><div style="font-size:13px;font-weight:600;color:var(--ink)">Order Created</div><div style="font-size:11.5px;color:var(--muted);margin-top:1px">Successfully logged new order.</div></div>
+  </div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — création de commande</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 8 : L'historique du client, dans la conversation ===== -->
+    <section class="step-pane" data-step="8">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.5 4.2"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+<h2>Tout l'historique du client, pendant que vous lui parlez</h2>
+<div class="sub">Le contexte complet, sans changer d'écran.</div>
+<p class="lead">Le bouton <strong>Commandes du client</strong> liste ses achats directement dans la discussion. Un clic ouvre le <strong>détail complet</strong> : livraison, panier, statuts, historique.</p>
+<div class="features">
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Historique en un coup d'œil</strong> — produits, montants, statuts payé/livré</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Fiche commande complète</strong> — livraison, panier détaillé, suivi du colis</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Journal des statuts</strong> — chaque étape, horodatée, tracée</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame" data-demo="8" data-w="960" data-h="620">
+<div class="demo-stage wd-root" style="width:960px;height:620px;position:relative;background:var(--wa-bg)">
+  <!-- CHAT PANE -->
+  <div style="position:absolute;inset:0;display:grid;grid-template-rows:58px 1fr auto;grid-template-columns:minmax(0,1fr)">
+    <div style="position:absolute;top:58px;left:0;right:0;bottom:0;background-image:url('public/BG.svg');background-repeat:repeat;background-size:374px 666px;filter:invert(1);opacity:0.06;pointer-events:none"></div>
+    <div style="position:relative;z-index:2;height:58px;padding:0 16px;background:var(--wa-bg);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <div class="wd-avatar a40"><span class="init">F</span></div>
+        <div><div style="font-size:16px;font-weight:500;white-space:nowrap">Fatima Zahra</div><div style="font-size:12.5px;color:var(--wa-t2)">en ligne</div></div>
+      </div>
+      <div style="display:flex;align-items:center">
+        <div class="wd-icon-btn" id="s8-orders-btn" title="Commandes du client">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          <span style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--wa-green-bright);color:#111b21;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--wa-bg)">2</span>
+        </div>
+        <div class="wd-icon-btn" title="Créer une commande"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
+        <div class="wd-icon-btn" title="Rechercher"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+      </div>
+      <!-- orders dropdown -->
+      <div class="wd-pop" id="s8-dd" style="top:52px;right:74px;width:340px;transform-origin:top right">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--wa-t3);padding:6px 10px 4px">Commandes du client</div>
+        <div class="s8-ord-row" id="s8-ord-0">
+          <div class="s8-ord-thumb">S</div>
+          <div style="min-width:0"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sérum Vitamine C ×1</div><div style="display:flex;gap:4px;margin-top:4px"><span class="s8-pill" style="color:#00D9A6;background:rgba(0,217,166,0.08)">Livré</span><span class="s8-pill" style="color:#53BDEB;background:rgba(83,189,235,0.08)">Payé</span></div></div>
+          <div style="text-align:right"><div style="font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums">189 DH</div><div style="font-size:11px;color:var(--wa-t2);margin-top:2px">28 juin 26</div></div>
+        </div>
+        <div class="s8-ord-row">
+          <div class="s8-ord-thumb" style="background:linear-gradient(135deg,#3e3a2c,#2a271d);color:#c9b87f">A</div>
+          <div style="min-width:0"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Crème Argan Bio ×2</div><div style="display:flex;gap:4px;margin-top:4px"><span class="s8-pill" style="color:#00D9A6;background:rgba(0,217,166,0.08)">Livré</span><span class="s8-pill" style="color:#53BDEB;background:rgba(83,189,235,0.08)">Payé</span></div></div>
+          <div style="text-align:right"><div style="font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums">258 DH</div><div style="font-size:11px;color:var(--wa-t2);margin-top:2px">12 mai 26</div></div>
+        </div>
+        <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;padding:8px 10px 5px;text-align:center;font-size:13px;font-weight:600;color:var(--wa-green)">Voir plus</div>
+      </div>
+    </div>
+    <div style="position:relative;z-index:1;padding:16px 40px;display:flex;flex-direction:column;gap:2px;overflow:hidden;min-height:0">
+      <div style="flex:1 0 0"></div>
+      <div class="wd-day">Aujourd'hui</div>
+      <div class="wd-wrap is-in"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg><div class="wd-bubble-text">Bonjour, je voudrais recommander le même sérum que la dernière fois.</div><span class="wd-meta">14:12</span></div></div>
+      <div class="wd-wrap is-out"><div class="wd-bubble"><svg class="tail" viewBox="0 0 8 13"><path d="M0 0h8L0 13V0Z" fill="#264C39"/></svg><div class="wd-bubble-text">Bien sûr ! Je vérifie votre historique tout de suite.</div><span class="wd-meta">14:13 <span class="tick is-read"><svg width="16" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span></span></div></div>
+    </div>
+    <div style="position:relative;z-index:2;padding:8px 16px 10px">
+      <div class="wd-composer-pill">
+        <div class="wd-pill-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="wd-pill-btn"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14.5c.9 1.2 2.3 2 4 2s3.1-.8 4-2"/><circle cx="9" cy="9.6" r="0.6" fill="currentColor" stroke="none"/><circle cx="15" cy="9.6" r="0.6" fill="currentColor" stroke="none"/></svg></div>
+        <div class="wd-input"><span class="ph">Entrez un message</span></div>
+        <div class="wd-pill-btn wd-mic-btn"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDER VIEW DIALOG OVERLAY -->
+  <div class="s8-overlay" id="s8-overlay">
+    <div class="lt-root s8-dialog" id="s8-dialog">
+      <!-- header -->
+      <div style="padding:20px 24px 16px;border-bottom:1px solid var(--line);position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px">
+          <div>
+            <div style="display:flex;align-items:center;gap:13px">
+              <div style="width:48px;height:48px;border-radius:14px;background:var(--ink);color:var(--light);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
+              <div>
+                <div style="display:inline-flex;align-items:center;gap:6px"><span style="width:5px;height:5px;border-radius:999px;background:var(--orange)"></span><span style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.22em;color:var(--mid)">Order details</span></div>
+                <div class="lt-title" style="font-size:26px;font-weight:600;letter-spacing:-0.02em;margin-top:1px">Fatima Zahra</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted);margin-top:10px">
+              <span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>28 juin 2026</span>
+              <span>+212 6 61 23 45 67</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+              <div class="s8-chip" style="background:rgba(120,140,93,0.09);color:var(--green)"><span style="width:8px;height:8px;border-radius:999px;background:var(--green)"></span>Livré</div>
+              <div class="s8-chip" style="background:rgba(106,155,204,0.1);color:var(--blue)"><span style="width:8px;height:8px;border-radius:999px;background:var(--blue)"></span>Payé</div>
+              <div class="s8-chip" style="background:rgba(20,20,19,0.05);color:var(--ink)"><svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366" stroke="none"><path d="M12.05 0C5.5 0 .16 5.33.16 11.9c0 2.1.55 4.14 1.6 5.95L0 24l6.3-1.65a11.9 11.9 0 0 0 5.74 1.46c6.55 0 11.89-5.34 11.89-11.9C23.94 5.33 18.6 0 12.05 0Z"/></svg>WhatsApp</div>
+              <div class="s8-chip" style="background:#eef2ff;color:#4f46e5;border:1px solid #e0e7ff"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.5 4.2"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>CLTY-8842</div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;padding-left:16px">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--mid)">Total Order Value</div>
+            <div class="lt-title" style="font-size:34px;font-weight:600;color:var(--ink);margin-top:2px">189 <span style="font-size:17px">DH</span></div>
+          </div>
+        </div>
+        <div style="position:absolute;right:16px;top:16px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+      </div>
+      <!-- body -->
+      <div style="padding:18px 24px;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div>
+            <div class="s8-h4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.3a4 4 0 0 0-1.2-2.8L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>Delivery Details</div>
+            <div class="s8-drow"><div class="s8-tile" style="background:#fef1ea;color:#d97757"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div><div><div class="s8-dl">Destination</div><div style="font-size:15px;font-weight:700;color:var(--ink)">Casablanca</div><div class="lt-serif" style="font-size:12px;color:var(--muted)">« Rue Ibn Batouta, Apt 4 »</div></div></div>
+            <div class="s8-drow"><div class="s8-tile" style="background:rgba(106,155,204,0.12);color:var(--blue)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div><div><div class="s8-dl">Shipping Configuration</div><div style="font-size:13px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.06em">Livraison gratuite</div></div></div>
+          </div>
+          <div>
+            <div class="s8-h4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20"/></svg>Cart Items</div>
+            <div class="s8-cart">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="s8-cthumb">S</div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;text-transform:uppercase;color:var(--ink)">Sérum Vitamine C</div><div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--mid);margin-top:2px;display:inline-block;background:rgba(20,20,19,0.05);padding:1px 6px;border-radius:5px">SER-VITC</div></div>
+                <div style="text-align:right"><div class="s8-cl">Unit</div><div style="font-size:14px;font-weight:600">189 DH</div></div>
+                <div style="text-align:right"><div class="s8-cl">Qty</div><div style="font-size:14px;font-weight:600">x1</div></div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span style="background:rgba(120,140,93,0.1);color:var(--green);padding:5px 12px;border-radius:12px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:8px"><span style="font-size:9px;text-transform:uppercase;letter-spacing:0.1em;opacity:0.6">Row Subtotal</span>189 DH</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="s8-h4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>Status History</div>
+          <div class="s8-timeline">
+            <div class="s8-tl-node"><span class="s8-tl-dot done"></span><div><div class="s8-tl-pill" style="color:var(--muted);background:rgba(20,20,19,0.05)">Confirmée</div><div class="s8-tl-t">28/06/2026 09:14 · Salma B.</div></div></div>
+            <div class="s8-tl-node"><span class="s8-tl-dot done"></span><div><div class="s8-tl-pill" style="color:var(--blue);background:rgba(106,155,204,0.12)">Expédiée</div><div class="s8-tl-t">28/06/2026 15:02 · Système</div></div></div>
+            <div class="s8-tl-node"><span class="s8-tl-dot cur"></span><div><div class="s8-tl-pill" style="color:var(--green);background:rgba(120,140,93,0.12)">Livrée</div><div class="s8-tl-t">29/06/2026 11:38 · Coursier</div></div></div>
+          </div>
+        </div>
+      </div>
+      <!-- footer -->
+      <div style="padding:12px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;background:var(--paper)">
+        <div style="height:38px;padding:0 26px;border-radius:999px;display:flex;align-items:center;font-size:13px;font-weight:700;color:var(--ink);background:rgba(20,20,19,0.05)">Done</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — historique des commandes</div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 9 : Vos numéros WhatsApp, connectés en un scan ===== -->
+    <section class="step-pane" data-step="9">
+      <div class="copy">
+<div class="icon-tile tile-wa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM21 14v2M14 21h2M19 19h2v2h-2z"/></svg></div>
+<h2>Plusieurs numéros, une seule page pour tout piloter</h2>
+<div class="sub">Appairez, surveillez, reconnectez — sans quitter la page.</div>
+<p class="lead">La page <strong>Numéros</strong> réunit tous vos numéros WhatsApp Business. Ajoutez-en un, scannez le QR depuis votre téléphone : il passe <strong>En ligne</strong> en quelques secondes.</p>
+<div class="features">
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Connexion par QR</strong> — scannez depuis WhatsApp Business, l'appairage se fait tout seul</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>État visible en permanence</strong> — En ligne, Connexion…, Hors ligne : d'un coup d'œil</span></div>
+<div class="feature"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><span><strong>Reconnexion en un clic</strong> — un numéro dissocié repart avec « Reconnecter → »</span></div>
+</div>
+      </div>
+      <div class="demo-col">
+<div class="demo-frame frame-light" data-demo="9" data-w="960" data-h="620">
+<div class="demo-stage lt-root" style="width:960px;height:620px;position:relative;overflow:hidden">
+<div class="s9-page wd-fade">
+<div class="s9-head">
+<div class="s9-hl">
+<div class="s9-eyebrow"><i class="s9-odot"></i>Admin · Connexions</div>
+<h1 class="lt-title s9-h1">Numéros</h1>
+<div class="lt-serif s9-sub">Appairez des numéros WhatsApp Business et réglez leur comportement.</div>
+</div>
+<button class="s9-btn-ink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Ajouter un numéro</button>
+</div>
+<div class="s9-sechead"><h2 class="lt-title s9-h2">Numéros connectés</h2><span class="s9-count">2 au total</span></div>
+<div class="s9-grid">
+<div class="s9-card">
+<div class="s9-stripe" style="background:var(--green)"></div>
+<div class="s9-cbody">
+<div class="s9-r1"><div class="s9-av" style="background:linear-gradient(135deg,#d97757,#d97757dd)">SC</div><div class="s9-nb"><h3 class="lt-title s9-nm">Service client · Principal</h3><div class="s9-wan">iGrowFast Support</div></div></div>
+<div class="s9-r2"><span class="s9-pill s9-pl-g"><i class="s9-pdot"></i>En ligne</span><span class="s9-pill s9-pl-g"><i class="s9-pdot"></i>Établi</span><span class="s9-pill s9-pl-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg>Auto</span></div>
+<div class="s9-phone">+212 6 61 23 45 67</div>
+<div class="s9-foot"><div><span class="s9-lbl">Vu</span><span class="s9-val">il y a 2 min</span></div><div class="s9-tr"><span class="s9-lbl">Appairé</span><span class="s9-val">il y a 12 j</span></div></div>
+</div>
+</div>
+<div class="s9-card s9-c2">
+<div class="s9-stripe s9-stripe2"></div>
+<div class="s9-cbody">
+<div class="s9-r1"><div class="s9-av" style="background:linear-gradient(135deg,#6a9bcc,#6a9bccdd)">VC</div><div class="s9-nb"><h3 class="lt-title s9-nm">Ventes · Casablanca</h3></div></div>
+<div class="s9-r2"><span class="s9-pill s9-pl-m s9-no"><i class="s9-pdot"></i>Hors ligne</span><span class="s9-pill s9-pl-g s9-yes"><i class="s9-pdot"></i>En ligne</span><span class="s9-pill s9-pl-o"><i class="s9-pdot"></i>En chauffe</span></div>
+<div class="s9-phone">+212 6 62 88 41 07</div>
+<div class="s9-foot"><div><span class="s9-lbl">Vu</span><span class="s9-val"><span class="s9-no">il y a 3 j</span><span class="s9-yes">à l'instant</span></span></div><div class="s9-tr"><span class="s9-lbl">Appairé</span><span class="s9-val"><span class="s9-no">—</span><span class="s9-yes">à l'instant</span></span></div></div>
+<button class="s9-cta">Reconnecter →</button>
+</div>
+</div>
+</div>
+</div>
+<div class="s9-ovl wd-fade">
+<div class="s9-dlg">
+<div class="s9-dstripe"></div>
+<div class="s9-dhead">
+<div class="s9-dhl">
+<div class="s9-eyebrow"><i class="s9-odot"></i><span class="s9-eb1">Appairer via WhatsApp</span><span class="s9-eb2">Prêt</span></div>
+<div class="lt-title s9-dtitle">Ventes · Casablanca<span class="s9-dphone">+212 6 62 88 41 07</span></div>
+</div>
+<button class="s9-x"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+</div>
+<div class="s9-dbody">
+<div class="s9-qrcol">
+<div class="s9-qrcard">
+<svg class="s9-qr" viewBox="0 0 25 25" shape-rendering="crispEdges"><g fill="#141413"><path fill-rule="evenodd" d="M0 0h7v7H0zM1 1h5v5H1zM2 2h3v3H2zM18 0h7v7h-7zM19 1h5v5h-5zM20 2h3v3h-3zM0 18h7v7H0zM1 19h5v5H1zM2 20h3v3H2z"/><path d="M9 0h1v2H9zM12 0h2v1h-2zM15 1h1v1h-1zM10 2h1v1h-1zM13 2h1v2h-1zM15 3h1v2h-1zM9 4h2v1H9zM11 5h1v1h-1zM14 5h2v1h-2zM8 6h1v1H8zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM6 8h1v1H6zM6 10h1v1H6zM6 12h1v1H6zM6 14h1v1H6zM6 16h1v1H6zM8 8h2v1H8zM11 8h1v2h-1zM13 8h1v1h-1zM18 8h1v2h-1zM22 8h2v1h-2zM15 9h2v1h-2zM20 9h1v1h-1zM9 10h1v2H9zM12 10h2v1h-2zM23 10h1v2h-1zM16 11h1v1h-1zM19 11h2v1h-2zM8 12h1v1H8zM10 12h1v2h-1zM13 12h1v1h-1zM21 12h1v2h-1zM15 13h1v2h-1zM18 13h2v1h-2zM23 13h1v1h-1zM9 14h2v1H9zM12 14h1v1h-1zM14 15h1v1h-1zM17 15h2v1h-2zM20 15h1v1h-1zM22 15h1v2h-1zM8 16h1v2H8zM11 16h2v1h-2zM14 17h1v1h-1zM16 17h1v2h-1zM19 17h1v1h-1zM21 17h2v1h-2zM9 18h1v1H9zM12 18h1v2h-1zM23 18h1v1h-1zM10 20h1v1h-1zM13 20h2v1h-2zM16 20h1v1h-1zM18 20h2v1h-2zM21 20h1v2h-1zM9 21h1v2H9zM23 21h1v1h-1zM11 22h2v1h-2zM14 22h1v1h-1zM16 22h1v2h-1zM19 22h1v1h-1zM22 23h2v1h-2zM8 24h2v1H8zM12 24h1v1h-1zM15 24h1v1h-1zM18 24h1v1h-1z"/></g></svg>
+<div class="s9-ok"><div class="s9-okc"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div></div>
+</div>
+<div class="s9-wait"><i class="s9-wdot"></i><span class="s9-eb1">En attente du scan</span><span class="s9-eb2">Synchronisé</span></div>
+</div>
+<ol class="s9-steps">
+<li class="s9-step"><span class="s9-sn">1</span><div><div class="s9-st">Ouvrez WhatsApp Business</div><div class="lt-serif s9-ss">sur le téléphone qui détient ce numéro</div></div></li>
+<li class="s9-step"><span class="s9-sn">2</span><div><div class="s9-st">Appareils connectés</div><div class="lt-serif s9-ss">dans le menu ⋮, en haut à droite</div></div></li>
+<li class="s9-step"><span class="s9-sn">3</span><div><div class="s9-st">Connecter un appareil</div><div class="lt-serif s9-ss">pointez la caméra vers ce QR</div></div></li>
+<li class="s9-step"><span class="s9-sn">4</span><div><div class="s9-st">Restez sur cette fenêtre</div><div class="lt-serif s9-ss">nous suivrons la synchro et importerons les contacts une fois prêts</div></div></li>
+</ol>
+</div>
+<div class="s9-dfoot">
+<button class="s9-cancel">Annuler et supprimer</button>
+<button class="s9-refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>Rafraîchir le QR</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — page Numéros, appairage par QR</div>
+      </div>
+    </section>
+
+    <section class="step-pane text-pane" data-step="10">
+      <div class="text-inner"><div class="eyebrow"><span class="dot"></span> À venir</div>
+      <h2>Paramètres</h2>
+      <p style="color:rgba(255,255,255,0.5);margin-top:10px">Diapositive en cours de préparation.</p></div>
+    </section>
+
+    <section class="step-pane text-pane" data-step="11">
+      <div class="text-inner"><div class="eyebrow"><span class="dot"></span> À venir</div>
+      <h2>Attributions</h2>
+      <p style="color:rgba(255,255,255,0.5);margin-top:10px">Diapositive en cours de préparation.</p></div>
+    </section>
+
+    <section class="step-pane text-pane" data-step="12">
+      <div class="text-inner"><div class="eyebrow"><span class="dot"></span> À venir</div>
+      <h2>Contacts</h2>
+      <p style="color:rgba(255,255,255,0.5);margin-top:10px">Diapositive en cours de préparation.</p></div>
+    </section>
+
+    <section class="step-pane text-pane" data-step="13">
+      <div class="text-inner"><div class="eyebrow"><span class="dot"></span> À venir</div>
+      <h2>Export</h2>
+      <p style="color:rgba(255,255,255,0.5);margin-top:10px">Diapositive en cours de préparation.</p></div>
+    </section>
 
     <!-- ============ FINAL SLIDE : OUTRO (text) ============ -->
     <section class="step-pane text-pane" data-step="LAST">
@@ -675,7 +1722,18 @@ h1.title {
 const SLIDE_META = [
   { section: 'Introduction', headless: true },
   { section: 'WhatsApp', title: 'WhatsApp est officiellement lancé', desc: 'Intégration complète, testée, et déjà en production.' },
-  /* SLIDE-META-INSERT */
+  { section: "WhatsApp", title: "Étiquettes : chaque discussion à sa place", desc: "Classez, colorez, filtrez — sans jamais perdre le fil." },
+  { section: "WhatsApp", title: "Réponses rapides : vos modèles en un clic", desc: "Les questions reviennent. Vos réponses, elles, sont déjà prêtes." },
+  { section: "WhatsApp", title: "Messages programmés : envoyez au bon moment", desc: "Rédigez maintenant, la relance part toute seule à l'heure dite." },
+  { section: "WhatsApp", title: "Notes vocales : enregistrez, envoyez, écoutez", desc: "Un vrai enregistreur vocal, de vraies notes vocales — comme sur WhatsApp." },
+  { section: "WhatsApp", title: "Nouvelle discussion : démarrez une vente en deux clics", desc: "Contacts, numéros et groupes — sans jamais quitter la boîte de réception." },
+  { section: "WhatsApp", title: "Créez une commande sans quitter le chat", desc: "Client prérempli, produits et total en direct — puis confirmez." },
+  { section: "WhatsApp", title: "L'historique du client, dans la conversation", desc: "Ses commandes en un clic — et le détail complet quand il le faut." },
+  { section: "Pages", title: "Vos numéros WhatsApp, connectés en un scan", desc: "Un QR à scanner, et l'état de chaque numéro reste sous vos yeux." },
+  { section: 'WhatsApp', title: "Paramètres", desc: '' },
+  { section: 'WhatsApp', title: "Attributions", desc: '' },
+  { section: 'WhatsApp', title: "Contacts", desc: '' },
+  { section: 'WhatsApp', title: "Export", desc: '' },
   { section: 'Fin', headless: true },
 ];
 
@@ -1002,7 +2060,509 @@ function makeEngine(stage, ctl) {
   window.DEMOS[1] = { init, scene, staticState };
 })();
 
-/* SLIDE-SCENE-INSERT */
+/* ---- slide 2 scene ---- */
+(function(){
+  var ROW_H=68;
+  function $(id){return document.getElementById(id);}
+  function slot(stage){stage.querySelectorAll('.s2-row').forEach(function(r){r.style.transform='translateY('+(parseInt(r.dataset.slot,10)*ROW_H+4)+'px)';});}
+  var ORDER=['fatima','yassine','salma','mohamed','khadija'];
+  function init(stage){
+    ORDER.forEach(function(id,i){var r=$('s2-'+id);r.dataset.slot=i;r.classList.remove('is-hidden');});
+    slot(stage);
+    $('s2-picker').classList.remove('is-open');
+    for(var i=0;i<4;i++){$('s2-pickchk-'+i).classList.remove('is-on');$('s2-pick-'+i).classList.remove('is-hover');}
+    $('s2-tags-fatima').innerHTML='';
+    $('s2-chip-vip').classList.remove('is-on');
+    $('s2-chip-all').classList.add('is-active');$('s2-chip-vip').classList.remove('is-active');
+    $('s2-searchph').textContent='Rechercher ou démarrer une discussion';
+  }
+  function pennant(){return '<span class="s2-tagico" style="color:#FF9800"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4" fill="#0A0A0A"/></svg></span>';}
+  function staticState(stage){
+    init(stage);
+    $('s2-tags-fatima').innerHTML=pennant();
+    $('s2-chip-vip').classList.add('is-on','is-active');$('s2-chip-all').classList.remove('is-active');
+    ['fatima','salma','khadija'].forEach(function(id,i){$('s2-'+id).dataset.slot=i;});
+    ['yassine','mohamed'].forEach(function(id){$('s2-'+id).classList.add('is-hidden');$('s2-'+id).dataset.slot=5;});
+    slot(stage);
+    $('s2-searchph').textContent='Rechercher dans VIP…';
+  }
+  async function scene(e,stage){
+    init(stage);
+    await e.move(680,300,0);
+    await e.sleep(1000);
+    // open tag picker
+    var tb=e.center('#s2-tag-btn');
+    await e.move(tb.x,tb.y,700);
+    await e.click(tb.x,tb.y);
+    $('s2-picker').classList.add('is-open');
+    await e.sleep(1100);
+    // hover then click VIP row
+    var vip=e.center('#s2-pick-0');
+    await e.move(vip.x,vip.y,600);
+    $('s2-pick-0').classList.add('is-hover');
+    await e.sleep(350);
+    await e.click(vip.x,vip.y);
+    $('s2-pickchk-0').classList.add('is-on');
+    $('s2-tags-fatima').innerHTML=pennant();
+    await e.sleep(750);
+    $('s2-picker').classList.remove('is-open');
+    await e.sleep(500);
+    // VIP chip appears
+    $('s2-chip-vip').classList.add('is-on');
+    await e.sleep(700);
+    // click VIP chip -> filter
+    var vc=e.center('#s2-chip-vip');
+    await e.move(vc.x,vc.y,650);
+    await e.click(vc.x,vc.y);
+    $('s2-chip-all').classList.remove('is-active');
+    $('s2-chip-vip').classList.add('is-active');
+    $('s2-searchph').textContent='Rechercher dans VIP…';
+    ['fatima','salma','khadija'].forEach(function(id,i){$('s2-'+id).dataset.slot=i;});
+    ['yassine','mohamed'].forEach(function(id){$('s2-'+id).classList.add('is-hidden');$('s2-'+id).dataset.slot=5;});
+    slot(stage);
+    await e.move(300,470,700);
+    await e.sleep(2300);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+  window.DEMOS[2]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 3 scene ---- */
+(function(){
+  var TPL="Bonjour ! Oui, nous livrons à Casablanca sous 24h. Frais : 30 DH, offerts dès 300 DH.";
+  function q(stage,s){return stage.querySelector(s)}
+  function init(stage){
+    q(stage,'#s3-attach-pop').classList.remove('is-open');
+    q(stage,'#s3-qr-pick').classList.remove('is-open');
+    stage.querySelectorAll('.is-hover').forEach(function(el){el.classList.remove('is-hover')});
+    q(stage,'#s3-pill').classList.remove('has-text');
+    q(stage,'#s3-typed').textContent='';
+    q(stage,'#s3-caret').classList.remove('is-on');
+    q(stage,'#s3-input').scrollLeft=0;
+    q(stage,'#s3-out').classList.remove('is-shown');
+    var t=q(stage,'#s3-tick');t.classList.remove('s3-double');t.classList.remove('is-read');
+  }
+  function staticState(stage){
+    init(stage);
+    q(stage,'#s3-out').classList.add('is-shown');
+    var t=q(stage,'#s3-tick');t.classList.add('s3-double');t.classList.add('is-read');
+  }
+  async function scene(e,stage){
+    init(stage);
+    await e.move(660,320,0);
+    await e.sleep(1000);
+    var plus=e.center('#s3-btn-attach');
+    await e.move(plus.x,plus.y,700);
+    q(stage,'#s3-btn-attach').classList.add('is-hover');
+    await e.sleep(180);
+    await e.click(plus.x,plus.y);
+    await e.sleep(170);
+    q(stage,'#s3-attach-pop').classList.add('is-open');
+    await e.sleep(1000);
+    var rep=e.center('#s3-it-rep');
+    await e.move(rep.x,rep.y,560);
+    q(stage,'#s3-it-rep').classList.add('is-hover');
+    await e.sleep(260);
+    await e.click(rep.x,rep.y);
+    await e.sleep(160);
+    q(stage,'#s3-attach-pop').classList.remove('is-open');
+    q(stage,'#s3-it-rep').classList.remove('is-hover');
+    q(stage,'#s3-btn-attach').classList.remove('is-hover');
+    q(stage,'#s3-qr-pick').classList.add('is-open');
+    await e.sleep(1200);
+    var row=e.center('#s3-qr-2');
+    await e.move(row.x,row.y,620);
+    q(stage,'#s3-qr-2').classList.add('is-hover');
+    await e.sleep(280);
+    await e.click(row.x,row.y);
+    await e.sleep(150);
+    q(stage,'#s3-qr-pick').classList.remove('is-open');
+    q(stage,'#s3-qr-2').classList.remove('is-hover');
+    q(stage,'#s3-typed').textContent=TPL;
+    q(stage,'#s3-pill').classList.add('has-text');
+    q(stage,'#s3-caret').classList.add('is-on');
+    var inp=q(stage,'#s3-input');inp.scrollLeft=inp.scrollWidth;
+    await e.sleep(1700);
+    var snd=e.center('#s3-send');
+    await e.move(snd.x,snd.y,620);
+    await e.click(snd.x,snd.y);
+    await e.sleep(130);
+    q(stage,'#s3-pill').classList.remove('has-text');
+    q(stage,'#s3-typed').textContent='';
+    q(stage,'#s3-caret').classList.remove('is-on');
+    inp.scrollLeft=0;
+    q(stage,'#s3-out').classList.add('is-shown');
+    await e.sleep(650);
+    q(stage,'#s3-tick').classList.add('s3-double');
+    await e.sleep(700);
+    q(stage,'#s3-tick').classList.add('is-read');
+    await e.sleep(1800);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+  window.DEMOS[3]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 4 scene ---- */
+(function(){
+  function $(id){return document.getElementById(id);}
+  var DATE_NOW=$('s4-date-val')?$('s4-date-val').textContent:'';
+  function init(stage){
+    var d=$('s4-date-val'), t=$('s4-time-val');
+    // capture defaults once
+    if(!stage._s4){stage._s4={date:d.textContent,time:t.textContent};}
+    d.textContent=stage._s4.date; t.textContent=stage._s4.time;
+    $('s4-attach').classList.remove('is-open');
+    $('s4-sched').classList.remove('is-open');
+    $('s4-confirm').classList.remove('is-on');
+    $('s4-date-pill').classList.remove('is-flash');
+    $('s4-time-pill').classList.remove('is-flash');
+    $('s4-preset-tom').classList.remove('is-sel','is-hover');
+    $('s4-attach-prog').classList.remove('is-hover');
+    $('s4-btn-prog').classList.remove('is-hover');
+    $('s4-plus').classList.remove('is-hover');
+  }
+  function staticState(stage){ init(stage); $('s4-confirm').classList.add('is-on'); }
+  async function scene(e,stage){
+    init(stage);
+    await e.move(660,300,0);
+    await e.sleep(1100);
+    // open attach
+    var p=e.center('#s4-plus');
+    await e.move(p.x,p.y,650);
+    await e.click(p.x,p.y);
+    $('s4-plus').classList.add('is-hover');
+    $('s4-attach').classList.add('is-open');
+    await e.sleep(800);
+    // click Programmer
+    var pr=e.center('#s4-attach-prog');
+    await e.move(pr.x,pr.y,600);
+    $('s4-attach-prog').classList.add('is-hover');
+    await e.sleep(300);
+    await e.click(pr.x,pr.y);
+    $('s4-attach').classList.remove('is-open');
+    $('s4-plus').classList.remove('is-hover');
+    $('s4-sched').classList.add('is-open');
+    await e.sleep(1100);
+    // pick "Demain 9h" preset
+    var tm=e.center('#s4-preset-tom');
+    await e.move(tm.x,tm.y,600);
+    $('s4-preset-tom').classList.add('is-hover');
+    await e.sleep(300);
+    await e.click(tm.x,tm.y);
+    $('s4-preset-tom').classList.add('is-sel');
+    $('s4-date-val').textContent="dim. 12 juil. 2026";
+    $('s4-time-val').textContent='09:00';
+    $('s4-date-pill').classList.add('is-flash');
+    $('s4-time-pill').classList.add('is-flash');
+    await e.sleep(950);
+    // click Programmer button
+    var bp=e.center('#s4-btn-prog');
+    await e.move(bp.x,bp.y,600);
+    $('s4-btn-prog').classList.add('is-hover');
+    await e.sleep(280);
+    await e.click(bp.x,bp.y);
+    $('s4-sched').classList.remove('is-open');
+    await e.sleep(280);
+    $('s4-confirm').classList.add('is-on');
+    await e.move(440,220,700);
+    await e.sleep(2500);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+  window.DEMOS[4]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 5 scene ---- */
+(function(){
+var AMP=[46,72,88,64,38,22,52,80,95,70,44,26,58,84,92,66,36,18,42,76,90,60,32,48,78,96,68,40,24,54,86,74,50,30,16,44,70,94,62,34,20,46,66,52,36,24,14,10];
+function recH(i){var v=15+11*Math.sin(i*.61)*Math.sin(i*.19+2.1)+3*Math.sin(i*2.3);return Math.max(3,Math.min(28,Math.round(v)))}
+function init(stage){
+  var q=function(s){return stage.querySelector(s)};
+  q('.s5-composer').classList.remove('is-rec');
+  q('.s5-rec-time').textContent='0:00';
+  var rw=q('.s5-rec-wave');
+  if(!rw.childElementCount){var h='';for(var i=0;i<158;i++)h+='<span class="s5-rec-bar"></span>';rw.innerHTML=h}
+  var rb=rw.children;for(var i2=0;i2<rb.length;i2++)rb[i2].style.height='3px';
+  var vw=q('.s5-vwave');
+  if(!vw.querySelector('.s5-vbar')){var h2='';for(var j=0;j<48;j++)h2+='<span class="s5-vbar" style="height:'+(4+Math.round(AMP[j]/100*18))+'px"></span>';vw.insertAdjacentHTML('beforeend',h2)}
+  var vb=vw.querySelectorAll('.s5-vbar');for(var k=0;k<vb.length;k++)vb[k].classList.remove('is-played');
+  q('.s5-playhead').style.left='calc(0% - 5px)';
+  q('.s5-vmsg').classList.remove('is-shown');
+  q('.s5-voice').classList.remove('is-playing');
+  q('.s5-vt-l').textContent='0:03';
+  q('.s5-tick').classList.remove('is-read');
+}
+function staticState(stage){
+  init(stage);
+  stage.querySelector('.s5-vmsg').classList.add('is-shown');
+  stage.querySelector('.s5-tick').classList.add('is-read');
+  var vb=stage.querySelectorAll('.s5-vbar');for(var k=0;k<vb.length;k++)vb[k].classList.add('is-played');
+  stage.querySelector('.s5-playhead').style.left='calc(100% - 5px)';
+}
+async function scene(e,stage){
+  await e.move(620,300,0);
+  await e.sleep(1000);
+  var m=e.center('.s5-mic');
+  await e.move(m.x,m.y,700);
+  await e.click(m.x,m.y);
+  await e.sleep(180);
+  e.q('.s5-composer').classList.add('is-rec');
+  await e.sleep(400);
+  var rb=e.q('.s5-rec-wave').children,rt=e.q('.s5-rec-time');
+  var per=Math.ceil(rb.length/16);
+  for(var s=0;s<16;s++){
+    for(var i=s*per;i<Math.min((s+1)*per,rb.length);i++)rb[i].style.height=recH(i)+'px';
+    if(s===4)rt.textContent='0:01';else if(s===9)rt.textContent='0:02';else if(s===14)rt.textContent='0:03';
+    await e.sleep(200);
+  }
+  await e.sleep(350);
+  var sd=e.center('.s5-rec-send');
+  await e.move(sd.x,sd.y,260);
+  await e.click(sd.x,sd.y);
+  await e.sleep(180);
+  e.q('.s5-composer').classList.remove('is-rec');
+  e.q('.s5-vmsg').classList.add('is-shown');
+  await e.sleep(650);
+  e.q('.s5-tick').classList.add('is-read');
+  await e.sleep(750);
+  var p=e.center('.s5-vplay');
+  await e.move(p.x,p.y,650);
+  await e.click(p.x,p.y);
+  await e.sleep(160);
+  var voice=e.q('.s5-voice');voice.classList.add('is-playing');
+  var vb=e.qa('.s5-vbar'),ph=e.q('.s5-playhead'),tl=e.q('.s5-vt-l');
+  tl.textContent='0:00';
+  for(var s2=1;s2<=16;s2++){
+    var upto=Math.round(48*s2/16);
+    for(var j2=0;j2<upto;j2++)vb[j2].classList.add('is-played');
+    ph.style.left='calc('+(s2/16*100).toFixed(2)+'% - 5px)';
+    if(s2===5)tl.textContent='0:01';else if(s2===10)tl.textContent='0:02';else if(s2===16)tl.textContent='0:03';
+    await e.sleep(200);
+  }
+  await e.sleep(250);
+  voice.classList.remove('is-playing');
+  await e.sleep(1700);
+  stage.classList.add('is-resetting');
+  await e.sleep(420);
+  init(stage);
+  stage.classList.remove('is-resetting');
+  await e.sleep(200);
+}
+window.DEMOS[5]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 6 scene ---- */
+(function(){
+  function init(stage){
+    var q=function(s){return stage.querySelector(s)};
+    q('#s6-panel').classList.remove('is-open');
+    q('#s6-chathead').classList.remove('is-on');
+    q('#s6-comp').classList.remove('is-on');
+    q('#s6-e2e').classList.remove('is-on');
+    q('#s6-newrow').classList.remove('is-shown');
+    stage.querySelectorAll('.is-hover').forEach(function(el){el.classList.remove('is-hover')});
+  }
+  function staticState(stage){
+    stage.querySelector('#s6-chathead').classList.add('is-on');
+    stage.querySelector('#s6-comp').classList.add('is-on');
+    stage.querySelector('#s6-e2e').classList.add('is-on');
+    stage.querySelector('#s6-newrow').classList.add('is-shown');
+  }
+  async function scene(e, stage){
+    await e.move(660,400,0);
+    await e.sleep(1100);
+    var nb=e.center('#s6-btn-new');
+    await e.move(nb.x,nb.y,700);
+    e.q('#s6-btn-new').classList.add('is-hover');
+    await e.sleep(260);
+    await e.click(nb.x,nb.y);
+    e.q('#s6-btn-new').classList.remove('is-hover');
+    await e.sleep(160);
+    e.q('#s6-panel').classList.add('is-open');
+    await e.sleep(1500);
+    var g=e.center('#s6-nc-group');
+    await e.move(g.x,g.y,650);
+    e.q('#s6-nc-group').classList.add('is-hover');
+    await e.sleep(1250);
+    e.q('#s6-nc-group').classList.remove('is-hover');
+    var s=e.center('#s6-nc-salma');
+    await e.move(s.x,s.y,620);
+    e.q('#s6-nc-salma').classList.add('is-hover');
+    await e.sleep(340);
+    await e.click(s.x,s.y);
+    await e.sleep(200);
+    e.q('#s6-nc-salma').classList.remove('is-hover');
+    e.q('#s6-panel').classList.remove('is-open');
+    e.q('#s6-newrow').classList.add('is-shown');
+    await e.sleep(280);
+    e.q('#s6-chathead').classList.add('is-on');
+    e.q('#s6-comp').classList.add('is-on');
+    await e.sleep(260);
+    e.q('#s6-e2e').classList.add('is-on');
+    await e.move(700,420,800);
+    await e.sleep(2300);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+  window.DEMOS[6]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 7 scene ---- */
+(function(){
+  function $(id){return document.getElementById(id);}
+  function init(stage){
+    $('s7-picker').classList.remove('is-filled','is-hover');
+    $('s7-pop').classList.remove('is-open');
+    $('s7-pop-0').classList.remove('is-hover');
+    $('s7-unit').textContent='—';$('s7-qty').textContent='—';$('s7-linetotal').textContent='0';
+    $('s7-total').textContent='0.00';
+    $('s7-confirm').classList.remove('is-hover');
+    $('s7-confirm-label').textContent='Confirm Order';
+    $('s7-toast').classList.remove('is-on');
+  }
+  function fill(){
+    $('s7-picker').classList.add('is-filled');
+    $('s7-unit').textContent='189';$('s7-qty').textContent='1';$('s7-linetotal').textContent='189';
+    $('s7-total').textContent='189.00';
+  }
+  function staticState(stage){ init(stage); fill(); $('s7-toast').classList.add('is-on'); }
+  async function scene(e,stage){
+    init(stage);
+    await e.move(690,300,0);
+    await e.sleep(1100);
+    // open product picker
+    var pk=e.center('#s7-picker');
+    await e.move(pk.x,pk.y,700);
+    $('s7-picker').classList.add('is-hover');
+    await e.sleep(250);
+    await e.click(pk.x,pk.y,true);
+    $('s7-picker').classList.remove('is-hover');
+    $('s7-pop').classList.add('is-open');
+    await e.sleep(950);
+    // pick first product
+    var it=e.center('#s7-pop-0');
+    await e.move(it.x,it.y,600);
+    $('s7-pop-0').classList.add('is-hover');
+    await e.sleep(300);
+    await e.click(it.x,it.y,true);
+    $('s7-pop').classList.remove('is-open');
+    fill();
+    await e.sleep(1300);
+    // confirm order
+    var cf=e.center('#s7-confirm');
+    await e.move(cf.x,cf.y,650);
+    $('s7-confirm').classList.add('is-hover');
+    await e.sleep(280);
+    await e.click(cf.x,cf.y,true);
+    $('s7-confirm-label').innerHTML='<span class="s7-spin"></span>Confirm Order';
+    await e.sleep(900);
+    $('s7-confirm-label').textContent='Confirm Order';
+    $('s7-toast').classList.add('is-on');
+    await e.move(560,120,700);
+    await e.sleep(2600);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+  window.DEMOS[7]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 8 scene ---- */
+(function(){
+  function $(id){return document.getElementById(id);}
+  function init(stage){
+    $('s8-dd').classList.remove('is-open');
+    $('s8-ord-0').classList.remove('is-hover');
+    $('s8-overlay').classList.remove('is-open');
+  }
+  function staticState(stage){ init(stage); $('s8-overlay').classList.add('is-open'); }
+  async function scene(e,stage){
+    init(stage);
+    await e.move(700,300,0);
+    await e.sleep(1000);
+    // open orders dropdown
+    var ob=e.center('#s8-orders-btn');
+    await e.move(ob.x,ob.y,700);
+    await e.click(ob.x,ob.y);
+    $('s8-dd').classList.add('is-open');
+    await e.sleep(1200);
+    // click first order row
+    var r=e.center('#s8-ord-0');
+    await e.move(r.x,r.y,650);
+    $('s8-ord-0').classList.add('is-hover');
+    await e.sleep(320);
+    await e.click(r.x,r.y);
+    $('s8-dd').classList.remove('is-open');
+    $('s8-ord-0').classList.remove('is-hover');
+    await e.sleep(150);
+    $('s8-overlay').classList.add('is-open');
+    await e.move(480,320,700);
+    await e.sleep(3200);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+  window.DEMOS[8]={init:init,scene:scene,staticState:staticState};
+})();
+
+/* ---- slide 9 scene ---- */
+(function(){
+function init(stage){
+var ovl=stage.querySelector('.s9-ovl');if(ovl)ovl.classList.remove('s9-open');
+var dlg=stage.querySelector('.s9-dlg');if(dlg)dlg.classList.remove('s9-done');
+var c2=stage.querySelector('.s9-c2');if(c2)c2.classList.remove('s9-on');
+}
+function staticState(stage){init(stage);var c2=stage.querySelector('.s9-c2');if(c2)c2.classList.add('s9-on');}
+async function scene(e,stage){
+await e.move(830,565,0);
+await e.sleep(1100);
+var c=e.center('.s9-cta');
+await e.move(c.x,c.y,720);
+await e.sleep(180);
+await e.click(c.x,c.y,true);
+await e.sleep(240);
+e.q('.s9-ovl').classList.add('s9-open');
+await e.sleep(380);
+await e.move(806,470,620);
+await e.sleep(1500);
+e.q('.s9-dlg').classList.add('s9-done');
+await e.sleep(1800);
+var x=e.center('.s9-x');
+await e.move(x.x,x.y,560);
+await e.sleep(150);
+await e.click(x.x,x.y,true);
+await e.sleep(200);
+e.q('.s9-ovl').classList.remove('s9-open');
+await e.sleep(330);
+e.q('.s9-c2').classList.add('s9-on');
+await e.move(830,565,650);
+await e.sleep(2100);
+stage.classList.add('is-resetting');
+await e.sleep(420);
+init(stage);
+stage.classList.remove('is-resetting');
+await e.sleep(200);
+}
+window.DEMOS[9]={init:init,scene:scene,staticState:staticState};
+})();
 </script>
 </body>
 </html>

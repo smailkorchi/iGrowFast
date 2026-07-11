@@ -59,9 +59,11 @@ function makeDebouncer() {
 const ADMIN_RECONCILE_KEYS: readonly (readonly unknown[])[] = [
   ['conversations'], ['instances'], ['instances-unread'], ['instances-archived'],
   ['quick_replies'], ['scheduled_messages'], ['tags'], ['conversation_tags'], ['assignments'],
+  ['wa-filter-counts'],
 ]
 const AGENT_RECONCILE_KEYS: readonly (readonly unknown[])[] = [
   ['conversations'], ['instances'], ['instances-unread'], ['instances-archived'], ['conversation_tags'],
+  ['wa-filter-counts'],
 ]
 
 function reconcile(qc: QueryClient, keys: readonly (readonly unknown[])[]): void {
@@ -92,6 +94,9 @@ export function useWaBizChannel(businessId: string | null) {
         // a no-op cost unless an admin is actually on /admin/assignment.
         inval(qc, ['assignments', 'summary'])
         inval(qc, ['assignments', 'page'])
+        // Filter-dropdown counts (Groupes/tag) move on archive/status/new-conv —
+        // longer debounce so a message burst doesn't refetch the aggregate.
+        inval(qc, ['wa-filter-counts'], 1500)
       })
       .on('broadcast', { event: 'instance' }, ({ payload }) => {
         inval(qc, ['instances'])
@@ -103,10 +108,11 @@ export function useWaBizChannel(businessId: string | null) {
       .on('broadcast', { event: 'assignment' }, () => {
         inval(qc, ['assignments']); inval(qc, ['conversations'])
         inval(qc, ['instances']); inval(qc, ['instances-unread'])
-        inval(qc, ['instances-archived'])
+        inval(qc, ['instances-archived']); inval(qc, ['wa-filter-counts'])
       })
       .on('broadcast', { event: 'conv_tag' }, () => {
         inval(qc, ['conversation_tags']); inval(qc, ['conversations', 'list'])
+        inval(qc, ['wa-filter-counts'])
       })
       .on('broadcast', { event: 'tag' }, () => inval(qc, ['tags']))
       .subscribe((status) => {
@@ -158,15 +164,17 @@ export function useWaUserChannel(userId: string | null) {
         // Same ordering contract as useWaBizChannel: notify before applyBump.
         maybeNotifyFromBump(qc, payload, { role: 'agent', navigate: (url) => navigateRef.current(url) })
         applyBump(qc, payload)
+        inval(qc, ['wa-filter-counts'], 1500)
       })
       .on('broadcast', { event: 'assignment' }, () => {
         // Revocation-critical: a lost assignment must drop the number + conversation
         // from this agent's inbox (RLS re-scopes on refetch).
         inval(qc, ['instances']); inval(qc, ['conversations']); inval(qc, ['instances-unread'])
-        inval(qc, ['instances-archived'])
+        inval(qc, ['instances-archived']); inval(qc, ['wa-filter-counts'])
       })
       .on('broadcast', { event: 'conv_tag' }, () => {
         inval(qc, ['conversation_tags']); inval(qc, ['conversations', 'list'])
+        inval(qc, ['wa-filter-counts'])
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {

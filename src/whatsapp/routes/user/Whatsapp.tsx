@@ -25,6 +25,7 @@ import {
   useFlattenedConversations,
   useConversation,
   useInstancesArchived,
+  useConversationFilterCounts,
   useMarkConversationRead,
   type ConversationFilter,
 } from '../../lib/queries/conversations'
@@ -116,6 +117,9 @@ export default function UserWhatsapp() {
   // via useActiveInstance), so the aggregate is queried here directly.
   const instanceIds = useMemo(() => (instances ?? []).map((i) => i.id), [instances])
   const { data: archivedByInstance } = useInstancesArchived(instanceIds)
+  // Groupes + per-tag counts for the filter dropdown badges (server aggregate,
+  // mig 066 — not derived from the loaded page window; RLS scopes to assigned).
+  const { data: filterCounts } = useConversationFilterCounts(activeInstanceId)
 
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(activeInstanceId))
 
@@ -558,6 +562,8 @@ export default function UserWhatsapp() {
           tagColorMap={tagColorMap}
           ownerJid={activeInstance?.wa_owner_jid ?? null}
           favCount={favorites.size}
+          groupCount={filterCounts?.groups}
+          tagCounts={filterCounts?.tags}
           availableInstances={(instances ?? []).map((i) => ({
             id: i.id,
             display_name: i.display_name,
