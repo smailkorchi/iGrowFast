@@ -64,6 +64,7 @@ import { sendMessage, sendReadReceipt, sendStepSequence } from '../../lib/conver
 import type { QuickReply } from '../../lib/queries/quickReplies'
 import { useTags, useAllConversationTags, useConversationTags } from '../../lib/queries/tags'
 import { EcomBizRealtime } from '../../lib/queries/ecomChannels'
+import { useEscToCloseConversation } from '../../lib/useEscToClose'
 import './conversations/conversations.css'
 
 // ─── localStorage helpers (per-instance favourites) ─────────────────────────
@@ -433,6 +434,15 @@ export default function AdminConversations() {
     setComposer(s)
     if (activeId) setDraft(activeId, s.text)
   }, [activeId])
+
+  // Esc closes the open conversation → empty state (WhatsApp Web). Only when the
+  // chat is the top thing: no side pane, sidebar on the list, no overlay/dialog.
+  useEscToCloseConversation({
+    active: !!activeConv && view === 'list' && rightPane === 'none',
+    replyActive: !!composer.replyTo,
+    onCancelReply: () => setComposerDraft({ ...composer, replyTo: null }),
+    onClose: () => setActiveId(null),
+  })
 
   function handleSend() {
     if (!activeId) return
