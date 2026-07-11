@@ -20,6 +20,9 @@ const AdminChatCartOrderDialog = lazy(() =>
   import('@/components/orders/AdminChatCartOrderDialog').then((m) => ({ default: m.AdminChatCartOrderDialog })),
 )
 import type { AdminCartOrderDraft } from '@/components/orders/AdminChatCartOrderDialog'
+// IGF ADDITION (order-history seam): chat-header orders button → the exact
+// view dialog the admin Orders page shows. Lazy — loaded on first row click.
+const OrderViewDialog = lazy(() => import('@/components/orders/OrderViewDialog'))
 import {
   useFlattenedConversations,
   useConversation,
@@ -361,6 +364,12 @@ export default function AdminConversations() {
     }
   }, [activeConv])
 
+  // IGF ADDITION (order-history seam): order view dialog state. Mounted on
+  // first row click, then kept mounted (open toggles) so Radix keeps its exit
+  // animation; orderId persists for the fade-out frame.
+  const [viewOrderId, setViewOrderId] = useState<string | null>(null)
+  const [viewOrderOpen, setViewOrderOpen] = useState(false)
+
   // ─── thread ────────────────────────────────────────────────────────────────
   const thread = useFlattenedThread(activeId)
   const threadQ = useThreadMessages(activeId)
@@ -671,6 +680,7 @@ export default function AdminConversations() {
           onOpenConversation={(id) => { setActiveId(id); void convs.refetch?.() }}
           onOpenCart={() => { cartConvIdRef.current = activeId; setCartMounted(true); setCartOpen(true) }}
           cartBadge={!!activeId && cartDraftIds.has(activeId)}
+          onViewOrder={(orderId) => { setViewOrderId(orderId); setViewOrderOpen(true) }}
         />
       ) : (
         <EmptyState />
@@ -734,6 +744,19 @@ export default function AdminConversations() {
               setCartDraftIds(new Set(cartDraftsRef.current.keys()))
             }}
             prefill={cartPrefill}
+          />
+        </Suspense>
+      )}
+      {/* IGF ADDITION (order-history seam): self-contained view dialog —
+          fetches its own order row + enrichment by orderId. */}
+      {viewOrderId !== null && (
+        // Veil while the lazy chunk downloads on the very first open — a null
+        // fallback made the first click read as dead on slow connections.
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(11,20,26,.35)', cursor: 'wait' }} />}>
+          <OrderViewDialog
+            orderId={viewOrderId}
+            open={viewOrderOpen}
+            onOpenChange={setViewOrderOpen}
           />
         </Suspense>
       )}

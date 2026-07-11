@@ -121,6 +121,8 @@ import { useProfiles } from '../../../lib/queries/users'
 import UserAvatar from '../../../components/Avatar/Avatar'
 import type { AvatarConfig } from '../../../lib/database.types'
 import { TagPicker } from './TagPicker'
+// IGF ADDITION (order-history seam): chat-header customer order history.
+import { CustomerOrdersButton } from './CustomerOrdersButton'
 import { checkWhatsApp, createGroup, leaveGroup, updateGroupParticipants, updateGroupSubject, updateGroupPicture } from '../../../lib/instancesApi'
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -2715,6 +2717,14 @@ export interface ChatPaneProps {
    *  in-progress-draft dot. */
   onOpenCart?: () => void
   cartBadge?: boolean
+  /** IGF ADDITION (order-history seam): chat-header orders button → the
+   *  role-scoped order view dialog. The button renders only when this handler
+   *  is provided AND the jid is a real phone (groups/@lid/non-phone: never). */
+  onViewOrder?: (orderId: string) => void
+  /** Seller inbox: only history rows whose seller_id equals this id are
+   *  clickable (null = restricted, id not loaded yet → nothing clickable).
+   *  Leave undefined in the admin inbox — every row is clickable. */
+  ordersSellerId?: string | null
 }
 
 export interface ComposerState {
@@ -3346,6 +3356,14 @@ export function ChatPane(p: ChatPaneProps) {
           </div>
         </div>
         <div className="wac__chathead-actions">
+          {/* IGF ADDITION (order-history seam): customer order history. */}
+          {p.onViewOrder && parsed.kind === 'phone' && (
+            <CustomerOrdersButton
+              phoneDigits={parsed.user}
+              onViewOrder={p.onViewOrder}
+              restrictToSellerId={p.ordersSellerId}
+            />
+          )}
           {/* IGF ADDITION (e-commerce seam): cart → create-order dialog. */}
           {p.onOpenCart && (
             <button

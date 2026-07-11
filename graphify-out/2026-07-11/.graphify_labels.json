@@ -359,12 +359,11 @@
   "357": "Database Webhook Wiring (courier push)",
   "358": "Dashboard.tsx",
   "359": "BonCommandePdfDocument.tsx",
-  "361": "carousel.tsx",
+  "360": "Profile.tsx",
   "362": "FacturePdfDocument.tsx",
   "363": "fetchUrlAsDataUri",
-  "364": "LifecycleBadge.tsx",
+  "365": "CompanyFeesModal",
   "367": "DevisPdfDocument.tsx",
-  "369": "PixelDashboard.tsx",
-  "370": "docThumbnail.ts",
+  "368": "ConfigSection.tsx",
   "371": "ogPreview.ts"
 }

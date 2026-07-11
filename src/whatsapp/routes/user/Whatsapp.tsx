@@ -17,6 +17,10 @@ const SellerChatCartOrderDialog = lazy(() =>
   import('@/components/orders/SellerChatCartOrderDialog').then((m) => ({ default: m.SellerChatCartOrderDialog })),
 )
 import type { SellerCartOrderDraft } from '@/components/orders/SellerChatCartOrderDialog'
+// IGF ADDITION (order-history seam): chat-header orders button → the exact
+// view modal the seller Orders page shows. Lazy — loaded on first row click.
+const SellerOrderViewDialog = lazy(() => import('@/components/orders/SellerOrderViewDialog'))
+import { useCurrentUserId } from '@/hooks/useCurrentUserId'
 import {
   useFlattenedConversations,
   useConversation,
@@ -455,6 +459,14 @@ export default function UserWhatsapp() {
     }
   }, [activeConv])
 
+  // IGF ADDITION (order-history seam): order view dialog state. Mounted on
+  // first row click, then kept mounted (open toggles) so Radix keeps its exit
+  // animation; orderId persists for the fade-out frame. Rows belonging to
+  // OTHER sellers are non-clickable in the dropdown (gated on this user id).
+  const currentUserId = useCurrentUserId()
+  const [viewOrderId, setViewOrderId] = useState<string | null>(null)
+  const [viewOrderOpen, setViewOrderOpen] = useState(false)
+
   const [viewerMsg, setViewerMsg] = useState<MessageDecrypted | null>(null)
   useEffect(() => { setViewerMsg(null) }, [activeId])
   const mediaMessages = useMemo(
@@ -629,6 +641,8 @@ export default function UserWhatsapp() {
           }}
           onOpenCart={() => { cartConvIdRef.current = activeId; setCartMounted(true); setCartOpen(true) }}
           cartBadge={!!activeId && cartDraftIds.has(activeId)}
+          onViewOrder={(orderId) => { setViewOrderId(orderId); setViewOrderOpen(true) }}
+          ordersSellerId={currentUserId}
         />
       ) : (
         <EmptyState />
@@ -692,6 +706,19 @@ export default function UserWhatsapp() {
               setCartDraftIds(new Set(cartDraftsRef.current.keys()))
             }}
             prefill={cartPrefill}
+          />
+        </Suspense>
+      )}
+      {/* IGF ADDITION (order-history seam): self-contained view modal —
+          fetches its own order row + enrichment by orderId. */}
+      {viewOrderId !== null && (
+        // Veil while the lazy chunk downloads on the very first open — a null
+        // fallback made the first click read as dead on slow connections.
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(11,20,26,.35)', cursor: 'wait' }} />}>
+          <SellerOrderViewDialog
+            orderId={viewOrderId}
+            open={viewOrderOpen}
+            onOpenChange={setViewOrderOpen}
           />
         </Suspense>
       )}
