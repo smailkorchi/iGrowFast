@@ -94,6 +94,16 @@ export function IconClose(p: IconProps) {
   )
 }
 
+/** Retry / refresh — a circular arrow. Used on a failed media upload bubble. */
+export function IconRetry(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 12a9 9 0 1 1-3.4-7" />
+      <polyline points="21 3 21 8 16 8" />
+    </Svg>
+  )
+}
+
 export function IconArrowBack(p: IconProps) {
   return (
     <Svg {...p}>

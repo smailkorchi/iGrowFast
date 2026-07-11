@@ -94,8 +94,10 @@ import {
   IconCheckbox,
   IconCopy,
   IconReply,
+  IconRetry,
 } from './icons'
 import { sendReaction, toggleStar, setMessagePin, forwardMessage, sendMessage, cancelOutboundMessage, forceDispatchNow, sendTyping, uploadChatMedia, editMessage, deleteMessageForMe, deleteMessageForEveryone, togglePin, toggleArchive, markAllConversationsRead, markAllConversationsUnread, clearAllConversations, deleteAllConversations } from '../../../lib/conversationsApi'
+import { usePendingUploads, enqueuePendingUpload, abortPendingUpload, retryPendingUpload, removePendingUpload, type PendingUpload } from '../../../lib/pendingUploads'
 import { toast, normalizeError, mediaSizeError } from '../../../lib/toast/store'
 import { EMOJI_DATA, EMOJI_KEYWORDS } from './emoji-data'
 import { useUpsertContact } from '../../../lib/queries/contacts'
@@ -3284,6 +3286,34 @@ export function ChatPane(p: ChatPaneProps) {
 
   const dayed = useDayBuckets(visibleMessages)
 
+  // Optimistic outbound media bubbles (client-only) for files still
+  // uploading / awaiting enqueue. Scoped to this conversation; rendered below
+  // the loaded thread (always the newest). Kept OUT of the thread cache so the
+  // id-keyed realtime patcher never touches them.
+  const pendingUploads = usePendingUploads(p.conv.id)
+  // Drop an optimistic bubble once its real message row (the id sendMessage
+  // returned) lands in the thread — via sendMessage resolve → wa:conv insert,
+  // or a reconnect refetch. This is the ONLY removal-on-success path, so there
+  // is no double bubble and no flicker.
+  useEffect(() => {
+    if (pendingUploads.length === 0) return
+    const ids = new Set<string>()
+    for (const m of visibleMessages) if (m.id) ids.add(m.id)
+    for (const pu of pendingUploads) {
+      if (pu.sentMessageId && ids.has(pu.sentMessageId)) removePendingUpload(pu.clientId)
+    }
+  }, [pendingUploads, visibleMessages])
+  // Snap to the newest optimistic bubble the moment one is added (the user just
+  // hit send). Growth-only so it never yanks the view while scrolled back.
+  const pendingCountRef = useRef(0)
+  useEffect(() => {
+    if (pendingUploads.length > pendingCountRef.current) {
+      const el = streamRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    }
+    pendingCountRef.current = pendingUploads.length
+  }, [pendingUploads.length])
+
   // Realtime WhatsApp peer-presence — subscribed once per instance, returns a
   // Map keyed by remote_jid. We pick the entry for this conversation.
   const peerPresence = useWaPeerPresence(p.instanceId ?? null, p.conv.remote_jid ?? null)
@@ -3454,12 +3484,12 @@ export function ChatPane(p: ChatPaneProps) {
             if (!convId) return
             const items = staged
             clearStaging()
-            // Enqueue each file in order as a NORMAL paced send. The dispatcher
-            // applies its per-number caps + per-conversation floor + jitter to
-            // each one — identical to sending files one-by-one by hand. No
-            // album, no blasting, no bypass of the ban-avoidance chokepoint.
+            // Resolve each staged item to bytes + size-check, then hand it to the
+            // pending-uploads store. The store drives the R2 PUT (progress /
+            // cancel / retry rendered as an optimistic in-thread bubble) and then
+            // the NORMAL paced sendMessage — one send per file, no album, no
+            // blasting, no bypass of the ban-avoidance chokepoint.
             void (async () => {
-              const kindMap = { image: 'image', video: 'video', document: 'document', audio: 'audio' } as const
               for (const it of items) {
                 try {
                   let blob: Blob | null = it.file
@@ -3470,29 +3500,20 @@ export function ChatPane(p: ChatPaneProps) {
                   if (!blob) continue
                   // Client-side size pre-check: catch over-limit media instantly with a clear
                   // message instead of a silent failure downstream at WhatsApp (~16MB inline).
+                  // No optimistic bubble for these — they can never send.
                   const sizeErr = mediaSizeError(it.kind, blob.size)
                   if (sizeErr) { toast.error(sizeErr, { title: it.name }); continue }
                   // GIFs are sent as a video (Evolution has no gifPlayback);
                   // media_meta.isGif makes our own thread loop it like a real gif.
-                  const up = await uploadChatMedia(convId, blob, { fileName: it.name, contentType: it.mime })
-                  await sendMessage({
+                  enqueuePendingUpload({
                     conversationId: convId,
-                    kind: kindMap[it.kind],
-                    mediaStorageKey: up.key,
-                    mediaStorageBucket: up.bucket,
-                    mediaMime: up.mime,
-                    mediaSizeBytes: up.size,
-                    body: it.caption.trim() || undefined,
-                    // Voice-note (recording) → ptt path (dispatcher uses
-                    // sendWhatsAppAudio); ptt media_meta makes our thread render
-                    // it as a recording, not a file. Otherwise a normal file.
-                    ...(it.ptt ? { ptt: true } : {}),
-                    mediaMeta: it.ptt
-                      ? { ptt: true }
-                      : {
-                          fileName: it.name,
-                          ...(it.isGif ? { isGif: true, gifPlayback: true } : {}),
-                        },
+                    kind: it.kind,
+                    name: it.name,
+                    mime: it.mime,
+                    blob,
+                    caption: it.caption,
+                    ptt: it.ptt,
+                    isGif: it.isGif,
                   })
                 } catch (err) {
                   console.error('staged send failed:', it.name, err)
@@ -3641,6 +3662,18 @@ export function ChatPane(p: ChatPaneProps) {
             </span>
           </div>
         )}
+        {/* Optimistic outbound uploads — always the newest, below the thread.
+            Hide any whose real row is already visible (the removal effect runs
+            post-commit; filtering here kills the one-frame double bubble when
+            the wa:conv insert beats the sendMessage response). */}
+        {(() => {
+          if (pendingUploads.length === 0) return null
+          const visibleIds = new Set<string>()
+          for (const m of visibleMessages) if (m.id) visibleIds.add(m.id)
+          return pendingUploads
+            .filter((pu) => !(pu.sentMessageId && visibleIds.has(pu.sentMessageId)))
+            .map((pu) => <PendingUploadBubble key={pu.clientId} pu={pu} />)
+        })()}
         {peerIsTyping && (
           // Render through the canonical .wac__bubble-wrap so the typing
           // bubble's left edge lines up pixel-for-pixel with real incoming
@@ -5878,6 +5911,114 @@ function MediaPlaceholder({
     )
   }
   return kind === 'video' ? <IconVideo size={48} /> : <IconImage size={48} />
+}
+
+// ── Optimistic upload bubble (client-only) ──────────────────────────────────
+//
+// A WhatsApp-style "sending" bubble shown IMMEDIATELY when the staging overlay
+// fires, before the real media_pending row exists. Reuses the exact outbound
+// media geometry (.wac__bubble--media > .wac__media, 280px 4/3) so the swap to
+// the real bubble is seamless. A determinate ring shows upload %; the centre
+// button is an X (cancel) while uploading and a retry glyph on failure.
+
+/** Determinate circular progress ring (0..1) with a centred slot. */
+function ProgressRing({ fraction, children }: { fraction: number; children?: ReactNode }) {
+  const size = 52
+  const stroke = 3
+  const r = (size - stroke) / 2
+  const circ = 2 * Math.PI * r
+  const clamped = Math.max(0, Math.min(1, fraction))
+  return (
+    <div className="wac__ring" style={{ width: size, height: size }}>
+      <svg className="wac__ring-svg" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <circle className="wac__ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" />
+        <circle
+          className="wac__ring-value"
+          cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none"
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - clamped)} strokeLinecap="round"
+        />
+      </svg>
+      <div className="wac__ring-center">{children}</div>
+    </div>
+  )
+}
+
+function PendingUploadBubble({ pu }: { pu: PendingUpload }) {
+  const isVisual = pu.kind === 'image' || pu.kind === 'video'
+  const isError = pu.status === 'error'
+  const isUploading = pu.status === 'uploading'
+  const pct = Math.round(pu.progress * 100)
+  return (
+    <div
+      className="wac__bubble-wrap is-out is-streak-head is-streak-tail"
+      style={{ marginTop: 8, marginBottom: 4 }}
+    >
+      <div className="wac__bubble-col">
+        <div className="wac__bubble wac__bubble--media">
+          <div className="wac__media wac__media--uploading">
+            {isVisual ? (
+              pu.kind === 'video'
+                ? <video src={pu.localBlobUrl} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <img src={pu.localBlobUrl} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div className="wac__upload-fileicon">
+                {pu.kind === 'audio' ? <IconHeadphones size={40} /> : <IconDocument size={40} />}
+              </div>
+            )}
+
+            <div className={'wac__upload-overlay' + (isError ? ' is-error' : '')}>
+              {isError ? (
+                <button
+                  type="button"
+                  className="wac__upload-btn"
+                  onClick={() => retryPendingUpload(pu.clientId)}
+                  aria-label="Réessayer l’envoi"
+                  title="Réessayer"
+                >
+                  <IconRetry size={26} />
+                </button>
+              ) : (
+                <ProgressRing fraction={pu.progress}>
+                  {isUploading ? (
+                    <button
+                      type="button"
+                      className="wac__upload-btn"
+                      onClick={() => abortPendingUpload(pu.clientId)}
+                      aria-label="Annuler l’envoi"
+                      title="Annuler"
+                    >
+                      <IconClose size={22} />
+                    </button>
+                  ) : (
+                    <span className="wac__upload-spin" aria-label="Envoi en cours" />
+                  )}
+                </ProgressRing>
+              )}
+            </div>
+
+            {isError && (
+              <button
+                type="button"
+                className="wac__upload-dismiss"
+                onClick={() => removePendingUpload(pu.clientId)}
+                aria-label="Supprimer"
+                title="Supprimer"
+              >
+                <IconClose size={14} />
+              </button>
+            )}
+
+            <span className="wac__media-overlay-meta">
+              <span>{isError ? (pu.cancelled ? 'Annulé' : 'Échec') : isUploading ? `${pct} %` : 'Envoi…'}</span>
+            </span>
+          </div>
+          {pu.caption.trim() && (
+            <div className="wac__bubble-text" style={{ paddingRight: 0 }}>{pu.caption}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Album bubble (multi-media grid) ─────────────────────────────────────────

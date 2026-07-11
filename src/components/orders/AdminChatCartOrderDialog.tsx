@@ -80,6 +80,8 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { buildOrderItemRecords, type OrderLineForRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
+import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
+import { format } from 'date-fns';
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/users/UserAvatar";
@@ -216,6 +218,75 @@ function toOrderLineForRecords(item: OrderFormValues['items'][number]): OrderLin
     };
 }
 
+// EDIT MODE: build the form-reset payload from an existing order row — 1:1 with
+// the admin Orders page handleEdit (src/pages/admin/Orders.tsx L2435-2495),
+// including the flat-order_items → grouped-lines regrouping IIFE. `additional_items`
+// is forced empty (the exchange "additional sale" split is CREATE-only).
+function buildEditResetValues(order: any): OrderFormValues {
+    return {
+        name: order.name,
+        phone: order.phone,
+        city_id: order.master_city_id || '',
+        address: order.address,
+        source_name: order.source_name,
+        shipping_cost: Number(order.shipping_cost),
+        include_delivery_in_total: order.include_delivery_in_total !== false,
+        replace: order.replace,
+        note: order.note || '',
+        delivery_note: order.delivery_note || '',
+        order_status_id: order.order_status_id,
+        courier_id: order.courier_id,
+        company_id: order.company_id,
+        coliaty_old_tracking: order.coliaty_old_tracking || '',
+        ameex_old_tracking: order.ameex_old_tracking || '',
+        quicklivraison_old_tracking: order.quicklivraison_old_tracking || '',
+        forcelog_old_tracking: order.forcelog_old_tracking || '',
+        sendit_old_tracking: order.sendit_old_tracking || '',
+        delvoexpress_old_tracking: order.delvoexpress_old_tracking || '',
+        items: (() => {
+            const groupedItems: any[] = [];
+            order.items?.forEach((item: any) => {
+                if (item.product_id && Number(item.quantity) > 0) {
+                    groupedItems.push({
+                        product_id: item.product_id || '',
+                        quantity: Number(item.quantity) || 0,
+                        unit_price: Number(item.unit_price) || 0,
+                        accessories: item.accessory_id ? [{
+                            accessory_id: item.accessory_id,
+                            accessory_quantity: Number(item.accessory_quantity) || 0,
+                            accessory_unit_price: Number(item.accessory_unit_price) || 0
+                        }] : []
+                    });
+                } else if (item.product_id && Number(item.quantity) === 0) {
+                    const parent = groupedItems.find(g => g.product_id === item.product_id);
+                    if (parent && item.accessory_id) {
+                        parent.accessories.push({
+                            accessory_id: item.accessory_id,
+                            accessory_quantity: Number(item.accessory_quantity) || 0,
+                            accessory_unit_price: Number(item.accessory_unit_price) || 0
+                        });
+                    }
+                } else if (!item.product_id) {
+                    groupedItems.push({
+                        product_id: '',
+                        quantity: 0,
+                        unit_price: 0,
+                        accessories: item.accessory_id ? [{
+                            accessory_id: item.accessory_id,
+                            accessory_quantity: Number(item.accessory_quantity) || 0,
+                            accessory_unit_price: Number(item.accessory_unit_price) || 0
+                        }] : []
+                    });
+                }
+            });
+            return groupedItems.length > 0 ? groupedItems : [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }];
+        })(),
+        additional_items: [],
+        history_comment: '',
+        _reportedDate: '',
+    } as OrderFormValues;
+}
+
 // (Orders.tsx L366-376)
 const SALES_SOURCES = [
     "whatsapp",
@@ -241,6 +312,17 @@ export function AdminChatCartOrderDialog(props: {
     onSnapshot?: (values: OrderFormValues | null) => void;
     prefill?: { name?: string; phone?: string };
     onSaved?: () => void;
+    /** EDIT MODE (order-history seam): when set, the dialog opens on an EXISTING
+     *  order and submits an UPDATE (mirror of the admin Orders page edit path)
+     *  instead of a create. `editOrder` carries the fully-enriched order row
+     *  (from OrderViewDialog) so the form can prefill without a second fetch.
+     *  When null/absent the dialog behaves exactly as before (CREATE mode). */
+    editOrderId?: string | null;
+    editOrder?: any | null;
+    /** Fired when an edit session closes (saved, Annuler, or overlay close) so
+     *  the host clears its editOrder state. Draft snapshots are NOT taken in
+     *  edit mode — edits are one-off, not per-conversation drafts. */
+    onEditClose?: () => void;
 }) {
     // Reported Modal States (Orders.tsx L530-537)
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
@@ -261,6 +343,12 @@ export function AdminChatCartOrderDialog(props: {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+
+    // EDIT MODE: derived flag + a ref that pins the order being edited for the
+    // lifetime of the open session (the host may clear its editOrder prop during
+    // the Radix close animation; the mutation must still see the pinned row).
+    const isEdit = !!props.editOrderId;
+    const editOrderRef = useRef<any>(null);
 
     // Custom scrollbar styles the dialog JSX relies on (Orders.tsx L643-670,
     // scrollbar rules only). Injected here too so the dialog is self-contained
@@ -525,7 +613,13 @@ export function AdminChatCartOrderDialog(props: {
     const captureBaseline = () => { baselineRef.current = JSON.stringify(form.getValues()); };
     useEffect(() => {
         if (props.open && !prevOpenRef.current) {
-            if (props.draft) {
+            if (props.editOrderId && props.editOrder) {
+                // EDIT: prefill from the existing order. Pin it for the mutation,
+                // never treat it as a per-conversation create draft.
+                editOrderRef.current = props.editOrder;
+                hadDraftRef.current = false;
+                form.reset(buildEditResetValues(props.editOrder));
+            } else if (props.draft) {
                 hadDraftRef.current = true;
                 form.reset(props.draft);
             } else {
@@ -549,6 +643,7 @@ export function AdminChatCartOrderDialog(props: {
     // once it resolves (the page does this at button-click time instead). Re-capture
     // the baseline so the patch itself never reads as a user change.
     useEffect(() => {
+        if (isEdit) return; // edit prefills the order's own status — never patch
         if (!defaultNewOrderStatusId) return;
         if (JSON.stringify(form.getValues()) === baselineRef.current && !form.getValues('order_status_id')) {
             form.setValue('order_status_id', defaultNewOrderStatusId);
@@ -560,7 +655,10 @@ export function AdminChatCartOrderDialog(props: {
     const watchedOrderItems = useWatch({ control: form.control, name: 'items' });
 
     // Create-mode always blocks zero-stock lines (Orders.tsx L1490-1500 minus edit branch).
+    // Edit mode is EXEMPT — an already-placed order whose product is now out of
+    // stock must remain editable (page sets blockZeroStock={!isEditModalOpen}).
     const newOrderHasZeroStockProduct = useMemo(() => {
+        if (isEdit) return false;
         if (!products?.length || !watchedOrderItems?.length) return false;
         return watchedOrderItems.some((item: any) => {
             const pid = item?.product_id;
@@ -569,7 +667,7 @@ export function AdminChatCartOrderDialog(props: {
             if (!p || p.stock === null || p.stock === undefined) return false;
             return Number(p.stock) === 0;
         });
-    }, [watchedOrderItems, products]);
+    }, [watchedOrderItems, products, isEdit]);
 
     const dismissReportedModal = useCallback((revertStatus: boolean) => {
         if (revertStatus && reportedStatusRevertRef.current !== null) {
@@ -775,7 +873,7 @@ export function AdminChatCartOrderDialog(props: {
                                 <OrderLineProductCombobox
                                     products={(products || []) as OrderLineProductOption[]}
                                     value={field.value === 'none' ? 'none' : field.value || ''}
-                                    blockZeroStock={true}
+                                    blockZeroStock={!isEdit}
                                     formatLabel={(p) => String(p.name)}
                                     onProductIdChange={(val) => {
                                         field.onChange(val === 'none' ? 'none' : val);
@@ -828,7 +926,7 @@ export function AdminChatCartOrderDialog(props: {
                                 return (
                                     <OrderLineProductStockHint
                                         stock={sn}
-                                        blockZeroStock={true}
+                                        blockZeroStock={!isEdit}
                                     />
                                 );
                             })()}
@@ -1240,8 +1338,187 @@ export function AdminChatCartOrderDialog(props: {
         }
     });
 
+    // --- EDIT Mutation --- (MIRROR of admin Orders.tsx updateOrderMutation
+    // L1907-2061: UPDATE order + delete-then-reinsert order_items via the SAME
+    // buildOrderItemRecords helper create uses + status-transition stamping +
+    // status-change history row. onSuccess adapted per the chat contract.)
+    const updateOrderMutation = useMutation({
+        mutationFn: async (values: OrderFormValues) => {
+            const selectedOrder = editOrderRef.current;
+            if (!selectedOrder) return;
+
+            const totalPrice = values.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+            const ship = Number(values.shipping_cost) || 0;
+            const includeDelivery = values.include_delivery_in_total !== false;
+            const orderPrice = includeDelivery ? totalPrice + ship : totalPrice;
+
+            // Get current user
+            const userRes = await (supabase as any).auth.getUser();
+            const userId = userRes.data.user?.id;
+
+            // Build update payload
+            const updatePayload: any = {
+                name: values.name,
+                phone: values.phone,
+                master_city_id: values.city_id,
+                address: values.address,
+                source_name: values.source_name,
+                shipping_cost: values.shipping_cost,
+                include_delivery_in_total: includeDelivery,
+                replace: values.replace,
+                note: values.note,
+                delivery_note: values.delivery_note,
+                order_status_id: values.order_status_id,
+                courier_id: values.courier_id,
+                company_id: values.company_id,
+                coliaty_old_tracking:
+                    orderCompanyIsColiaty(companies, values.company_id) && values.replace
+                        ? (values.coliaty_old_tracking || '').trim() || null
+                        : null,
+                ameex_old_tracking:
+                    orderCompanyIsAmeex(companies, values.company_id) && values.replace
+                        ? (values.ameex_old_tracking || '').trim() || null
+                        : null,
+                quicklivraison_old_tracking:
+                    orderCompanyIsQuickLivraison(companies, values.company_id) && values.replace
+                        ? (values.quicklivraison_old_tracking || '').trim() || null
+                        : null,
+                forcelog_old_tracking:
+                    orderCompanyIsForcelog(companies, values.company_id) && values.replace
+                        ? (values.forcelog_old_tracking || '').trim() || null
+                        : null,
+                sendit_old_tracking:
+                    orderCompanyIsSendit(companies, values.company_id) && values.replace
+                        ? (values.sendit_old_tracking || '').trim() || null
+                        : null,
+                delvoexpress_old_tracking:
+                    orderCompanyIsDelvoExpress(companies, values.company_id) && values.replace
+                        ? (values.delvoexpress_old_tracking || '').trim() || null
+                        : null,
+                price: orderPrice,
+                raw_price: totalPrice,
+                updated_at: new Date().toISOString()
+            };
+
+            // Status-specific field population
+            if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+                const statusId = values.order_status_id;
+                if (isOrderCategory(statusId, 'confirmed')) {
+                    updatePayload.confirmed_by_id = userId;
+                    updatePayload.confirmation_date = new Date().toISOString();
+                }
+                if (isOrderCategory(statusId, 'cancelled')) {
+                    updatePayload.canceled_by_id = userId;
+                    updatePayload.annulation_date = new Date().toISOString();
+                }
+                if (isOrderCategory(statusId, 'paid')) {
+                    updatePayload.date_livraison = new Date().toISOString();
+                }
+                if (isOrderCategory(statusId, 'postponed')) {
+                    updatePayload.reported_date = (values as any)._reportedDate || new Date().toISOString();
+                }
+            }
+
+            // 1. Update order
+            const { error: orderError } = await (supabase as any)
+                .from('orders')
+                .update(updatePayload)
+                .eq('id', selectedOrder.id)
+                .eq('DigiCom Business', activeBusinessId);
+
+            if (orderError) throw orderError;
+
+            // 2. Refresh items (delete-all-then-reinsert, same as the page)
+            const { error: deleteError } = await (supabase as any)
+                .from('order_items')
+                .delete()
+                .eq('order_id', selectedOrder.id);
+
+            if (deleteError) throw deleteError;
+
+            const accessoryUnitPriceById = new Map<string, number>(
+                (accessories ?? []).map((a: { id: string; cost_price?: number }) => [
+                    a.id,
+                    Number(a.cost_price ?? 0),
+                ])
+            );
+            const itemRecords: any[] = [];
+            values.items.forEach((item) => {
+                itemRecords.push(
+                    ...buildOrderItemRecords(
+                        selectedOrder.id,
+                        toOrderLineForRecords(item),
+                        activeBusinessId!,
+                        (productAccessoriesForOrders ?? []) as ProductAccessoryRow[],
+                        accessoryUnitPriceById
+                    )
+                );
+            });
+
+            const { error: itemsError } = await (supabase as any)
+                .from('order_items')
+                .insert(itemRecords);
+
+            if (itemsError) throw itemsError;
+
+            // 3. Track history if status changed
+            if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+                const statusId = values.order_status_id;
+                let finalComment = values.history_comment || '';
+
+                if ((isOrderCategory(statusId, 'postponed') || statusId === REPORTED_STATUS_ID)) {
+                    const rDate = (values as any)._reportedDate;
+                    if (rDate) {
+                        const formattedDate = format(new Date(rDate), 'dd/MM/yyyy HH:mm');
+                        finalComment = `[Reporté pour: ${formattedDate}] ${finalComment}`;
+                    }
+                }
+
+                try {
+                    await (supabase as any).from('order_status_history').insert({
+                        order_id: selectedOrder.id,
+                        status_id: values.order_status_id,
+                        comment: finalComment,
+                        changed_by: userId,
+                        'DigiCom Business': activeBusinessId
+                    });
+                } catch (err) {
+                    console.error("History tracking error:", err);
+                }
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['order-view'] });
+            toast({ title: "Order Updated", description: "Changes saved successfully." });
+            // Close, clear the host's edit state, reset to blank; NO draft snapshot.
+            props.onOpenChange(false);
+            props.onEditClose?.();
+            hadDraftRef.current = false;
+            editOrderRef.current = null;
+            setTimeout(() => {
+                form.reset(blankDefaults());
+                captureBaseline();
+            }, 0);
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: friendlyStockError(error), variant: "destructive" });
+        }
+    });
+
     // DELTA 2: explicit discard (Annuler) — clears this conv's draft, closes.
+    // In EDIT mode there is no draft to clear: just close and tell the host.
     const handleDiscard = () => {
+        if (isEdit) {
+            props.onOpenChange(false);
+            props.onEditClose?.();
+            editOrderRef.current = null;
+            setTimeout(() => {
+                form.reset(blankDefaults());
+                captureBaseline();
+            }, 0);
+            return;
+        }
         props.onOpenChange(false);
         props.onSnapshot?.(null);
         hadDraftRef.current = false;
@@ -1259,6 +1536,14 @@ export function AdminChatCartOrderDialog(props: {
                 open={props.open}
                 onOpenChange={(v) => {
                     if (!v) {
+                        // EDIT MODE: overlay/esc close discards edits and clears the
+                        // host's edit state — edits are never kept as a draft.
+                        if (isEdit) {
+                            props.onOpenChange(false);
+                            props.onEditClose?.();
+                            editOrderRef.current = null;
+                            return;
+                        }
                         // DELTA 1: close WITHOUT resetting — snapshot the values
                         // as this conversation's draft. Kept when values differ
                         // from the open baseline (deep compare — NOT RHF isDirty,
@@ -1382,12 +1667,31 @@ export function AdminChatCartOrderDialog(props: {
                                 return;
                             }
 
-                            // (Orders.tsx L4111-4127; create mode: sourceWasPostponed is always false)
+                            // EDIT ONLY: status transition requires a history comment (Orders.tsx L3820-3830).
+                            if (
+                                isEdit &&
+                                editOrderRef.current &&
+                                targetStatusId !== editOrderRef.current.order_status_id &&
+                                statusRequiresHistoryComment(targetStatusId) &&
+                                !values.history_comment?.trim()
+                            ) {
+                                form.setError('history_comment', { type: 'manual', message: 'Comment is required for this status.' });
+                                toast({ title: 'Validation Error', description: 'Please provide a reason for this status.', variant: 'destructive' });
+                                return;
+                            }
+
+                            // (Orders.tsx L3832-3848) In edit mode an order ALREADY postponed is
+                            // exempt from re-picking a reported date; create mode is never exempt.
                             const targetIsPostponed =
                                 !!REPORTED_STATUS_ID &&
                                 (targetStatusId === REPORTED_STATUS_ID ||
                                     isOrderCategory(targetStatusId, 'postponed'));
-                            if (targetIsPostponed && !(values as { _reportedDate?: string })._reportedDate?.trim()) {
+                            const sourceWasPostponed =
+                                isEdit &&
+                                !!editOrderRef.current &&
+                                (editOrderRef.current.order_status_id === REPORTED_STATUS_ID ||
+                                    isOrderCategory(editOrderRef.current.order_status_id, 'postponed'));
+                            if (targetIsPostponed && !sourceWasPostponed && !(values as { _reportedDate?: string })._reportedDate?.trim()) {
                                 toast({
                                     title: 'Reported date required',
                                     description: 'Choose the reported status and pick date/time in the popup before saving.',
@@ -1396,37 +1700,39 @@ export function AdminChatCartOrderDialog(props: {
                                 return;
                             }
 
-                            // (Orders.tsx L4129-4148; create-mode branch)
-                            for (let i = 0; i < values.items.length; i++) {
-                                const item = values.items[i];
-                                const pid = item.product_id;
-                                if (!pid || pid === 'none') continue;
-                                const p = (products as any[] | undefined)?.find((x) => x.id === pid);
-                                if (p && p.stock != null && Number(p.stock) === 0) {
-                                    form.setError(`items.${i}.product_id`, {
-                                        type: 'manual',
-                                        message: 'This product is out of stock.',
-                                    });
-                                    toast({
-                                        title: 'Out of stock',
-                                        description: 'Remove or replace lines with 0 stock before creating the order.',
-                                        variant: 'destructive',
-                                    });
-                                    return;
+                            // (Orders.tsx L3850-3869; create-mode branch only — edit is exempt)
+                            if (!isEdit) {
+                                for (let i = 0; i < values.items.length; i++) {
+                                    const item = values.items[i];
+                                    const pid = item.product_id;
+                                    if (!pid || pid === 'none') continue;
+                                    const p = (products as any[] | undefined)?.find((x) => x.id === pid);
+                                    if (p && p.stock != null && Number(p.stock) === 0) {
+                                        form.setError(`items.${i}.product_id`, {
+                                            type: 'manual',
+                                            message: 'This product is out of stock.',
+                                        });
+                                        toast({
+                                            title: 'Out of stock',
+                                            description: 'Remove or replace lines with 0 stock before creating the order.',
+                                            variant: 'destructive',
+                                        });
+                                        return;
+                                    }
                                 }
                             }
 
-                            createOrderMutation.mutate(values);
+                            if (isEdit) updateOrderMutation.mutate(values); else createOrderMutation.mutate(values);
                         })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="px-6 py-4 pr-12 shrink-0 border-b border-ant-line bg-ant-paper">
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className="w-1 h-1 rounded-full bg-ant-orange" />
                                     <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
-                                        Create order
+                                        {isEdit ? 'Edit order' : 'Create order'}
                                     </span>
                                 </div>
                                 <DialogTitle className="font-display text-[24px] font-semibold text-ant-ink tracking-[-0.02em] leading-tight">
-                                    New order
+                                    {isEdit ? 'Update order' : 'New order'}
                                 </DialogTitle>
                                 <DialogDescription className="font-serif-display text-[13px] text-ant-muted italic mt-0.5">
                                     Customer on the left, cart on the right. Add as many lines as you need.
@@ -2153,7 +2459,7 @@ export function AdminChatCartOrderDialog(props: {
                                                                     <OrderLineProductCombobox
                                                                         products={(products || []) as OrderLineProductOption[]}
                                                                         value={field.value === 'none' ? 'none' : field.value || ''}
-                                                                        blockZeroStock={true}
+                                                                        blockZeroStock={!isEdit}
                                                                         formatLabel={(p) => String(p.name)}
                                                                         onProductIdChange={(val) => {
                                                                             field.onChange(val === 'none' ? 'none' : val);
@@ -2209,7 +2515,7 @@ export function AdminChatCartOrderDialog(props: {
                                                                     return (
                                                                         <OrderLineProductStockHint
                                                                             stock={sn}
-                                                                            blockZeroStock={true}
+                                                                            blockZeroStock={!isEdit}
                                                                         />
                                                                     );
                                                                 })()}
@@ -2419,13 +2725,13 @@ export function AdminChatCartOrderDialog(props: {
                                         type="submit"
                                         size="sm"
                                         disabled={
-                                            createOrderMutation.isPending ||
+                                            (isEdit ? updateOrderMutation.isPending : createOrderMutation.isPending) ||
                                             newOrderHasZeroStockProduct
                                         }
                                         className="bg-ant-ink hover:bg-ant-ink/90 text-ant-light rounded-lg h-9 px-6 sm:px-8 text-sm font-bold shadow-md transition-all active:scale-[0.98] flex items-center gap-2 m-0"
                                     >
-                                        {createOrderMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                                        Confirm Order
+                                        {(isEdit ? updateOrderMutation.isPending : createOrderMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {isEdit ? 'Save changes' : 'Confirm Order'}
                                     </Button>
                                 </div>
                             </DialogFooter>

@@ -370,6 +370,9 @@ export default function AdminConversations() {
   // animation; orderId persists for the fade-out frame.
   const [viewOrderId, setViewOrderId] = useState<string | null>(null)
   const [viewOrderOpen, setViewOrderOpen] = useState(false)
+  // IGF ADDITION (order-edit seam): the row being edited IN chat. Set from the
+  // view dialog's "Edit" action, cleared when the cart-edit session closes.
+  const [editOrder, setEditOrder] = useState<any | null>(null)
 
   // ─── thread ────────────────────────────────────────────────────────────────
   const thread = useFlattenedThread(activeId)
@@ -748,6 +751,9 @@ export default function AdminConversations() {
               setCartDraftIds(new Set(cartDraftsRef.current.keys()))
             }}
             prefill={cartPrefill}
+            editOrderId={editOrder?.id ?? null}
+            editOrder={editOrder}
+            onEditClose={() => setEditOrder(null)}
           />
         </Suspense>
       )}
@@ -761,6 +767,21 @@ export default function AdminConversations() {
             orderId={viewOrderId}
             open={viewOrderOpen}
             onOpenChange={setViewOrderOpen}
+            onEdit={(order) => {
+              // Mirror the Orders page guard: paid/unpaid (delivered/closed) orders
+              // are locked and cannot be edited (isOrderLocked). The joined status
+              // row carries is_paid/is_unpaid.
+              if (order?.status?.is_paid || order?.status?.is_unpaid) {
+                toast.error('Commande verrouillée — livrée et clôturée, modification impossible.')
+                return
+              }
+              // Close the view, reopen the cart in edit mode on this order.
+              setViewOrderOpen(false)
+              cartConvIdRef.current = activeId
+              setEditOrder(order)
+              setCartMounted(true)
+              setCartOpen(true)
+            }}
           />
         </Suspense>
       )}

@@ -78,9 +78,14 @@ type SellerOrderViewDialogProps = {
     onOpenChange: (open: boolean) => void;
     /** Optional: seller Orders page passes its handleEdit to keep the footer edit action. */
     onEdit?: (order: any) => void;
+    /** Optional belt-and-suspenders: when set, the "Modifier" button only renders
+     *  for the seller's OWN orders (order.seller_id === ownSellerId). Omitted by
+     *  the seller Orders page (RLS already scopes it to own orders); the chat host
+     *  passes the current user id. */
+    ownSellerId?: string | null;
 };
 
-const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit }: SellerOrderViewDialogProps) => {
+const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit, ownSellerId }: SellerOrderViewDialogProps) => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const statusCats = useStatusCategories();
@@ -891,7 +896,11 @@ const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit }: SellerOr
                                 >
                                     Fermer
                                 </button>
-                                {onEdit && (
+                                {/* ownSellerId === undefined ⇒ no enforcement (seller Orders page).
+                                    A PASSED value (chat host) enforces owner-match and FAILS CLOSED
+                                    while the id is still resolving (null) — never show edit on a
+                                    non-own / unknown-owner order. */}
+                                {onEdit && (ownSellerId === undefined || (ownSellerId != null && order.seller_id === ownSellerId)) && (
                                     <button
                                         type="button"
                                         onClick={() => onEdit(order)}

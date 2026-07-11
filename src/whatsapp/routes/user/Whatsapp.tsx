@@ -467,6 +467,9 @@ export default function UserWhatsapp() {
   const currentUserId = useCurrentUserId()
   const [viewOrderId, setViewOrderId] = useState<string | null>(null)
   const [viewOrderOpen, setViewOrderOpen] = useState(false)
+  // IGF ADDITION (order-edit seam): the row being edited IN chat. Set from the
+  // view dialog's "Modifier" action (own orders only), cleared on close.
+  const [editOrder, setEditOrder] = useState<any | null>(null)
 
   const [viewerMsg, setViewerMsg] = useState<MessageDecrypted | null>(null)
   useEffect(() => { setViewerMsg(null) }, [activeId])
@@ -710,6 +713,9 @@ export default function UserWhatsapp() {
               setCartDraftIds(new Set(cartDraftsRef.current.keys()))
             }}
             prefill={cartPrefill}
+            editOrderId={editOrder?.id ?? null}
+            editOrder={editOrder}
+            onEditClose={() => setEditOrder(null)}
           />
         </Suspense>
       )}
@@ -723,6 +729,24 @@ export default function UserWhatsapp() {
             orderId={viewOrderId}
             open={viewOrderOpen}
             onOpenChange={setViewOrderOpen}
+            ownSellerId={currentUserId}
+            onEdit={(order) => {
+              // SELLER GATE (fail-closed): only ever edit OWN orders, and never
+              // while the id is still resolving. RLS already scopes the fetch;
+              // this is belt-and-suspenders.
+              if (!currentUserId || order?.seller_id !== currentUserId) return
+              // Mirror the Orders page guard: paid/unpaid (delivered/closed) orders
+              // are locked and cannot be edited (isOrderLocked).
+              if (order?.status?.is_paid || order?.status?.is_unpaid) {
+                toast.error('Commande verrouillée — livrée et clôturée, modification impossible.')
+                return
+              }
+              setViewOrderOpen(false)
+              cartConvIdRef.current = activeId
+              setEditOrder(order)
+              setCartMounted(true)
+              setCartOpen(true)
+            }}
           />
         </Suspense>
       )}

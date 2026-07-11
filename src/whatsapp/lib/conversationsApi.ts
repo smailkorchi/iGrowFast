@@ -406,6 +406,43 @@ export async function uploadChatMedia(
   if (!size) throw new MediaUploadError('invalid_input', 'file size is 0')
 
   // 1) Ask the edge function for a presigned PUT URL.
+  const signed = await signMediaPut(conversationId, mime, size)
+
+  // 2) PUT the bytes straight to R2. Content-Type and Content-Length MUST
+  // match what the edge function signed -- R2 verifies headers in SigV4.
+  const putRes = await fetch(signed.url, {
+    method:  'PUT',
+    body:    file,
+    headers: {
+      'Content-Type':   mime,
+      'Content-Length': String(size),
+    },
+  })
+  if (!putRes.ok) {
+    const text = await putRes.text().catch(() => '')
+    throw new Error(`r2 put failed: ${putRes.status} ${text.slice(0, 200)}`)
+  }
+
+  // Derive a filename for media_meta display. R2 doesn't care — Evolution
+  // uses it for documents, and the frontend shows it in DocumentBody.
+  const fileName = options.fileName ?? deriveFileName(signed.key, mime)
+  return {
+    bucket:   signed.bucket,
+    key:      signed.key,
+    mime,
+    size,
+    fileName,
+  }
+}
+
+/** Step 1 of an outbound upload: RLS-gated presign from the media-upload edge
+ *  function. Shared by uploadChatMedia (fetch PUT) and
+ *  uploadChatMediaWithProgress (XHR PUT). Throws MediaUploadError on rejection. */
+async function signMediaPut(
+  conversationId: string,
+  mime: string,
+  size: number,
+): Promise<{ url: string; key: string; bucket: string }> {
   const { data, error } = await supabase.functions.invoke<MediaUploadResponse>('media-upload', {
     body: {
       conversation_id: conversationId,
@@ -421,28 +458,74 @@ export async function uploadChatMedia(
   if (!data?.ok || !data.url || !data.key || !data.bucket) {
     throw new MediaUploadError(data?.reason ?? 'sign_failed')
   }
+  return { url: data.url, key: data.key, bucket: data.bucket }
+}
 
-  // 2) PUT the bytes straight to R2. Content-Type and Content-Length MUST
-  // match what the edge function signed -- R2 verifies headers in SigV4.
-  const putRes = await fetch(data.url, {
-    method:  'PUT',
-    body:    file,
-    headers: {
-      'Content-Type':   mime,
-      'Content-Length': String(size),
-    },
+/**
+ * Same contract as uploadChatMedia, but the R2 PUT rides an XMLHttpRequest so
+ * the caller gets:
+ *   - onProgress(fraction 0..1) driven by xhr.upload.onprogress, and
+ *   - cancellation via an AbortSignal (xhr.abort()).
+ *
+ * Byte-identical to the fetch path: same presigned URL, same Content-Type
+ * (the SigV4-signed header). Content-Length is intentionally NOT set — the
+ * browser sets it from the body, and some UAs reject a manual Content-Length
+ * on XHR. On abort the promise rejects with a DOMException named 'AbortError';
+ * on a non-2xx / network failure it rejects with a plain Error like the fetch
+ * path. The presign is re-requested on every call, so retries always PUT to a
+ * fresh (unexpired) URL.
+ */
+export async function uploadChatMediaWithProgress(
+  conversationId: string,
+  file: Blob,
+  options: {
+    fileName?: string
+    contentType?: string
+    onProgress?: (fraction: number) => void
+    signal?: AbortSignal
+  } = {},
+): Promise<UploadMediaResult> {
+  const mime = options.contentType ?? file.type ?? 'application/octet-stream'
+  const size = (file as { size?: number }).size ?? 0
+  if (!size) throw new MediaUploadError('invalid_input', 'file size is 0')
+  if (options.signal?.aborted) throw new DOMException('Upload aborted', 'AbortError')
+
+  const signed = await signMediaPut(conversationId, mime, size)
+  if (options.signal?.aborted) throw new DOMException('Upload aborted', 'AbortError')
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', signed.url, true)
+    xhr.setRequestHeader('Content-Type', mime)
+
+    const signal = options.signal
+    const onAbort = () => xhr.abort()
+    if (signal) signal.addEventListener('abort', onAbort)
+    const cleanup = () => { if (signal) signal.removeEventListener('abort', onAbort) }
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && options.onProgress) {
+        options.onProgress(e.total ? e.loaded / e.total : 0)
+      }
+    }
+    xhr.onload = () => {
+      cleanup()
+      if (xhr.status >= 200 && xhr.status < 300) {
+        options.onProgress?.(1)
+        resolve()
+      } else {
+        reject(new Error(`r2 put failed: ${xhr.status} ${String(xhr.responseText ?? '').slice(0, 200)}`))
+      }
+    }
+    xhr.onerror = () => { cleanup(); reject(new Error('r2 put failed: network error')) }
+    xhr.onabort = () => { cleanup(); reject(new DOMException('Upload aborted', 'AbortError')) }
+    xhr.send(file)
   })
-  if (!putRes.ok) {
-    const text = await putRes.text().catch(() => '')
-    throw new Error(`r2 put failed: ${putRes.status} ${text.slice(0, 200)}`)
-  }
 
-  // Derive a filename for media_meta display. R2 doesn't care — Evolution
-  // uses it for documents, and the frontend shows it in DocumentBody.
-  const fileName = options.fileName ?? deriveFileName(data.key, mime)
+  const fileName = options.fileName ?? deriveFileName(signed.key, mime)
   return {
-    bucket:   data.bucket,
-    key:      data.key,
+    bucket: signed.bucket,
+    key:    signed.key,
     mime,
     size,
     fileName,

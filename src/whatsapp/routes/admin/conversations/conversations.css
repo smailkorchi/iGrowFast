@@ -3288,6 +3288,100 @@
   color: var(--wa-text-primary);
 }
 
+/* Optimistic upload bubble — dimmed thumbnail + determinate ring (WhatsApp
+   send-progress). The .wac__media box owns exact bubble sizing/theme. */
+.wac__media--uploading > img,
+.wac__media--uploading > video {
+  filter: brightness(0.6);
+}
+
+.wac__upload-fileicon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #1F2C34;
+  color: var(--wa-text-secondary);
+}
+
+.wac__upload-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.20);
+}
+
+.wac__upload-btn {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.wac__upload-overlay.is-error {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.wac__upload-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(11, 20, 26, 0.55);
+  color: #fff;
+  cursor: pointer;
+}
+
+.wac__ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.wac__ring-svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.wac__ring-track {
+  stroke: rgba(255, 255, 255, 0.28);
+}
+
+.wac__ring-value {
+  stroke: #fff;
+  transition: stroke-dashoffset 0.15s linear;
+}
+
+.wac__ring-center {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.wac__upload-spin {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: wac-spin 0.7s linear infinite;
+}
+
 .wac__doc.is-expired .wac__doc-meta {
   color: var(--wa-text-tertiary);
   font-style: italic;
