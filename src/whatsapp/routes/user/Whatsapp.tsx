@@ -61,6 +61,7 @@ import { sendMessage, sendReadReceipt, sendStepSequence } from '../../lib/conver
 import { supabase } from '../../lib/supabase'
 import type { QuickReply } from '../../lib/queries/quickReplies'
 import { useTags, useAllConversationTags, useConversationTags } from '../../lib/queries/tags'
+import { EcomBizRealtime } from '../../lib/queries/ecomChannels'
 import '../admin/conversations/conversations.css'
 
 // ─── localStorage helpers (per-instance favourites) ─────────────────────────
@@ -521,6 +522,9 @@ export default function UserWhatsapp() {
 
   return (
     <div className={'wac' + (activeConv && rightPane !== 'none' ? ' is-with-info' : '')}>
+      {/* E-commerce realtime seam (W7): keeps the chat order-history button live
+          on order create/change for the business. One private channel. */}
+      <EcomBizRealtime />
       {view === 'list' && (
         <ChatList
           instance={headerInstance}

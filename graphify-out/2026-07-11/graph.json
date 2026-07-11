@@ -15483,7 +15483,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "src_components_meta_createcampaignwizard_createcampaignwizard",
-      "community": 44,
+      "community": 56,
       "norm_label": "createcampaignwizard()"
     },
     {
@@ -15623,7 +15623,7 @@
       "source_location": "L315",
       "_origin": "ast",
       "id": "src_components_meta_manager_campaignstable_budgetcell",
-      "community": 44,
+      "community": 91,
       "norm_label": "budgetcell()"
     },
     {
@@ -27523,7 +27523,7 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "src_lib_metaads_tobudgetcents",
-      "community": 44,
+      "community": 56,
       "norm_label": "tobudgetcents()"
     },
     {
@@ -28290,7 +28290,7 @@
       "label": "DEFAULT_EXPORT_KEYS",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L377",
+      "source_location": "L380",
       "_origin": "ast",
       "id": "src_lib_ordersexport_default_export_keys",
       "community": 2,
@@ -28300,7 +28300,7 @@
       "label": "buildExportSelect()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L382",
+      "source_location": "L385",
       "_origin": "ast",
       "id": "src_lib_ordersexport_buildexportselect",
       "community": 2,
@@ -28310,7 +28310,7 @@
       "label": "buildExportQuery()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L392",
+      "source_location": "L395",
       "_origin": "ast",
       "id": "src_lib_ordersexport_buildexportquery",
       "community": 2,
@@ -28320,7 +28320,7 @@
       "label": "countExport()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L428",
+      "source_location": "L431",
       "_origin": "ast",
       "id": "src_lib_ordersexport_countexport",
       "community": 2,
@@ -28330,7 +28330,7 @@
       "label": "runExport()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L444",
+      "source_location": "L447",
       "_origin": "ast",
       "id": "src_lib_ordersexport_runexport",
       "community": 2,
@@ -28340,7 +28340,7 @@
       "label": "csvCell()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L510",
+      "source_location": "L513",
       "_origin": "ast",
       "id": "src_lib_ordersexport_csvcell",
       "community": 2,
@@ -28350,7 +28350,7 @@
       "label": "toCsv()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L524",
+      "source_location": "L527",
       "_origin": "ast",
       "id": "src_lib_ordersexport_tocsv",
       "community": 2,
@@ -28360,7 +28360,7 @@
       "label": "exportFilename()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L529",
+      "source_location": "L532",
       "_origin": "ast",
       "id": "src_lib_ordersexport_exportfilename",
       "community": 2,
@@ -28370,7 +28370,7 @@
       "label": "saveExport()",
       "file_type": "code",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L539",
+      "source_location": "L542",
       "_origin": "ast",
       "id": "src_lib_ordersexport_saveexport",
       "community": 2,
@@ -38193,7 +38193,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_lib_auth",
-      "community": 258,
+      "community": 6,
       "norm_label": "auth.tsx"
     },
     {
@@ -38203,7 +38203,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_whatsapp_lib_auth_profile_key",
-      "community": 258,
+      "community": 6,
       "norm_label": "profile_key"
     },
     {
@@ -38213,7 +38213,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "src_whatsapp_lib_auth_mapusersrow",
-      "community": 258,
+      "community": 6,
       "norm_label": "mapusersrow()"
     },
     {
@@ -38223,7 +38223,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "src_whatsapp_lib_auth_fetchprofile",
-      "community": 258,
+      "community": 6,
       "norm_label": "fetchprofile()"
     },
     {
@@ -38233,7 +38233,7 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "src_whatsapp_lib_auth_useauth",
-      "community": 258,
+      "community": 6,
       "norm_label": "useauth()"
     },
     {
@@ -38383,7 +38383,7 @@
       "source_location": "L175",
       "_origin": "ast",
       "id": "src_whatsapp_lib_conversationsapi_sendreaction",
-      "community": 17,
+      "community": 0,
       "norm_label": "sendreaction()"
     },
     {
@@ -38543,7 +38543,7 @@
       "source_location": "L314",
       "_origin": "ast",
       "id": "src_whatsapp_lib_conversationsapi_togglestar",
-      "community": 17,
+      "community": 0,
       "norm_label": "togglestar()"
     },
     {
@@ -38553,7 +38553,7 @@
       "source_location": "L325",
       "_origin": "ast",
       "id": "src_whatsapp_lib_conversationsapi_setmessagepin",
-      "community": 17,
+      "community": 0,
       "norm_label": "setmessagepin()"
     },
     {
@@ -38813,7 +38813,7 @@
       "source_location": "L1927",
       "_origin": "ast",
       "id": "src_whatsapp_lib_database_types_messagedecrypted",
-      "community": 258,
+      "community": 16,
       "norm_label": "messagedecrypted"
     },
     {
@@ -38823,7 +38823,7 @@
       "source_location": "L1928",
       "_origin": "ast",
       "id": "src_whatsapp_lib_database_types_profile",
-      "community": 258,
+      "community": 6,
       "norm_label": "profile"
     },
     {
@@ -38833,7 +38833,7 @@
       "source_location": "L1929",
       "_origin": "ast",
       "id": "src_whatsapp_lib_database_types_whatsappinstance",
-      "community": 16,
+      "community": 37,
       "norm_label": "whatsappinstance"
     },
     {
@@ -39863,7 +39863,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "src_whatsapp_lib_presence_useagenttyping",
-      "community": 17,
+      "community": 6,
       "norm_label": "useagenttyping()"
     },
     {
@@ -40623,7 +40623,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_instances_useinstancecapacitystatus",
-      "community": 17,
+      "community": 6,
       "norm_label": "useinstancecapacitystatus()"
     },
     {
@@ -40813,7 +40813,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages",
-      "community": 258,
+      "community": 16,
       "norm_label": "messages.ts"
     },
     {
@@ -40823,7 +40823,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages_messagekeys",
-      "community": 258,
+      "community": 16,
       "norm_label": "messagekeys"
     },
     {
@@ -40833,7 +40833,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages_threadpage",
-      "community": 258,
+      "community": 16,
       "norm_label": "threadpage"
     },
     {
@@ -40863,7 +40863,7 @@
       "source_location": "L90",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages_usethreadrealtime",
-      "community": 258,
+      "community": 16,
       "norm_label": "usethreadrealtime()"
     },
     {
@@ -40873,7 +40873,7 @@
       "source_location": "L153",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages_patchinsertnewest",
-      "community": 258,
+      "community": 16,
       "norm_label": "patchinsertnewest()"
     },
     {
@@ -40883,7 +40883,7 @@
       "source_location": "L170",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages_patchupdate",
-      "community": 258,
+      "community": 16,
       "norm_label": "patchupdate()"
     },
     {
@@ -40893,7 +40893,7 @@
       "source_location": "L185",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_messages_patchdelete",
-      "community": 258,
+      "community": 16,
       "norm_label": "patchdelete()"
     },
     {
@@ -41323,7 +41323,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_users",
-      "community": 258,
+      "community": 6,
       "norm_label": "users.ts"
     },
     {
@@ -41333,7 +41333,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_users_userkeys",
-      "community": 258,
+      "community": 6,
       "norm_label": "userkeys"
     },
     {
@@ -41343,7 +41343,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_users_useprofiles",
-      "community": 258,
+      "community": 6,
       "norm_label": "useprofiles()"
     },
     {
@@ -41353,7 +41353,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "src_whatsapp_lib_queries_users_prefetchusers",
-      "community": 258,
+      "community": 6,
       "norm_label": "prefetchusers()"
     },
     {
@@ -41913,7 +41913,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_whatsapp_lib_userinbox_activeinstance_activeinstancevalue",
-      "community": 16,
+      "community": 37,
       "norm_label": "activeinstancevalue"
     },
     {
@@ -41953,7 +41953,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_whatsapp_lib_usersapi",
-      "community": 258,
+      "community": 6,
       "norm_label": "usersapi.ts"
     },
     {
@@ -41963,7 +41963,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "src_whatsapp_lib_usersapi_directoryprofile",
-      "community": 258,
+      "community": 6,
       "norm_label": "directoryprofile"
     },
     {
@@ -41973,7 +41973,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_whatsapp_lib_usersapi_listprofiles",
-      "community": 258,
+      "community": 6,
       "norm_label": "listprofiles()"
     },
     {
@@ -44423,7 +44423,7 @@
       "source_location": "L4207",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_pinnedpreviewtext",
-      "community": 17,
+      "community": 0,
       "norm_label": "pinnedpreviewtext()"
     },
     {
@@ -44443,7 +44443,7 @@
       "source_location": "L4265",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_pinnedbar",
-      "community": 17,
+      "community": 0,
       "norm_label": "pinnedbar()"
     },
     {
@@ -44663,7 +44663,7 @@
       "source_location": "L5412",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_messagecontextmenu",
-      "community": 17,
+      "community": 0,
       "norm_label": "messagecontextmenu()"
     },
     {
@@ -45033,7 +45033,7 @@
       "source_location": "L7684",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_composer",
-      "community": 17,
+      "community": 6,
       "norm_label": "composer()"
     },
     {
@@ -45283,7 +45283,7 @@
       "source_location": "L9256",
       "_origin": "ast",
       "id": "src_whatsapp_routes_admin_conversations_parts_formatscheduledat",
-      "community": 17,
+      "community": 6,
       "norm_label": "formatscheduledat()"
     },
     {
@@ -85265,7 +85265,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L554",
+      "source_location": "L557",
       "weight": 1.0,
       "source": "src_lib_ordersexport_saveexport",
       "target": "package_dependencies_xlsx"
@@ -160320,7 +160320,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L392",
+      "source_location": "L395",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_buildexportquery",
@@ -160330,7 +160330,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L382",
+      "source_location": "L385",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_buildexportselect",
@@ -160350,7 +160350,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L428",
+      "source_location": "L431",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_countexport",
@@ -160360,7 +160360,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L510",
+      "source_location": "L513",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_csvcell",
@@ -160370,7 +160370,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L377",
+      "source_location": "L380",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_default_export_keys",
@@ -160440,7 +160440,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L529",
+      "source_location": "L532",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_exportfilename",
@@ -160590,7 +160590,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L444",
+      "source_location": "L447",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_runexport",
@@ -160600,7 +160600,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L539",
+      "source_location": "L542",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_saveexport",
@@ -160620,7 +160620,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L524",
+      "source_location": "L527",
       "weight": 1.0,
       "source": "src_lib_ordersexport",
       "target": "src_lib_ordersexport_tocsv",
@@ -160697,7 +160697,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L465",
+      "source_location": "L468",
       "weight": 1.0,
       "source": "src_lib_ordersexport_runexport",
       "target": "src_lib_ordersexport_buildexportselect",
@@ -160708,7 +160708,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L429",
+      "source_location": "L432",
       "weight": 1.0,
       "source": "src_lib_ordersexport_countexport",
       "target": "src_lib_ordersexport_buildexportquery",
@@ -160719,7 +160719,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L477",
+      "source_location": "L480",
       "weight": 1.0,
       "source": "src_lib_ordersexport_runexport",
       "target": "src_lib_ordersexport_buildexportquery",
@@ -160730,7 +160730,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L456",
+      "source_location": "L459",
       "weight": 1.0,
       "source": "src_lib_ordersexport_runexport",
       "target": "src_lib_ordersexport_countexport",
@@ -160741,7 +160741,7 @@
       "context": "argument",
       "confidence": "INFERRED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L525",
+      "source_location": "L528",
       "weight": 1.0,
       "source": "src_lib_ordersexport_tocsv",
       "target": "src_lib_ordersexport_csvcell",
@@ -160752,7 +160752,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L546",
+      "source_location": "L549",
       "weight": 1.0,
       "source": "src_lib_ordersexport_saveexport",
       "target": "src_lib_ordersexport_tocsv",
@@ -160763,7 +160763,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L544",
+      "source_location": "L547",
       "weight": 1.0,
       "source": "src_lib_ordersexport_saveexport",
       "target": "src_lib_ordersexport_exportfilename",
@@ -160775,7 +160775,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/lib/ordersExport.ts",
-      "source_location": "L547",
+      "source_location": "L550",
       "weight": 1.0,
       "source": "src_lib_ordersexport_saveexport",
       "target": "src_lib_saveblob_saveblob"
@@ -213634,5 +213634,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d8d24bc692c5279db4b01657cd6b7170b62f7094"
+  "built_at_commit": "e816c866a0c59b4ddc12ae6263f9674c5e8c7857"
 }

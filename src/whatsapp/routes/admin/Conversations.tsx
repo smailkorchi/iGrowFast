@@ -63,6 +63,7 @@ import { ScheduledMessagesPanel } from './conversations/ScheduledMessagesPanel'
 import { sendMessage, sendReadReceipt, sendStepSequence } from '../../lib/conversationsApi'
 import type { QuickReply } from '../../lib/queries/quickReplies'
 import { useTags, useAllConversationTags, useConversationTags } from '../../lib/queries/tags'
+import { EcomBizRealtime } from '../../lib/queries/ecomChannels'
 import './conversations/conversations.css'
 
 // ─── localStorage helpers (per-instance favourites) ─────────────────────────
@@ -553,6 +554,9 @@ export default function AdminConversations() {
 
   return (
     <div className={'wac' + (activeConv && rightPane !== 'none' ? ' is-with-info' : '')}>
+      {/* E-commerce realtime seam (W7): keeps the chat order-history button live
+          on order create/change for the business. One private channel. */}
+      <EcomBizRealtime />
       {view === 'list' && (
         <ChatList
           instance={headerInstance}

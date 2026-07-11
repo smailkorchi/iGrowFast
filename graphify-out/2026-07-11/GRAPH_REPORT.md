@@ -1,7 +1,7 @@
 # Graph Report - iGrowFast  (2026-07-11)
 
 ## Corpus Check
-- 1026 files · ~1,218,496 words
+- 1026 files · ~1,218,529 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d8d24bc6`
+- Built from commit: `e816c866`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -402,7 +402,7 @@
 
 ### Community 0 - "WhatsApp Media & Icons"
 Cohesion: 0.02
-Nodes (127): buildMediaUrl(), ResolvedMedia, useResolvedMediaUrl(), EMOJI_DATA, EMOJI_KEYWORDS, IconArchive(), IconBackspace(), IconBan() (+119 more)
+Nodes (133): sendReaction(), setMessagePin(), toggleStar(), buildMediaUrl(), ResolvedMedia, useResolvedMediaUrl(), EMOJI_DATA, EMOJI_KEYWORDS (+125 more)
 
 ### Community 1 - "App Shell & Route Guards"
 Cohesion: 0.04
@@ -425,8 +425,8 @@ Cohesion: 0.22
 Nodes (11): AppLayout(), AppLayoutProps, ALL_NAV_PATHS, findActiveSection(), isParentPath(), isSectionActive(), navigation, NavItem (+3 more)
 
 ### Community 6 - "WhatsApp Quick Replies & Steps"
-Cohesion: 0.04
-Nodes (93): bizCache, businessIdOf(), decodeAudioDurationSeconds(), MediaStep, MediaStepType, MessageStep, QrMediaUploadResponse, QuickReply (+85 more)
+Cohesion: 0.03
+Nodes (107): fetchProfile(), mapUsersRow(), PROFILE_KEY, useAuth(), Profile, useAgentTyping(), useInstanceCapacityStatus(), bizCache (+99 more)
 
 ### Community 7 - "Business Form & Form Primitives"
 Cohesion: 0.11
@@ -466,11 +466,11 @@ Nodes (51): input-otp, HoldToConfirmButton(), JOBS, ManualBackupWizard(), Mode, 
 
 ### Community 16 - "WhatsApp UI Components"
 Cohesion: 0.06
-Nodes (64): AdminCartOrderDraft, SellerCartOrderDraft, useSidebarCollapse(), sendReadReceipt(), WhatsappInstance, clearDraft(), drafts, emit() (+56 more)
+Nodes (69): AdminCartOrderDraft, SellerCartOrderDraft, useSidebarCollapse(), sendReadReceipt(), MessageDecrypted, clearDraft(), drafts, emit() (+61 more)
 
 ### Community 17 - "WhatsApp Inbox State"
-Cohesion: 0.06
-Nodes (38): cancelOutboundMessage(), clearAllConversations(), deleteAllConversations(), deleteMessageForEveryone(), deleteMessageForMe(), deriveFileName(), forceDispatchNow(), forwardMessage() (+30 more)
+Cohesion: 0.07
+Nodes (28): cancelOutboundMessage(), clearAllConversations(), deleteAllConversations(), deleteMessageForEveryone(), deleteMessageForMe(), deriveFileName(), forceDispatchNow(), forwardMessage() (+20 more)
 
 ### Community 18 - "WhatsApp Conversations"
 Cohesion: 0.08
@@ -550,7 +550,7 @@ Nodes (36): applyState(), claimLeases(), deleteEvolutionInstance(), EvolutionIns
 
 ### Community 37 - "WhatsApp Frontend"
 Cohesion: 0.06
-Nodes (37): RFC-6868, deriveCountryCode(), DiffRow, ImportContactsModal(), ImportContactsModalProps, Phase, PhoneBookEntry, EnsureConversationArgs (+29 more)
+Nodes (39): RFC-6868, deriveCountryCode(), DiffRow, ImportContactsModal(), ImportContactsModalProps, Phase, PhoneBookEntry, EnsureConversationArgs (+31 more)
 
 ### Community 38 - "React Hooks"
 Cohesion: 0.02
@@ -573,8 +573,8 @@ Cohesion: 0.11
 Nodes (32): EmailPromptDialog(), expiryLabel(), InvitationsPanel(), phaseOf(), InviteUserWizard(), RoleMeta, ROLES, checkInvitation() (+24 more)
 
 ### Community 44 - "WhatsApp Frontend"
-Cohesion: 0.09
-Nodes (18): CreateCampaignWizard(), BudgetCell(), Props, metaDb, useMetaUpdateBudget(), useMetaUpdateStatus(), useMetaUploadImageFromUrl(), useVerifyMetaToken() (+10 more)
+Cohesion: 0.10
+Nodes (15): Props, metaDb, useMetaUpdateBudget(), useMetaUpdateStatus(), useMetaUploadImageFromUrl(), useVerifyMetaToken(), InvokeBody, invokeMeta() (+7 more)
 
 ### Community 45 - "Shared Libs"
 Cohesion: 0.14
@@ -622,7 +622,7 @@ Nodes (11): NumbersEmptyState(), Props, ACCENTS, InstanceAvatar(), Props, Instan
 
 ### Community 56 - "UI Components"
 Cohesion: 0.07
-Nodes (43): Props, Step, STEPS, AccordionSection(), Props, AdPreviewPanel(), MediaPreview(), Props (+35 more)
+Nodes (45): CreateCampaignWizard(), Props, Step, STEPS, AccordionSection(), Props, AdPreviewPanel(), MediaPreview() (+37 more)
 
 ### Community 57 - "App Pages"
 Cohesion: 0.04
@@ -750,7 +750,7 @@ Nodes (11): ACTIVE_ANNOUNCEMENT, AppAnnouncement, AnnouncementGate(), Announceme
 
 ### Community 91 - "UI Components"
 Cohesion: 0.16
-Nodes (30): AdSetsTable(), AdsTable(), BulkActions(), Props, AdSetSubRows(), AdSubRows(), CampaignRow(), Props (+22 more)
+Nodes (31): AdSetsTable(), AdsTable(), BulkActions(), Props, AdSetSubRows(), AdSubRows(), BudgetCell(), CampaignRow() (+23 more)
 
 ### Community 94 - "UI Components"
 Cohesion: 0.05
@@ -1141,8 +1141,8 @@ Cohesion: 0.38
 Nodes (7): fmt(), GlobalLedgerDialog(), MonthRow(), periodName(), SellerBreakdownDialog(), SellerTicketDetailDialog(), ticketStatusMeta()
 
 ### Community 258 - "LifecycleBadge.tsx"
-Cohesion: 0.05
-Nodes (46): Avatar(), AvatarSize, Props, px(), radius, fetchProfile(), mapUsersRow(), PROFILE_KEY (+38 more)
+Cohesion: 0.07
+Nodes (29): Avatar(), AvatarSize, Props, px(), radius, AvatarConfig, CompositeTypes, Constants (+21 more)
 
 ### Community 259 - "ops/ — iGrowFast backup & DR infrastructure"
 Cohesion: 0.29
@@ -1241,7 +1241,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `supabase-whatsappmancer`, `$schema`, `style` to the rest of the system?**
   _2409 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `WhatsApp Media & Icons` be split into smaller, more focused modules?**
-  _Cohesion score 0.016511483550589696 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.016158093577448417 - nodes in this community are weakly interconnected._
 - **Should `App Shell & Route Guards` be split into smaller, more focused modules?**
   _Cohesion score 0.03874904652936689 - nodes in this community are weakly interconnected._
 - **Should `Order Contact Actions` be split into smaller, more focused modules?**

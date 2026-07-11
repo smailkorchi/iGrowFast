@@ -3868,6 +3868,7 @@ export function ChatPane(p: ChatPaneProps) {
         <BubbleStateModal
           state={bubbleModal.state}
           businessHours={instanceCapacity?.business_hours ?? null}
+          capacity={instanceCapacity ?? null}
           onResend={async () => {
             const m = bubbleModal.msg
             const body = m.body ?? ''
@@ -3939,6 +3940,7 @@ function BubbleStateModal({
   onForceDispatch,
   onDelete,
   onClose,
+  capacity,
 }: {
   state: 'failed' | 'blocked-window' | 'blocked-paused' | 'blocked-cap'
   businessHours: { tz: string; days: number[]; open: string; close: string } | null
@@ -3946,7 +3948,16 @@ function BubbleStateModal({
   onForceDispatch: () => void
   onDelete: () => void
   onClose: () => void
+  capacity: import('../../../lib/queries/instances').InstanceCapacityStatus | null | undefined
 }) {
+  // Live ticker so the blocked-cap countdown updates every second.
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (state !== 'blocked-cap') return
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [state])
+
   const cfg = (() => {
     if (state === 'failed') {
       return {
@@ -3970,9 +3981,34 @@ function BubbleStateModal({
         primary: { label: 'Forcer l’envoi', action: onForceDispatch },
       }
     }
+    // blocked-cap: name the SINGLE active ceiling (hourly beats daily) with its
+    // exact used/cap and a live countdown to the reset instant (resume_at).
+    const hourlyHit = (capacity?.hourly?.pct ?? 0) >= 100
+    const active = hourlyHit ? capacity?.hourly : capacity?.daily
+    const scope = hourlyHit ? 'horaire' : 'quotidienne'
+    const resumeAt = active?.resume_at ?? null
+    const remainMs = resumeAt ? new Date(resumeAt).getTime() - nowMs : NaN
+    let when: React.ReactNode
+    if (!resumeAt || !Number.isFinite(remainMs)) {
+      when = <>L’envoi reprendra automatiquement dès qu’une place se libère.</>
+    } else if (remainMs <= 0) {
+      when = <>L’envoi reprend dans un instant.</>
+    } else {
+      const s = Math.ceil(remainMs / 1000)
+      const h = Math.floor(s / 3600)
+      const m = Math.floor((s % 3600) / 60)
+      const sec = s % 60
+      const label = h > 0 ? `${h} h ${m} min` : m > 0 ? `${m} min ${sec} s` : `${sec} s`
+      when = <>Reprise automatique dans <strong>{label}</strong>.</>
+    }
     return {
-      title: 'Plafond d’envoi atteint',
-      body: <>Le plafond quotidien, horaire ou par minute est atteint. L’envoi reprendra automatiquement quand le compteur se libérera.</>,
+      title: 'Limite d’envoi atteinte',
+      body: (
+        <>
+          Cette instance a atteint sa limite {scope}
+          {active ? <> ({active.used}/{active.cap})</> : null}. {when}
+        </>
+      ),
       primary: null as { label: string; action: () => void } | null,
     }
   })()

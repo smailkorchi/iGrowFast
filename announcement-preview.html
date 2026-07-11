@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>iGrowFast — Quoi de neuf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Lora:ital,wght@1,400;1,500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TOKENS — verbatim from src/index.css / tailwind.config.ts /
+   src/whatsapp/routes/admin/conversations/conversations.css
+   ============================================================ */
+:root {
+  --ink: #141413; --paper: #ffffff; --light: #faf9f5; --line: #e8e6dc; --line-soft: #f1efe8;
+  --mid: #b0aea5; --muted: #6b6a63;
+  --orange: #d97757; --green: #788c5d; --rose: #c96356; --blue: #6a9bcc;
+  /* WhatsApp inbox chrome (.wac) */
+  --wa-bg: #0A0A0A; --wa-input: #1F1F1F; --wa-hover: #161616; --wa-active: #262626;
+  --wa-t1: #E9EDEF; --wa-t2: #8696A0; --wa-t3: #6B7C85;
+  --wa-green: #00A884; --wa-green-bright: #25d366; --wa-tick: #53BDEB;
+  --wa-border: #262626; --wa-out: #264C39; --wa-system: #161616;
+  --whatsapp: #25D366;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--ink); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px 24px; overflow: hidden;
+}
+.veil {
+  position: fixed; inset: 0;
+  background: rgba(20,20,19,0.9);
+  background-image: radial-gradient(120% 80% at 50% 100%, rgba(217,119,87,0.10) 0%, rgba(20,20,19,0) 60%),
+                    radial-gradient(90% 60% at 80% 0%, rgba(106,155,204,0.05) 0%, rgba(20,20,19,0) 55%);
+}
+
+/* ============================================================
+   MODAL SHELL — announcement identity, full width
+   ============================================================ */
+.modal {
+  position: relative;
+  width: min(1200px, 100%);
+  height: min(780px, calc(100vh - 40px));
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 32px 80px -24px rgba(0,0,0,0.55);
+  overflow: hidden; display: flex; flex-direction: column;
+  animation: modalIn 420ms cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: none; } }
+.hairline { height: 3px; width: 100%; flex-shrink: 0;
+  background: linear-gradient(to right, var(--orange), rgba(217,119,87,0.6), transparent); }
+
+/* HEADER */
+.head { padding: 16px 28px 14px; border-bottom: 1px solid rgba(255,255,255,0.10); flex-shrink: 0; }
+.head-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.head-brand { display: flex; align-items: center; gap: 14px; }
+.logo-img { height: 32px; object-fit: contain; display: block; }
+.logo-fallback { display: none; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 17px; letter-spacing: -0.01em; }
+.logo-fallback em { color: var(--orange); font-style: normal; }
+/* Story segments */
+.segbar { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.seg-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.22em;
+  color: rgba(255,255,255,0.45); white-space: nowrap;
+}
+.segments { display: flex; gap: 5px; width: min(300px, 34vw); }
+.segments span { flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,0.14); transition: background 300ms; }
+.segments span.done { background: rgba(255,255,255,0.75); }
+.segments span.cur { background: var(--orange); }
+.head-main { margin-top: 12px; min-height: 58px; }
+.head-main.is-hidden { display: none; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.28em;
+  color: rgba(255,255,255,0.6);
+}
+.eyebrow .dot { height: 6px; width: 6px; border-radius: 999px; background: var(--orange); }
+h1.title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 23px; font-weight: 600; line-height: 1.15; letter-spacing: -0.02em;
+  color: #fff; margin-top: 7px; text-wrap: balance;
+}
+.title-desc { font-family: 'Lora', serif; font-style: italic; font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 3px; }
+
+/* BODY / SLIDES */
+.body { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.step-pane {
+  position: absolute; inset: 0;
+  padding: 24px 28px;
+  display: grid; grid-template-columns: minmax(330px, 5fr) minmax(0, 8fr);
+  gap: 34px; align-items: center;
+  opacity: 0; transform: translateX(28px); pointer-events: none;
+  transition: opacity 360ms cubic-bezier(0.22,1,0.36,1), transform 360ms cubic-bezier(0.22,1,0.36,1);
+}
+.step-pane.is-active { opacity: 1; transform: none; pointer-events: auto; }
+.step-pane.is-left { transform: translateX(-28px); }
+.step-pane.text-pane { grid-template-columns: 1fr; place-items: center; }
+
+/* Copy column */
+.copy { max-width: 460px; }
+.copy .icon-tile {
+  height: 50px; width: 50px; border-radius: 15px;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  margin-bottom: 16px;
+}
+.copy .icon-tile.tile-wa { background: var(--whatsapp); box-shadow: 0 12px 32px -10px rgba(37,211,102,0.45); }
+.copy .icon-tile.tile-orange { background: rgba(217,119,87,0.16); border: 1px solid rgba(217,119,87,0.35); color: var(--orange); }
+.copy .icon-tile.tile-neutral { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.16); color: rgba(255,255,255,0.85); }
+.copy h2 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 21px; font-weight: 600; line-height: 1.22; letter-spacing: -0.02em; color: #fff;
+  text-wrap: balance;
+}
+.copy .sub { font-family: 'Lora', serif; font-style: italic; font-size: 13.5px; color: rgba(255,255,255,0.6); margin-top: 6px; }
+.copy p.lead { font-size: 13.5px; line-height: 1.65; color: rgba(255,255,255,0.75); margin-top: 13px; }
+.copy p.lead strong { font-weight: 600; color: rgba(255,255,255,0.92); }
+.features { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.feature { display: flex; align-items: flex-start; gap: 11px; }
+.feature .chk {
+  height: 20px; width: 20px; border-radius: 7px; flex-shrink: 0;
+  background: rgba(37,211,102,0.13); border: 1px solid rgba(37,211,102,0.3);
+  display: flex; align-items: center; justify-content: center; color: var(--whatsapp);
+}
+.feature.f-orange .chk { background: rgba(217,119,87,0.13); border-color: rgba(217,119,87,0.32); color: var(--orange); }
+.feature .chk svg { width: 11px; height: 11px; }
+.feature span { font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,0.72); }
+.feature span strong { font-weight: 600; color: rgba(255,255,255,0.92); }
+
+/* Demo column */
+.demo-col { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.demo-frame {
+  position: relative; width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: var(--wa-bg);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 24px 48px -20px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.demo-frame.frame-light { background: var(--light); border-color: rgba(255,255,255,0.14); }
+.demo-caption { display: flex; align-items: center; gap: 8px; font-size: 11px; color: rgba(255,255,255,0.4); }
+.demo-caption .live-dot { height: 6px; width: 6px; border-radius: 999px; background: var(--whatsapp); animation: pulse 2.2s ease-out infinite; flex-shrink: 0; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(37,211,102,0.5);} 70% { box-shadow: 0 0 0 6px rgba(37,211,102,0);} 100% { box-shadow: 0 0 0 0 rgba(37,211,102,0);} }
+
+/* Demo stage — fixed design canvas scaled into its frame */
+.demo-stage {
+  position: absolute; top: 0; left: 0;
+  transform-origin: top left;
+  user-select: none;
+}
+.demo-stage svg { display: block; }
+.demo-stage .wd-fade { transition: opacity 360ms ease; }
+.demo-stage.is-resetting .wd-fade { opacity: 0; }
+
+/* Text slides */
+.text-inner { text-align: center; max-width: 640px; padding-bottom: 12px; }
+.text-inner .eyebrow { justify-content: center; }
+.text-inner h2 {
+  font-family: 'Poppins', sans-serif;
+  font-size: clamp(30px, 4.2vw, 42px); font-weight: 600; letter-spacing: -0.025em; line-height: 1.12;
+  margin-top: 14px; text-wrap: balance;
+}
+.text-inner .big-sub { font-family: 'Lora', serif; font-style: italic; font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 12px; }
+.chapters { margin: 30px auto 0; max-width: 460px; text-align: left; }
+.chapter { display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-top: 1px solid rgba(255,255,255,0.10); }
+.chapter:last-child { border-bottom: 1px solid rgba(255,255,255,0.10); }
+.chapter .num { font-size: 11px; font-weight: 600; color: var(--orange); font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+.chapter .ch-title { font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,0.9); }
+.chapter .ch-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 1px; }
+.outro-note { margin-top: 26px; font-size: 13px; line-height: 1.7; color: rgba(255,255,255,0.65); }
+.outro-note strong { color: rgba(255,255,255,0.9); font-weight: 600; }
+
+/* FOOTER */
+.foot {
+  padding: 13px 28px; border-top: 1px solid rgba(255,255,255,0.10); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 40px; padding: 0 16px; border-radius: 999px; border: none; background: transparent;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.55); cursor: pointer; transition: color 200ms;
+  visibility: hidden;
+}
+.btn-ghost:hover { color: #fff; }
+.btn-ghost.is-visible { visibility: visible; }
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 26px; border-radius: 999px; border: none;
+  background: #fff; color: var(--ink);
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 200ms, transform 120ms;
+}
+.btn-primary:hover { background: rgba(255,255,255,0.95); }
+.btn-primary:active { transform: scale(0.99); }
+.foot-count { font-size: 11px; color: rgba(255,255,255,0.35); font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   DARK INBOX KIT (.wd-*) — verbatim values from conversations.css
+   ============================================================ */
+.wd-root {
+  font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px; line-height: 1.4; color: var(--wa-t1); background: var(--wa-bg);
+}
+.wd-avatar { border-radius: 999px; background: var(--wa-active); display: flex; align-items: center; justify-content: center; color: var(--wa-t2); flex-shrink: 0; overflow: hidden; }
+.wd-avatar.a40 { width: 40px; height: 40px; }
+.wd-avatar.a49 { width: 49px; height: 49px; }
+.wd-avatar .init { font-size: 17px; font-weight: 600; color: var(--wa-t2); }
+.wd-icon-btn { width: 38px; height: 38px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--wa-t2); position: relative; flex-shrink: 0; }
+.wd-icon-btn.is-hover { background: rgba(134,150,160,0.10); }
+.wd-chip {
+  height: 30px; padding: 0 14px; border-radius: 21px; border: 1px solid var(--wa-border);
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--wa-t2); white-space: nowrap;
+}
+.wd-chip.is-active { background: #103529; color: #00D9A6; border-color: transparent; }
+.wd-badge {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--wa-green); color: #0B141A;
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.wd-pop {
+  position: absolute; z-index: 30; border-radius: 10px; background: #1A1A1A;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4); padding: 6px;
+  opacity: 0; transform: translateY(-6px) scale(0.98); pointer-events: none;
+  transition: opacity 220ms cubic-bezier(0.22,1,0.36,1), transform 220ms cubic-bezier(0.22,1,0.36,1);
+}
+.wd-pop.from-bottom { transform: translateY(6px) scale(0.98); }
+.wd-pop.is-open { opacity: 1; transform: none; }
+.wd-pop-item { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 6px 12px; border-radius: 8px; font-size: 14.5px; color: var(--wa-t1); white-space: nowrap; }
+.wd-pop-item.is-hover { background: rgba(255,255,255,0.08); }
+.wd-pop-item svg { flex-shrink: 0; }
+.wd-day { align-self: center; padding: 5px 12px; border-radius: 8px; background: var(--wa-system); color: var(--wa-t2); font-size: 12.5px; font-weight: 500; margin-bottom: 6px; }
+.wd-wrap { display: flex; }
+.wd-wrap.is-out { justify-content: flex-end; }
+.wd-wrap.is-in { justify-content: flex-start; }
+.wd-bubble {
+  position: relative; max-width: 65%; min-width: 72px;
+  padding: 6px 9px 8px 12px; border-radius: 7.5px;
+  box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+  margin-top: 8px; margin-bottom: 1px;
+}
+.wd-wrap.is-in .wd-bubble { background: var(--wa-input); border-top-left-radius: 0; }
+.wd-wrap.is-out .wd-bubble { background: var(--wa-out); border-top-right-radius: 0; }
+.wd-bubble .tail { position: absolute; top: 0; width: 8px; height: 13px; }
+.wd-wrap.is-in .tail { left: -8px; }
+.wd-wrap.is-out .tail { right: -8px; }
+.wd-bubble-text { font-size: 14.2px; line-height: 1.4; color: var(--wa-t1); padding-right: 58px; word-break: break-word; }
+.wd-meta {
+  position: absolute; bottom: 3px; right: 7px;
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; color: var(--wa-t2); font-variant-numeric: tabular-nums;
+}
+.wd-meta .tick { display: inline-flex; }
+.wd-meta .tick.is-read, .tick.is-read { color: var(--wa-tick); }
+.wd-wrap.anim { opacity: 0; transform: translateY(10px) scale(0.97); }
+.wd-wrap.anim.is-shown { opacity: 1; transform: none; transition: opacity 320ms cubic-bezier(0.22,1,0.36,1), transform 320ms cubic-bezier(0.22,1,0.36,1); }
+.wd-composer-pill {
+  min-height: 46px; padding: 3px 5px; border-radius: 24px; background: var(--wa-input);
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+}
+.wd-pill-btn { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--wa-t2); flex-shrink: 0; }
+.wd-input { flex: 1; min-width: 0; overflow: hidden; padding: 9px 8px; font-size: 15px; line-height: 1.4; display: flex; align-items: center; white-space: nowrap; }
+.wd-input .ph { color: var(--wa-t2); overflow: hidden; text-overflow: ellipsis; }
+.wd-input .typed { color: var(--wa-t1); flex-shrink: 0; }
+.wd-caret { width: 1.5px; height: 19px; background: var(--wa-green); margin-left: 1px; opacity: 0; flex-shrink: 0; }
+.wd-caret.is-on { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+.wd-send-btn {
+  width: 40px; height: 40px; border-radius: 999px;
+  display: none; align-items: center; justify-content: center;
+  background: var(--wa-green); color: #000; flex-shrink: 0;
+}
+.wd-composer-pill.has-text .wd-send-btn { display: flex; }
+.wd-composer-pill.has-text .wd-mic-btn { display: none; }
+.wd-composer-pill.has-text .wd-input .ph { display: none; }
+
+/* Cursor + ripple (shared by every demo) */
+.wd-cursor {
+  position: absolute; z-index: 50; top: 0; left: 0;
+  width: 22px; height: 22px; pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  transition: transform 800ms cubic-bezier(0.45,0.05,0.25,1);
+}
+.wd-cursor .cursor-scale { transition: transform 130ms ease-out; transform-origin: 6px 4px; }
+.wd-cursor.is-down .cursor-scale { transform: scale(0.82); }
+.wd-ripple {
+  position: absolute; z-index: 49; width: 36px; height: 36px; margin: -18px 0 0 -18px;
+  border-radius: 999px; border: 2px solid rgba(255,255,255,0.55);
+  pointer-events: none; opacity: 0;
+  animation: ripple 480ms cubic-bezier(0.22,1,0.36,1) both;
+}
+.wd-ripple.dark { border-color: rgba(20,20,19,0.45); }
+@keyframes ripple { 0% { transform: scale(0.25); opacity: 0.8; } 100% { transform: scale(1); opacity: 0; } }
+
+/* ============================================================
+   LIGHT PAGE KIT (.lt-*) — main app / .wa-root ant surfaces
+   ============================================================ */
+.lt-root { font-family: 'Inter', system-ui, sans-serif; background: var(--light); color: var(--ink); font-size: 13px; line-height: 1.45; }
+.lt-title { font-family: 'Poppins', sans-serif; letter-spacing: -0.01em; font-weight: 600; color: var(--ink); }
+.lt-serif { font-family: 'Lora', serif; font-style: italic; }
+.lt-card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; }
+.lt-mid { color: var(--mid); }
+.lt-muted { color: var(--muted); }
+.lt-btn-ink { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 600; }
+.lt-btn-line { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 600; }
+.lt-pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; }
+.lt-pill.p-green { color: var(--green); background: rgba(120,140,93,0.12); border: 1px solid rgba(120,140,93,0.3); }
+.lt-pill.p-orange { color: var(--orange); background: rgba(217,119,87,0.10); border: 1px solid rgba(217,119,87,0.3); }
+.lt-pill.p-rose { color: var(--rose); background: rgba(201,99,86,0.10); border: 1px solid rgba(201,99,86,0.3); }
+.lt-pill.p-blue { color: var(--blue); background: rgba(106,155,204,0.12); border: 1px solid rgba(106,155,204,0.3); }
+.lt-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: var(--mid); }
+.lt-input { height: 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); font-size: 12px; color: var(--ink); display: flex; align-items: center; padding: 0 12px; }
+
+/* ============================================================
+   Responsive & reduced motion
+   ============================================================ */
+@media (max-width: 980px) {
+  body { overflow: auto; padding: 16px; }
+  .modal { height: auto; max-height: none; }
+  .step-pane { position: relative; grid-template-columns: 1fr; gap: 24px; padding: 22px 20px; display: none; }
+  .step-pane.is-active { display: grid; }
+  .body { overflow: visible; }
+  .segments { width: 120px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .wd-cursor { display: none !important; }
+}
+
+/* SLIDE-CSS-INSERT */
+</style>
+</head>
+<body>
+
+<div class="veil" aria-hidden="true"></div>
+
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="announcement-title">
+  <div class="hairline"></div>
+
+  <!-- ======================= HEADER ======================= -->
+  <header class="head">
+    <div class="head-top">
+      <div class="head-brand">
+        <img class="logo-img" src="public/Logo/iGrowFast Logo Transparent.png" alt="iGrowFast"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+        <span class="logo-fallback">iGrow<em>Fast</em></span>
+      </div>
+      <div class="segbar">
+        <span class="seg-label" id="seg-label">Introduction</span>
+        <div class="segments" id="segments" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div class="head-main" id="head-main">
+      <div class="eyebrow"><span class="dot"></span> <span id="eyebrow-text">Annonce · Quoi de neuf</span></div>
+      <h1 class="title" id="announcement-title">—</h1>
+      <div class="title-desc" id="step-desc">—</div>
+    </div>
+  </header>
+
+  <!-- ======================= BODY ======================= -->
+  <div class="body" id="slides-host">
+
+    <!-- ============ SLIDE 0 : INTRO (text) ============ -->
+    <section class="step-pane text-pane" data-step="0">
+      <div class="text-inner">
+        <div class="eyebrow"><span class="dot"></span> Annonce</div>
+        <h2>Quoi de neuf sur iGrowFast</h2>
+        <div class="big-sub">Les dernières évolutions de la plateforme, résumées en quelques écrans.</div>
+        <div class="chapters">
+          <div class="chapter">
+            <span class="num">01</span>
+            <div>
+              <div class="ch-title">WhatsApp</div>
+              <div class="ch-sub">La messagerie devient un canal de vente complet, en temps réel.</div>
+            </div>
+          </div>
+          <div class="chapter">
+            <span class="num">02</span>
+            <div>
+              <div class="ch-title">Pages dédiées</div>
+              <div class="ch-sub">Numéros, connexion, paramètres, attributions et contacts.</div>
+            </div>
+          </div>
+          <div class="chapter">
+            <span class="num">03</span>
+            <div>
+              <div class="ch-title">Commandes</div>
+              <div class="ch-sub">Un nouvel export sur mesure, du filtre au fichier.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SLIDE 1 : WHATSAPP LAUNCH (demo) ============ -->
+    <section class="step-pane" data-step="1">
+      <div class="copy">
+        <div class="icon-tile tile-wa">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+        </div>
+        <h2>Vendez sur WhatsApp, directement depuis iGrowFast</h2>
+        <div class="sub">Entièrement fonctionnel, testé, et déjà en production.</div>
+        <p class="lead">Une boîte de réception <strong>en temps réel</strong>, partagée entre vos agents, connectée à vos commandes. Regardez-la travailler ci-contre.</p>
+        <div class="features">
+          <div class="feature">
+            <div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <span><strong>Messagerie complète</strong> — textes, photos, vidéos, notes vocales, documents</span>
+          </div>
+          <div class="feature">
+            <div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <span><strong>Plusieurs numéros, plusieurs agents</strong> — une seule boîte de réception</span>
+          </div>
+          <div class="feature">
+            <div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <span><strong>Reçus de lecture, présence, brouillons</strong> — comme sur WhatsApp, en mieux</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-col">
+        <div class="demo-frame" data-demo="1" data-w="960" data-h="620">
+          <div class="demo-stage wd-root" style="width:960px;height:620px;display:grid;grid-template-columns:360px minmax(0,1fr)">
+
+            <!-- SIDEBAR -->
+            <div style="display:grid;grid-template-rows:auto auto auto 1fr;border-right:1px solid rgba(255,255,255,0.04);min-width:0;min-height:0">
+              <div style="height:64px;padding:0 16px;display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                  <div class="wd-avatar a40"><span class="init">B</span></div>
+                  <div style="min-width:0">
+                    <div style="font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap">Boutique Principale
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div style="font-size:12.5px;color:var(--wa-t2)">iGrowFast</div>
+                  </div>
+                </div>
+                <div style="display:flex">
+                  <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg></div>
+                  <div class="wd-icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></div>
+                </div>
+              </div>
+              <div style="padding:8px 12px 7px">
+                <div style="height:36px;padding:0 16px;border-radius:21px;background:var(--wa-input);display:flex;align-items:center;gap:12px">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <span style="font-size:14px;color:var(--wa-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rechercher ou démarrer une discussion</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;padding:6px 16px 12px">
+                <div class="wd-chip is-active">Toutes</div>
+                <div class="wd-chip" id="s1-chip-unread">Non lues</div>
+                <div class="wd-chip">Favoris</div>
+              </div>
+              <div class="wd-fade" id="s1-list" style="position:relative;overflow:hidden">
+                <div class="s1-row is-active" id="s1-row-yassine" data-slot="0" style="transform:translateY(4px)">
+                  <div class="wd-avatar a49"><span class="init">Y</span></div>
+                  <div style="min-width:0">
+                    <div class="s1-rt"><span class="s1-name">Yassine El Amrani</span><span class="s1-time">12:47</span></div>
+                    <div class="s1-rb"><span class="s1-preview">Parfait, merci !</span></div>
+                  </div>
+                </div>
+                <div class="s1-row" id="s1-row-fatima" data-slot="1" style="transform:translateY(74px)">
+                  <div class="wd-avatar a49"><span class="init">F</span></div>
+                  <div style="min-width:0">
+                    <div class="s1-rt"><span class="s1-name">Fatima Zahra</span><span class="s1-time" id="s1-fatima-time">11:32</span></div>
+                    <div class="s1-rb"><span class="s1-preview" id="s1-fatima-preview">D'accord, je vous tiens au courant</span><span class="wd-badge s1-badge" id="s1-fatima-badge">1</span></div>
+                  </div>
+                </div>
+                <div class="s1-row" data-slot="2" style="transform:translateY(144px)">
+                  <div class="wd-avatar a49"><span class="init">M</span></div>
+                  <div style="min-width:0">
+                    <div class="s1-rt"><span class="s1-name">Mohamed Benali</span><span class="s1-time">10:18</span></div>
+                    <div class="s1-rb"><span class="s1-preview"><span class="tick is-read"><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span>Votre colis est en route</span></div>
+                  </div>
+                </div>
+                <div class="s1-row" data-slot="3" style="transform:translateY(214px)">
+                  <div class="wd-avatar a49"><span class="init">K</span></div>
+                  <div style="min-width:0">
+                    <div class="s1-rt"><span class="s1-name">Khadija Ouarzazi</span><span class="s1-time">Hier</span></div>
+                    <div class="s1-rb"><span class="s1-preview"><span class="tick"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10.5" r="1.4"/><path d="m21 15-4.35-4.35a1 1 0 0 0-1.42 0L6 20"/></svg></span>Photo</span></div>
+                  </div>
+                </div>
+                <div class="s1-row" data-slot="4" style="transform:translateY(284px)">
+                  <div class="wd-avatar a49"><span class="init">O</span></div>
+                  <div style="min-width:0">
+                    <div class="s1-rt"><span class="s1-name">Omar Tazi</span><span class="s1-time">Hier</span></div>
+                    <div class="s1-rb"><span class="s1-preview"><span class="tick is-read"><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span>Commande confirmée, livraison demain</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CHAT -->
+            <div style="position:relative;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr);min-width:0;min-height:0;background:var(--wa-bg)">
+              <div style="position:absolute;top:58px;left:0;right:0;bottom:0;background-image:url('public/BG.svg');background-repeat:repeat;background-size:374px 666px;filter:invert(1);opacity:0.06;pointer-events:none"></div>
+
+              <div style="position:relative;z-index:2;height:58px;padding:0 16px;background:var(--wa-bg);display:flex;align-items:center;justify-content:space-between">
+                <div class="wd-fade" style="display:flex;align-items:center;gap:12px;min-width:0">
+                  <div class="wd-avatar a40"><span class="init" id="s1-chat-init">Y</span></div>
+                  <div>
+                    <div style="font-size:16px;font-weight:500;white-space:nowrap" id="s1-chat-name">Yassine El Amrani</div>
+                    <div style="font-size:12.5px;color:var(--wa-t2)" id="s1-chat-status">En ligne récemment</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center">
+                  <div class="wd-icon-btn" id="s1-btn-orders" title="Commandes du client">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                    <span id="s1-orders-badge" style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--wa-green-bright);color:#111b21;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--wa-bg);opacity:0">2</span>
+                  </div>
+                  <div class="wd-icon-btn" title="Créer une commande">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+                    <span style="position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:999px;background:var(--wa-green-bright)"></span>
+                  </div>
+                  <div class="wd-icon-btn" title="Rechercher">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  </div>
+                  <div class="wd-icon-btn" title="Étiquette">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+                  </div>
+                  <div class="wd-icon-btn" title="Ajouter aux favoris">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                  </div>
+                </div>
+
+                <div class="wd-pop" id="s1-orders-dd" style="top:52px;right:12px;width:330px;transform-origin:top right">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--wa-t3);padding:6px 10px 4px">Commandes du client</div>
+                  <div style="display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px">
+                    <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#2c3e33,#1d2a22);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#7fbfa4">S</div>
+                    <div style="min-width:0">
+                      <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sérum Vitamine C ×1</div>
+                      <div style="display:flex;gap:4px;margin-top:4px"><span style="font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 7px;color:#00D9A6;background:rgba(0,217,166,0.08)">Livré</span><span style="font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 7px;color:#53BDEB;background:rgba(83,189,235,0.08)">Payé</span></div>
+                    </div>
+                    <div style="text-align:right">
+                      <div style="font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums">189 DH</div>
+                      <div style="font-size:11px;color:var(--wa-t2);margin-top:2px">28 juin 26</div>
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px">
+                    <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#3e3a2c,#2a271d);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#c9b87f">A</div>
+                    <div style="min-width:0">
+                      <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Crème Argan Bio ×2</div>
+                      <div style="display:flex;gap:4px;margin-top:4px"><span style="font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 7px;color:#00D9A6;background:rgba(0,217,166,0.08)">Livré</span><span style="font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 7px;color:#53BDEB;background:rgba(83,189,235,0.08)">Payé</span></div>
+                    </div>
+                    <div style="text-align:right">
+                      <div style="font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums">258 DH</div>
+                      <div style="font-size:11px;color:var(--wa-t2);margin-top:2px">12 mai 26</div>
+                    </div>
+                  </div>
+                  <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;padding:8px 10px 5px;text-align:center;font-size:13px;font-weight:600;color:var(--wa-green)">Voir plus</div>
+                </div>
+              </div>
+
+              <div class="wd-fade" id="s1-stream-yassine" style="position:relative;z-index:1;padding:14px 42px;display:flex;flex-direction:column;gap:2px;overflow:hidden;min-height:0">
+                <div style="flex:1 0 0"></div>
+                <div class="wd-day">Aujourd'hui</div>
+                <div class="wd-wrap is-in">
+                  <div class="wd-bubble">
+                    <svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg>
+                    <div class="wd-bubble-text">Bonjour, est-ce que le sérum vitamine C est disponible ?</div>
+                    <span class="wd-meta">12:44</span>
+                  </div>
+                </div>
+                <div class="wd-wrap is-out">
+                  <div class="wd-bubble">
+                    <svg class="tail" viewBox="0 0 8 13"><path d="M0 0h8L0 13V0Z" fill="#264C39"/></svg>
+                    <div class="wd-bubble-text">Oui, tout à fait ! Livraison en 24h sur Casablanca.</div>
+                    <span class="wd-meta">12:45 <span class="tick is-read"><svg width="16" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg></span></span>
+                  </div>
+                </div>
+                <div class="wd-wrap is-in">
+                  <div class="wd-bubble">
+                    <svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg>
+                    <div class="wd-bubble-text">Parfait, merci !</div>
+                    <span class="wd-meta">12:47</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wd-fade" id="s1-stream-fatima" style="position:relative;z-index:1;padding:14px 42px;display:none;flex-direction:column;gap:2px;overflow:hidden;min-height:0">
+                <div style="flex:1 0 0"></div>
+                <div class="wd-day">Aujourd'hui</div>
+                <div class="wd-wrap is-in anim" id="s1-msg-in">
+                  <div class="wd-bubble">
+                    <svg class="tail" viewBox="0 0 8 13"><path d="M8 0H0l8 13V0Z" fill="#1F1F1F" transform="scale(-1,1) translate(-8,0)"/></svg>
+                    <div class="wd-bubble-text">Bonjour, je veux commander le pack sérum x2 svp</div>
+                    <span class="wd-meta">13:02</span>
+                  </div>
+                </div>
+                <div class="wd-wrap is-out anim" id="s1-msg-out" style="display:none">
+                  <div class="wd-bubble">
+                    <svg class="tail" viewBox="0 0 8 13"><path d="M0 0h8L0 13V0Z" fill="#264C39"/></svg>
+                    <div class="wd-bubble-text" id="s1-out-text"></div>
+                    <span class="wd-meta">13:03 <span class="tick" id="s1-out-tick"></span></span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="position:relative;z-index:2;padding:8px 16px 10px">
+                <div class="wd-composer-pill" id="s1-composer">
+                  <div class="wd-pill-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+                  <div class="wd-pill-btn"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14.5c.9 1.2 2.3 2 4 2s3.1-.8 4-2"/><circle cx="9" cy="9.6" r="0.6" fill="currentColor" stroke="none"/><circle cx="15" cy="9.6" r="0.6" fill="currentColor" stroke="none"/></svg></div>
+                  <div class="wd-input" id="s1-input">
+                    <span class="ph">Entrez un message</span><span class="typed" id="s1-typed"></span><span class="wd-caret" id="s1-caret"></span>
+                  </div>
+                  <div class="wd-pill-btn wd-mic-btn"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+                  <div class="wd-send-btn" id="s1-btn-send"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M1.101 21.757 23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/></svg></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="demo-caption"><span class="live-dot"></span> Aperçu en direct — reproduction fidèle de la boîte de réception</div>
+      </div>
+    </section>
+
+    <!-- SLIDE-HTML-INSERT -->
+
+    <!-- ============ FINAL SLIDE : OUTRO (text) ============ -->
+    <section class="step-pane text-pane" data-step="LAST">
+      <div class="text-inner">
+        <div class="eyebrow"><span class="dot"></span> C'est tout — pour l'instant</div>
+        <h2>Tout est déjà actif sur votre compte</h2>
+        <div class="big-sub">Ouvrez la boîte WhatsApp, envoyez un premier message, exportez vos commandes.</div>
+        <p class="outro-note">Ces nouveautés sont en production dès aujourd'hui. Si vous constatez le <strong>moindre problème</strong> — un bug, une lenteur, un comportement inattendu — merci de le <strong>signaler immédiatement à l'équipe de développement</strong>.<br/><span class="lt-serif" style="color:rgba(255,255,255,0.45);font-size:12.5px">— L'équipe iGrowFast</span></p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ======================= FOOTER ======================= -->
+  <footer class="foot">
+    <button class="btn-ghost" id="btn-back" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Précédent
+    </button>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span class="foot-count" id="foot-count"></span>
+      <button class="btn-primary" id="btn-next" type="button">
+        <span id="btn-next-label">Commencer</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </button>
+    </div>
+  </footer>
+</div>
+
+<style>
+/* Slide 1 specifics */
+.s1-row {
+  position: absolute; left: 6px; right: 6px; height: 70px;
+  padding: 10px 12px 10px 8px; border-radius: 10px;
+  display: grid; grid-template-columns: 49px 1fr; gap: 13px; align-items: center;
+  transition: transform 500ms cubic-bezier(0.22,1,0.36,1), background 200ms;
+}
+.s1-row.is-active { background: var(--wa-active); }
+.s1-rt { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.s1-name { font-size: 15px; font-weight: 500; color: var(--wa-t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s1-time { font-size: 12px; color: var(--wa-t2); font-variant-numeric: tabular-nums; flex-shrink: 0; transition: color 250ms; }
+.s1-row.is-unread .s1-time { color: var(--wa-green); }
+.s1-rb { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.s1-preview { font-size: 13.5px; color: var(--wa-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.s1-preview .tick { flex-shrink: 0; display: inline-flex; }
+.s1-preview .tick.is-read { color: var(--wa-tick); }
+.s1-badge { opacity: 0; transform: scale(0.4); transition: opacity 250ms, transform 350ms cubic-bezier(0.34,1.56,0.64,1); }
+.s1-badge.is-on { opacity: 1; transform: scale(1); }
+</style>
+
+<script>
+/* ============================================================
+   SLIDE META — drives header, segments, footer
+   ============================================================ */
+const SLIDE_META = [
+  { section: 'Introduction', headless: true },
+  { section: 'WhatsApp', title: 'WhatsApp est officiellement lancé', desc: 'Intégration complète, testée, et déjà en production.' },
+  /* SLIDE-META-INSERT */
+  { section: 'Fin', headless: true },
+];
+
+/* ============================================================
+   WIZARD RUNTIME
+   ============================================================ */
+const ABORT = Symbol('abort');
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+window.DEMOS = {};
+
+(function () {
+  const host = document.getElementById('slides-host');
+  // resolve LAST placeholder
+  const last = host.querySelector('[data-step="LAST"]');
+  last.dataset.step = String(SLIDE_META.length - 1);
+
+  const N = SLIDE_META.length;
+  let step = 0;
+  let ctl = null; // current demo abort token
+
+  const panes = [...host.querySelectorAll('.step-pane')];
+  const segs = document.getElementById('segments');
+  for (let i = 0; i < N; i++) segs.appendChild(document.createElement('span'));
+  const segEls = [...segs.children];
+
+  const el = (id) => document.getElementById(id);
+  const btnBack = el('btn-back'), btnNext = el('btn-next'), btnNextLabel = el('btn-next-label');
+
+  function stopDemo() { if (ctl) { ctl.aborted = true; ctl = null; } }
+
+  function startDemo(i) {
+    stopDemo();
+    const d = window.DEMOS[i];
+    if (!d) return;
+    const pane = host.querySelector('[data-step="' + i + '"]');
+    const stage = pane && pane.querySelector('.demo-stage');
+    if (!stage) return;
+    if (REDUCED) { try { d.init && d.init(stage); d.staticState && d.staticState(stage); } catch (e) { console.error(e); } return; }
+    const myCtl = { aborted: false };
+    ctl = myCtl;
+    (async () => {
+      const e = makeEngine(stage, myCtl);
+      try { await e.sleep(400); } catch (_) { return; }
+      for (;;) {
+        if (myCtl.aborted) return;
+        try {
+          d.init && d.init(stage);
+          await d.scene(e, stage);
+        } catch (err) {
+          if (err === ABORT || myCtl.aborted) return;
+          console.error('[demo ' + i + ']', err);
+          try { await e.sleep(1500); } catch (_) { return; }
+        }
+      }
+    })();
+  }
+
+  function render() {
+    panes.forEach((p) => {
+      const i = parseInt(p.dataset.step, 10);
+      p.classList.toggle('is-active', i === step);
+      p.classList.toggle('is-left', i < step);
+    });
+    segEls.forEach((s, i) => {
+      s.classList.toggle('done', i < step);
+      s.classList.toggle('cur', i === step);
+    });
+    const m = SLIDE_META[step];
+    el('seg-label').textContent = m.section;
+    const hm = el('head-main');
+    hm.classList.toggle('is-hidden', !!m.headless);
+    if (!m.headless) {
+      el('announcement-title').textContent = m.title || '';
+      el('step-desc').textContent = m.desc || '';
+      el('eyebrow-text').textContent = 'Annonce · ' + m.section;
+    }
+    btnBack.classList.toggle('is-visible', step > 0);
+    btnNextLabel.textContent = step === 0 ? 'Commencer' : step === N - 1 ? "J'ai compris" : 'Continuer';
+    el('foot-count').textContent = (step + 1) + ' / ' + N;
+    history.replaceState(null, '', '#s=' + step);
+    startDemo(step);
+  }
+
+  function go(delta) {
+    const next = Math.min(N - 1, Math.max(0, step + delta));
+    if (next === step) return;
+    step = next;
+    render();
+  }
+  btnNext.addEventListener('click', () => { if (step < N - 1) go(1); });
+  btnBack.addEventListener('click', () => go(-1));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') go(1);
+    if (e.key === 'ArrowLeft') go(-1);
+  });
+
+  // fit all demo stages
+  const fit = (frame) => {
+    const stage = frame.querySelector('.demo-stage');
+    if (!stage) return;
+    const w = parseInt(frame.dataset.w, 10), h = parseInt(frame.dataset.h, 10);
+    frame.style.aspectRatio = w + ' / ' + h;
+    const s = frame.clientWidth / w;
+    stage.style.transform = 'scale(' + s + ')';
+  };
+  const ro = new ResizeObserver((entries) => entries.forEach((en) => fit(en.target)));
+  document.querySelectorAll('.demo-frame').forEach((f) => { fit(f); ro.observe(f); });
+
+  // deep link (#s=N) for review/debug
+  const mHash = location.hash.match(/s=(\d+)/);
+  if (mHash) step = Math.min(N - 1, Math.max(0, parseInt(mHash[1], 10)));
+  // defer first render past the synchronous DEMOS registrations below
+  setTimeout(render, 0);
+})();
+
+/* ============================================================
+   DEMO ENGINE — per-stage helpers, abortable
+   ============================================================ */
+function makeEngine(stage, ctl) {
+  // ensure cursor + park it
+  let cursor = stage.querySelector(':scope > .wd-cursor');
+  if (!cursor) {
+    cursor = document.createElement('div');
+    cursor.className = 'wd-cursor';
+    cursor.innerHTML = '<svg class="cursor-scale" width="22" height="22" viewBox="0 0 24 24"><path d="M5.5 3.2v16.9c0 .45.55.68.87.36l4.1-4.1c.1-.1.23-.15.36-.15h5.85c.46 0 .68-.55.36-.87L6.37 2.85c-.32-.32-.87-.1-.87.35Z" fill="#fff" stroke="#141413" stroke-width="1.3"/></svg>';
+    stage.appendChild(cursor);
+  }
+  const designW = stage.offsetWidth;
+  const sleep = (ms) => new Promise((res, rej) => {
+    if (ctl.aborted) return rej(ABORT);
+    setTimeout(() => (ctl.aborted ? rej(ABORT) : res()), ms);
+  });
+  const move = async (x, y, ms = 700) => {
+    cursor.style.transitionDuration = ms + 'ms';
+    cursor.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+    await sleep(ms + 40);
+  };
+  const click = async (x, y, dark = false) => {
+    cursor.classList.add('is-down');
+    const rip = document.createElement('div');
+    rip.className = 'wd-ripple' + (dark ? ' dark' : '');
+    rip.style.left = (x + 4) + 'px';
+    rip.style.top = (y + 4) + 'px';
+    stage.appendChild(rip);
+    await sleep(140);
+    cursor.classList.remove('is-down');
+    setTimeout(() => rip.remove(), 500);
+    await sleep(120);
+  };
+  const center = (elOrSel) => {
+    const target = typeof elOrSel === 'string' ? stage.querySelector(elOrSel) : elOrSel;
+    const s = stage.getBoundingClientRect().width / designW;
+    const r = target.getBoundingClientRect();
+    const st = stage.getBoundingClientRect();
+    return { x: (r.left - st.left + r.width / 2) / s, y: (r.top - st.top + r.height / 2) / s };
+  };
+  const typeText = async (spanEl, text, msPerChar = 26) => {
+    const clip = spanEl.closest('.wd-input') || spanEl.parentElement;
+    const pill = spanEl.closest('.wd-composer-pill');
+    for (let i = 0; i < text.length; i++) {
+      spanEl.textContent += text[i];
+      if (i === 0 && pill) pill.classList.add('has-text');
+      clip.scrollLeft = clip.scrollWidth;
+      await sleep(text[i] === ' ' ? 13 : msPerChar);
+    }
+  };
+  return { sleep, move, click, center, typeText, cursor, q: (s) => stage.querySelector(s), qa: (s) => [...stage.querySelectorAll(s)] };
+}
+
+/* ============================================================
+   SLIDE 1 SCENE — WhatsApp inbox
+   ============================================================ */
+(function () {
+  const TICK_CLOCK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>';
+  const TICK_ONE = '<svg width="14" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6.5 5.8 9.5 11.5 2.5"/></svg>';
+  const TICK_TWO = '<svg width="16" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg>';
+  const REPLY = 'Bonjour ! Oui, le pack x2 est disponible. Je vous confirme la commande ?';
+  const ROW_H = 70;
+
+  const $ = (id) => document.getElementById(id);
+
+  function slotRows(stage) {
+    stage.querySelectorAll('.s1-row').forEach((r) => {
+      r.style.transform = 'translateY(' + (parseInt(r.dataset.slot, 10) * ROW_H + 4) + 'px)';
+    });
+  }
+
+  function init(stage) {
+    const y = $('s1-row-yassine'), f = $('s1-row-fatima');
+    y.dataset.slot = '0'; f.dataset.slot = '1';
+    slotRows(stage);
+    y.classList.add('is-active');
+    f.classList.remove('is-active', 'is-unread');
+    $('s1-fatima-badge').classList.remove('is-on');
+    $('s1-fatima-time').textContent = '11:32';
+    $('s1-fatima-preview').innerHTML = "D'accord, je vous tiens au courant";
+    $('s1-chip-unread').textContent = 'Non lues';
+    $('s1-chat-init').textContent = 'Y';
+    $('s1-chat-name').textContent = 'Yassine El Amrani';
+    $('s1-chat-status').textContent = 'En ligne récemment';
+    $('s1-stream-yassine').style.display = 'flex';
+    $('s1-stream-fatima').style.display = 'none';
+    $('s1-msg-in').classList.remove('is-shown');
+    const out = $('s1-msg-out');
+    out.style.display = 'none'; out.classList.remove('is-shown');
+    $('s1-out-text').textContent = '';
+    const t = $('s1-out-tick'); t.innerHTML = TICK_CLOCK; t.classList.remove('is-read');
+    $('s1-typed').textContent = '';
+    $('s1-composer').classList.remove('has-text');
+    $('s1-input').scrollLeft = 0;
+    $('s1-caret').classList.remove('is-on');
+    $('s1-orders-dd').classList.remove('is-open');
+    $('s1-orders-badge').style.opacity = '0';
+  }
+
+  function staticState(stage) {
+    init(stage);
+    const y = $('s1-row-yassine'), f = $('s1-row-fatima');
+    y.dataset.slot = '1'; f.dataset.slot = '0';
+    slotRows(stage);
+    y.classList.remove('is-active'); f.classList.add('is-active');
+    $('s1-fatima-time').textContent = '13:03';
+    $('s1-fatima-preview').innerHTML = '<span class="tick is-read">' + TICK_TWO + '</span>' + REPLY;
+    $('s1-chat-init').textContent = 'F';
+    $('s1-chat-name').textContent = 'Fatima Zahra';
+    $('s1-chat-status').textContent = 'en ligne';
+    $('s1-stream-yassine').style.display = 'none';
+    const sf = $('s1-stream-fatima'); sf.style.display = 'flex';
+    $('s1-msg-in').classList.remove('anim');
+    const out = $('s1-msg-out');
+    out.classList.remove('anim'); out.style.display = '';
+    $('s1-out-text').textContent = REPLY;
+    const t = $('s1-out-tick'); t.innerHTML = TICK_TWO; t.classList.add('is-read');
+    $('s1-orders-badge').style.opacity = '1';
+  }
+
+  async function scene(e, stage) {
+    await e.move(700, 420, 0);
+    await e.sleep(1100);
+
+    // incoming message
+    $('s1-fatima-time').textContent = '13:02';
+    $('s1-fatima-preview').textContent = 'Bonjour, je veux commander le pack sérum x2 svp';
+    $('s1-row-fatima').classList.add('is-unread');
+    $('s1-fatima-badge').classList.add('is-on');
+    $('s1-chip-unread').textContent = 'Non lues 1';
+    $('s1-row-yassine').dataset.slot = '1';
+    $('s1-row-fatima').dataset.slot = '0';
+    slotRows(stage);
+    await e.sleep(1300);
+
+    // open the conversation
+    const rf = e.center('#s1-row-fatima');
+    await e.move(rf.x - 40, rf.y, 850);
+    await e.click(rf.x - 40, rf.y);
+    $('s1-row-yassine').classList.remove('is-active');
+    $('s1-row-fatima').classList.add('is-active');
+    $('s1-row-fatima').classList.remove('is-unread');
+    $('s1-fatima-badge').classList.remove('is-on');
+    $('s1-chip-unread').textContent = 'Non lues';
+    $('s1-chat-init').textContent = 'F';
+    $('s1-chat-name').textContent = 'Fatima Zahra';
+    $('s1-chat-status').textContent = 'en ligne';
+    $('s1-stream-yassine').style.display = 'none';
+    $('s1-stream-fatima').style.display = 'flex';
+    $('s1-orders-badge').style.opacity = '1';
+    await e.sleep(60);
+    $('s1-msg-in').classList.add('is-shown');
+    await e.sleep(1000);
+
+    // orders history peek
+    const ob = e.center('#s1-btn-orders');
+    await e.move(ob.x, ob.y, 700);
+    await e.click(ob.x, ob.y);
+    $('s1-orders-dd').classList.add('is-open');
+    await e.sleep(1900);
+    $('s1-orders-dd').classList.remove('is-open');
+    await e.sleep(250);
+
+    // type the reply
+    const comp = e.center('#s1-composer');
+    await e.move(comp.x - 60, comp.y, 700);
+    await e.click(comp.x - 60, comp.y);
+    $('s1-caret').classList.add('is-on');
+    await e.typeText($('s1-typed'), REPLY);
+    $('s1-caret').classList.remove('is-on');
+    await e.sleep(300);
+
+    // send
+    const sb = e.center('#s1-btn-send');
+    await e.move(sb.x, sb.y, 450);
+    await e.click(sb.x, sb.y);
+    $('s1-typed').textContent = '';
+    $('s1-composer').classList.remove('has-text');
+    $('s1-input').scrollLeft = 0;
+    const out = $('s1-msg-out');
+    out.style.display = '';
+    $('s1-out-text').textContent = REPLY;
+    $('s1-out-tick').innerHTML = TICK_CLOCK;
+    await e.sleep(40);
+    out.classList.add('is-shown');
+    $('s1-fatima-time').textContent = '13:03';
+    $('s1-fatima-preview').innerHTML = '<span class="tick" id="s1-side-tick">' + TICK_CLOCK + '</span>' + REPLY;
+
+    await e.sleep(650);
+    $('s1-out-tick').innerHTML = TICK_ONE;
+    $('s1-side-tick').innerHTML = TICK_ONE;
+    await e.sleep(750);
+    $('s1-out-tick').innerHTML = TICK_TWO;
+    $('s1-side-tick').innerHTML = TICK_TWO;
+    await e.sleep(950);
+    $('s1-out-tick').classList.add('is-read');
+    $('s1-side-tick').classList.add('is-read');
+
+    await e.move(700, 460, 800);
+    await e.sleep(2400);
+    stage.classList.add('is-resetting');
+    await e.sleep(420);
+    init(stage);
+    stage.classList.remove('is-resetting');
+    await e.sleep(200);
+  }
+
+  window.DEMOS[1] = { init, scene, staticState };
+})();
+
+/* SLIDE-SCENE-INSERT */
+</script>
+</body>
+</html>
