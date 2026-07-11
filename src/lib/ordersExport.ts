@@ -224,7 +224,7 @@ export const EXPORT_COLUMNS: ExportColumn[] = [
         selectFragments: ['exchange_of_order_id'], extract: (r) => fmtStr(r.exchange_of_order_id),
     },
     {
-        key: 'note', group: 'commande', label: 'Note',
+        key: 'note', group: 'commande', label: 'Note interne',
         selectFragments: ['note'], extract: (r) => fmtStr(r.note),
     },
 
@@ -347,7 +347,10 @@ export const EXPORT_COLUMNS: ExportColumn[] = [
                 .join('; '),
     },
     {
-        key: 'delivery_note', group: 'livraison', label: 'Bon de livraison',
+        // orders.delivery_note is the "Public Delivery Note" TEXT shown on the
+        // order modal (a message for the courier/customer) — NOT the BL
+        // document. 'Bon de livraison' was a mislabel.
+        key: 'delivery_note', group: 'livraison', label: 'Note de livraison (publique)',
         selectFragments: ['delivery_note'], extract: (r) => fmtStr(r.delivery_note),
     },
 
