@@ -2855,7 +2855,11 @@ window.DEMOS = {};
     btnSkip.classList.toggle('is-hidden', step === N - 1);
     btnNextLabel.textContent = step === 0 ? 'Commencer' : step === N - 1 ? "J'ai compris" : 'Continuer';
     el('foot-count').textContent = (step + 1) + ' / ' + N;
-    history.replaceState(null, '', '#s=' + step);
+    // Deep-link hash for standalone review only. In the app the deck runs inside
+    // an <iframe srcdoc> (URL about:srcdoc), where replaceState to a same-origin
+    // URL throws SecurityError — which would abort render() BEFORE startDemo and
+    // freeze every animation. Guard it so the demos always start.
+    try { history.replaceState(null, '', '#s=' + step); } catch (_) { /* srcdoc: no same-origin history */ }
     startDemo(step);
   }
 
