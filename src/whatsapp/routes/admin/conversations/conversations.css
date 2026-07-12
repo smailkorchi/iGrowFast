@@ -297,6 +297,61 @@
   background: rgba(134, 150, 160, 0.10);
 }
 
+/* ── Ghost mode (admin invisible viewing) ── */
+/* Toggle button. OFF: an outline ghost in the muted icon color (like its
+   siblings). ON: inverts to a light pill with a dark ghost — the "after
+   toggle" state, so "you are invisible" reads at a glance in both headers. */
+.wac__ghost-btn.is-ghost {
+  color: #1d1f23;
+  background: #fff;
+}
+.wac__ghost-btn.is-ghost:hover {
+  color: #1d1f23;
+  background: #f0f0f0;
+}
+
+/* Hover micro-interaction: the ghost's pupils dart around ("looking"). Both
+   dots share one animation so they move in unison. transform-box:fill-box lets
+   an SVG child transform about its own centre. */
+.wac__ghost-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes wac-ghost-look {
+  0%, 100% { transform: translate(0, 0); }
+  18%      { transform: translate(0, -1.1px); }   /* up    */
+  40%      { transform: translate(1.3px, 0); }    /* right */
+  62%      { transform: translate(-1.3px, 0); }   /* left  */
+  82%      { transform: translate(0, 0.9px); }    /* down  */
+}
+.wac__ghost-btn:hover .wac__ghost-eye {
+  animation: wac-ghost-look 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wac__ghost-btn:hover .wac__ghost-eye { animation: none; }
+}
+
+/* Slim banner under the chat header while a thread is open under ghost mode.
+   Neutral/monochrome to match the glyph; text uses the theme token for
+   guaranteed contrast in both themes. */
+.wac__ghost-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(130, 130, 150, 0.14);
+  border-bottom: 1px solid rgba(130, 130, 150, 0.22);
+  color: var(--wa-text-primary);
+  font-size: 12.5px;
+  line-height: 1.35;
+  position: relative;
+  z-index: 9;
+}
+.wac__ghost-strip svg {
+  flex: 0 0 auto;
+  color: var(--wa-text-secondary);
+}
+
 /* ── Search ── */
 .wac__search {
   padding: 8px 12px 7px;

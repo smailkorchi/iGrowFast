@@ -66,6 +66,7 @@ import type { QuickReply } from '../../lib/queries/quickReplies'
 import { useTags, useAllConversationTags, useConversationTags } from '../../lib/queries/tags'
 import { EcomBizRealtime } from '../../lib/queries/ecomChannels'
 import { useEscToCloseConversation } from '../../lib/useEscToClose'
+import { useGhostMode } from '../../lib/useGhostMode'
 import './conversations/conversations.css'
 
 // ─── localStorage helpers (per-instance favourites) ─────────────────────────
@@ -384,20 +385,30 @@ export default function AdminConversations() {
   const threadQ = useThreadMessages(activeId)
   useThreadRealtime(activeId)
 
+  // ─── ghost mode (admin-only invisible viewing) ───────────────────────────
+  // When ON, opening/viewing a conversation fires NEITHER mark-read NOR a read
+  // receipt — the unread badge stays and the customer never sees "seen".
+  // Purely the ABSENCE of the two calls below; no server/DB footprint.
+  const [ghost, toggleGhost, ghostRef] = useGhostMode()
+
   // ─── mark-read on open ───────────────────────────────────────────────────
   // When a conversation is opened: (1) clear the local unread badge via
   // mark_conversation_read, (2) send a read receipt (blue ticks) to the
   // customer's WhatsApp. Both best-effort. Guarded against re-firing for the
-  // same conversation id.
+  // same conversation id. Ghost mode short-circuits BOTH — and, because ghost
+  // is a dependency and we only stamp markedReadRef once we actually mark,
+  // flipping ghost OFF while the thread is still open resumes normal behaviour
+  // (the now-due "seen" is sent).
   const markRead = useMarkConversationRead()
   const markedReadRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activeId) return
+    if (ghost) return
     if (markedReadRef.current === activeId) return
     markedReadRef.current = activeId
     markRead(activeId)
     void sendReadReceipt(activeId).catch(() => { /* best-effort */ })
-  }, [activeId])
+  }, [activeId, ghost])
 
   // Mark-read while the conversation is OPEN: when a new inbound message
   // arrives (the newest message id changes and it's inbound), clear unread +
@@ -417,6 +428,9 @@ export default function AdminConversations() {
     if (newest.direction !== 'inbound') return
     if (readDebounceRef.current) clearTimeout(readDebounceRef.current)
     readDebounceRef.current = setTimeout(() => {
+      // Read the LIVE flag at fire time: arming ghost during the 1.2s window
+      // must still suppress the receipt.
+      if (ghostRef.current) return
       markRead(activeId)
       void sendReadReceipt(activeId).catch(() => { /* best-effort */ })
     }, 1200)
@@ -605,6 +619,8 @@ export default function AdminConversations() {
           }))}
           onSwitchInstance={onSwitchInstance}
           unreadByInstance={unreadByInstance}
+          ghostMode={ghost}
+          onToggleGhost={toggleGhost}
         />
       )}
       {view === 'new-chat' && (
@@ -660,6 +676,8 @@ export default function AdminConversations() {
         <ChatPane
           conv={activeConv}
           messages={thread.messages}
+          ghostMode={ghost}
+          onToggleGhost={toggleGhost}
           onOpenInfo={() => setRightPane((p) => p === 'info' ? 'none' : 'info')}
           onOpenSearch={() => setRightPane((p) => p === 'search' ? 'none' : 'search')}
           onLoadOlder={() => { if (threadQ.hasNextPage && !threadQ.isFetchingNextPage) void threadQ.fetchNextPage() }}

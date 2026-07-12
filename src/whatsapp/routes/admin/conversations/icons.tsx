@@ -768,3 +768,22 @@ export function IconEyeOff(p: IconProps) {
     </Svg>
   )
 }
+
+/**
+ * Ghost-mode glyph — a STROKED outline ghost (dome head + 5-point wavy skirt),
+ * matching the line style of the rest of this icon set (`fill:none`, current-
+ * color stroke inherited from <Svg>). The two pupils are discrete filled dots
+ * carrying `wac__ghost-eye`, so conversations.css can dart them around on the
+ * button's :hover (the "ghost looking around" micro-interaction). Body is an
+ * outline, so the interior is transparent — the pupils always read against
+ * whatever sits behind the button, in either toggle state, with no bg coupling.
+ */
+export function IconGhost(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 20.6 V10 A7 7 0 0 1 19 10 V20.6 L16.5 18.7 L14 20.6 L12 18.7 L10 20.6 L7.5 18.7 Z" />
+      <circle className="wac__ghost-eye" cx="9.5" cy="11" r="1.15" fill="currentColor" stroke="none" />
+      <circle className="wac__ghost-eye" cx="14.5" cy="11" r="1.15" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}

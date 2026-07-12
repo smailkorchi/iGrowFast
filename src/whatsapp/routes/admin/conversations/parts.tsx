@@ -52,6 +52,7 @@ import {
   IconDocument,
   IconDownload,
   IconForward,
+  IconGhost,
   IconHeadphones,
   IconImage,
   IconLocationPin,
@@ -255,6 +256,11 @@ export interface ChatListProps {
   /** Unread count per instance id. Powers the header dot showing missed
    *  messages on inactive instances + the per-row badge in the dropdown. */
   unreadByInstance?: Map<string, number>
+  /** Admin-only "ghost mode" (invisible viewing). When onToggleGhost is
+   *  provided the eye-off toggle renders in the list header; agents never
+   *  receive it, so their read-receipt path is untouched. */
+  ghostMode?: boolean
+  onToggleGhost?: () => void
 }
 
 export function ChatList(p: ChatListProps) {
@@ -547,6 +553,20 @@ export function ChatList(p: ChatListProps) {
           )}
         </div>
         <div className="wac__head-actions">
+          {/* Admin-only ghost mode: view conversations without sending a read
+              receipt or clearing the unread badge. Renders only when the admin
+              route wires onToggleGhost. */}
+          {p.onToggleGhost && (
+            <button
+              className={'wac__icon-btn wac__ghost-btn' + (p.ghostMode ? ' is-ghost' : '')}
+              aria-label={p.ghostMode ? 'Mode fantôme actif' : 'Mode fantôme'}
+              aria-pressed={!!p.ghostMode}
+              title={p.ghostMode ? 'Mode fantôme actif — aucune trace' : 'Mode fantôme'}
+              onClick={p.onToggleGhost}
+            >
+              <IconGhost />
+            </button>
+          )}
           <button
             className="wac__icon-btn"
             aria-label="Nouvelle discussion"
@@ -2759,6 +2779,11 @@ export interface ChatPaneProps {
    *  clickable (null = restricted, id not loaded yet → nothing clickable).
    *  Leave undefined in the admin inbox — every row is clickable. */
   ordersSellerId?: string | null
+  /** Admin-only ghost-mode toggle mirrored into the chat header so it can be
+   *  flipped mid-conversation. Renders (button + under-header strip) only when
+   *  onToggleGhost is provided. */
+  ghostMode?: boolean
+  onToggleGhost?: () => void
 }
 
 export interface ComposerState {
@@ -3456,6 +3481,19 @@ export function ChatPane(p: ChatPaneProps) {
           </div>
         </div>
         <div className="wac__chathead-actions">
+          {/* Admin-only ghost mode, mirrored here so it can be flipped mid-
+              conversation (arm on/off without leaving the thread). */}
+          {p.onToggleGhost && (
+            <button
+              className={'wac__icon-btn wac__ghost-btn' + (p.ghostMode ? ' is-ghost' : '')}
+              aria-label={p.ghostMode ? 'Mode fantôme actif' : 'Mode fantôme'}
+              aria-pressed={!!p.ghostMode}
+              title={p.ghostMode ? 'Mode fantôme actif — aucune trace' : 'Mode fantôme'}
+              onClick={p.onToggleGhost}
+            >
+              <IconGhost size={20} />
+            </button>
+          )}
           {/* IGF ADDITION (order-history seam): customer order history. */}
           {p.onViewOrder && parsed.kind === 'phone' && (
             <CustomerOrdersButton
@@ -3530,6 +3568,13 @@ export function ChatPane(p: ChatPaneProps) {
           </button>
         </div>
       </header>
+
+      {p.onToggleGhost && p.ghostMode && (
+        <div className="wac__ghost-strip" role="status">
+          <IconGhost size={15} />
+          <span>Mode fantôme — vos lectures ne sont pas envoyées, le compteur non-lu reste inchangé.</span>
+        </div>
+      )}
 
       <PinnedBar conversationId={p.conv.id ?? null} />
 
