@@ -503,8 +503,8 @@ export function ChatList(p: ChatListProps) {
               : <IconUser size={22} />}
           </div>
           <div className="wac__head-meta">
-            <span className="wac__head-title" style={canSwitch ? { display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}>
-              {p.instance?.display_name ?? 'WhatsApp'}
+            <span className="wac__head-title" style={canSwitch ? { display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 } : undefined}>
+              <span className="wac__head-title-name">{p.instance?.display_name ?? 'WhatsApp'}</span>
               {canSwitch && otherUnread > 0 && (
                 <span
                   aria-label={`${otherUnread} message(s) non lu(s) sur d'autres numéros`}
@@ -523,6 +523,7 @@ export function ChatList(p: ChatListProps) {
                     fontWeight: 700,
                     fontVariantNumeric: 'tabular-nums',
                     lineHeight: 1,
+                    flexShrink: 0,
                   }}
                 >
                   {otherUnread > 99 ? '99+' : otherUnread}
@@ -535,6 +536,7 @@ export function ChatList(p: ChatListProps) {
                     opacity: 0.6,
                     transition: 'transform 0.15s',
                     transform: switcherOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    flexShrink: 0,
                   }}
                 />
               )}

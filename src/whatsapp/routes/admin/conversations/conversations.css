@@ -250,7 +250,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
+  min-width: 0; /* shrink within head-meta so the name truncates, never overflows */
 }
+
+/* The switcher title is an inline-flex row (name + unread badge + chevron); a
+   raw text node there can't ellipsis, so the name lives in its own truncating
+   item. Both header modes route the name through this. */
+.wac__head-title-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Instance-switcher header only: slightly smaller title/subtitle so the
+   ghost + new-chat + menu actions always fit alongside a long instance name. */
+.wac__head--with-avatar .wac__head-title { font-size: 15px; max-width: 168px; }
+.wac__head--with-avatar .wac__head-subtitle { font-size: 12px; max-width: 168px; }
 
 .wac__head-subtitle {
   font-size: 12.5px;
@@ -265,6 +281,7 @@
 .wac__head-actions {
   display: flex;
   gap: 4px;
+  flex-shrink: 0; /* actions keep their size; the title yields + truncates */
 }
 
 .wac__icon-btn {
