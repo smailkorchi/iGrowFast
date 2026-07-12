@@ -391,19 +391,26 @@ export default function AdminConversations() {
   // Purely the ABSENCE of the two calls below; no server/DB footprint.
   const [ghost, toggleGhost, ghostRef] = useGhostMode()
 
-  // ─── mark-read on open ───────────────────────────────────────────────────
-  // When a conversation is opened: (1) clear the local unread badge via
-  // mark_conversation_read, (2) send a read receipt (blue ticks) to the
-  // customer's WhatsApp. Both best-effort. Guarded against re-firing for the
-  // same conversation id. Ghost mode short-circuits BOTH — and, because ghost
-  // is a dependency and we only stamp markedReadRef once we actually mark,
-  // flipping ghost OFF while the thread is still open resumes normal behaviour
-  // (the now-due "seen" is sent).
+  // ─── mark-read on open / on ghost-off ────────────────────────────────────
+  // When a conversation is opened (ghost off): (1) clear the local unread badge
+  // via mark_conversation_read, (2) send a read receipt (blue ticks). Both
+  // best-effort, deduped per conversation id. Ghost mode short-circuits BOTH.
+  //
+  // Turning ghost OFF while a conversation is open must fire the now-due
+  // triggers IMMEDIATELY — no leave-and-reopen. `ghost` is an effect dep, so
+  // the effect re-runs on the toggle; on the off-transition we also clear the
+  // dedupe ref so the re-fire is never swallowed, covering every sub-case:
+  // opened invisibly, already-read before arming ghost, or messages that
+  // arrived while invisible.
   const markRead = useMarkConversationRead()
   const markedReadRef = useRef<string | null>(null)
+  const prevGhostRef = useRef(ghost)
   useEffect(() => {
+    const ghostJustTurnedOff = prevGhostRef.current && !ghost
+    prevGhostRef.current = ghost
     if (!activeId) return
     if (ghost) return
+    if (ghostJustTurnedOff) markedReadRef.current = null
     if (markedReadRef.current === activeId) return
     markedReadRef.current = activeId
     markRead(activeId)
