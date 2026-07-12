@@ -782,8 +782,8 @@ export function IconGhost(p: IconProps) {
   return (
     <Svg {...p}>
       <path d="M5 20.6 V10 A7 7 0 0 1 19 10 V20.6 L16.5 18.7 L14 20.6 L12 18.7 L10 20.6 L7.5 18.7 Z" />
-      <circle className="wac__ghost-eye" cx="9.5" cy="11" r="1.15" fill="currentColor" stroke="none" />
-      <circle className="wac__ghost-eye" cx="14.5" cy="11" r="1.15" fill="currentColor" stroke="none" />
+      <circle className="wac__ghost-eye" cx="9.5" cy="11" r="1.15" fill="var(--wa-ghost-eye, currentColor)" stroke="none" />
+      <circle className="wac__ghost-eye" cx="14.5" cy="11" r="1.15" fill="var(--wa-ghost-eye, currentColor)" stroke="none" />
     </Svg>
   )
 }

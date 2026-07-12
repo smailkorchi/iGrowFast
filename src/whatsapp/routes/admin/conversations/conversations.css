@@ -316,15 +316,22 @@
 
 /* ── Ghost mode (admin invisible viewing) ── */
 /* Toggle button. OFF: an outline ghost in the muted icon color (like its
-   siblings). ON: inverts to a light pill with a dark ghost — the "after
-   toggle" state, so "you are invisible" reads at a glance in both headers. */
+   siblings). ON: a clean, solid WHITE ghost — no pill/circle behind it. The
+   body fills white and the eyes punch through to the header colour (true
+   holes), so it reads filled without the heavy circle. */
 .wac__ghost-btn.is-ghost {
-  color: #1d1f23;
-  background: #fff;
+  color: #fff;
+  background: transparent;
+  --wa-ghost-eye: var(--wa-bg-sidebar);
+}
+.wac__chathead-actions .wac__ghost-btn.is-ghost {
+  --wa-ghost-eye: var(--wa-bg-chathead);
 }
 .wac__ghost-btn.is-ghost:hover {
-  color: #1d1f23;
-  background: #f0f0f0;
+  color: #fff;
+}
+.wac__ghost-btn.is-ghost svg path {
+  fill: currentColor;
 }
 
 /* Hover micro-interaction: the ghost's pupils dart around ("looking"). Both
