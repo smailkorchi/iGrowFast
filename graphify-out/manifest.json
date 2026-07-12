@@ -1070,19 +1070,14 @@
     "semantic_hash": "0d3a41849aa93c3a282cfa54e403e363"
   },
   "src/components/announcements/AnnouncementGate.tsx": {
-    "mtime": 1783055767.5766428,
-    "ast_hash": "139418eee0694271023d92339f67f04d",
-    "semantic_hash": "139418eee0694271023d92339f67f04d"
-  },
-  "src/components/announcements/AnnouncementModal.tsx": {
-    "mtime": 1783055748.6360753,
-    "ast_hash": "b2d5ef537b159eff1760735256b4719d",
-    "semantic_hash": "b2d5ef537b159eff1760735256b4719d"
+    "mtime": 1783825623.3022034,
+    "ast_hash": "7eeefaec896dea94b91a5c882a5a7bc3",
+    "semantic_hash": ""
   },
   "src/components/announcements/activeAnnouncement.tsx": {
-    "mtime": 1783055761.5141716,
-    "ast_hash": "d42dffa519666832c1241d5ae9d8eec5",
-    "semantic_hash": "d42dffa519666832c1241d5ae9d8eec5"
+    "mtime": 1783825634.41418,
+    "ast_hash": "677b160b3577d36c79e89a1feaf0c979",
+    "semantic_hash": ""
   },
   "src/components/auth/AuthBackground.tsx": {
     "mtime": 1776706008.0,
@@ -2985,8 +2980,8 @@
     "semantic_hash": "0e19ce97a15646956c4910bfe3ae514f"
   },
   "src/whatsapp/routes/admin/Conversations.tsx": {
-    "mtime": 1783809791.9023104,
-    "ast_hash": "4d9d3f74f27f188bab7e1bcf655e5157",
+    "mtime": 1783823126.0142665,
+    "ast_hash": "e693c3b728176f2254a6fc3883b3ed2d",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/admin/conversations/CreatorBadge.tsx": {
@@ -3030,13 +3025,13 @@
     "semantic_hash": "c25e55d0a9c8348cda39c5a0b58f8b37"
   },
   "src/whatsapp/routes/admin/conversations/icons.tsx": {
-    "mtime": 1783790633.9650774,
-    "ast_hash": "0605736b72b0b7d88bfbd7e66a2a1ce1",
+    "mtime": 1783823587.8606377,
+    "ast_hash": "744f10e370213bade1657eedcbb31f67",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/admin/conversations/parts.tsx": {
-    "mtime": 1783809754.407858,
-    "ast_hash": "55512d5da4f2570a4e26a155bc5e0cdb",
+    "mtime": 1783822414.7676659,
+    "ast_hash": "4ab6fe8e3970d9ff7eb445536dc7d880",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/numbers/NumberDetail.tsx": {
@@ -5245,8 +5240,8 @@
     "semantic_hash": ""
   },
   "announcement-preview.html": {
-    "mtime": 1783809700.2025785,
-    "ast_hash": "51d188f64e82ca2b17a51678efe039a7",
+    "mtime": 1783825518.4256299,
+    "ast_hash": "32c2d13cf7a47acfd946ea27952dc0ab",
     "semantic_hash": ""
   },
   "src/whatsapp/lib/pendingUploads.ts": {
@@ -5262,6 +5257,21 @@
   "ops/box/whatsapp-schema/migrations/whatsapp_066_filter_counts.sql": {
     "mtime": 1783809569.2500188,
     "ast_hash": "4140fdeaca645648b7e059202b3bd0a7",
+    "semantic_hash": ""
+  },
+  "src/whatsapp/lib/useGhostMode.ts": {
+    "mtime": 1783820292.2908893,
+    "ast_hash": "9189fce1f854fb94e3bde555398ebcc7",
+    "semantic_hash": ""
+  },
+  "src/components/announcements/AnnouncementDeck.tsx": {
+    "mtime": 1783825609.7332711,
+    "ast_hash": "d00648926e82b98e41c8a8a098df017b",
+    "semantic_hash": ""
+  },
+  "public/announcement-deck.html": {
+    "mtime": 1783825518.4272726,
+    "ast_hash": "2dc8170ba584ebbc52f58aa14481a715",
     "semantic_hash": ""
   }
 }
