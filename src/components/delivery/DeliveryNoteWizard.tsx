@@ -3,7 +3,6 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
-import { syncParcelTracking, type TrackableParcel } from '@/lib/orders/syncOrderTracking';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
@@ -896,26 +895,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         return (fresh ? { ...order, ...(fresh as object) } : order) as WizardOrder;
     };
 
-    // After parcels are linked into a note, the carrier/package status is NOT in the
-    // create/add-parcels response — the rows still read "Nouveau" until something fetches
-    // live status (the Track button, the note-page sync loop, or a webhook). Pull it now,
-    // for every freshly-linked parcel, via the same proven path the Track button uses.
-    // Fire-and-forget + bounded concurrency: a tracking failure must never affect the
-    // already-succeeded note creation.
-    const syncLinkedParcelStatuses = async (parcels: TrackableParcel[]) => {
-        const targets = parcels.filter(p => p.id && p.tracking_code && p.provider_id);
-        if (targets.length === 0) return;
-        let cursor = 0;
-        const worker = async () => {
-            while (cursor < targets.length) {
-                const i = cursor++;
-                try { await syncParcelTracking(targets[i]); } catch { /* non-blocking */ }
-            }
-        };
-        await Promise.all(Array.from({ length: Math.min(4, targets.length) }, () => worker()));
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
-    };
+    // NOTE: freshly-linked parcels keep their creation status ("Nouveau") and are updated
+    // to the real carrier status by the provider WEBHOOK and the tracking-sync cron. We do
+    // NOT eagerly pull live status per parcel here — that fired one provider-integration
+    // call per parcel and, on large (batch) notes, hammered the carrier's rate limiter so
+    // only some parcels got a status. The webhook/cron are the source of truth for status.
 
     const retryParcel = async (order: WizardOrder) => {
         if (!order.company_id) return;
@@ -1166,15 +1150,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     throw linkError;
                 }
 
-                // Pull live carrier status for the just-linked parcels so they show
-                // "En attente de ramassage" immediately instead of staying "Nouveau"
-                // until the user clicks Track. Fire-and-forget — never blocks the run.
-                void syncLinkedParcelStatuses(acceptedEntries.map(p => ({
-                    id: p.parcel!.id,
-                    provider_id: providerId,
-                    tracking_code: p.tracking_code as string,
-                    external_id: (p.parcel as { external_id?: string | null })?.external_id ?? null,
-                })));
+                // Status is populated by the provider webhook / tracking-sync cron — no
+                // eager per-parcel carrier pull here (see note on syncLinkedParcelStatuses removal).
             } else {
                 // Nothing accepted this round (all duplicates/errors) — keep count honest.
                 const { count } = await supabase
@@ -1434,16 +1411,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         p_delivery_note_id: ctx.deliveryNoteId,
                         p_parcel_ids: linkIds,
                     });
-                    // Same live-status pull as the primary path so kept duplicates also
-                    // leave "Nouveau" without needing the Track button.
-                    void syncLinkedParcelStatuses(items
-                        .filter(i => !stillErrCodes.has(i.code) && i.parcelId)
-                        .map(i => ({
-                            id: i.parcelId as string,
-                            provider_id: providerId,
-                            tracking_code: i.code,
-                            external_id: null,
-                        })));
+                    // Status comes from the webhook / tracking-sync cron (no eager per-parcel pull).
                 }
                 ignoredCount += linkIds.length;
 
