@@ -193,7 +193,7 @@ class OzonAdapter {
     }
 }
 
-class ColiatyAdapter {
+export class ColiatyAdapter {
     // Fully migrated to the customer/public API (https://customer-api-v1.coliaty.com,
     // Bearer {public}:{secret}, NO /api/client prefix). Pickup-note create/add/remove/
     // labels are now public — the old dashboard (app.coliaty.com, email/password JWT) is
@@ -292,12 +292,9 @@ class ColiatyAdapter {
         };
     }
 
-    async createParcel(parcelData, supabase) {
-        console.log('=== COLIATY createParcel START ===');
-        console.log('Input parcelData:', JSON.stringify(parcelData, null, 2));
-
-        // Map frontend fields to Coliaty API fields
-        // Coliaty uses /parcel/normal endpoint with package_* field names
+    // Build the /parcel/normal payload for ONE parcel (shared by single + batch).
+    // Resolves the destination city via provider_cities the same way both paths need.
+    async buildNormalPayload(parcelData, supabase) {
         const payload = {
             package_code: parcelData.package_code || '',  // Optional - Coliaty will generate if empty
             package_reciever: parcelData.receiver_name || parcelData.customer_name,
@@ -325,6 +322,15 @@ class ColiatyAdapter {
             }
         }
 
+        return payload;
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== COLIATY createParcel START ===');
+        console.log('Input parcelData:', JSON.stringify(parcelData, null, 2));
+
+        // Map frontend fields to Coliaty API fields (shared builder).
+        const payload = await this.buildNormalPayload(parcelData, supabase);
         console.log('Mapped payload for Coliaty:', JSON.stringify(payload, null, 2));
 
         const response = await fetch(`${this.baseUrl}/parcel/normal`, {
@@ -379,6 +385,74 @@ class ColiatyAdapter {
             external_id: externalId,
             provider_response: data
         };
+    }
+
+    // Batch create up to 100 normal parcels in ONE call via /parcel/normal/mass.
+    // Returns an array index-aligned to `parcelDataArray`, each element either
+    // { tracking_code, external_id, provider_response } (success) or { error }.
+    // A whole-call HTTP failure THROWS (caller fails the chunk, no auto-retry);
+    // per-parcel validation errors are returned inline so one bad parcel never
+    // sinks the rest. Coliaty keys results by request position: success_parcels
+    // and error_parcels are objects keyed "parcel_<0-based index>".
+    async createParcelsBatch(parcelDataArray, supabase) {
+        console.log('=== COLIATY createParcelsBatch START ===', Array.isArray(parcelDataArray) ? parcelDataArray.length : 0);
+        const arr = Array.isArray(parcelDataArray) ? parcelDataArray : [];
+        if (arr.length === 0) return [];
+
+        // Build one payload per parcel (per-parcel city resolution).
+        const parcels = [];
+        for (const pd of arr) parcels.push(await this.buildNormalPayload(pd, supabase));
+
+        const response = await fetch(`${this.baseUrl}/parcel/normal/mass`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: this.getAuthHeader()
+            },
+            body: JSON.stringify({ parcels })
+        });
+
+        const responseText = await response.text();
+        console.log('Coliaty batch Response Status:', response.status, response.statusText);
+
+        if (!response.ok) {
+            // Whole request rejected — surface as a thrown error so the caller marks
+            // the entire chunk failed (some parcels MAY have been created; the caller
+            // must verify on the carrier before any retry).
+            throw new Error(`Coliaty batch API returned ${response.status}: ${responseText.substring(0, 500)}`);
+        }
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Coliaty batch returned non-JSON response: ${responseText.substring(0, 200)}`);
+        }
+
+        const success = data.data?.success_parcels || {};
+        const errors = data.data?.error_parcels || {};
+
+        return arr.map((_, i) => {
+            const key = `parcel_${i}`;
+            const sv = success[key];
+            if (sv !== undefined && sv !== null) {
+                // success value is the tracking-code string (fallbacks kept defensive).
+                const tracking = typeof sv === 'string' ? sv : (sv.package_code || sv.code || sv.tracking_code);
+                if (tracking) {
+                    return {
+                        tracking_code: tracking,
+                        external_id: tracking,
+                        provider_response: { batch: true, tracking_code: tracking }
+                    };
+                }
+            }
+            const ev = errors[key];
+            let msg;
+            if (ev == null) msg = 'aucun résultat renvoyé pour ce colis';
+            else if (typeof ev === 'string') msg = ev;
+            else msg = Object.values(ev).map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('; ');
+            return { error: `Coliaty: ${msg}` };
+        });
     }
 
     async createDeliveryNote() {
@@ -1711,7 +1785,7 @@ class QuickLivraisonAdapter {
     }
 }
 
-class VitexAdapter {
+export class VitexAdapter {
     constructor(credentials) {
         this.apiKey = credentials.api_key || '';
         this.apiBaseUrl = credentials.api_base_url || 'https://vitex.ma/clients-api';
@@ -1868,9 +1942,10 @@ class VitexAdapter {
     }
 
     // ---- parcel operations ----
-    async createParcel(parcelData, supabase) {
-        console.log('=== VITEX createParcel START ===');
-        // Resolve district/city: Vitex public API uses city NAME; dashboard uses city_id.
+    // Resolve Vitex destination city (public API uses NAME, dashboard uses id) and
+    // normalize the MA phone. Shared by single + batch. Throws on unmapped city or
+    // bad phone so the caller can record a per-parcel error.
+    async resolveCityAndPhone(parcelData, supabase) {
         let cityName = null;
         let cityId = null;
         if (parcelData.master_city_id && supabase) {
@@ -1889,13 +1964,34 @@ class VitexAdapter {
         if (!cityName) {
             throw new Error('Vitex: ville non mappée. Mappez la ville (provider_cities) avant de créer un colis.');
         }
-
         // Phone normalization: MA 10 digits starting with 0.
         let phone = String(parcelData.receiver_phone || parcelData.customer_phone || '').replace(/\D/g, '');
         if (phone.startsWith('212')) phone = '0' + phone.substring(3);
         if (!/^0\d{9}$/.test(phone)) {
             throw new Error(`Vitex: format téléphone invalide "${phone}". Attendu 10 chiffres commençant par 0.`);
         }
+        return { cityName, cityId, phone };
+    }
+
+    // Pure builder for one element of the public /add-parcels `parcels[]` array.
+    buildPublicParcelItem(parcelData, cityName, phone, id) {
+        return {
+            id,
+            parcel_receiver: parcelData.receiver_name || parcelData.customer_name || '',
+            parcel_phone: phone,
+            parcel_price: String(parcelData.cash_on_delivery || parcelData.cod_amount || 0),
+            parcel_city: cityName,
+            parcel_address: parcelData.receiver_address || parcelData.delivery_address || '',
+            parcel_note: String(parcelData.delivery_note || ''),
+            marchandise: String(parcelData.product_info || ''),
+            parcel_product_qty: Number(parcelData.product_qty || 1),
+        };
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== VITEX createParcel START ===');
+        // Resolve district/city + phone (public API uses city NAME; dashboard uses city_id).
+        const { cityName, cityId, phone } = await this.resolveCityAndPhone(parcelData, supabase);
 
         // Decide path: dashboard if any special flag is active, else public API.
         const useFragile = this.permFragile === true;
@@ -1909,20 +2005,8 @@ class VitexAdapter {
             return await this.createParcelViaDashboard(parcelData, cityId, phone, { useFragile, useForbidOpen });
         }
 
-        // Public API batch create.
-        const reqBody = {
-            parcels: [{
-                id: 1,
-                parcel_receiver: parcelData.receiver_name || parcelData.customer_name || '',
-                parcel_phone: phone,
-                parcel_price: String(parcelData.cash_on_delivery || parcelData.cod_amount || 0),
-                parcel_city: cityName,
-                parcel_address: parcelData.receiver_address || parcelData.delivery_address || '',
-                parcel_note: String(parcelData.delivery_note || ''),
-                marchandise: String(parcelData.product_info || ''),
-                parcel_product_qty: Number(parcelData.product_qty || 1),
-            }],
-        };
+        // Public API create (the batch endpoint used with a single element).
+        const reqBody = { parcels: [this.buildPublicParcelItem(parcelData, cityName, phone, 1)] };
         const resp = await this.apiFetch('/add-parcels', reqBody);
         const successMap = resp?.data?.success || {};
         const failedMap = resp?.data?.failed || {};
@@ -1937,6 +2021,53 @@ class VitexAdapter {
             external_id: tracking,
             provider_response: resp,
         };
+    }
+
+    // Batch create up to 100 parcels via the public /add-parcels endpoint.
+    // ONLY valid on the public path — if fragile/forbid-open flags are set the
+    // provider uses the per-parcel dashboard flow (no batch endpoint), so this
+    // throws and the caller falls back to single creates. Returns an array
+    // index-aligned to `parcelDataArray`; per-parcel validation errors are inline.
+    async createParcelsBatch(parcelDataArray, supabase) {
+        if (this.permFragile === true || this.permForbidOpen === true) {
+            throw new Error('Vitex: batch indisponible avec les options fragile/interdiction-ouverture (flux dashboard).');
+        }
+        console.log('=== VITEX createParcelsBatch START ===', Array.isArray(parcelDataArray) ? parcelDataArray.length : 0);
+        const arr = Array.isArray(parcelDataArray) ? parcelDataArray : [];
+        const results = new Array(arr.length).fill(null);
+        const parcels = [];
+        const idToIndex = new Map();
+        for (let i = 0; i < arr.length; i++) {
+            try {
+                const { cityName, phone } = await this.resolveCityAndPhone(arr[i], supabase);
+                const id = i + 1; // Vitex keys its success/failed maps by this id.
+                idToIndex.set(id, i);
+                parcels.push(this.buildPublicParcelItem(arr[i], cityName, phone, id));
+            } catch (e) {
+                results[i] = { error: e.message };
+            }
+        }
+        if (parcels.length === 0) {
+            return results.map((r) => r || { error: 'Vitex: aucun colis valide' });
+        }
+        const resp = await this.apiFetch('/add-parcels', { parcels });
+        const successMap = resp?.data?.success || {};
+        const failedMap = resp?.data?.failed || {};
+        for (const p of parcels) {
+            const idx = idToIndex.get(p.id);
+            const tracking = successMap[String(p.id)];
+            if (tracking) {
+                results[idx] = {
+                    tracking_code: tracking,
+                    external_id: tracking,
+                    provider_response: { batch: true, tracking_code: tracking },
+                };
+            } else {
+                const err = failedMap[String(p.id)];
+                results[idx] = { error: `Vitex: ${err ? (typeof err === 'string' ? err : JSON.stringify(err)) : 'création échouée'}` };
+            }
+        }
+        return results;
     }
 
     async createParcelViaDashboard(parcelData, cityId, phone, flags) {
@@ -3081,7 +3212,7 @@ class SenditAdapter {
 // is immutable afterward, so subsequent adds must spawn a new note (same as
 // Sendit's pickup model).
 // ─────────────────────────────────────────────────────────────────────────────
-class DigylogAdapter {
+export class DigylogAdapter {
     constructor(credentials) {
         this.apiBaseUrl = (credentials.api_base_url || 'https://api.digylog.com/api/v2/seller').replace(/\/+$/, '');
         this.token = credentials.api_key || credentials.api_secret_key || '';
@@ -3131,15 +3262,10 @@ class DigylogAdapter {
         return exact || null;
     }
 
-    async createParcel(parcelData, supabase) {
-        console.log('=== DIGYLOG createParcel START ===');
-        if (!this.networkId) {
-            throw new Error('Digylog: réseau non configuré (Permissions > Réseau Digylog).');
-        }
-        if (!this.storeName) {
-            throw new Error('Digylog: boutique non configurée (Permissions > Boutique Digylog).');
-        }
-
+    // Build ONE Digylog order object (shared by single + batch). Resolves city +
+    // phone + refs; throws on bad city/phone so the caller records a per-parcel error.
+    // `num` (= order_num, i.e. order.id) is the batch reconciliation key.
+    async buildOrder(parcelData, supabase) {
         // Destination city — Digylog accepts the NAME (no IDs in /cities response).
         let cityName = '';
         if (parcelData.master_city_id && supabase) {
@@ -3180,7 +3306,7 @@ class DigylogAdapter {
             });
         }
 
-        const order = {
+        return {
             num: String(parcelData.order_num || parcelData.reference || '').substring(0, 50),
             type: isExchange ? 2 : 1,
             name: String(parcelData.receiver_name || parcelData.customer_name || '').substring(0, 100),
@@ -3194,6 +3320,18 @@ class DigylogAdapter {
             refs,
             pickup: 0,
         };
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== DIGYLOG createParcel START ===');
+        if (!this.networkId) {
+            throw new Error('Digylog: réseau non configuré (Permissions > Réseau Digylog).');
+        }
+        if (!this.storeName) {
+            throw new Error('Digylog: boutique non configurée (Permissions > Boutique Digylog).');
+        }
+
+        const order = await this.buildOrder(parcelData, supabase);
 
         const body = {
             mode: 1,
@@ -3217,6 +3355,72 @@ class DigylogAdapter {
             external_id: tracking,
             provider_response: created,
         };
+    }
+
+    // Batch create up to 100 parcels via POST /orders (orders[] array). Returns an
+    // array index-aligned to `parcelDataArray`, matched back by `num` (= order.id),
+    // so any submitted order missing from the response (e.g. a checkDuplicate
+    // rejection) is marked failed. checkDuplicate=1 also makes a re-sent order.id
+    // idempotent, so a retried batch won't double-create on Digylog.
+    async createParcelsBatch(parcelDataArray, supabase) {
+        if (!this.networkId) {
+            throw new Error('Digylog: réseau non configuré (Permissions > Réseau Digylog).');
+        }
+        if (!this.storeName) {
+            throw new Error('Digylog: boutique non configurée (Permissions > Boutique Digylog).');
+        }
+        console.log('=== DIGYLOG createParcelsBatch START ===', Array.isArray(parcelDataArray) ? parcelDataArray.length : 0);
+        const arr = Array.isArray(parcelDataArray) ? parcelDataArray : [];
+        const results = new Array(arr.length).fill(null);
+        const orders = [];
+        const numToIndex = new Map();
+        for (let i = 0; i < arr.length; i++) {
+            try {
+                const order = await this.buildOrder(arr[i], supabase);
+                orders.push(order);
+                numToIndex.set(String(order.num), i);
+            } catch (e) {
+                results[i] = { error: e.message };
+            }
+        }
+        if (orders.length === 0) {
+            return results.map((r) => r || { error: 'Digylog: aucun colis valide' });
+        }
+
+        const body = {
+            mode: 1,
+            network: this.networkId,
+            store: this.storeName,
+            status: 0,
+            checkDuplicate: 1,
+            orders,
+        };
+
+        const resp = await this.apiFetch('/orders', 'POST', body);
+        if (!resp.ok || !Array.isArray(resp.data)) {
+            const msg = (resp.data && (resp.data.message || resp.data.error)) || JSON.stringify(resp.data || resp.raw || {}).substring(0, 300);
+            throw new Error(`Digylog: création batch échouée (HTTP ${resp.status}): ${msg}`);
+        }
+
+        const seen = new Set();
+        for (const row of resp.data) {
+            const num = String(row?.num ?? '');
+            if (!numToIndex.has(num)) continue;
+            const idx = numToIndex.get(num);
+            seen.add(num);
+            if (row?.tracking) {
+                results[idx] = { tracking_code: row.tracking, external_id: row.tracking, provider_response: row };
+            } else {
+                results[idx] = { error: `Digylog: ${row?.message || row?.error || 'création échouée pour cette commande'}` };
+            }
+        }
+        // Submitted orders absent from the response (duplicate rejected, etc.).
+        for (const [num, idx] of numToIndex.entries()) {
+            if (!seen.has(num) && results[idx] === null) {
+                results[idx] = { error: 'Digylog: commande absente de la réponse (doublon rejeté ou erreur).' };
+            }
+        }
+        return results;
     }
 
     async trackParcel(trackingCode, _externalId, supabase) {
@@ -4017,6 +4221,15 @@ Deno.serve(async (req) => {
             case 'create_parcel':
                 console.log('Creating parcel');
                 result = await adapter.createParcel(data, supabase);
+                break;
+            case 'create_parcels_batch':
+                console.log('Creating parcels (batch):', Array.isArray(data?.parcels) ? data.parcels.length : 0);
+                if (typeof adapter.createParcelsBatch !== 'function') {
+                    throw new Error(`${type} ne supporte pas create_parcels_batch.`);
+                }
+                // Returns an array index-aligned to data.parcels; each element is
+                // { tracking_code, external_id, provider_response } (success) or { error }.
+                result = await adapter.createParcelsBatch(data.parcels, supabase);
                 break;
             case 'create_delivery_note':
                 console.log('Creating delivery note');

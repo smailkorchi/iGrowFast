@@ -246,6 +246,175 @@ export function orderMatchesSellerProducts(order: OrderForSellerProductsMatch, u
     return items.every((it) => it.product_id && productSet.has(it.product_id));
 }
 
+/** Carrier batch-create limit (Coliaty & Vitex document max 100 parcels/call). */
+const BATCH_MAX = 100;
+
+/**
+ * True when the provider exposes a carrier batch-create endpoint we can use to
+ * create several parcels in one call. Vitex batch is public-path only — the
+ * fragile / forbid-open flags force the per-parcel dashboard flow (no batch),
+ * so those providers must fall back to single creates.
+ */
+export function providerSupportsBatch(provider: WizardProvider | null | undefined): boolean {
+    const t = String(provider?.provider_type || '').toLowerCase();
+    if (t.includes('coliaty')) return true;
+    if (t.includes('digylog')) return true;
+    if (t.includes('vitex')) {
+        return !(provider?.vitex_parcel_fragile === true || provider?.vitex_parcel_open === true);
+    }
+    return false;
+}
+
+/**
+ * Build the edge-function `create_parcel` payload for a single order. PURE (no I/O).
+ * Throws on a per-provider exchange-validation failure (missing old-tracking, or a
+ * Vitex replace), so the caller can record that order as a per-order error. Shared
+ * verbatim by the single-create loop and the batch path, so both send the carrier
+ * adapter the exact same per-parcel data.
+ */
+export function buildParcelData(order: WizardOrder, provider: WizardProvider | null | undefined) {
+    const permFields = parcelPermissionFieldsFromProvider(provider || {});
+    const providerType = String(provider?.provider_type || '').toLowerCase();
+    const isColiaty = providerType.includes('coliaty');
+    const isAmeex = providerType.includes('ameex');
+    const isQuickLivraison = providerType.includes('quicklivraison');
+    const isVitex = providerType.includes('vitex');
+    const isForcelog = providerType.includes('forcelog');
+    const isSendit = providerType.includes('sendit');
+    const isDigylog = providerType.includes('digylog');
+    const isDelvoExpress = providerType.includes('delvo') || providerType.includes('delevo');
+    if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
+        throw new Error(
+            'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
+        );
+    }
+    if (isAmeex && order.replace && !String(order.ameex_old_tracking || '').trim()) {
+        throw new Error(
+            'AMEEX exchange requires the previous parcel tracking number on the order (exchange_code).'
+        );
+    }
+    if (isQuickLivraison && order.replace && !String(order.quicklivraison_old_tracking || '').trim()) {
+        throw new Error(
+            'Quick Livraison exchange requires the previous parcel tracking number on the order (echange_colis).'
+        );
+    }
+    if (isVitex && order.replace) {
+        throw new Error(
+            "Vitex n'accepte l'échange que si le colis précédent a le statut 'Livré' dans le dashboard Vitex. Désactivez l'échange sur cette commande ou créez-le manuellement côté Vitex."
+        );
+    }
+    if (isForcelog && order.replace && !String(order.forcelog_old_tracking || '').trim()) {
+        throw new Error(
+            "Forcelog exchange requires the previous parcel tracking number on the order (forcelog_old_tracking)."
+        );
+    }
+    if (isSendit && order.replace && !String(order.sendit_old_tracking || '').trim()) {
+        throw new Error(
+            "Sendit exchange requires the previous parcel tracking number on the order (sendit_old_tracking)."
+        );
+    }
+    if (isDelvoExpress && order.replace && !String(order.delvoexpress_old_tracking || '').trim()) {
+        throw new Error(
+            "Delevo Express exchange requires the previous parcel code on the order (delvoexpress_old_tracking)."
+        );
+    }
+    // Prepare parcel data
+    return {
+        customer_name: order.name,
+        customer_phone: order.phone,
+        delivery_address: order.address,
+        cod_amount: Number(order.price),
+        master_city_id: order.master_city_id,
+        city_name: order.city?.name,
+        product_info: order.items
+            ?.filter((i) => i.quantity > 0)
+            .map((i) => `${i.product?.code || 'P'} x${i.quantity}`)
+            .join(', '),
+        note: order.note || '', // Internal note
+        delivery_note: order.delivery_note || '', // Public note for courier
+        ...permFields,
+        ...(isColiaty
+            ? {
+                  replaceable: !!order.replace,
+                  old_tracking: order.replace
+                      ? String(order.coliaty_old_tracking || '').trim()
+                      : '',
+              }
+            : isAmeex
+              ? {
+                    replaceable: !!order.replace,
+                    old_tracking: order.replace
+                        ? String(order.ameex_old_tracking || '').trim()
+                        : '',
+                }
+              : isQuickLivraison
+                ? {
+                      replaceable: !!order.replace,
+                      old_tracking: order.replace
+                          ? String(order.quicklivraison_old_tracking || '').trim()
+                          : '',
+                  }
+                : isVitex
+                  ? {
+                        // Vitex: exchange is blocked upstream (throws above when order.replace=true).
+                        // Adapter reads fragile/open from provider row columns directly; no per-parcel fields here.
+                        product_qty: (order.items || [])
+                            .filter((i) => i.quantity > 0)
+                            .reduce((sum, i) => sum + Number(i.quantity || 0), 0) || 1,
+                    }
+                  : isForcelog
+                    ? {
+                          // Forcelog: exchange supported. Adapter reads fragile/open/carton from provider row.
+                          order_num: order.id,
+                          district: '',
+                          replace_parcel_code: order.replace
+                              ? String(order.forcelog_old_tracking || '').trim()
+                              : '',
+                      }
+                    : isSendit
+                      ? {
+                            // Sendit: exchange supported via option_exchange + delivery_exchange_id (adapter reads replace_parcel_code).
+                            order_num: order.id,
+                            reference: String(order.id).substring(0, 50),
+                            replace_parcel_code: order.replace
+                                ? String(order.sendit_old_tracking || '').trim()
+                                : '',
+                        }
+                      : isDigylog
+                        ? {
+                              // Digylog: type=2 for exchange (adapter reads `replaceable`/`replace_parcel_code` flag).
+                              // network/store/port/openproduct come from provider row.
+                              order_num: order.id,
+                              reference: String(order.id).substring(0, 50),
+                              items: (order.items || []).map((i) => ({
+                                  product_id: i.product_id,
+                                  quantity: i.quantity,
+                                  name: i.product?.name,
+                                  code: i.product?.code,
+                              })),
+                              replaceable: !!order.replace,
+                          }
+                        : isDelvoExpress
+                          ? {
+                                // Delevo Express: change=1 + coli_exchange={old_code}.
+                                order_num: order.id,
+                                reference: String(order.id).substring(0, 50),
+                                items: (order.items || []).map((i) => ({
+                                    product_id: i.product_id,
+                                    quantity: i.quantity,
+                                    name: i.product?.name,
+                                    code: i.product?.code,
+                                })),
+                                replace_parcel_code: order.replace
+                                    ? String(order.delvoexpress_old_tracking || '').trim()
+                                    : '',
+                            }
+                          : Object.keys(permFields).length === 0
+                            ? { replaceable: order.replace || false }
+                            : {}),
+    };
+}
+
 interface DeliveryNoteWizardProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -480,150 +649,145 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
 
             const provider = orders[0].company;
+
+            // ── Batch path ──────────────────────────────────────────────────────
+            // More than one parcel for a provider that exposes a batch endpoint
+            // (Coliaty / Vitex / Digylog): create in chunks of BATCH_MAX via ONE
+            // carrier call each, then ONE orphan-sweep + ONE bulk company_parcels
+            // insert per chunk. Single-parcel groups and every other provider fall
+            // through to the per-parcel path below (unchanged). Same per-order result
+            // shape ({ order, parcel, tracking_code } | { order, error }) either way.
+            if (orders.length > 1 && providerSupportsBatch(provider)) {
+                const results = [];
+                // Memoize status resolution: freshly-created parcels share the same
+                // initial status, so this collapses N lookups to ~1 per chunk.
+                const statusCache = new Map<string, string | null>();
+                const resolveStatusId = async (providerStatus: string) => {
+                    const key = providerStatus || 'Nouveau';
+                    if (statusCache.has(key)) return statusCache.get(key) ?? null;
+                    const matched = await matchPackageStatus(supabase, key);
+                    const id = matched?.id ?? null;
+                    statusCache.set(key, id);
+                    return id;
+                };
+
+                for (let start = 0; start < orders.length; start += BATCH_MAX) {
+                    const chunk = orders.slice(start, start + BATCH_MAX);
+
+                    // Build per-order payloads; a validation failure (missing exchange
+                    // tracking, etc.) becomes a per-order error and drops that order from
+                    // the carrier call — one bad order never sinks the chunk.
+                    const built: { order: WizardOrder; parcelData: ReturnType<typeof buildParcelData> }[] = [];
+                    for (const order of chunk) {
+                        try {
+                            built.push({ order, parcelData: buildParcelData(order, provider) });
+                        } catch (error: any) {
+                            results.push({ order, error: error.message });
+                        }
+                    }
+                    if (built.length === 0) continue;
+
+                    let batchResults: any[] | null = null;
+                    try {
+                        const response = await fetch(EDGE_FUNCTION_URL, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${session.access_token}`
+                            },
+                            body: JSON.stringify({
+                                action: 'create_parcels_batch',
+                                provider_id: providerId,
+                                data: { parcels: built.map((b) => b.parcelData) }
+                            })
+                        });
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({}));
+                            throw new Error(errorData.error || `API returned ${response.status}`);
+                        }
+                        const json = await response.json();
+                        batchResults = Array.isArray(json.data) ? json.data : null;
+                        if (!batchResults || batchResults.length !== built.length) {
+                            throw new Error('Réponse de lot invalide du fournisseur.');
+                        }
+                    } catch (error: any) {
+                        // HARD batch failure: the carrier MAY have created some parcels but
+                        // we have no usable response. Carrier parcels are irreversible, so we
+                        // do NOT auto-retry or fall back to single creates — mark the whole
+                        // chunk failed and let the user verify before any retry.
+                        const msg = `Échec du lot (${error.message}). Des colis ont peut-être été créés côté transporteur — vérifiez avant de réessayer.`;
+                        for (const b of built) results.push({ order: b.order, error: msg });
+                        continue;
+                    }
+
+                    // Split per-order outcomes; collect successes for one bulk insert.
+                    const rows: any[] = [];
+                    const rowMeta: { order: WizardOrder; tracking_code: string }[] = [];
+                    for (let i = 0; i < built.length; i++) {
+                        const { order } = built[i];
+                        const r = batchResults[i] || {};
+                        if (r.error || !r.tracking_code) {
+                            results.push({ order, error: r.error || 'Création échouée (aucun code de suivi renvoyé).' });
+                            continue;
+                        }
+                        const statusId = await resolveStatusId(r.status || r.label || r.statusLabel || 'Nouveau');
+                        rows.push({
+                            provider_id: providerId,
+                            order_id: order.id,
+                            tracking_code: r.tracking_code,
+                            external_id: r.external_id ? String(r.external_id) : '',
+                            provider_response: r.provider_response ?? r,
+                            status_id: statusId,
+                            'DigiCom Business': activeBusinessId
+                        });
+                        rowMeta.push({ order, tracking_code: r.tracking_code });
+                    }
+
+                    if (rows.length > 0) {
+                        const orderIds = rows.map((row) => row.order_id);
+                        // One orphan-sweep for the whole chunk (same intent as the single
+                        // path: drop prior null-note rows for these provider+order pairs).
+                        await supabase
+                            .from('company_parcels')
+                            .delete()
+                            .eq('provider_id', providerId)
+                            .is('company_delivery_note_id', null)
+                            .in('order_id', orderIds);
+
+                        // One bulk insert for the whole chunk.
+                        const { data: inserted, error: insertError } = await supabase
+                            .from('company_parcels')
+                            .insert(rows)
+                            .select();
+
+                        if (insertError) {
+                            // Parcels exist on the carrier but the DB row failed; surface per
+                            // order (matches the single path, which throws parcelError).
+                            for (const m of rowMeta) {
+                                results.push({ order: m.order, error: `Colis créé mais enregistrement échoué: ${insertError.message}` });
+                            }
+                        } else {
+                            const parcelByOrder = new Map((inserted || []).map((p: any) => [p.order_id, p]));
+                            for (const m of rowMeta) {
+                                results.push({
+                                    order: m.order,
+                                    parcel: parcelByOrder.get(m.order.id) || null,
+                                    tracking_code: m.tracking_code
+                                });
+                            }
+                        }
+                    }
+                }
+
+                console.log('🏁 Batch (bulk) creation finished. Results:', results);
+                return results;
+            }
+
             const results = [];
 
             for (const order of orders) {
                 try {
-                    const permFields = parcelPermissionFieldsFromProvider(provider || {});
-                    const providerType = String(provider?.provider_type || '').toLowerCase();
-                    const isColiaty = providerType.includes('coliaty');
-                    const isAmeex = providerType.includes('ameex');
-                    const isQuickLivraison = providerType.includes('quicklivraison');
-                    const isVitex = providerType.includes('vitex');
-                    const isForcelog = providerType.includes('forcelog');
-                    const isSendit = providerType.includes('sendit');
-                    const isDigylog = providerType.includes('digylog');
-                    const isDelvoExpress = providerType.includes('delvo') || providerType.includes('delevo');
-                    if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
-                        throw new Error(
-                            'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
-                        );
-                    }
-                    if (isAmeex && order.replace && !String(order.ameex_old_tracking || '').trim()) {
-                        throw new Error(
-                            'AMEEX exchange requires the previous parcel tracking number on the order (exchange_code).'
-                        );
-                    }
-                    if (isQuickLivraison && order.replace && !String(order.quicklivraison_old_tracking || '').trim()) {
-                        throw new Error(
-                            'Quick Livraison exchange requires the previous parcel tracking number on the order (echange_colis).'
-                        );
-                    }
-                    if (isVitex && order.replace) {
-                        throw new Error(
-                            "Vitex n'accepte l'échange que si le colis précédent a le statut 'Livré' dans le dashboard Vitex. Désactivez l'échange sur cette commande ou créez-le manuellement côté Vitex."
-                        );
-                    }
-                    if (isForcelog && order.replace && !String(order.forcelog_old_tracking || '').trim()) {
-                        throw new Error(
-                            "Forcelog exchange requires the previous parcel tracking number on the order (forcelog_old_tracking)."
-                        );
-                    }
-                    if (isSendit && order.replace && !String(order.sendit_old_tracking || '').trim()) {
-                        throw new Error(
-                            "Sendit exchange requires the previous parcel tracking number on the order (sendit_old_tracking)."
-                        );
-                    }
-                    if (isDelvoExpress && order.replace && !String(order.delvoexpress_old_tracking || '').trim()) {
-                        throw new Error(
-                            "Delevo Express exchange requires the previous parcel code on the order (delvoexpress_old_tracking)."
-                        );
-                    }
-                    // Prepare parcel data
-                    const parcelData = {
-                        customer_name: order.name,
-                        customer_phone: order.phone,
-                        delivery_address: order.address,
-                        cod_amount: Number(order.price),
-                        master_city_id: order.master_city_id,
-                        city_name: order.city?.name,
-                        product_info: order.items
-                            ?.filter((i) => i.quantity > 0)
-                            .map((i) => `${i.product?.code || 'P'} x${i.quantity}`)
-                            .join(', '),
-                        note: order.note || '', // Internal note
-                        delivery_note: order.delivery_note || '', // Public note for courier
-                        ...permFields,
-                        ...(isColiaty
-                            ? {
-                                  replaceable: !!order.replace,
-                                  old_tracking: order.replace
-                                      ? String(order.coliaty_old_tracking || '').trim()
-                                      : '',
-                              }
-                            : isAmeex
-                              ? {
-                                    replaceable: !!order.replace,
-                                    old_tracking: order.replace
-                                        ? String(order.ameex_old_tracking || '').trim()
-                                        : '',
-                                }
-                              : isQuickLivraison
-                                ? {
-                                      replaceable: !!order.replace,
-                                      old_tracking: order.replace
-                                          ? String(order.quicklivraison_old_tracking || '').trim()
-                                          : '',
-                                  }
-                                : isVitex
-                                  ? {
-                                        // Vitex: exchange is blocked upstream (throws above when order.replace=true).
-                                        // Adapter reads fragile/open from provider row columns directly; no per-parcel fields here.
-                                        product_qty: (order.items || [])
-                                            .filter((i) => i.quantity > 0)
-                                            .reduce((sum, i) => sum + Number(i.quantity || 0), 0) || 1,
-                                    }
-                                  : isForcelog
-                                    ? {
-                                          // Forcelog: exchange supported. Adapter reads fragile/open/carton from provider row.
-                                          order_num: order.id,
-                                          district: '',
-                                          replace_parcel_code: order.replace
-                                              ? String(order.forcelog_old_tracking || '').trim()
-                                              : '',
-                                      }
-                                    : isSendit
-                                      ? {
-                                            // Sendit: exchange supported via option_exchange + delivery_exchange_id (adapter reads replace_parcel_code).
-                                            order_num: order.id,
-                                            reference: String(order.id).substring(0, 50),
-                                            replace_parcel_code: order.replace
-                                                ? String(order.sendit_old_tracking || '').trim()
-                                                : '',
-                                        }
-                                      : isDigylog
-                                        ? {
-                                              // Digylog: type=2 for exchange (adapter reads `replaceable`/`replace_parcel_code` flag).
-                                              // network/store/port/openproduct come from provider row.
-                                              order_num: order.id,
-                                              reference: String(order.id).substring(0, 50),
-                                              items: (order.items || []).map((i) => ({
-                                                  product_id: i.product_id,
-                                                  quantity: i.quantity,
-                                                  name: i.product?.name,
-                                                  code: i.product?.code,
-                                              })),
-                                              replaceable: !!order.replace,
-                                          }
-                                        : isDelvoExpress
-                                          ? {
-                                                // Delevo Express: change=1 + coli_exchange={old_code}.
-                                                order_num: order.id,
-                                                reference: String(order.id).substring(0, 50),
-                                                items: (order.items || []).map((i) => ({
-                                                    product_id: i.product_id,
-                                                    quantity: i.quantity,
-                                                    name: i.product?.name,
-                                                    code: i.product?.code,
-                                                })),
-                                                replace_parcel_code: order.replace
-                                                    ? String(order.delvoexpress_old_tracking || '').trim()
-                                                    : '',
-                                            }
-                                          : Object.keys(permFields).length === 0
-                                            ? { replaceable: order.replace || false }
-                                            : {}),
-                    };
+                    const parcelData = buildParcelData(order, provider);
 
                     // Call Edge Function
                     const response = await fetch(EDGE_FUNCTION_URL, {
