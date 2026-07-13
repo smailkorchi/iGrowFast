@@ -26,63 +26,22 @@ Before starting **ANY** work (coding, debugging, planning, or design), you **MUS
 
 ---
 
-### Always Use MCP Supabase Tools
+### Database = the self-host BOX ONLY (no managed Supabase, no Supabase MCP)
 
-1. **NEVER assume database structure** - Always verify first:
-   - Use `mcp__supabase__list_tables` to see current tables
-   - Use `mcp__supabase__execute_sql` for SELECT queries to understand data
-   - Use `mcp__supabase__list_migrations` to see migration history
+The app cut over to the self-hosted Supabase BOX on 2026-07-03. The managed Supabase project and every Supabase MCP server are DEAD and were removed. Do NOT use `mcp__supabase*` tools, and do NOT reference the managed project refs `zjkqprrfbibjoslvlmxf` / `pcgvfwqkzyozzxktfogi`.
 
-2. **For ALL schema changes**, use migrations:
-   - Use `mcp__supabase__apply_migration` - never raw DDL
+**The ONLY DB interface = `~/.igrowfast/db.sh`** — streams raw-stdin SQL over SSH `igf` into `docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1`.
+- Reads: pipe SQL in; use `--csv` / `-t -A` / `-x` (NOT `-F'|'` — the remote shell eats the pipe).
+- Writes/DDL: wrap in `BEGIN;…COMMIT;` (atomic; first error rolls back). `postgres` is NOT superuser on the box — superuser DDL/restores run as `supabase_admin` (passwordless via socket).
 
-3. **After DDL changes**, always run:
-   - `mcp__supabase__get_advisors` (security) to check for RLS issues
-   - `mcp__supabase__get_advisors` (performance) to catch index problems
+**Edge functions:** source of truth is repo `supabase/functions/`. Deploy = rsync `supabase/functions/` → box `/opt/supabase-project/volumes/functions/` (bind-mounted, hot-loads per request — no restart to update a function). Only the router `volumes/functions/main/index.ts` needs a restart, and only when the PUBLIC_FUNCTIONS allowlist changes (self-host `VERIFY_JWT` is global).
 
-4. **Before starting any database work**:
-   - List tables to understand current structure
-   - Check existing data if relevant
-   - Confirm changes with user before applying migrations
+**Before ANY database work:**
+1. NEVER assume schema — inspect the live box first via `db.sh` (tables, columns, RPCs, triggers, RLS). Managed-DB facts are stale; re-verify on the box.
+2. Schema changes go through the repo migration files under `supabase/migrations/` and are applied to the box via `db.sh`; never leave ad-hoc DDL undocumented.
+3. Confirm destructive/schema changes with the user before applying.
 
-### Complete MCP Tool Reference
-
-**Project & Config:**
-- `mcp__supabase__get_project_url` - Get API URL
-- `mcp__supabase__get_publishable_keys` - Get API keys (anon, publishable)
-
-**Database Operations:**
-- `mcp__supabase__list_tables` - View all tables in schemas
-- `mcp__supabase__execute_sql` - Run SELECT/DML queries
-- `mcp__supabase__apply_migration` - Apply DDL changes safely
-- `mcp__supabase__list_migrations` - View migration history
-- `mcp__supabase__list_extensions` - View Postgres extensions
-- `mcp__supabase__generate_typescript_types` - Generate types from schema
-
-**Branching (Dev/Test Environments):**
-- `mcp__supabase__create_branch` - Create dev branch
-- `mcp__supabase__list_branches` - List all branches
-- `mcp__supabase__merge_branch` - Merge to production
-- `mcp__supabase__rebase_branch` - Sync with production
-- `mcp__supabase__reset_branch` - Reset branch migrations
-- `mcp__supabase__delete_branch` - Delete branch
-
-**Edge Functions:**
-- `mcp__supabase__list_edge_functions` - List all functions
-- `mcp__supabase__get_edge_function` - Get function code
-- `mcp__supabase__deploy_edge_function` - Deploy function
-
-**Monitoring & Debugging:**
-- `mcp__supabase__get_logs` - Get logs (api, postgres, edge-function, auth, storage, realtime)
-- `mcp__supabase__get_advisors` - Security & performance checks
-
-**Storage:**
-- `mcp__supabase__list_storage_buckets` - List storage buckets
-- `mcp__supabase__get_storage_config` - Get storage configuration
-- `mcp__supabase__update_storage_config` - Update storage configuration
-
-**Documentation:**
-- `mcp__supabase__search_docs` - Search Supabase docs
+Box: `207.180.232.102`, SSH `igf`→root; public via Cloudflare Tunnel `api.igrowfast.com` (kong); Studio `studio.igrowfast.com` (CF Access).
 
 ---
 
