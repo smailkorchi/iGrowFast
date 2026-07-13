@@ -9,7 +9,7 @@ import { useCallback, useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
 import { markConversationRead, markConversationUnread } from '../conversationsApi'
-import type { ConversationDecrypted, ConversationStatus } from '../database.types'
+import type { ConversationDecrypted } from '../database.types'
 
 // ─── keys ───────────────────────────────────────────────────────────────────
 
@@ -149,37 +149,47 @@ export function useConversation(id: string | null) {
   })
 }
 
-// ─── trigram search (debounce upstream — pass empty string to clear) ──────
+// ─── server-side conversation search (name + number + message keyword) ─────
+//
+// Runs whatsapp.search_conversations (mig 067) over the WHOLE instance
+// (RLS-equivalent scope), NOT just the loaded pages — the client-side
+// .includes() it replaces could only see conversations already scrolled into
+// view. Three axes: NAME (peer/contact book name), NUMBER (query digits
+// normalised so 0X…/+CC…/spaced all hit the stored JID), KEYWORD (message
+// bodies via the blind index). The RPC returns a conversations_decrypted-shaped
+// row so a hit renders identically to a list row; match_type says which axis
+// matched (surfaced as a subtle hint for keyword-only hits). Debounce upstream.
 
-export interface SearchHit {
-  id: string
-  instance_id: string
-  remote_jid: string
-  peer_display_name: string | null
-  peer_profile_pic: string | null
-  is_group: boolean
-  last_message_at: string | null
-  last_message_preview: string | null
-  unread_count: number
-  status: ConversationStatus
+/** Which axis produced the hit. 'keyword' = matched a word inside the thread. */
+export type SearchMatchType = 'name' | 'number' | 'keyword'
+
+/** RPC row shape — a superset-compatible slice of ConversationListRow + score. */
+export interface ConversationSearchHit extends ConversationListRow {
   match_score: number
+  match_type: SearchMatchType
 }
 
 export function useConversationSearch(instanceId: string | null, query: string) {
   const trimmed = query.trim()
-  return useQuery<SearchHit[]>({
+  return useQuery<ConversationSearchHit[]>({
     queryKey: conversationKeys.search(instanceId ?? '_', trimmed),
-    enabled:  !!instanceId && trimmed.length >= 1,
+    // >= 3 chars: pg_trgm needs a full trigram to use the folded-name GIN
+    // (a 2-char LIKE extracts none and would seq-scan); number search needs
+    // >= 4 digits anyway; keyword tokens inside a >=3 query still match.
+    enabled:  !!instanceId && trimmed.length >= 3,
     queryFn:  async () => {
       const { data, error } = await supabase.schema('whatsapp').rpc('search_conversations', {
         p_instance_id: instanceId!,
         p_query: trimmed,
-        p_limit: 30,
+        p_limit: 40,
       })
       if (error) throw new Error(error.message)
-      return (data ?? []) as unknown as SearchHit[]
+      return (data ?? []) as unknown as ConversationSearchHit[]
     },
+    // Bodies are static once written; a short cache avoids refiring while the
+    // user tabs away and back mid-search.
     staleTime: 15_000,
+    placeholderData: (prev) => prev,   // keep old hits visible while the next query loads (no flc)
   })
 }
 

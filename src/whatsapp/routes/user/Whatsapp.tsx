@@ -24,6 +24,7 @@ import { useCurrentUserId } from '@/hooks/useCurrentUserId'
 import {
   useFlattenedConversations,
   useConversation,
+  useConversationSearch,
   useInstancesArchived,
   useConversationFilterCounts,
   useMarkConversationRead,
@@ -220,17 +221,29 @@ export default function UserWhatsapp() {
     } else {
       rows = rows.filter((c) => !c.is_archived)
     }
-    const q = query.trim().toLowerCase()
-    if (q) {
-      rows = rows.filter((c) => {
-        const n = (c.contact_book_name ?? c.peer_display_name ?? '').toLowerCase()
-        const j = (c.remote_jid ?? '').toLowerCase()
-        const p = (c.last_message_preview ?? '').toLowerCase()
-        return n.includes(q) || j.includes(q) || p.includes(q)
-      })
-    }
+    // Search is server-side now (searchRows below), not a client filter over the
+    // loaded pages. The RPC is scope-gated, so an agent's search only ever returns
+    // conversations ASSIGNED to them — name, normalised number, or message keyword.
     return rows
-  }, [convs.rows, filter, convTagIds, favorites, query])
+  }, [convs.rows, filter, convTagIds, favorites])
+
+  // ─── server-side search (agent-scoped: assigned conversations only) ────────
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const q = query.trim()
+    const t = setTimeout(() => setDebouncedQuery(q), 250)
+    return () => clearTimeout(t)
+  }, [query])
+  const isSearching = query.trim().length >= 3
+  const search = useConversationSearch(activeInstanceId, debouncedQuery)
+  const searchRows = useMemo(
+    () => (search.data ?? []) as unknown as typeof visibleRows,
+    [search.data],
+  )
+  const listRows = isSearching ? searchRows : visibleRows
+  const listLoading = isSearching
+    ? (search.isFetching || debouncedQuery !== query.trim())
+    : convs.isLoading
 
   // "Non lues" pill badge = COUNT of unread conversations on the active instance
   // (server-authoritative, from the instances-unread map), NOT the sum of unread
@@ -545,11 +558,12 @@ export default function UserWhatsapp() {
       {view === 'list' && (
         <ChatList
           instance={headerInstance}
-          rows={visibleRows}
+          rows={listRows}
           activeId={activeId}
           onSelect={(c) => c.id && setActiveId(c.id)}
           query={query}
           onQueryChange={setQuery}
+          searching={isSearching}
           filter={filter}
           onFilterChange={setFilter}
           unreadTotal={unreadTotal}
@@ -557,8 +571,8 @@ export default function UserWhatsapp() {
           tags={(tags ?? []).map((t) => ({ id: t.id, name: t.name, color: t.color }))}
           onManageTags={() => setView('tags')}
           onNewChat={() => setView('new-chat')}
-          loading={convs.isLoading}
-          onScrollEnd={() => { if (convs.hasNextPage && !convs.isFetchingNextPage) void convs.fetchNextPage() }}
+          loading={listLoading}
+          onScrollEnd={() => { if (!isSearching && convs.hasNextPage && !convs.isFetchingNextPage) void convs.fetchNextPage() }}
           tagColorMap={tagColorMap}
           ownerJid={activeInstance?.wa_owner_jid ?? null}
           favCount={favorites.size}

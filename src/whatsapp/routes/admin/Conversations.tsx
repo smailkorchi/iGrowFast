@@ -26,6 +26,7 @@ const OrderViewDialog = lazy(() => import('@/components/orders/OrderViewDialog')
 import {
   useFlattenedConversations,
   useConversation,
+  useConversationSearch,
   useInstancesUnread,
   useInstancesArchived,
   useConversationFilterCounts,
@@ -259,17 +260,41 @@ export default function AdminConversations() {
     } else {
       rows = rows.filter((c) => !c.is_archived)
     }
-    const q = query.trim().toLowerCase()
-    if (q) {
-      rows = rows.filter((c) => {
-        const n = (c.contact_book_name ?? c.peer_display_name ?? '').toLowerCase()
-        const j = (c.remote_jid ?? '').toLowerCase()
-        const p = (c.last_message_preview ?? '').toLowerCase()
-        return n.includes(q) || j.includes(q) || p.includes(q)
-      })
-    }
+    // NOTE: search is NOT a client filter over loaded rows anymore. Typing in the
+    // search box switches the list to server-side results (searchRows below),
+    // which see the WHOLE instance — name, normalised number, and message
+    // keyword — not just the ~50 rows currently scrolled in.
     return rows
-  }, [convs.rows, filter, convTagIds, favorites, query])
+  }, [convs.rows, filter, convTagIds, favorites])
+
+  // ─── server-side search (name + number + message keyword, mig 067) ─────────
+  // Debounce the raw input so we fire one RPC after typing settles, not per key.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const q = query.trim()
+    const t = setTimeout(() => setDebouncedQuery(q), 250)
+    return () => clearTimeout(t)
+  }, [query])
+  // Enter search mode at >= 3 chars (matches the RPC hook's floor: pg_trgm needs a
+  // full trigram to index the folded-name search; phone matching needs >= 4
+  // digits). Below that the normal filtered list shows.
+  const isSearching = query.trim().length >= 3
+  const search = useConversationSearch(activeInstanceId, debouncedQuery)
+
+  // When searching, the list renders server hits (already @lid/merged-filtered and
+  // scope-gated by the RPC) instead of the filtered loaded pages. Hits carry a
+  // conversations_decrypted-compatible shape, so they render as normal rows.
+  const searchRows = useMemo(
+    () => (search.data ?? []) as unknown as typeof visibleRows,
+    [search.data],
+  )
+  const listRows = isSearching ? searchRows : visibleRows
+  // Show the spinner while the (debounced) query is in flight OR still settling
+  // (raw query changed but debounced hasn't caught up yet) — never a false "no
+  // results" flash between keystroke and fetch.
+  const listLoading = isSearching
+    ? (search.isFetching || debouncedQuery !== query.trim())
+    : convs.isLoading
 
   // "Non lues" pill badge = COUNT of unread conversations on the active instance
   // (server-authoritative, from the instances-unread map), NOT the sum of unread
@@ -598,11 +623,12 @@ export default function AdminConversations() {
       {view === 'list' && (
         <ChatList
           instance={headerInstance}
-          rows={visibleRows}
+          rows={listRows}
           activeId={activeId}
           onSelect={(c) => c.id && setActiveId(c.id)}
           query={query}
           onQueryChange={setQuery}
+          searching={isSearching}
           filter={filter}
           onFilterChange={setFilter}
           unreadTotal={unreadTotal}
@@ -610,8 +636,8 @@ export default function AdminConversations() {
           tags={(tags ?? []).map((t) => ({ id: t.id, name: t.name, color: t.color }))}
           onManageTags={() => setView('tags')}
           onNewChat={() => setView('new-chat')}
-          loading={convs.isLoading}
-          onScrollEnd={() => { if (convs.hasNextPage && !convs.isFetchingNextPage) void convs.fetchNextPage() }}
+          loading={listLoading}
+          onScrollEnd={() => { if (!isSearching && convs.hasNextPage && !convs.isFetchingNextPage) void convs.fetchNextPage() }}
           tagColorMap={tagColorMap}
           ownerJid={activeInstance?.wa_owner_jid ?? null}
           favCount={favorites.size}

@@ -228,6 +228,10 @@ export interface ChatListProps {
   onSelect: (c: ConversationDecrypted) => void
   query: string
   onQueryChange: (q: string) => void
+  /** True once the query is long enough that `rows` are server SEARCH results
+   *  (not the filtered list). Gates the "no match" empty-state copy so a short,
+   *  not-yet-searching query over an empty list doesn't wrongly blame the query. */
+  searching?: boolean
   filter: Filter
   onFilterChange: (f: Filter) => void
   unreadTotal: number
@@ -658,7 +662,7 @@ export function ChatList(p: ChatListProps) {
       <div className="wac__list" ref={listRef}>
         {p.rows.length === 0 && !p.loading && (
           <div className="wac__list-empty">
-            {p.query
+            {p.searching
               ? <>Aucune discussion ne correspond à « {p.query} ».</>
               : <>Aucune discussion.</>}
           </div>
