@@ -488,37 +488,75 @@ export class ColiatyAdapter {
     }
 
     async addParcelsToNote(deliveryNoteRef, parcelCodes) {
-        console.log('📋 Coliaty: Adding parcels to pickup note:', deliveryNoteRef);
-        console.log('Parcel codes:', parcelCodes);
+        const codes = (parcelCodes || []).filter(Boolean);
+        console.log('📋 Coliaty: Adding parcels to pickup note:', deliveryNoteRef, `(${codes.length} codes)`);
 
-        // Public API: identical body + response to the old dashboard call. Same-phone
-        // DUPLICATEs come back in error_parcels with error_id + error_can_ignore (verified
-        // live on the public surface), so the duplicate-ignore chain is unaffected.
-        const response = await fetch(`${this.baseUrl}/pickup-note/add-parcels`, {
-            method: 'POST',
-            headers: {
-                'Authorization': this.getAuthHeader(),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                pickup_note_reference: deliveryNoteRef,
-                parcel_codes: parcelCodes
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Coliaty Error Response:', errorText);
-            throw new Error(`Failed to add parcels to pickup note: ${errorText}`);
+        if (codes.length === 0) {
+            return { success: true, message: 'no codes', data: { success_parcels: {}, error_parcels: {} } };
         }
 
-        const result = await response.json();
-        console.log('Parcels added to pickup note:', JSON.stringify(result, null, 2));
+        // Coliaty caps /pickup-note/add-parcels at 100 codes per request (400
+        // "Trop de colis fournis (maximum 100)"), so a batch-created note holding
+        // >100 parcels must add in chunks. success_parcels / error_parcels are keyed
+        // by tracking CODE, so merging chunks never collides; the shape returned to
+        // the caller is identical to a single call.
+        // Public API: same body + response as the old dashboard call. Same-phone
+        // DUPLICATEs come back in error_parcels with error_id + error_can_ignore.
+        const MAX = 100;
+        const successObj: Record<string, unknown> = {};
+        let successArr: unknown[] | null = null;
+        const errorObj: Record<string, unknown> = {};
+        let lastMessage = '';
+        let allOk = true;
+
+        for (let s = 0; s < codes.length; s += MAX) {
+            const chunk = codes.slice(s, s + MAX);
+            const response = await fetch(`${this.baseUrl}/pickup-note/add-parcels`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': this.getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    pickup_note_reference: deliveryNoteRef,
+                    parcel_codes: chunk
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Coliaty Error Response:', errorText);
+                throw new Error(`Failed to add parcels to pickup note: ${errorText}`);
+            }
+
+            const result = await response.json();
+            console.log(`Coliaty add-parcels chunk ${Math.floor(s / MAX) + 1} (${chunk.length}):`, JSON.stringify(result?.data ?? result).slice(0, 400));
+            if (result.success === false) allOk = false;
+            if (result.message) lastMessage = result.message;
+
+            const d = result.data || {};
+            if (Array.isArray(d.success_parcels)) {
+                successArr = (successArr || []).concat(d.success_parcels);
+            } else if (d.success_parcels && typeof d.success_parcels === 'object') {
+                Object.assign(successObj, d.success_parcels);
+            }
+            if (d.error_parcels && typeof d.error_parcels === 'object' && !Array.isArray(d.error_parcels)) {
+                Object.assign(errorObj, d.error_parcels);
+            } else if (Array.isArray(d.error_parcels)) {
+                for (const e of d.error_parcels) {
+                    const key = e?.code || e?.package_code || e?.tracking_code;
+                    if (key) errorObj[key] = e;
+                }
+            }
+        }
 
         return {
-            success: result.success,
-            message: result.message,
-            data: result.data
+            success: allOk,
+            message: lastMessage,
+            data: {
+                success_parcels: successArr !== null ? successArr : successObj,
+                error_parcels: errorObj
+            }
         };
     }
 

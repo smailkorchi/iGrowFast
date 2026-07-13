@@ -473,6 +473,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const [providerSearch, setProviderSearch] = useState('');
     const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>(persisted?.createdParcels ?? []);
     const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>(persisted?.deliveryNotes ?? []);
+    // Note ids created/reused during THIS run, captured the moment the note row exists —
+    // BEFORE the add-parcels step that can throw — so an explicit discard can delete a
+    // note this run created even if finalization failed. isNew=false means a pre-existing
+    // note was reused; never delete those.
+    const sessionNotesRef = React.useRef<{ id: string; isNew: boolean }[]>([]);
+    const [discarding, setDiscarding] = useState(false);
     // Coliaty same-phone duplicates surfaced at the add-to-pickup-note step, plus the
     // subset (by Coliaty error_id) the user chose to ignore/keep.
     const [duplicateParcels, setDuplicateParcels] = useState<DuplicateEntry[]>(persisted?.duplicateParcels ?? []);
@@ -1045,6 +1051,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 deliveryNoteId = note.id;
             }
 
+            // Record this run's note BEFORE the add step (which can throw), so an explicit
+            // discard can delete a note this run created instead of leaking an empty one.
+            if (deliveryNoteId && !sessionNotesRef.current.some(n => n.id === deliveryNoteId)) {
+                sessionNotesRef.current.push({ id: deliveryNoteId, isNew: !existingNote });
+            }
+
             // 2. Add parcels to the delivery note (new or existing)
             const addResponse = await fetch(EDGE_FUNCTION_URL, {
                 method: 'POST',
@@ -1480,6 +1492,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setCurrentProvider('');
         setSelectedOrderIds(new Set());
         setOrderSearch('');
+        sessionNotesRef.current = [];
         // A reset means the run is finished or abandoned — drop any persisted progress.
         clearWizardSnapshot(STORAGE_KEY);
         setRestoredOpen(false);
@@ -1494,9 +1507,52 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         onOpenChange(next);
     };
 
-    // Explicit abandon: wipe the run (state + snapshot). The already-created parcels stay
-    // on the provider as orphans — there is no cancel endpoint — so this is intentional.
-    const discardProgress = () => {
+    // Explicit abandon WITH DB rollback: delete every parcel this run created (the AFTER
+    // DELETE trigger clears each order's logistics, freeing it of the orphan tracking
+    // code) and delete any note THIS run created (never a reused pre-existing one). The
+    // carrier parcels can't be cancelled via API, so they remain on the provider — the
+    // user deletes them from its dashboard. On failure we keep the run so cleanup can be
+    // retried; only a fully successful cleanup resets and closes the wizard.
+    const discardProgress = async () => {
+        if (discarding) return;
+        setDiscarding(true);
+        const parcelIds = createdParcels.map(p => p.parcel?.id).filter(Boolean) as string[];
+        const newNoteIds = sessionNotesRef.current.filter(n => n.isNew).map(n => n.id);
+        try {
+            for (let i = 0; i < parcelIds.length; i += 200) {
+                const { error } = await supabase
+                    .from('company_parcels')
+                    .delete()
+                    .in('id', parcelIds.slice(i, i + 200));
+                if (error) throw error;
+            }
+            for (const id of newNoteIds) {
+                const { error } = await supabase
+                    .from('company_delivery_notes')
+                    .delete()
+                    .eq('id', id)
+                    .eq('is_finalized', false);
+                if (error) throw error;
+            }
+        } catch (e: any) {
+            setDiscarding(false);
+            toast({
+                title: 'Nettoyage incomplet',
+                description: (e?.message || "Erreur pendant l'annulation.") + ' Cliquez de nouveau sur « Annuler la progression ».',
+                variant: 'destructive',
+            });
+            return; // keep the run so the user can retry the cleanup
+        }
+        queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+        queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+        queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
+        toast({
+            title: 'Progression annulée',
+            description: `${parcelIds.length} colis retirés des commandes. Ils restent chez le transporteur — supprimez-les depuis son tableau de bord.`,
+        });
+        setDiscarding(false);
         resetWizard();
         onOpenChange(false);
     };
@@ -1991,17 +2047,19 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         <div className="p-8 pt-0 space-y-3">
                             <p className="text-[11px] text-ant-muted">
                                 Fermer (✕) garde la progression — un bouton « Reprendre » apparaîtra pour y revenir.
-                                « Annuler la progression » abandonne les colis (ils resteront chez le transporteur).
+                                « Annuler la progression » retire les colis des commandes (ils restent chez le transporteur — à supprimer depuis son tableau de bord).
                             </p>
                             <DialogFooter className="sm:justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                     {/* All failed → Start Over (nothing on the provider to keep).
-                                        Some succeeded → explicit Discard (orphans the created parcels). */}
+                                        Some succeeded → Discard, which rolls back the DB (deletes the
+                                        created parcels + this run's notes; carrier parcels remain). */}
                                     {successfulParcels.length === 0 ? (
-                                        <Button variant="ghost" onClick={resetWizard} disabled={retryingAll || retryingOrderId !== null}>Start Over</Button>
+                                        <Button variant="ghost" onClick={resetWizard} disabled={retryingAll || retryingOrderId !== null || discarding}>Start Over</Button>
                                     ) : (
-                                        <Button variant="ghost" onClick={discardProgress} disabled={retryingAll || retryingOrderId !== null} className="text-ant-rose hover:bg-ant-rose/10">
-                                            Annuler la progression
+                                        <Button variant="ghost" onClick={discardProgress} disabled={retryingAll || retryingOrderId !== null || discarding} className="text-ant-rose hover:bg-ant-rose/10">
+                                            {discarding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                            {discarding ? 'Nettoyage…' : 'Annuler la progression'}
                                         </Button>
                                     )}
                                 </div>
