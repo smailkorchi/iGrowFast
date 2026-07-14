@@ -372,5 +372,18 @@
   "370": "OwnerSidebar.tsx",
   "371": "breadcrumb.tsx",
   "372": "drawer.tsx",
-  "373": "subscribeEcomBus"
+  "373": "subscribeEcomBus",
+  "374": "WebhookHealthIndicator.tsx",
+  "375": "chart.tsx",
+  "376": "TotpGate.tsx",
+  "377": "Payments.tsx",
+  "378": "fetchUrlAsDataUri",
+  "379": "getPlatformIcon",
+  "380": "D2 DESIGN CONTRACT — per-role dashboard stats RPCs (binding)",
+  "381": "D2 RECON — SELLER SURFACES (inline recon; Dashboard verified at line level, Statistics/Profile deltas to be re-verified in-file by the implementer)",
+  "382": "SellerSidebar.tsx",
+  "383": "EmailAccountCard.tsx",
+  "384": "sonner.tsx",
+  "385": "globe.tsx",
+  "386": "AgentError"
 }

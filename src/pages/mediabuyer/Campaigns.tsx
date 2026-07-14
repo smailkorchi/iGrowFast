@@ -550,6 +550,7 @@ const Campaigns = () => {
         },
         onSuccess: (next) => {
             queryClient.invalidateQueries({ queryKey: ['campaigns', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['dash-stats', 'mediabuyer'] });
             toast({ title: next === 'active' ? 'Campaign activated' : 'Campaign paused' });
         },
         onError: (err: any) => {
@@ -579,6 +580,7 @@ const Campaigns = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['campaigns', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['dash-stats', 'mediabuyer'] });
             toast({ title: 'Campaign deleted' });
             setToDelete(null);
         },

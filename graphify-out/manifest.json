@@ -1120,49 +1120,49 @@
     "semantic_hash": "2574371450060888a5da32a283828121"
   },
   "src/components/dashboard/ConfirmationPipeline.tsx": {
-    "mtime": 1782617580.1494281,
-    "ast_hash": "7ee9d5dea2ec3ecc0826c8030d0ca21b",
-    "semantic_hash": "7ee9d5dea2ec3ecc0826c8030d0ca21b"
+    "mtime": 1784069673.2605693,
+    "ast_hash": "be1ddc39be2a30e1cc36b2562b8b8f77",
+    "semantic_hash": ""
   },
   "src/components/dashboard/DashboardCityStats.tsx": {
-    "mtime": 1782617580.1496234,
-    "ast_hash": "edb2dff96ac171713de5692adaa0df10",
-    "semantic_hash": "edb2dff96ac171713de5692adaa0df10"
+    "mtime": 1784069718.6665397,
+    "ast_hash": "add324981bcd3a88768a8802d7215566",
+    "semantic_hash": ""
   },
   "src/components/dashboard/DashboardKPICards.tsx": {
-    "mtime": 1782609434.0887163,
-    "ast_hash": "47ebc78e752fcb7851910c511c7a39ad",
-    "semantic_hash": "47ebc78e752fcb7851910c511c7a39ad"
+    "mtime": 1784069628.0123315,
+    "ast_hash": "9f843ffd884bc77ac9ad61c676a3b1d6",
+    "semantic_hash": ""
   },
   "src/components/dashboard/DashboardProductsPerformance.tsx": {
-    "mtime": 1782609434.0891063,
-    "ast_hash": "89a9da92dd150529511d85719a21401c",
-    "semantic_hash": "89a9da92dd150529511d85719a21401c"
+    "mtime": 1784070015.8860877,
+    "ast_hash": "50a03c6d80484bf6c08f3178003a0e59",
+    "semantic_hash": ""
   },
   "src/components/dashboard/DashboardSellersPerformance.tsx": {
-    "mtime": 1782617580.1498744,
-    "ast_hash": "1dfe1edc5e580752ea3bc9031cd4b266",
-    "semantic_hash": "1dfe1edc5e580752ea3bc9031cd4b266"
+    "mtime": 1784069950.7766118,
+    "ast_hash": "c693111f1386b7e9f612b3edb59dabed",
+    "semantic_hash": ""
   },
   "src/components/dashboard/PendingOrdersBreakdown.tsx": {
-    "mtime": 1782617580.1501381,
-    "ast_hash": "bfe4e71276fc2557ee535ee3b99ecb0b",
-    "semantic_hash": "bfe4e71276fc2557ee535ee3b99ecb0b"
+    "mtime": 1784069652.3370385,
+    "ast_hash": "040d857f973cee324832626f37e395fe",
+    "semantic_hash": ""
   },
   "src/components/dashboard/SalesComparatifChart.tsx": {
-    "mtime": 1782617580.150362,
-    "ast_hash": "1b0cbf090183d7472bedb146d643f6b9",
-    "semantic_hash": "1b0cbf090183d7472bedb146d643f6b9"
+    "mtime": 1784069879.8881812,
+    "ast_hash": "4c0771f2962d80289c39f92e793b4635",
+    "semantic_hash": ""
   },
   "src/components/dashboard/SellerSelfPerformanceSection.tsx": {
-    "mtime": 1782609434.0909364,
-    "ast_hash": "d295f6b43e56260464a20cf527448e4a",
-    "semantic_hash": "d295f6b43e56260464a20cf527448e4a"
+    "mtime": 1784071847.274833,
+    "ast_hash": "82893842b01ebfe7f9e20fbb4a17872b",
+    "semantic_hash": ""
   },
   "src/components/dashboard/ShippingPipeline.tsx": {
-    "mtime": 1782408323.1532962,
-    "ast_hash": "3f120e0217a81aa992b740a39a930029",
-    "semantic_hash": "3f120e0217a81aa992b740a39a930029"
+    "mtime": 1784069772.7090878,
+    "ast_hash": "2e13a594b679fff397b3d0a22e6f5129",
+    "semantic_hash": ""
   },
   "src/components/dashboard/performance/FinancialsWaterfall.tsx": {
     "mtime": 1776638935.0,
@@ -1925,8 +1925,8 @@
     "semantic_hash": "536e477a7f602b63c01c0d105ece4d04"
   },
   "src/hooks/useMediaBuyerStats.ts": {
-    "mtime": 1784043426.371608,
-    "ast_hash": "9871e513fbb344d5ac3c0f371e7c0953",
+    "mtime": 1784069561.5308747,
+    "ast_hash": "c862eac223ede3d1b8a7861895ffe9db",
     "semantic_hash": ""
   },
   "src/hooks/useMetaAds.ts": {
@@ -2295,9 +2295,9 @@
     "semantic_hash": "8202aeb3cf8f133f747011a11050ff0f"
   },
   "src/pages/admin/Dashboard.tsx": {
-    "mtime": 1782184454.6740532,
-    "ast_hash": "deed4b04c26c8d4ac2fe82c265b22595",
-    "semantic_hash": "deed4b04c26c8d4ac2fe82c265b22595"
+    "mtime": 1784070040.9593022,
+    "ast_hash": "598869ef06795803f1feaac172e5952f",
+    "semantic_hash": ""
   },
   "src/pages/admin/DeliveryNote.tsx": {
     "mtime": 1784049460.4270432,
@@ -2550,14 +2550,14 @@
     "semantic_hash": "e4e96eb23d8e261af46e4fe5db2dd9c1"
   },
   "src/pages/mediabuyer/CampaignForm.tsx": {
-    "mtime": 1784006682.4870746,
-    "ast_hash": "9ca1181f97e816b6c25ae796dd420efb",
+    "mtime": 1784071770.439009,
+    "ast_hash": "4f88b3fd6005d712324206fc2f883a13",
     "semantic_hash": ""
   },
   "src/pages/mediabuyer/CampaignManage.tsx": {
-    "mtime": 1781605992.478403,
-    "ast_hash": "043c927478a692ef703105da84ce1d05",
-    "semantic_hash": "043c927478a692ef703105da84ce1d05"
+    "mtime": 1784071760.5675805,
+    "ast_hash": "1de24fc3c5d3ef3018bbe94e4a4cfc8d",
+    "semantic_hash": ""
   },
   "src/pages/mediabuyer/CampaignPreview.tsx": {
     "mtime": 1781790841.834477,
@@ -2565,14 +2565,14 @@
     "semantic_hash": "e3e0f0b9395a2f45060d62ca7df0760d"
   },
   "src/pages/mediabuyer/Campaigns.tsx": {
-    "mtime": 1782094203.703619,
-    "ast_hash": "1ea920788306afa15af8bb86c00b29a9",
-    "semantic_hash": "1ea920788306afa15af8bb86c00b29a9"
+    "mtime": 1784071760.573102,
+    "ast_hash": "c2aa4ff3869dd198aa103741f164ff23",
+    "semantic_hash": ""
   },
   "src/pages/mediabuyer/Dashboard.tsx": {
-    "mtime": 1783055483.9432807,
-    "ast_hash": "0687ebb2978eb379c1c5fd078dea6c21",
-    "semantic_hash": "0687ebb2978eb379c1c5fd078dea6c21"
+    "mtime": 1784069606.7292151,
+    "ast_hash": "646db5f2b87f1e170b7029fe5e219f32",
+    "semantic_hash": ""
   },
   "src/pages/mediabuyer/Demands.tsx": {
     "mtime": 1776719300.0,
@@ -2665,9 +2665,9 @@
     "semantic_hash": "2a1f1550f33b1c29e09f0d67ebbfc005"
   },
   "src/pages/seller/Dashboard.tsx": {
-    "mtime": 1782609434.0972536,
-    "ast_hash": "0052794e7b66332ea242dea9d8a1074d",
-    "semantic_hash": "0052794e7b66332ea242dea9d8a1074d"
+    "mtime": 1784069791.7301052,
+    "ast_hash": "7280053286396c6d9d34f2c6efb0547c",
+    "semantic_hash": ""
   },
   "src/pages/seller/DeliveryNote.tsx": {
     "mtime": 1784049460.4235303,
@@ -2700,9 +2700,9 @@
     "semantic_hash": "edc2f92e3431137d229feb8a6c43c1bf"
   },
   "src/pages/seller/Profile.tsx": {
-    "mtime": 1782617580.165708,
-    "ast_hash": "96abe20446fe908b9390d3caf760388d",
-    "semantic_hash": "96abe20446fe908b9390d3caf760388d"
+    "mtime": 1784069961.8373184,
+    "ast_hash": "5df7615fea4b7af188228e992e195551",
+    "semantic_hash": ""
   },
   "src/pages/seller/ReturnNote.tsx": {
     "mtime": 1784043151.8539917,
@@ -2710,9 +2710,9 @@
     "semantic_hash": ""
   },
   "src/pages/seller/Statistics.tsx": {
-    "mtime": 1782609434.0992649,
-    "ast_hash": "7cba272853b276cb7352eb1bcc13daa1",
-    "semantic_hash": "7cba272853b276cb7352eb1bcc13daa1"
+    "mtime": 1784069876.009467,
+    "ast_hash": "66454a752e76ef8f47ac2f1ff96823b9",
+    "semantic_hash": ""
   },
   "src/pages/seller/Wallet.tsx": {
     "mtime": 1781605992.4847176,
@@ -5310,8 +5310,8 @@
     "semantic_hash": ""
   },
   "src/components/realtime/EcomBizRealtime.tsx": {
-    "mtime": 1784048337.1758485,
-    "ast_hash": "a91ae544d38598b08b42747e844af41a",
+    "mtime": 1784070053.8754785,
+    "ast_hash": "5b2eb0e12372608206ed94439b5e8db7",
     "semantic_hash": ""
   },
   "src/lib/ecomBus.ts": {
@@ -5325,8 +5325,8 @@
     "semantic_hash": ""
   },
   "docs/MASTER_TODO.md": {
-    "mtime": 1784045653.074973,
-    "ast_hash": "1a33cd5cb31a490d03c56563af179ada",
+    "mtime": 1784066338.1194892,
+    "ast_hash": "7f08a226d9ae8fc96fff83c243e227a9",
     "semantic_hash": ""
   },
   "supabase/migrations/20260714160000_ecom_biz_r1a_publication_drop.sql": {
@@ -5382,6 +5382,36 @@
   "src/lib/orders/fetchOrderById.ts": {
     "mtime": 1784048323.4309318,
     "ast_hash": "c0fee138414a5e5e3d18b95082774ed9",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714230000_d2_dashboard_stats.sql": {
+    "mtime": 1784071749.6764235,
+    "ast_hash": "c97c9dc306a794de80bd2e1cad865bc9",
+    "semantic_hash": ""
+  },
+  "docs/d2-recon/01-admin-dashboard.md": {
+    "mtime": 1784052351.812325,
+    "ast_hash": "978f56ef6be0bb58512d10c5595b4218",
+    "semantic_hash": ""
+  },
+  "docs/d2-recon/02-seller.md": {
+    "mtime": 1784062335.7376766,
+    "ast_hash": "7465fbc1703813bb0fea186247875b10",
+    "semantic_hash": ""
+  },
+  "docs/d2-recon/03-mediabuyer.md": {
+    "mtime": 1784052351.8124347,
+    "ast_hash": "cf75f802a7ff2142430a643ce7d67170",
+    "semantic_hash": ""
+  },
+  "docs/d2-recon/04-db-side.md": {
+    "mtime": 1784052351.8125534,
+    "ast_hash": "595b8d028defe4cfcfea6b68c2d7fc02",
+    "semantic_hash": ""
+  },
+  "docs/d2-recon/05-design.md": {
+    "mtime": 1784062371.916469,
+    "ast_hash": "bde0efac0aaa50e683890409a20e0ce3",
     "semantic_hash": ""
   }
 }

@@ -161,6 +161,7 @@ const CampaignManage: React.FC = () => {
         onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ['campaign-daily-entries', campaign?.id] });
             queryClient.invalidateQueries({ queryKey: ['campaign-orders', campaign?.id] });
+            queryClient.invalidateQueries({ queryKey: ['dash-stats', 'mediabuyer'] });
             toast({ title: result === 'created' ? 'Entry added' : 'Entry updated' });
             setAddSpend('');
             setAddLeads('');
@@ -181,6 +182,7 @@ const CampaignManage: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['campaign-daily-entries', campaign?.id] });
             queryClient.invalidateQueries({ queryKey: ['campaign-orders', campaign?.id] });
+            queryClient.invalidateQueries({ queryKey: ['dash-stats', 'mediabuyer'] });
             toast({ title: 'Entry deleted' });
             setToDelete(null);
         },

@@ -1,14 +1,8 @@
-import { useState, useEffect } from 'react';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import {
-    computeUnpaidCommission,
-    normalizeCommissionBasis,
-    isDeliveredForCommission,
-    isDeliveredOnLocalDay,
-    type CommissionBasis,
-} from '@/lib/commercialCommission';
-import { isAdminPullback, isRateConfirmed } from '@/lib/analyticsDefinitions';
+import { type CommissionBasis } from '@/lib/commercialCommission';
 import {
     ShoppingCart, Eye, ChevronRight, Truck, Receipt,
     Wallet as WalletIcon, Clock, PackageCheck, CalendarDays,
@@ -34,7 +28,6 @@ interface SellerStats {
     deliveredOrders: number;
     unpaidDeliveries: number;
     totalOrders: number;
-    totalProducts: number;
     liveCommission: number;
     successRate: number;
     confirmRate: number;
@@ -63,26 +56,9 @@ interface TopProduct {
 
 const SellerDashboard = () => {
     const navigate = useNavigate();
+    // Status pill colors only — every stat below now comes from the RPC.
     const statusCats = useStatusCategories();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-    const [stats, setStats] = useState<SellerStats>({
-        todayOrders: 0,
-        deliveredToday: 0,
-        pendingOrders: 0,
-        confirmedOrders: 0,
-        deliveredOrders: 0,
-        unpaidDeliveries: 0,
-        totalOrders: 0,
-        totalProducts: 0,
-        liveCommission: 0,
-        successRate: 0,
-        confirmRate: 0,
-        commissionRate: 0,
-        commissionBasis: 'per_order',
-    });
-    const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
-    const [topProduct, setTopProduct] = useState<TopProduct | null>(null);
-    const [loading, setLoading] = useState(true);
     const [perfDateFilter, setPerfDateFilter] = useState<DateFilter>({
         from: undefined,
         to: undefined,
@@ -91,8 +67,7 @@ const SellerDashboard = () => {
 
     useEffect(() => {
         initDashboard();
-        fetchSellerData();
-    }, [statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size, statusCats.pendingIds.size]);
+    }, []);
 
     const logPresence = async (userId: string, businessId?: string) => {
         try {
@@ -128,203 +103,82 @@ const SellerDashboard = () => {
         }
     };
 
-    const fetchSellerData = async () => {
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
+    const sellerId = userProfile?.id ?? null;
+    const businessId = userProfile?.['DigiCom Business'] ?? null;
+    const statsEnabled = !!sellerId && !!businessId;
 
-            const userId = session.user.id;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const { data: sellerData } = await supabase
-                .from('users')
-                .select('products, commission_price, commission_basis, "DigiCom Business"')
-                .eq('id', userId)
-                .single();
-
-            const attributedProducts: string[] = Array.isArray(sellerData?.products)
-                ? (sellerData!.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
-                : [];
-            const commissionRate = sellerData?.commission_price || 0;
-            const commissionBasis = normalizeCommissionBasis(sellerData?.commission_basis as string | null | undefined);
-            const sellerBusinessId = (sellerData as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
-
-            // Paginated so a seller exceeding 1000 orders is never truncated.
-            const ordersFilters: { column: string; op: 'eq' | 'is'; value: unknown }[] = [
-                { column: 'seller_id', op: 'eq', value: userId },
-                { column: 'date_deleted', op: 'is', value: null },
-            ];
-            if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
-            const ordersData = await fetchAllRows<any>(
-                'orders',
-                'id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))',
-                { filters: ordersFilters },
-            );
-
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate this seller's delivered/commission/revenue tiles.
-            const orders = (ordersData || []).filter((o: any) => o.replace !== true).map(o => ({
-                ...o,
-                order_status_id: (o as any).order_status_id,
-                package_status_id: (o as any).package_status_id,
-                status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
-                packageStatus: ((o as any).package_statuses?.label || '').toLowerCase()
-            }));
-
-            const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
-
-            // Fetch per-order parcel tracking up front. `orders.tracking_number`
-            // is not populated in production — the authoritative tracking source
-            // is company_parcels.tracking_code / courier_parcels.tracking_code.
-            const trackedSet = new Set<string>();
-            if (sellerBusinessId) {
-                const [cpRows, xpRows] = await Promise.all([
-                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                        'company_parcels', 'order_id, tracking_code',
-                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
-                    ),
-                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                        'courier_parcels', 'order_id, tracking_code',
-                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
-                    ),
-                ]);
-                (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
-                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
-                });
-                (xpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
-                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
-                });
-            }
-
-            // Pending confirmation = status ∈ {new, callback} AND no tracking
-            // code. Tracking code (company_parcels / courier_parcels) overrides
-            // everything — once the parcel is handed to a courier the order is
-            // confirmed regardless of its order_status.
-            const isPending = (o: any) => {
-                if (o?.id && trackedSet.has(o.id)) return false;
-                return statusCats.pendingIds.has(o.order_status_id);
-            };
-
-            const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
-            const now = new Date();
-            const deliveredToday = orders.filter(o =>
-                isDeliveredOnLocalDay(o, statusCats.deliveredPkgIds, now),
-            ).length;
-
-            const delivered = orders.filter(o => isDelivered(o)).length;
-            // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-            const tracked = orders.filter(o => !!o.id && trackedSet.has(o.id));
-            const pullback = tracked.filter(o =>
-                isAdminPullback(
-                    o as any,
-                    true,
-                    statusCats.adminPullbackOrderIds,
-                    statusCats.adminPullbackPackageIds,
-                ),
-            );
-            const deliveryDenom = tracked.length - pullback.length;
-            const successRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
-            // Confirmation rate: numerator = orders NOT in pending (new +
-            // postponed) OR with tracking. Denominator = total orders.
-            const rateConfirmedCount = orders.filter(o => isRateConfirmed(o, statusCats.pendingIds, trackedSet)).length;
-            const confirmRate = orders.length > 0 ? (rateConfirmedCount / orders.length) * 100 : 0;
-
-            // Partial-payout-aware: sum `paid_amount` across all payout rows
-            // (pending + partial + paid). The trigger on seller_payment_txns
-            // keeps `paid_amount` in lockstep with disbursements, so this is
-            // the single source of truth for cash already received.
-            const { data: paymentsData } = await supabase
-                .from('seller_payments')
-                .select('paid_amount, status')
-                .eq('seller_id', userId);
-
-            const alreadyPaidAmount = (paymentsData || []).reduce((sum, p: any) => sum + (Number(p.paid_amount) || 0), 0);
-
-            const { unpaidCommission: liveCommission, unpaidAccrued: unpaidDeliveries } = computeUnpaidCommission({
-                basis: commissionBasis,
-                commissionPrice: Number(commissionRate) || 0,
-                orders,
-                isDelivered,
-                sellerProductIds: attributedProducts,
-                paidAmount: alreadyPaidAmount,
+    // D2 — ONE server-side aggregate (seller_dashboard_stats) replaces the
+    // own-orders full scan, the TWO business-wide parcel dumps and the
+    // seller_payments sum. Commission money is ledger-reconciled in the RPC —
+    // no client commission math remains. Lifetime pool (this page has no date
+    // window of its own; the AnalyticsDateFilter only drives the
+    // SellerSelfPerformanceSection). p_seller is ALWAYS the auth uid — the RPC
+    // raises 42501 for anything else. Note: "today" tiles are now bucketed on
+    // Africa/Casablanca days server-side (was browser-local — accepted D2 delta).
+    const { data: dashStats, isLoading: statsFetching } = useQuery<any>({
+        queryKey: ['dash-stats', 'seller', businessId, sellerId],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('seller_dashboard_stats', {
+                p_business: businessId,
+                p_seller: sellerId,
             });
+            if (error) throw error;
+            return data;
+        },
+        enabled: statsEnabled,
+        staleTime: 60_000,
+    });
 
-            setStats({
-                todayOrders: todayOrders.length,
-                deliveredToday,
-                pendingOrders: orders.filter(o => isPending(o)).length,
-                // Confirmed count = one-true-definition (yes was spoken).
-                confirmedOrders: rateConfirmedCount,
-                deliveredOrders: delivered,
-                unpaidDeliveries,
-                totalOrders: orders.length,
-                totalProducts: attributedProducts.length,
-                liveCommission,
-                successRate,
-                confirmRate,
-                commissionRate: Number(commissionRate) || 0,
-                commissionBasis,
-            });
+    const loading = !userProfile || (statsEnabled && statsFetching);
 
-            // fetchAllRows paginates by stable 'id', so sort by recency here for the
-            // activity feed (the old query's created_at-desc ordering moved client-side).
-            const recentSorted = [...orders].sort((a, b) =>
-                new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
-            );
-            setRecentOrders(recentSorted.slice(0, 10).map(o => {
-                const orderItem = (o.order_items as any)?.[0];
-                const product = orderItem?.products;
-                return {
-                    id: o.id,
-                    order_status_id: (o as any).order_status_id,
-                    status: (o as any).status,
-                    total_amount: Number((o as any).price) || 0,
-                    created_at: (o as any).created_at,
-                    customer_name: (o as any).name || 'Unknown',
-                    product_name: product?.name || 'N/A',
-                    product_image: product?.image_url || null,
-                };
-            }));
+    const stats: SellerStats = useMemo(() => {
+        const strip = dashStats?.stat_strip;
+        const money = dashStats?.money;
+        return {
+            todayOrders: Number(strip?.today_orders) || 0,
+            deliveredToday: Number(strip?.delivered_today) || 0,
+            pendingOrders: Number(strip?.pending) || 0,
+            // Confirmed count = one-true-definition (rate-confirmed).
+            confirmedOrders: Number(strip?.confirmed) || 0,
+            deliveredOrders: Number(strip?.delivered) || 0,
+            unpaidDeliveries: Number(money?.unpaid_deliveries) || 0,
+            totalOrders: Number(strip?.total) || 0,
+            liveCommission: Number(money?.live_commission) || 0,
+            successRate: Number(strip?.success_rate) || 0,
+            confirmRate: Number(strip?.confirm_rate) || 0,
+            commissionRate: Number(money?.commission_rate) || 0,
+            commissionBasis: money?.commission_basis === 'per_unit' ? 'per_unit' : 'per_order',
+        };
+    }, [dashStats]);
 
-            const productMap: Record<string, { name: string; image: string | null; delivered: number; total: number; tracked: number; pullback: number; revenue: number }> = {};
-            orders.forEach((o: any) => {
-                const item = o.order_items?.[0];
-                if (!item) return;
-                const pName = item.products?.name || 'Unknown';
-                if (!productMap[pName]) {
-                    productMap[pName] = { name: pName, image: item.products?.image_url || null, delivered: 0, total: 0, tracked: 0, pullback: 0, revenue: 0 };
-                }
-                productMap[pName].total++;
-                if (!!o.id && trackedSet.has(o.id)) {
-                    productMap[pName].tracked++;
-                    if (isAdminPullback(o as any, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds)) {
-                        productMap[pName].pullback++;
-                    }
-                }
-                if (isDelivered(o)) {
-                    productMap[pName].delivered++;
-                    productMap[pName].revenue += Number(o.price) || 0;
-                }
-            });
+    // Top-10 slim rows straight from the RPC (created_at desc server-side).
+    const recentOrders: RecentOrder[] = useMemo(() => (
+        ((dashStats?.recent_orders ?? []) as any[]).map((r) => ({
+            id: r.id,
+            order_status_id: r.order_status_id ?? undefined,
+            status: r.status || 'unknown',
+            total_amount: Number(r.price) || 0,
+            created_at: r.created_at,
+            customer_name: r.customer_name || 'Unknown',
+            product_name: r.product_name || 'N/A',
+            product_image: r.product_image ?? null,
+        }))
+    ), [dashStats]);
 
-            const topProd = Object.values(productMap).sort((a, b) => b.revenue - a.revenue)[0];
-            if (topProd) {
-                const prodDenom = topProd.tracked - topProd.pullback;
-                setTopProduct({
-                    name: topProd.name,
-                    image: topProd.image,
-                    delivered: topProd.delivered,
-                    revenue: topProd.revenue,
-                    successRate: prodDenom > 0 ? (topProd.delivered / prodDenom) * 100 : 0,
-                });
-            }
-        } catch (error) {
-            console.error('Error fetching seller data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Per-product table comes revenue-desc from the RPC — row 0 is the top performer.
+    const topProduct: TopProduct | null = useMemo(() => {
+        const top = ((dashStats?.product_table ?? []) as any[])[0];
+        if (!top) return null;
+        const delivered = Number(top.delivered) || 0;
+        const prodDenom = (Number(top.tracked) || 0) - (Number(top.pullback) || 0);
+        return {
+            name: top.name || 'Unknown',
+            image: top.image ?? null,
+            delivered,
+            revenue: Number(top.revenue) || 0,
+            successRate: prodDenom > 0 ? (delivered / prodDenom) * 100 : 0,
+        };
+    }, [dashStats]);
 
     const getStatusStyle = (statusId: string) => {
         const hex = statusCats.getOrderStatusColor(statusId);

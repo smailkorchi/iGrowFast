@@ -1,116 +1,44 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Clock, AlertTriangle, Hourglass, CalendarClock } from 'lucide-react';
-import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
-import { differenceInDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { PENDING_STALE_DAYS } from '@/lib/analyticsDefinitions';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
-interface PendingOrdersBreakdownProps {
-    businessId: string;
-    dateFilter: DateFilter;
+/**
+ * `pending_breakdown` section of admin_dashboard_stats (D2). Pool = pending
+ * (pending_confirmation flag, no tracking code) with the old null-dates-pass
+ * window rule; age buckets measured against NOW server-side.
+ */
+export interface PendingBreakdownSection {
+    total: number;
+    total_value: number;
+    buckets: {
+        today: { count: number; value: number };
+        d1_3: { count: number; value: number };
+        d4_7: { count: number; value: number };
+        d7_plus: { count: number; value: number };
+    };
 }
 
-// Mutually exclusive age buckets. Labels match the branch logic exactly so no
-// silent overlap between "1-3" and "4-7" at day 3.
+interface PendingOrdersBreakdownProps {
+    stats: PendingBreakdownSection | undefined;
+}
+
+// Mutually exclusive age buckets. Labels match the RPC branch logic exactly so
+// no silent overlap between "1-3" and "4-7" at day 3.
 const BUCKETS = [
     { key: 'today', label: 'Today', color: '#788c5d', icon: Clock },
-    { key: '1-3d', label: '1–3 days', color: '#d1bfa3', icon: Hourglass },
-    { key: '4-7d', label: '4–7 days', color: '#d97757', icon: CalendarClock },
-    { key: '7+d', label: '7+ days', color: '#c96356', icon: AlertTriangle },
+    { key: 'd1_3', label: '1–3 days', color: '#d1bfa3', icon: Hourglass },
+    { key: 'd4_7', label: '4–7 days', color: '#d97757', icon: CalendarClock },
+    { key: 'd7_plus', label: '7+ days', color: '#c96356', icon: AlertTriangle },
 ] as const;
 
-export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrdersBreakdownProps) => {
-    const { pendingIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
+export const PendingOrdersBreakdown = ({ stats }: PendingOrdersBreakdownProps) => {
+    if (!stats) return null;
 
-    const { data: orders } = useQuery({
-        queryKey: ['pending-orders-breakdown-orders', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'orders',
-                'id, date, created_at, price, order_status_id',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
-    const metrics = useMemo(() => {
-        if (!orders) return null;
-
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
-
-        type POBOrder = {
-            id: string;
-            order_status_id: string | null;
-            date: string | null;
-            price: number | null;
-            created_at?: string | null;
-        };
-        const isPendingStatus = (id: string | null) =>
-            !!id && pendingIds.has(id);
-        // Pending = `order_statuses.pending_confirmation = true` (NEW +
-        // RAPPELE 1-6 + REPORTER). Tracking code (company_parcels /
-        // courier_parcels) overrides everything: once a parcel is handed to a
-        // courier, the order is confirmed regardless of status and leaves the
-        // pending queue.
-        const pending = (orders as unknown as POBOrder[]).filter((o) => {
-            if (o.id && trackedOrderIds.has(o.id)) return false;
-            return isPendingStatus(o.order_status_id) && isInRange(o.date);
-        });
-
-        const startOfNow = startOfDay(new Date());
-        const buckets: Record<string, POBOrder[]> = { today: [], '1-3d': [], '4-7d': [], '7+d': [] };
-
-        pending.forEach((o) => {
-            const raw = o.date || o.created_at;
-            if (!raw) return;
-            const d = new Date(raw);
-            if (Number.isNaN(d.getTime())) return;
-            const age = differenceInDays(startOfNow, startOfDay(d));
-            if (age <= 0) buckets.today.push(o);
-            else if (age <= 3) buckets['1-3d'].push(o);
-            else if (age <= 7) buckets['4-7d'].push(o);
-            else buckets['7+d'].push(o);
-        });
-
-        const totalValue = pending.reduce((s, o) => s + Number(o.price || 0), 0);
-        // Stale = pending longer than PENDING_STALE_DAYS. The "1–3d" bucket is the cutoff;
-        // anything beyond sits in the 4–7d or 7+d buckets which both count as stale.
-        void PENDING_STALE_DAYS;
-        const staleCount = buckets['4-7d'].length + buckets['7+d'].length;
-
-        const bucketStats = BUCKETS.map((b) => {
-            const rows = buckets[b.key];
-            const count = rows.length;
-            const value = rows.reduce((s, o) => s + Number(o.price || 0), 0);
-            return { ...b, count, value };
-        });
-
-        return { total: pending.length, totalValue, staleCount, bucketStats };
-    }, [orders, dateFilter, pendingIds, trackedOrderIds]);
-
-    if (!metrics) return null;
+    const bucketStats = BUCKETS.map((b) => ({ ...b, ...stats.buckets[b.key] }));
+    // Stale = pending longer than the "1–3d" cutoff; the 4–7d and 7+d buckets
+    // both count as stale.
+    const staleCount = stats.buckets.d4_7.count + stats.buckets.d7_plus.count;
 
     return (
         <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
@@ -123,31 +51,31 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
                         </CardTitle>
                     </div>
                     <span className="text-[10px] text-ant-mid uppercase tracking-[0.18em] tabular-nums">
-                        {metrics.total.toLocaleString('fr-MA')} awaiting · {Math.round(metrics.totalValue).toLocaleString('fr-MA')} MAD
+                        {stats.total.toLocaleString('fr-MA')} awaiting · {Math.round(stats.total_value).toLocaleString('fr-MA')} MAD
                     </span>
                 </div>
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                {metrics.total === 0 ? (
+                {stats.total === 0 ? (
                     <p className="font-serif-display text-[12px] text-ant-muted italic py-8 text-center">
                         No pending orders in this period
                     </p>
                 ) : (
                     <>
                         <StackedProportionBar
-                            segments={metrics.bucketStats.map((b) => ({
+                            segments={bucketStats.map((b) => ({
                                 id: b.key,
                                 label: b.label,
                                 count: b.count,
                                 color: b.color,
                             }))}
-                            total={metrics.total}
+                            total={stats.total}
                             height={6}
                         />
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {metrics.bucketStats.map((b) => {
-                                const pct = metrics.total > 0 ? (b.count / metrics.total) * 100 : 0;
+                            {bucketStats.map((b) => {
+                                const pct = stats.total > 0 ? (b.count / stats.total) * 100 : 0;
                                 const Icon = b.icon;
                                 return (
                                     <div
@@ -172,7 +100,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
                                         <div
                                             className={cn(
                                                 'font-display text-[20px] font-semibold tabular-nums mt-1 leading-none tracking-[-0.02em]',
-                                                b.key === '7+d' && b.count > 0 ? 'text-ant-rose' : 'text-ant-ink',
+                                                b.key === 'd7_plus' && b.count > 0 ? 'text-ant-rose' : 'text-ant-ink',
                                             )}
                                         >
                                             {b.count.toLocaleString('fr-MA')}
@@ -185,11 +113,11 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
                             })}
                         </div>
 
-                        {metrics.staleCount > 0 && (
+                        {staleCount > 0 && (
                             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-ant-rose/[0.06] border border-ant-rose/25">
                                 <AlertTriangle className="w-3.5 h-3.5 text-ant-rose shrink-0" strokeWidth={2.25} />
                                 <span className="text-[11px] text-ant-rose font-medium">
-                                    {metrics.staleCount.toLocaleString('fr-MA')} orders pending 4+ days — action required
+                                    {staleCount.toLocaleString('fr-MA')} orders pending 4+ days — action required
                                 </span>
                             </div>
                         )}

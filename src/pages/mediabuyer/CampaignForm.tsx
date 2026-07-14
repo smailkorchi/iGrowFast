@@ -400,6 +400,7 @@ const CampaignForm: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['campaigns', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['dash-stats', 'mediabuyer'] });
             toast({ title: isEdit ? 'Campaign updated' : 'Campaign created' });
             navigate(basePath);
         },

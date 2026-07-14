@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import {
     User, Mail, ShieldCheck, LogOut, Loader2, CreditCard, Building2,
     Fingerprint, MapPin, Zap, CheckCircle2, Target, Award,
@@ -77,10 +76,10 @@ const getConfirmRate = (p: ProductStat) => (p.rateTouched > 0 ? (p.rateConfirmed
 
 const SellerProfile = () => {
     const { toast } = useToast();
-    const statusCats = useStatusCategories();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [profile, setProfile] = useState<SellerProfileData | null>(null);
+    const [businessId, setBusinessId] = useState<string | null>(null);
     const [avatarOpen, setAvatarOpen] = useState(false);
 
     const [bankInfo, setBankInfo] = useState({
@@ -91,23 +90,9 @@ const SellerProfile = () => {
         address: ''
     });
 
-    const [stats, setStats] = useState<{
-        total: number;
-        confirmed: number;
-        delivered: number;
-        confirmationRate: number;
-        deliveryRate: number;
-        performanceStatus: string;
-    }>({
-        total: 0,
-        confirmed: 0,
-        delivered: 0,
-        confirmationRate: 0,
-        deliveryRate: 0,
-        performanceStatus: 'Standard'
-    });
-
-    const [productStats, setProductStats] = useState<ProductStat[]>([]);
+    // Attributed products' metadata (name/image/prices/stock) — the per-product
+    // counters come from the RPC and are joined in below.
+    const [productsMeta, setProductsMeta] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<ProductStat | null>(null);
     const [sortBy, setSortBy] = useState<ProductSort>('attributed');
@@ -116,7 +101,7 @@ const SellerProfile = () => {
 
     useEffect(() => {
         fetchProfile();
-    }, [statusCats.confirmedIds, statusCats.deliveredPkgIds]);
+    }, []);
 
     // Onboarding checklist needs the 2FA state (lives in the security service).
     useEffect(() => {
@@ -139,6 +124,7 @@ const SellerProfile = () => {
 
             if (seller) {
                 setProfile(seller as any);
+                setBusinessId((seller as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null);
                 setBankInfo({
                     bank_name: seller.bank_name || '',
                     bank_account_holder: seller.bank_account_holder || '',
@@ -147,97 +133,8 @@ const SellerProfile = () => {
                     address: seller.address || ''
                 });
 
-                // Fetch real performance stats
-                const sellerBusinessId = (seller as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
-                // Paginated so a seller exceeding 1000 orders is never truncated.
-                let ordersData: any[] = [];
-                try {
-                    ordersData = await fetchAllRows<any>(
-                        'orders',
-                        'id, order_status_id, package_status_id, replace, order_statuses(code), package_statuses(label)',
-                        {
-                            filters: [
-                                { column: 'seller_id', op: 'eq', value: session.user.id },
-                                { column: 'date_deleted', op: 'is', value: null },
-                            ],
-                        },
-                    );
-                } catch {
-                    ordersData = [];
-                }
-
-                // Fetch parcel tracking up front — `orders.tracking_number`
-                // is never populated; the authoritative source for "has
-                // tracking" is company_parcels / courier_parcels. Hoisted so
-                // the per-product stats block below can reuse it.
-                const trackedSet = new Set<string>();
-                if (sellerBusinessId) {
-                    const [cpRows, xpRows] = await Promise.all([
-                        fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                            'company_parcels', 'order_id, tracking_code',
-                            { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
-                        ),
-                        fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                            'courier_parcels', 'order_id, tracking_code',
-                            { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
-                        ),
-                    ]);
-                    (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
-                        if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
-                    });
-                    (xpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
-                        if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
-                    });
-                }
-
-                if (ordersData) {
-                    // Exclude exchange swap/return legs (replace=true) — not sales, so
-                    // the seller's delivered/confirmed stats stay consistent with their
-                    // commission (seller_daily_earnings excludes swaps).
-                    const ordersList = ordersData.filter((o: any) => o.replace !== true);
-                    const total = ordersList.length;
-                    const delivered = ordersList.filter(o => isDeliveredForCommission(o, statusCats.deliveredPkgIds)).length;
-
-                    // Confirmation rate: numerator = orders NOT in pending
-                    // (new + postponed) OR with tracking. Denominator = total.
-                    const statusMapsReady = statusCats.pendingIds.size > 0;
-                    const rateConfirmedCount = ordersList.filter((o: any) => {
-                        const hasTracking = !!o.id && trackedSet.has(o.id);
-                        if (hasTracking) return true;
-                        return statusMapsReady
-                            && !!o.order_status_id
-                            && !statusCats.pendingIds.has(o.order_status_id);
-                    }).length;
-
-                    const cRate = ordersList.length > 0 ? (rateConfirmedCount / ordersList.length) * 100 : 0;
-
-                    // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-                    const trackedCount = ordersList.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
-                    const pullbackCount = ordersList.filter((o: any) =>
-                        !!o.id && trackedSet.has(o.id)
-                        && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
-                    ).length;
-                    const deliveryDenom = trackedCount - pullbackCount;
-                    const dRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
-                    const confirmed = rateConfirmedCount;
-
-                    let status = 'Standard';
-                    if (dRate >= 90 && cRate >= 80) status = 'Elite';
-                    else if (dRate >= 75) status = 'Pro';
-                    else if (total > 0 && dRate < 40) status = 'Review';
-
-                    setStats({
-                        total,
-                        // Confirmed count = one-true-definition (yes was spoken).
-                        confirmed: rateConfirmedCount,
-                        delivered,
-                        confirmationRate: cRate,
-                        deliveryRate: dRate,
-                        performanceStatus: status
-                    });
-                }
-
-                // Fetch Product-specific stats
+                // Attributed products' metadata; the per-product performance
+                // counters come from the seller_dashboard_stats RPC.
                 const productIds: string[] = Array.isArray(seller.products) ? (seller.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0) : [];
                 if (productIds.length > 0) {
                     const { data: productsData } = await supabase
@@ -245,103 +142,9 @@ const SellerProfile = () => {
                         .select('id, name, image_url, code, label, description, selling_price, cost_price, stock')
                         .eq('active', true)
                         .in('id', productIds);
-
-                    const orderItemsData = await fetchAllRows<{ order_id: string; product_id: string; orders: any }>('order_items', 'order_id, product_id, orders!inner(id, seller_id, order_status_id, package_status_id, order_statuses(code), package_statuses(label))', {
-                        filters: [{ column: 'orders.seller_id', op: 'eq', value: session.user.id }],
-                    });
-
-                    const orderItems = (orderItemsData || []).map(oi => ({
-                        ...oi,
-                        orders: oi.orders as any,
-                    }));
-
-                    if (productsData) {
-                        const calculatedProductStats = productsData.map(p => {
-                            const items = orderItems?.filter(oi => oi.product_id === p.id) || [];
-
-                            // Extract unique orders for this product to prevent double counting
-                            const uniqueOrdersMap = new Map();
-                            items.forEach(i => {
-                                if (i.order_id && !uniqueOrdersMap.has(i.order_id)) {
-                                    uniqueOrdersMap.set(i.order_id, i.orders);
-                                }
-                            });
-
-                            const uniqueOrders = Array.from(uniqueOrdersMap.values());
-
-                            // name in DB is text; legacy rows may be a JSON-encoded object string.
-                            let nameStr = '';
-                            if (typeof p.name === 'string') {
-                                const trimmed = p.name.trim();
-                                if (trimmed.startsWith('{')) {
-                                    try {
-                                        const parsed = JSON.parse(trimmed);
-                                        nameStr = parsed.en || Object.values(parsed)[0] || '';
-                                    } catch {
-                                        nameStr = trimmed;
-                                    }
-                                } else {
-                                    nameStr = trimmed;
-                                }
-                            } else if (p.name && typeof p.name === 'object') {
-                                nameStr = (p.name as any).en || Object.values(p.name as any)[0] || '';
-                            }
-                            if (!nameStr) nameStr = p.label || p.code || 'Unnamed Product';
-
-                            // Coliaty delivery-rate inputs per product.
-                            // Tracked = parcel exists with tracking_code.
-                            // Pullback = tracked AND flagged fake/double/blacklisted/cancelled
-                            // at order level OR Hors-zone/Annulé at package level.
-                            const trackedForProduct = uniqueOrders.filter(o => {
-                                const oo = Array.isArray(o) ? o[0] : o;
-                                return !!oo?.id && trackedSet.has(oo.id);
-                            });
-                            const pullbackForProduct = trackedForProduct.filter(o => {
-                                const oo = Array.isArray(o) ? o[0] : o;
-                                return isAdminPullback(
-                                    oo,
-                                    true,
-                                    statusCats.adminPullbackOrderIds,
-                                    statusCats.adminPullbackPackageIds,
-                                );
-                            });
-
-                            return {
-                                id: p.id,
-                                name: nameStr,
-                                image_url: p.image_url,
-                                code: p.code || '',
-                                label: p.label,
-                                description: p.description,
-                                selling_price: Number(p.selling_price) || 0,
-                                cost_price: Number(p.cost_price) || 0,
-                                stock: Number(p.stock) || 0,
-                                total: uniqueOrders.length,
-                                tracked: trackedForProduct.length,
-                                pullback: pullbackForProduct.length,
-                                confirmed: uniqueOrders.filter(o => {
-                                    const oo = Array.isArray(o) ? o[0] : o;
-                                    return oo?.order_status_id && statusCats.confirmedIds.has(oo.order_status_id);
-                                }).length,
-                                // Rate helpers: confirmed = NOT in pending (new+postponed)
-                                // OR has tracking. Denominator = total uniqueOrders.
-                                rateConfirmed: uniqueOrders.filter(o => {
-                                    const oo = Array.isArray(o) ? o[0] : o;
-                                    const hasTracking = !!oo?.id && trackedSet.has(oo.id);
-                                    if (hasTracking) return true;
-                                    return statusCats.pendingIds.size > 0
-                                        && !!oo?.order_status_id
-                                        && !statusCats.pendingIds.has(oo.order_status_id);
-                                }).length,
-                                rateTouched: uniqueOrders.length,
-                                delivered: uniqueOrders.filter(o => {
-                                    const oo = Array.isArray(o) ? o[0] : o;
-                                    return isDeliveredForCommission(oo, statusCats.deliveredPkgIds);
-                                }).length
-                            };
-                        });
-                        setProductStats(calculatedProductStats);
-                    }
+                    setProductsMeta(productsData || []);
+                } else {
+                    setProductsMeta([]);
                 }
             }
         } catch (error) {
@@ -350,6 +153,100 @@ const SellerProfile = () => {
             setLoading(false);
         }
     };
+
+    const sellerId = profile?.id ?? null;
+    const statsEnabled = !!sellerId && !!businessId;
+
+    // D2 — ONE server-side aggregate (seller_dashboard_stats) replaces the
+    // own-orders stats scan, the TWO business-wide parcel dumps and the
+    // order_items reverse scan this page used to fire on every mount.
+    // Lifetime pool, no window. p_seller is ALWAYS the auth uid — the RPC
+    // raises 42501 for anything else.
+    const { data: dashStats, isLoading: statsFetching } = useQuery<any>({
+        queryKey: ['dash-stats', 'seller', businessId, sellerId],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('seller_dashboard_stats', {
+                p_business: businessId,
+                p_seller: sellerId,
+            });
+            if (error) throw error;
+            return data;
+        },
+        enabled: statsEnabled,
+        staleTime: 60_000,
+    });
+
+    const stats = React.useMemo(() => {
+        const strip = dashStats?.stat_strip;
+        const total = Number(strip?.total) || 0;
+        const delivered = Number(strip?.delivered) || 0;
+        // Confirmed count = one-true-definition (rate-confirmed).
+        const confirmed = Number(strip?.confirmed) || 0;
+        const cRate = Number(strip?.confirm_rate) || 0;
+        // Delivery rate (Coliaty, raw ratio) computed server-side.
+        const dRate = Number(strip?.success_rate) || 0;
+
+        let status = 'Standard';
+        if (dRate >= 90 && cRate >= 80) status = 'Elite';
+        else if (dRate >= 75) status = 'Pro';
+        else if (total > 0 && dRate < 40) status = 'Review';
+
+        return {
+            total,
+            confirmed,
+            delivered,
+            confirmationRate: cRate,
+            deliveryRate: dRate,
+            performanceStatus: status,
+        };
+    }, [dashStats]);
+
+    const productStats: ProductStat[] = React.useMemo(() => {
+        const perfById = new Map<string, any>(
+            ((dashStats?.profile_products ?? []) as any[]).map((r) => [String(r.product_id), r]),
+        );
+        return productsMeta.map((p) => {
+            // name in DB is text; legacy rows may be a JSON-encoded object string.
+            let nameStr = '';
+            if (typeof p.name === 'string') {
+                const trimmed = p.name.trim();
+                if (trimmed.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        nameStr = parsed.en || Object.values(parsed)[0] || '';
+                    } catch {
+                        nameStr = trimmed;
+                    }
+                } else {
+                    nameStr = trimmed;
+                }
+            } else if (p.name && typeof p.name === 'object') {
+                nameStr = (p.name as any).en || Object.values(p.name as any)[0] || '';
+            }
+            if (!nameStr) nameStr = p.label || p.code || 'Unnamed Product';
+
+            const perf = perfById.get(String(p.id));
+            const total = Number(perf?.total) || 0;
+            return {
+                id: p.id,
+                name: nameStr,
+                image_url: p.image_url,
+                code: p.code || '',
+                label: p.label,
+                description: p.description,
+                selling_price: Number(p.selling_price) || 0,
+                cost_price: Number(p.cost_price) || 0,
+                stock: Number(p.stock) || 0,
+                total,
+                tracked: Number(perf?.tracked) || 0,
+                pullback: Number(perf?.pullback) || 0,
+                confirmed: Number(perf?.confirmed) || 0,
+                rateConfirmed: Number(perf?.rate_confirmed) || 0,
+                rateTouched: total,
+                delivered: Number(perf?.delivered) || 0,
+            };
+        });
+    }, [productsMeta, dashStats]);
 
     const handleUpdateBankInfo = async () => {
         try {
@@ -435,7 +332,7 @@ const SellerProfile = () => {
         window.location.href = '/auth';
     };
 
-    if (loading) {
+    if (loading || (statsEnabled && statsFetching)) {
         return (
             <div className="ant-surface min-h-screen flex items-center justify-center">
                 <Loader2 className="w-6 h-6 text-ant-mid animate-spin" strokeWidth={1.5} />

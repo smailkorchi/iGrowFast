@@ -1,53 +1,54 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Box, ChevronDown, ChevronRight, ShoppingBag } from 'lucide-react';
-import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
-import { differenceInCalendarDays, endOfDay, isWithinInterval, startOfDay } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    isDeliveredForCommission,
-    normalizeCommissionBasis,
-    type CommissionBasis,
-} from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { FinancialsWaterfall } from './performance/FinancialsWaterfall';
 import { SourcePills, type SourceStat } from './performance/SourcePills';
 
-interface DashboardProductsPerformanceProps {
-    businessId: string;
-    dateFilter: DateFilter;
+/**
+ * `products_performance` section of admin_dashboard_stats (D2). Per-product
+ * units funnel (Coliaty per units), delivered-line revenue, snapshot-first
+ * COGS, qty-share shipping allocation, window-overlap pro-rated ads and the
+ * LENIENT per_unit commission rule (empty seller.products = all allowed —
+ * known asymmetry replicated as-is, recon 01 §11.5) are all computed
+ * server-side. Rows filtered to ordered_units > 0 and sorted deliveredUnits
+ * desc, revenue desc, name asc. Only product metadata (support query below)
+ * and status labels/colors stay client-side.
+ */
+export interface ProductsPerformanceSection {
+    products: Array<{
+        product_id: string;
+        ordered_units: number;
+        confirmed_units: number;
+        tracked_units: number;
+        pullback_units: number;
+        delivered_units: number;
+        total_orders: number;
+        confirmed_orders: number;
+        delivered_orders: number;
+        revenue: number;
+        product_cogs: number;
+        accessory_cogs: number;
+        shipping_alloc: number;
+        ads_share: number;
+        commission: number;
+        net: number;
+        sources: Array<{ source: string; assigned: number; confirmed: number; delivered: number }>;
+        pre_conf: Array<{ order_status_id: string | null; count: number }>;
+        post_conf: Array<{ kind: 'pkg' | 'os' | 'unset'; id: string | null; count: number }>;
+    }>;
 }
 
-// All shapes verified against DB schema via MCP
-type DPOrderItem = {
-    id: string;
-    order_id: string;
-    product_id: string | null;
-    quantity: number | null;
-    unit_price: number | null;
-    total_price: number | null;
-    accessory_id: string | null;
-    accessory_quantity: number | null;
-    accessory_unit_price: number | null;
-    product_unit_cost_snapshot: number | null;
-};
-type DPOrder = {
-    id: string;
-    date: string | null;
-    shipping_cost: number | null;
-    order_status_id: string | null;
-    package_status_id: string | null;
-    source_name: string | null;
-    seller_id: string | null;
-    order_statuses: { code: string; label: string } | null;
-    package_statuses: { label: string } | null;
-};
+interface DashboardProductsPerformanceProps {
+    businessId: string;
+    stats: ProductsPerformanceSection | undefined;
+}
+
 type DPProduct = {
     id: string;
     name: string;
@@ -57,72 +58,21 @@ type DPProduct = {
     selling_price: number | null;
     active: boolean | null;
 };
-type DPAccessory = { id: string; cost_price: number | null };
-type DPAd = {
-    product_id: string | null;
-    amount: number | null;
-    start_date: string | null;
-    end_date: string | null;
-};
-type DPSeller = {
-    id: string;
-    commission_price: number | null;
-    commission_basis: string | null;
-    products: unknown;
-};
-
-/**
- * Revenue for a product line. Convention (verified across codebase):
- * - Product revenue = coalesce(total_price, unit_price × productQty)
- * - Accessories NEVER contribute to revenue — they're cost-only attachments.
- */
-function productLineRevenue(oi: DPOrderItem, productQty: number): number {
-    if (productQty <= 0) return 0;
-    const tp = Number(oi.total_price || 0);
-    if (tp > 0) return tp;
-    return Number(oi.unit_price || 0) * productQty;
-}
-
-/**
- * Fraction of an ad's spend attributable to the window.
- *   attributed = amount × (overlap_days / total_days)
- * Ads with no end_date are treated as single-day. Returns 0 when no overlap.
- */
-function adsOverlapFraction(
-    start: Date,
-    end: Date | null,
-    wStart: Date,
-    wEnd: Date,
-): number {
-    const adEnd = end || start;
-    const oStart = start.getTime() > wStart.getTime() ? start : wStart;
-    const oEnd = adEnd.getTime() < wEnd.getTime() ? adEnd : wEnd;
-    if (oEnd.getTime() < oStart.getTime()) return 0;
-    const overlapDays = differenceInCalendarDays(oEnd, oStart) + 1;
-    const totalDays = differenceInCalendarDays(adEnd, start) + 1;
-    if (totalDays <= 0) return 0;
-    return Math.max(0, Math.min(1, overlapDays / totalDays));
-}
 
 export const DashboardProductsPerformance = ({
     businessId,
-    dateFilter,
+    stats,
 }: DashboardProductsPerformanceProps) => {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const [showAll, setShowAll] = useState(false);
     const TOP_N = 3;
 
     const {
-        deliveredPkgIds,
-        pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
         orderStatuses,
         packageStatuses,
         getOrderStatusColor,
         getPkgStatusColor,
     } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
 
     const toggle = (id: string) => {
         setExpanded((prev) => {
@@ -133,6 +83,8 @@ export const DashboardProductsPerformance = ({
         });
     };
 
+    // Product metadata only (name/image/stock/prices/active) — every aggregate
+    // rides the RPC section.
     const { data: products } = useQuery({
         queryKey: ['dashboard-products', businessId],
         queryFn: async () => {
@@ -145,434 +97,106 @@ export const DashboardProductsPerformance = ({
         enabled: !!businessId,
     });
 
-    const { data: accessories } = useQuery({
-        queryKey: ['dashboard-accessories', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('accessories')
-                .select('id, cost_price')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orderItems } = useQuery({
-        queryKey: ['dashboard-order-items', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'order_items',
-                'id, order_id, product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orders } = useQuery({
-        queryKey: ['dashboard-products-performance-orders', businessId],
-        queryFn: async () => {
-            const rows = await fetchAllRows(
-                'orders',
-                'id, date, shipping_cost, order_status_id, package_status_id, source_name, seller_id, replace, order_statuses(code, label), package_statuses(label)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exclude exchange swap/return legs (replace=true) — a swap holds the
-            // returned SKU, not a sale; dropping these orders drops their items from
-            // the cohort (cohortItems is gated on this order set), so product
-            // units-sold / revenue / commission aren't inflated.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: adsHistory } = useQuery({
-        queryKey: ['dashboard-ads-history', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('ads_history')
-                .select('id, product_id, amount, start_date, end_date')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: sellersForCommission } = useQuery({
-        queryKey: ['dashboard-sellers-for-products', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('users')
-                .select('id, commission_price, commission_basis, products')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
-        if (!products || !orderItems || !orders) return null;
+        if (!products || !stats) return null;
 
-        const hasWindow = !!dateFilter.from || !!dateFilter.to;
-        const wStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const wEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-        const inWindow = (d: Date | null) => {
-            if (!d) return false;
-            if (!hasWindow) return true;
-            return isWithinInterval(d, { start: wStart, end: wEnd });
-        };
-        const parseDate = (s: string | null | undefined): Date | null => {
-            if (!s) return null;
-            const d = new Date(s);
-            return Number.isNaN(d.getTime()) ? null : d;
-        };
+        const productMetaById = new Map(
+            (products as unknown as DPProduct[]).map((p) => [p.id, p]),
+        );
 
-        const productsTyped = products as unknown as DPProduct[];
-        const itemsTyped = orderItems as unknown as DPOrderItem[];
-        const ordersTyped = orders as unknown as DPOrder[];
-
-        // Cohort: orders created in window, not soft-deleted (already filtered server-side)
-        const ordersInWindow = ordersTyped.filter((o) => inWindow(parseDate(o.date)));
-        const cohortOrderIds = new Set(ordersInWindow.map((o) => o.id));
-        const orderById = new Map(ordersInWindow.map((o) => [o.id, o]));
-
-        // Items restricted to cohort
-        const cohortItems = itemsTyped.filter((oi) => cohortOrderIds.has(oi.order_id));
-
-        // Per-order total PRODUCT qty (accessory-only rows with qty=0 contribute 0).
-        // Used for shipping allocation and commission share.
-        const orderProductQty = new Map<string, number>();
-        cohortItems.forEach((oi) => {
-            const q = Number(oi.quantity) || 0;
-            if (q <= 0) return;
-            orderProductQty.set(oi.order_id, (orderProductQty.get(oi.order_id) || 0) + q);
-        });
-
-        // Cost lookups
-        const productCostById = new Map<string, number>();
-        productsTyped.forEach((p) => productCostById.set(p.id, Number(p.cost_price || 0)));
-        const accessoryCostById = new Map<string, number>();
-        (accessories as unknown as DPAccessory[] | undefined)?.forEach((a) => {
-            accessoryCostById.set(a.id, Number(a.cost_price || 0));
-        });
-
-        // Ads: pro-rate by window overlap, attribute to product_id
-        const adsByProduct = new Map<string, number>();
-        ((adsHistory || []) as unknown as DPAd[]).forEach((ad) => {
-            if (!ad.product_id) return;
-            const start = parseDate(ad.start_date);
-            if (!start) return;
-            const end = parseDate(ad.end_date);
-            const fraction = adsOverlapFraction(start, end, wStart, wEnd);
-            if (fraction <= 0) return;
-            adsByProduct.set(
-                ad.product_id,
-                (adsByProduct.get(ad.product_id) || 0) + Number(ad.amount || 0) * fraction,
-            );
-        });
-
-        // Sellers lookup for commission
-        const sellerById = new Map<string, DPSeller>();
-        (sellersForCommission as unknown as DPSeller[] | undefined)?.forEach((s) => sellerById.set(s.id, s));
-
-        // Pre-compute delivered-in-cohort order ids, for commission iteration
         const orderStatusById = new Map(orderStatuses.map((s) => [s.id, s]));
         const packageStatusById = new Map(packageStatuses.map((s) => [s.id, s]));
 
-        /**
-         * Commission earned by this product on ONE delivered order.
-         *
-         * per_unit: commission = productQty × price, but only if this product is in the
-         *   seller's attributed list (or the seller has no attributed list — lenient fallback).
-         * per_order: the order's flat commission allocated across all products in the order
-         *   proportionally to product qty.
-         */
-        const productCommissionOnOrder = (
-            productId: string,
-            productQtyInOrder: number,
-            order: DPOrder,
-        ): number => {
-            if (productQtyInOrder <= 0) return 0;
-            const seller = order.seller_id ? sellerById.get(order.seller_id) : undefined;
-            if (!seller) return 0;
-            const basis: CommissionBasis = normalizeCommissionBasis(seller.commission_basis);
-            const price = Number(seller.commission_price || 0);
-            if (price <= 0) return 0;
+        // RPC rows already filtered to orderedUnits>0 and sorted deliveredUnits
+        // desc, revenue desc, name asc.
+        const productData = stats.products.map((row) => {
+            const meta = productMetaById.get(row.product_id);
 
-            if (basis === 'per_unit') {
-                const attributed: string[] = Array.isArray(seller.products)
-                    ? (seller.products as string[]).filter((x): x is string => typeof x === 'string' && x.length > 0)
-                    : [];
-                const productAllowed = attributed.length === 0 || attributed.includes(productId);
-                return productAllowed ? productQtyInOrder * price : 0;
-            }
+            const confirmedPercent = row.ordered_units > 0
+                ? (row.confirmed_units / row.ordered_units) * 100
+                : 0;
+            // Delivery rate (Coliaty): delivered ÷ (tracked − admin-pullback), in units.
+            const deliveryDenomUnits = row.tracked_units - row.pullback_units;
+            const deliveredPercent = deliveryDenomUnits > 0
+                ? (row.delivered_units / deliveryDenomUnits) * 100
+                : 0;
 
-            // per_order: flat price distributed across this order's products by qty share
-            const totalProductQty = orderProductQty.get(order.id) || productQtyInOrder;
-            if (totalProductQty <= 0) return 0;
-            return price * (productQtyInOrder / totalProductQty);
-        };
+            const sources: SourceStat[] = row.sources.map((s) => ({
+                source: s.source,
+                assigned: s.assigned,
+                confirmed: s.confirmed,
+                delivered: s.delivered,
+            }));
 
-        const productData = productsTyped.map((product) => {
-            // ========= Partition lines =========
-            // PRODUCT lines: this product's actual product sales (qty > 0)
-            // ACCESSORY lines: this product's accessory attachments (accessory_id set, acc qty > 0)
-            // A single row can be both (product + accessory on same line).
-            const productLines = cohortItems.filter(
-                (oi) => oi.product_id === product.id && (Number(oi.quantity) || 0) > 0,
-            );
-            const accessoryLines = cohortItems.filter(
-                (oi) =>
-                    oi.product_id === product.id &&
-                    !!oi.accessory_id &&
-                    (Number(oi.accessory_quantity) || 0) > 0,
-            );
-
-            // ========= Funnel (in UNITS of this product) =========
-            let orderedUnits = 0;
-            let deliveredUnits = 0;
-            // Confirmation rate: numerator = any unit whose order had a yes
-            // spoken (tracking_number OR status ∉ {new, callback}).
-            // Denominator = units whose order has been touched.
-            let rateConfirmedUnits = 0;
-            let rateTouchedUnits = 0;
-            // Coliaty delivery rate: delivered ÷ (tracked − admin-pullback),
-            // counted in units of this product.
-            let trackedUnits = 0;
-            let pullbackUnits = 0;
-            // Keep delivered orders distinct (for accessory COGS / shipping / commission)
-            const deliveredOrderIds = new Set<string>();
-            // Product qty per delivered order, for commission allocation
-            const deliveredOrderProductQty = new Map<string, number>();
-
-            productLines.forEach((oi) => {
-                const q = Number(oi.quantity) || 0;
-                const order = orderById.get(oi.order_id);
-                if (!order) return;
-                orderedUnits += q;
-                const sid = order.order_status_id;
-                // `orders.tracking_number` is never populated — use the parcel
-                // tracking set (company_parcels/courier_parcels) for every
-                // "has tracking" check, including confirmation.
-                const hasTracking = !!order.id && trackedOrderIds.has(order.id);
-                // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
-                // Pending = order_statuses.pending_confirmation=true (NEW + RAPPELE 1-6 + REPORTER).
-                const statusMapsReady = pendingIds.size > 0;
-                // Touched = every order unit (rate denominator is now total).
-                rateTouchedUnits += q;
-                // Confirmed = tracking code OR status NOT in pending.
-                if (hasTracking
-                    || (statusMapsReady && sid && !pendingIds.has(sid))) {
-                    rateConfirmedUnits += q;
+            const preConfEntries: StatusQueueEntry[] = row.pre_conf.map((e) => {
+                if (!e.order_status_id) {
+                    return { id: '__unset__', label: 'Unset (no status)', count: e.count, color: '#9ca3af' };
                 }
-                // Delivery-rate math — Coliaty formula, per product units.
-                if (hasTracking) {
-                    trackedUnits += q;
-                    if (isAdminPullback(order, true, adminPullbackOrderIds, adminPullbackPackageIds)) {
-                        pullbackUnits += q;
-                    }
-                }
-                if (!isDeliveredForCommission(order, deliveredPkgIds)) return;
-                deliveredUnits += q;
-                deliveredOrderIds.add(oi.order_id);
-                deliveredOrderProductQty.set(
-                    oi.order_id,
-                    (deliveredOrderProductQty.get(oi.order_id) || 0) + q,
-                );
-            });
-
-            const confirmedPercent = rateTouchedUnits > 0 ? (rateConfirmedUnits / rateTouchedUnits) * 100 : 0;
-            // Delivery rate (Coliaty): delivered ÷ (tracked − admin-pullback).
-            const deliveryDenomUnits = trackedUnits - pullbackUnits;
-            const deliveredPercent = deliveryDenomUnits > 0 ? (deliveredUnits / deliveryDenomUnits) * 100 : 0;
-
-            // ========= Revenue (product-side only) =========
-            // Prefer the per-line cost snapshot so a product's current cost_price change
-            // can't retroactively re-price historical COGS (§6).
-            let revenue = 0;
-            let productCOGS = 0;
-            let shippingAlloc = 0;
-            const currentProductCost = Number(product.cost_price || 0);
-
-            productLines.forEach((oi) => {
-                const order = orderById.get(oi.order_id);
-                if (!order || !deliveredOrderIds.has(order.id)) return;
-                const q = Number(oi.quantity) || 0;
-                if (q <= 0) return;
-                revenue += productLineRevenue(oi, q);
-                const snap = Number(oi.product_unit_cost_snapshot || 0);
-                const unitProductCost = snap > 0 ? snap : currentProductCost;
-                productCOGS += unitProductCost * q;
-                const totalProdQty = orderProductQty.get(order.id) || q;
-                shippingAlloc += (Number(order.shipping_cost || 0) * q) / totalProdQty;
-            });
-
-            // ========= Accessory COGS (delivered orders only; cost-only, never revenue) =========
-            let accessoryCOGS = 0;
-            accessoryLines.forEach((oi) => {
-                if (!deliveredOrderIds.has(oi.order_id)) return;
-                const accQty = Number(oi.accessory_quantity) || 0;
-                if (accQty <= 0) return;
-                const snapshot = Number(oi.accessory_unit_price || 0);
-                const fallback = oi.accessory_id ? accessoryCostById.get(oi.accessory_id) || 0 : 0;
-                // Prefer the per-line snapshot (cost at purchase time); fall back only when snapshot is missing
-                const unitCost = snapshot > 0 ? snapshot : fallback;
-                accessoryCOGS += unitCost * accQty;
-            });
-
-            // ========= Ads (pro-rated to window, tagged to this product) =========
-            const adsShare = adsByProduct.get(product.id) || 0;
-
-            // ========= Commission (per-delivered-order, allocated to this product) =========
-            let commission = 0;
-            deliveredOrderIds.forEach((oid) => {
-                const order = orderById.get(oid);
-                if (!order) return;
-                const qtyInOrder = deliveredOrderProductQty.get(oid) || 0;
-                commission += productCommissionOnOrder(product.id, qtyInOrder, order);
-            });
-
-            const netProfit = revenue - productCOGS - accessoryCOGS - shippingAlloc - adsShare - commission;
-
-            // ========= Sources (over this product's cohort orders) =========
-            const sourceAgg = new Map<string, { assigned: number; confirmed: number; delivered: number }>();
-            const bump = (src: string, k: 'assigned' | 'confirmed' | 'delivered') => {
-                const row = sourceAgg.get(src) || { assigned: 0, confirmed: 0, delivered: 0 };
-                row[k] += 1;
-                sourceAgg.set(src, row);
-            };
-            const seenOrder = new Set<string>();
-            productLines.forEach((oi) => {
-                if (seenOrder.has(oi.order_id)) return;
-                seenOrder.add(oi.order_id);
-                const order = orderById.get(oi.order_id);
-                if (!order) return;
-                const src = (order.source_name || 'other').toLowerCase();
-                bump(src, 'assigned');
-                // Confirmed = tracking code OR status NOT in pending. Same
-                // empty-set guard as above (see analyticsDefinitions.ts).
-                const sid = order.order_status_id;
-                const hasTracking = !!order.id && trackedOrderIds.has(order.id);
-                const statusMapsReady = pendingIds.size > 0;
-                const orderConfirmed = hasTracking
-                    || (statusMapsReady && !!sid && !pendingIds.has(sid));
-                if (orderConfirmed) {
-                    bump(src, 'confirmed');
-                    if (isDeliveredForCommission(order, deliveredPkgIds)) bump(src, 'delivered');
-                }
-            });
-            const sources: SourceStat[] = Array.from(sourceAgg, ([source, v]) => ({ source, ...v }));
-
-            // ========= Dropoff panes (in ORDERS, matching sellers section semantics) =========
-            const distinctOrderIds = Array.from(seenOrder);
-            const productOrders = distinctOrderIds.map((oid) => orderById.get(oid)).filter((o): o is DPOrder => !!o);
-            const totalOrders = productOrders.length;
-            // Confirmed = the one true definition (yes was spoken).
-            const isWideConfirmed = (o: DPOrder) => {
-                const sid = o.order_status_id;
-                const hasTracking = !!o.id && trackedOrderIds.has(o.id);
-                const statusMapsReady = pendingIds.size > 0;
-                return hasTracking
-                    || (statusMapsReady && !!sid && !pendingIds.has(sid));
-            };
-            const confirmedOrders = productOrders.filter(isWideConfirmed);
-            const deliveredOrders = productOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
-            const confirmedOrdersCount = confirmedOrders.length;
-            const deliveredOrdersCount = deliveredOrders.length;
-
-            const notYetConfirmed = productOrders.filter((o) => !isWideConfirmed(o));
-            const preCountByStatus = new Map<string | null, number>();
-            notYetConfirmed.forEach((o) => {
-                preCountByStatus.set(o.order_status_id, (preCountByStatus.get(o.order_status_id) || 0) + 1);
-            });
-            const preConfEntries: StatusQueueEntry[] = Array.from(preCountByStatus, ([sid, count]) => {
-                if (!sid) return { id: '__unset__', label: 'Unset (no status)', count, color: '#9ca3af' };
-                const status = orderStatusById.get(sid);
+                const status = orderStatusById.get(e.order_status_id);
                 return {
-                    id: sid,
+                    id: e.order_status_id,
                     label: status?.label || 'Unknown status',
-                    count,
-                    color: getOrderStatusColor(sid),
+                    count: e.count,
+                    color: getOrderStatusColor(e.order_status_id),
                 };
             });
 
-            const notYetDelivered = confirmedOrders.filter(
-                (o) => !isDeliveredForCommission(o, deliveredPkgIds),
-            );
-            const postCountByStatus = new Map<string, number>();
-            notYetDelivered.forEach((o) => {
-                const key = o.package_status_id
-                    ? `pkg:${o.package_status_id}`
-                    : o.order_status_id
-                        ? `os:${o.order_status_id}`
-                        : 'unset';
-                postCountByStatus.set(key, (postCountByStatus.get(key) || 0) + 1);
-            });
-            const postConfEntries: StatusQueueEntry[] = Array.from(postCountByStatus, ([key, count]) => {
-                if (key === 'unset') return { id: 'unset', label: 'Unset (no status)', count, color: '#9ca3af' };
-                if (key.startsWith('pkg:')) {
-                    const sid = key.slice(4);
-                    const status = packageStatusById.get(sid);
+            const postConfEntries: StatusQueueEntry[] = row.post_conf.map((e) => {
+                if (e.kind === 'unset' || !e.id) {
+                    return { id: 'unset', label: 'Unset (no status)', count: e.count, color: '#9ca3af' };
+                }
+                if (e.kind === 'pkg') {
+                    const status = packageStatusById.get(e.id);
                     return {
-                        id: key,
+                        id: `pkg:${e.id}`,
                         label: status?.label || 'Unknown package status',
-                        count,
-                        color: getPkgStatusColor(sid),
+                        count: e.count,
+                        color: getPkgStatusColor(e.id),
                     };
                 }
-                const sid = key.slice(3);
-                const status = orderStatusById.get(sid);
+                const status = orderStatusById.get(e.id);
                 return {
-                    id: key,
+                    id: `os:${e.id}`,
                     label: status?.label || 'Unknown status',
-                    count,
-                    color: getOrderStatusColor(sid),
+                    count: e.count,
+                    color: getOrderStatusColor(e.id),
                 };
             });
 
-            // ========= Per-unit derivatives (all over delivered units) =========
-            const unitShipping = deliveredUnits > 0 ? shippingAlloc / deliveredUnits : 0;
-            const unitAdsShare = deliveredUnits > 0 ? adsShare / deliveredUnits : 0;
-            const unitCommission = deliveredUnits > 0 ? commission / deliveredUnits : 0;
-            const unitAccessoryCOGS = deliveredUnits > 0 ? accessoryCOGS / deliveredUnits : 0;
-            const unitMargin = deliveredUnits > 0 ? netProfit / deliveredUnits : 0;
+            // Per-unit derivatives (all over delivered units)
+            const du = row.delivered_units;
+            const unitShipping = du > 0 ? row.shipping_alloc / du : 0;
+            const unitAdsShare = du > 0 ? row.ads_share / du : 0;
+            const unitCommission = du > 0 ? row.commission / du : 0;
+            const unitAccessoryCOGS = du > 0 ? row.accessory_cogs / du : 0;
+            const unitMargin = du > 0 ? row.net / du : 0;
 
             return {
-                id: product.id,
-                name: product.name,
-                image_url: product.image_url,
-                active: product.active,
-                stock: Number(product.stock || 0),
-                sellingPrice: Number(product.selling_price || 0),
-                unitProductCost: currentProductCost,
-                // Funnel (units) — confirmedUnits uses the one-true-definition.
-                orderedUnits,
-                confirmedUnits: rateConfirmedUnits,
+                id: row.product_id,
+                name: meta?.name || 'Unknown product',
+                image_url: meta?.image_url ?? null,
+                active: meta?.active ?? null,
+                stock: Number(meta?.stock || 0),
+                sellingPrice: Number(meta?.selling_price || 0),
+                unitProductCost: Number(meta?.cost_price || 0),
+                // Funnel (units)
+                orderedUnits: row.ordered_units,
+                confirmedUnits: row.confirmed_units,
                 confirmedPercent,
-                deliveredUnits,
+                deliveredUnits: row.delivered_units,
                 deliveredPercent,
                 // Funnel (orders, for dropoff pane reconciliation)
-                totalOrders,
-                confirmedOrdersCount,
-                deliveredOrdersCount,
+                totalOrders: row.total_orders,
+                confirmedOrdersCount: row.confirmed_orders,
+                deliveredOrdersCount: row.delivered_orders,
                 // Financials
-                revenue,
-                productCOGS,
-                accessoryCOGS,
-                shipping: shippingAlloc,
-                adsShare,
-                commission,
-                netProfit,
+                revenue: row.revenue,
+                productCOGS: row.product_cogs,
+                accessoryCOGS: row.accessory_cogs,
+                shipping: row.shipping_alloc,
+                adsShare: row.ads_share,
+                commission: row.commission,
+                netProfit: row.net,
                 // Per-unit
                 unitShipping,
                 unitAdsShare,
@@ -585,28 +209,12 @@ export const DashboardProductsPerformance = ({
                 // Sources
                 sources,
             };
-        })
-            .filter((p) => p.orderedUnits > 0)
-            .sort((a, b) => {
-                if (b.deliveredUnits !== a.deliveredUnits) return b.deliveredUnits - a.deliveredUnits;
-                if (b.revenue !== a.revenue) return b.revenue - a.revenue;
-                return (a.name || '').localeCompare(b.name || '');
-            });
+        });
 
         return { productData };
     }, [
         products,
-        orderItems,
-        orders,
-        accessories,
-        adsHistory,
-        sellersForCommission,
-        dateFilter,
-        deliveredPkgIds,
-        pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
-        trackedOrderIds,
+        stats,
         orderStatuses,
         packageStatuses,
         getOrderStatusColor,

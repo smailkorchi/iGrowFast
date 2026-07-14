@@ -1,20 +1,10 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Users } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
-import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { format } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useSellerCommissionTotals } from '@/hooks/useSellerCommissionTotals';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    assignmentTimestampForMetrics,
-    commissionAccruedForDeliveredOrder,
-    isDeliveredForCommission,
-    normalizeCommissionBasis,
-    type CommissionBasis,
-} from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
 import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
 import { SourcePills, type SourceStat } from './performance/SourcePills';
@@ -26,23 +16,22 @@ export interface SellerSelfPerformanceSectionProps {
     dateFilter: DateFilter;
 }
 
-// Types verified against public.{orders, order_items, order_statuses, package_statuses, users} via MCP
-type SSPOrderItem = { product_id: string; quantity: number };
-type SSPOrder = {
-    id: string;
-    date: string | null;
-    assignment_date: string | null;
-    confirmation_date: string | null;
-    date_livraison: string | null;
-    updated_at: string | null;
-    price: number | null;
-    order_status_id: string | null;
-    package_status_id: string | null;
-    seller_id: string | null;
-    source_name: string | null;
-    order_items: SSPOrderItem[] | null;
-    order_statuses: { code: string; label: string } | null;
-    package_statuses: { label: string } | null;
+// D2: all figures come from seller_dashboard_stats' self_perf jsonb slice
+// (mig 20260714230000) — the former business-wide orders download + the two
+// parcel dumps + client commission math are retired. Labels/colors for the
+// queue panes stay client-side via the cached global status masters.
+type SelfPerfSlice = {
+    total_in_window: number;
+    assigned: number;
+    confirmed: number;
+    delivered: number;
+    tracked: number;
+    pullback: number;
+    sources: Array<{ source: string; assigned: number; confirmed: number; delivered: number }>;
+    pre_conf: Array<{ order_status_id: string | null; count: number }>;
+    post_conf: Array<{ kind: 'pkg' | 'os' | 'unset'; id: string | null; count: number }>;
+    commission_view: number | null;
+    commission_client: number;
 };
 
 export function SellerSelfPerformanceSection({
@@ -53,21 +42,16 @@ export function SellerSelfPerformanceSection({
     const {
         orderStatuses,
         packageStatuses,
-        deliveredPkgIds,
-        pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
         getOrderStatusColor,
         getPkgStatusColor,
     } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId ?? null);
 
     const { data: sellerRow, isLoading: loadingSeller } = useQuery({
         queryKey: ['seller-self-performance-profile', sellerId],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, avatar_config, active, commission_price, commission_basis, products')
+                .select('id, name, avatar_url, avatar_config, active')
                 .eq('id', sellerId)
                 .single();
             if (error) throw error;
@@ -76,199 +60,90 @@ export function SellerSelfPerformanceSection({
         enabled: !!sellerId,
     });
 
-    const { data: orders, isLoading: loadingOrders } = useQuery({
-        queryKey: ['seller-self-performance-orders', businessId || 'no-biz', sellerId],
+    // Windowed self_perf slice from the role RPC (its own cache entry per
+    // window; the ['dash-stats'] prefix is invalidated by EcomBizRealtime on
+    // order/parcel broadcasts). The RPC validates p_seller against auth.uid().
+    const fromKey = dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : null;
+    const toKey = dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : null;
+    const { data: selfPerf, isLoading: loadingStats } = useQuery<SelfPerfSlice | null>({
+        queryKey: ['dash-stats', 'seller', businessId, sellerId, fromKey, toKey],
         queryFn: async () => {
-            // Paginated (fetchAllRows) so we never silently truncate at PostgREST's
-            // 1000-row default — that cap dropped a high-volume seller's newest
-            // orders and undercounted delivered/attributed/confirmed counts.
-            const filters: { column: string; op: 'eq' | 'neq' | 'is'; value: unknown }[] = [
-                businessId
-                    ? { column: 'DigiCom Business', op: 'eq', value: businessId }
-                    : { column: 'seller_id', op: 'eq', value: sellerId },
-                { column: 'date_deleted', op: 'is', value: null },
-                { column: 'source_review_status', op: 'neq', value: 'pending' },
-            ];
-            const rows = await fetchAllRows(
-                'orders',
-                'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, seller_id, source_name, replace, order_items(product_id, quantity), order_statuses(code, label), package_statuses(label)',
-                { filters },
-            );
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate the seller's own delivered/attributed/revenue counts.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
+            const { data, error } = await (supabase as any).rpc('seller_dashboard_stats', {
+                p_business: businessId,
+                p_seller: sellerId,
+                p_from: fromKey,
+                p_to: toKey,
+            });
+            if (error) throw error;
+            return (data?.self_perf ?? null) as SelfPerfSlice | null;
         },
-        enabled: !!sellerId,
-        // Always refetch on mount so the seller and admin dashboards can't drift
-        // apart on any order that changed status between loads.
-        staleTime: 0,
-        refetchOnMount: 'always',
+        enabled: !!sellerId && !!businessId,
+        staleTime: 60_000,
     });
 
-    const { data: commissionTotals } = useSellerCommissionTotals(
-        businessId || null,
-        dateFilter.from,
-        dateFilter.to,
-    );
-
-    const loading = loadingSeller || loadingOrders;
-    const commissionBasis: CommissionBasis = normalizeCommissionBasis(sellerRow?.commission_basis);
-    const commissionPrice = Number(sellerRow?.commission_price ?? 0) || 0;
+    const loading = loadingSeller || loadingStats;
 
     const metrics = useMemo(() => {
-        if (!orders || !sellerRow) return null;
+        if (!selfPerf || !sellerRow) return null;
 
-        const attributedProducts: string[] = Array.isArray(sellerRow.products)
-            ? (sellerRow.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
-            : [];
-
-        const withinWindow = (d: Date | null) => {
-            if (!d) return false;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
-
-        const inCohortWindow = (o: SSPOrder) => withinWindow(assignmentTimestampForMetrics(o));
-        const inCreateWindow = (o: SSPOrder) => {
-            if (!o.date) return false;
-            const d = new Date(o.date);
-            return Number.isNaN(d.getTime()) ? false : withinWindow(d);
-        };
-
-        const ordersTyped = orders as unknown as SSPOrder[];
-        const totalInWindow = ordersTyped.filter(inCreateWindow).length;
-
-        // Cohort-walk-forward: assigned defines the cohort, confirmed/delivered are strict
-        // subsets, so funnel stages always reconcile.
-        const sellerOrders = ordersTyped.filter((o) => o.seller_id === sellerId);
-        const cohort = sellerOrders.filter(inCohortWindow);
-        const assignedCount = cohort.length;
+        const assignedCount = selfPerf.assigned;
+        const totalInWindow = selfPerf.total_in_window;
         const assignedPercent = totalInWindow > 0 ? (assignedCount / totalInWindow) * 100 : 0;
-
-        // Confirmed = status NOT in pending ({new, postponed}) OR has tracking.
-        // Empty-set guard: see DashboardSellersPerformance for the explanation.
-        const hasTracking = (o: SSPOrder) => !!o.id && trackedOrderIds.has(o.id);
-        const statusMapsReady = pendingIds.size > 0;
-        const confirmed = cohort.filter((o) =>
-            hasTracking(o)
-            || (statusMapsReady
-                && !!o.order_status_id
-                && !pendingIds.has(o.order_status_id)),
-        );
-        const confirmedCount = confirmed.length;
-
-        // Rate denominator = full cohort (no "touched" exclusion).
-        const confirmedPercent = cohort.length > 0 ? (confirmedCount / cohort.length) * 100 : 0;
-
-        // Delivered = package state is delivered. Computed directly from the
-        // cohort so it is independent of the confirmed set.
-        const delivered = cohort.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
-        const deliveredCount = delivered.length;
-
-        // Delivery rate (Coliaty formula):
-        //   delivered ÷ (tracked − admin-pullback)
-        // Tracked = order has a tracking_code in company_parcels or courier_parcels.
-        // Admin-pullback = tracked AND flagged fake/double/blacklisted/cancelled
-        //   at order level, OR Hors-zone/Annulé at package level.
-        const tracked = cohort.filter((o) => !!o.id && trackedOrderIds.has(o.id));
-        const pullback = tracked.filter((o) =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const deliveryDenom = tracked.length - pullback.length;
+        const confirmedCount = selfPerf.confirmed;
+        const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
+        const deliveredCount = selfPerf.delivered;
+        const deliveryDenom = selfPerf.tracked - selfPerf.pullback;
         const deliveredPercent = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
 
-        const sourceAgg = new Map<string, { assigned: number; confirmed: number; delivered: number }>();
-        const bump = (src: string, k: 'assigned' | 'confirmed' | 'delivered') => {
-            const row = sourceAgg.get(src) || { assigned: 0, confirmed: 0, delivered: 0 };
-            row[k] += 1;
-            sourceAgg.set(src, row);
-        };
-        cohort.forEach((o) => bump((o.source_name || 'other').toLowerCase(), 'assigned'));
-        confirmed.forEach((o) => bump((o.source_name || 'other').toLowerCase(), 'confirmed'));
-        delivered.forEach((o) => bump((o.source_name || 'other').toLowerCase(), 'delivered'));
-        const sources: SourceStat[] = Array.from(sourceAgg, ([source, v]) => ({ source, ...v }));
+        const sources: SourceStat[] = (selfPerf.sources || []).map((s) => ({
+            source: s.source,
+            assigned: s.assigned,
+            confirmed: s.confirmed,
+            delivered: s.delivered,
+        }));
 
         const orderStatusById = new Map(orderStatuses.map((s) => [s.id, s]));
         const packageStatusById = new Map(packageStatuses.map((s) => [s.id, s]));
 
-        // Pre-conf pane: one pill per distinct current order_status in the not-yet-confirmed
-        // subset of the cohort. Sum always equals assignedCount - confirmedCount.
-        // Uses the same one-true-definition as the count/rate above.
-        const confirmedIdSet = new Set(confirmed.map((o) => o.id));
-        const notYetConfirmed = cohort.filter((o) => !confirmedIdSet.has(o.id));
-        const preConfShareTotal = notYetConfirmed.length;
-        const preCountByStatus = new Map<string | null, number>();
-        notYetConfirmed.forEach((o) => {
-            preCountByStatus.set(o.order_status_id, (preCountByStatus.get(o.order_status_id) || 0) + 1);
-        });
-        const preConfEntries: StatusQueueEntry[] = Array.from(preCountByStatus, ([sid, count]) => {
-            if (!sid) {
-                return { id: '__unset__', label: 'Unset (no status)', count, color: '#9ca3af' };
+        const preConfEntries: StatusQueueEntry[] = (selfPerf.pre_conf || []).map((e) => {
+            if (!e.order_status_id) {
+                return { id: '__unset__', label: 'Unset (no status)', count: e.count, color: '#9ca3af' };
             }
-            const status = orderStatusById.get(sid);
+            const status = orderStatusById.get(e.order_status_id);
             return {
-                id: sid,
+                id: e.order_status_id,
                 label: status?.label || 'Unknown status',
-                count,
-                color: getOrderStatusColor(sid),
+                count: e.count,
+                color: getOrderStatusColor(e.order_status_id),
             };
         });
 
-        // Post-conf pane: one pill per distinct current package_status in the not-yet-delivered
-        // subset of the confirmed orders. Sum always equals confirmedCount - deliveredCount.
-        const notYetDelivered = confirmed.filter((o) => !isDeliveredForCommission(o, deliveredPkgIds));
-        const postConfShareTotal = notYetDelivered.length;
-        // Bucket by package_status if set, otherwise by the confirmed order_status so the
-        // actual sub-state (Paid, Unpaid, Processed, etc.) is visible.
-        const postCountByStatus = new Map<string, number>();
-        notYetDelivered.forEach((o) => {
-            const key = o.package_status_id
-                ? `pkg:${o.package_status_id}`
-                : o.order_status_id
-                    ? `os:${o.order_status_id}`
-                    : 'unset';
-            postCountByStatus.set(key, (postCountByStatus.get(key) || 0) + 1);
-        });
-        const postConfEntries: StatusQueueEntry[] = Array.from(postCountByStatus, ([key, count]) => {
-            if (key === 'unset') {
-                return { id: 'unset', label: 'Unset (no status)', count, color: '#9ca3af' };
+        const postConfEntries: StatusQueueEntry[] = (selfPerf.post_conf || []).map((e) => {
+            if (e.kind === 'unset' || !e.id) {
+                return { id: 'unset', label: 'Unset (no status)', count: e.count, color: '#9ca3af' };
             }
-            if (key.startsWith('pkg:')) {
-                const sid = key.slice(4);
-                const status = packageStatusById.get(sid);
+            if (e.kind === 'pkg') {
+                const status = packageStatusById.get(e.id);
                 return {
-                    id: key,
+                    id: `pkg:${e.id}`,
                     label: status?.label || 'Unknown package status',
-                    count,
-                    color: getPkgStatusColor(sid),
+                    count: e.count,
+                    color: getPkgStatusColor(e.id),
                 };
             }
-            const sid = key.slice(3);
-            const status = orderStatusById.get(sid);
+            const status = orderStatusById.get(e.id);
             return {
-                id: key,
+                id: `os:${e.id}`,
                 label: status?.label || 'Unknown status',
-                count,
-                color: getOrderStatusColor(sid),
+                count: e.count,
+                color: getOrderStatusColor(e.id),
             };
         });
 
-        // Commission: seller_daily_earnings is the source of truth (payouts match this)
-        const commissionClient = delivered.reduce(
-            (s, o) =>
-                s +
-                commissionAccruedForDeliveredOrder({
-                    order: o as unknown as Parameters<typeof commissionAccruedForDeliveredOrder>[0]['order'],
-                    basis: commissionBasis,
-                    commissionPrice,
-                    sellerProductIds: attributedProducts,
-                }),
-            0,
-        );
-        const commissionFromView = commissionTotals?.totals.get(sellerId) ?? null;
+        // Commission: seller_daily_earnings (commission_view) is the source of
+        // truth; the RPC's client-formula fallback mirrors the old behavior.
+        const commissionClient = selfPerf.commission_client;
+        const commissionFromView = selfPerf.commission_view;
         const commission = commissionFromView ?? commissionClient;
         const commissionDrift = commissionFromView !== null && Math.abs(commissionFromView - commissionClient) > 1;
 
@@ -285,31 +160,21 @@ export function SellerSelfPerformanceSection({
             deliveredPercent,
             sources,
             preConfEntries,
-            preConfShareTotal,
+            preConfShareTotal: assignedCount - confirmedCount,
             postConfEntries,
-            postConfShareTotal,
+            postConfShareTotal: confirmedCount - deliveredCount,
             commission,
             commissionClient,
             commissionDrift,
             totalInWindow,
         };
     }, [
-        orders,
+        selfPerf,
         sellerRow,
-        sellerId,
-        dateFilter,
-        deliveredPkgIds,
-        pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
-        trackedOrderIds,
         orderStatuses,
         packageStatuses,
         getOrderStatusColor,
         getPkgStatusColor,
-        commissionBasis,
-        commissionPrice,
-        commissionTotals,
     ]);
 
     if (!sellerId) return null;

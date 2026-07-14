@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,92 +24,93 @@ import {
     endOfMonth,
     endOfWeek,
     format,
-    isWithinInterval,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
     subDays,
 } from 'date-fns';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
-import { pureRevenueForOrder, type AnalyticsOrder } from '@/lib/analyticsDefinitions';
+
+/**
+ * `sales_chart` section of admin_dashboard_stats (D2): Casablanca-day-bucketed
+ * arrays. Orders line = full pool incl exchange legs, placement-bucketed;
+ * revenue line = replace-excluded delivered orders, delivery-bucketed
+ * (date_livraison ?? updated_at), collapsed pureRevenue. The client re-buckets
+ * the day rows to its grain; the vs-Prev comparison is a SECOND RPC call with
+ * the shifted window (same ['dash-stats'] key family → shared cache +
+ * invalidation).
+ */
+export interface SalesChartSection {
+    orders_by_day: Array<{ d: string; orders: number }>;
+    revenue_by_day: Array<{ d: string; revenue: number }>;
+}
 
 interface SalesComparatifChartProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats: SalesChartSection | undefined;
 }
 
 type Granularity = 'daily' | 'weekly' | 'monthly';
 type GranularityChoice = Granularity | 'auto';
 
-// Shape verified against public.orders via MCP.
-type SCCOrder = {
-    id: string;
-    date: string | null;               // placement timestamp (aka created_at)
-    date_livraison: string | null;     // when the parcel was delivered to the customer
-    updated_at: string | null;         // safety fallback for `date_livraison`
-    price: number | null;
-    shipping_cost: number | null;
-    include_delivery_in_total: boolean | null;
-    package_status_id: string | null;
-    replace: boolean | null;            // exchange/swap leg marker (excluded from revenue)
-    package_statuses: { label?: string | null } | null;
-};
-
 const COLOR_REVENUE = '#d97757'; // ant-orange — hero metric
 const COLOR_ORDERS = '#141413'; // ant-ink — secondary line
 const COLOR_PREV = '#b0aea5'; // ant-mid — previous period
 
-export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatifChartProps) => {
+export const SalesComparatifChart = ({ businessId, dateFilter, stats }: SalesComparatifChartProps) => {
     const [granularityChoice, setGranularityChoice] = useState<GranularityChoice>('auto');
     const [showComparison, setShowComparison] = useState(true);
-    const { deliveredPkgIds } = useStatusCategories();
 
-    const { data: orders } = useQuery({
-        queryKey: ['sales-comparatif-orders', businessId],
+    // Comparison only makes sense with an explicit range of ≥1 day.
+    const hasExplicitRange = !!dateFilter.from && !!dateFilter.to;
+    const explicitRangeDays = hasExplicitRange
+        ? Math.max(0, differenceInDays(endOfDay(dateFilter.to!), startOfDay(dateFilter.from!)))
+        : 0;
+    const comparisonEligible = hasExplicitRange && explicitRangeDays >= 1;
+    const useComparison = showComparison && comparisonEligible;
+    const prevOffsetDays = explicitRangeDays + 1;
+    const prevFromKey = comparisonEligible
+        ? format(subDays(startOfDay(dateFilter.from!), prevOffsetDays), 'yyyy-MM-dd')
+        : null;
+    const prevToKey = comparisonEligible
+        ? format(subDays(endOfDay(dateFilter.to!), prevOffsetDays), 'yyyy-MM-dd')
+        : null;
+
+    // Previous-window day buckets, fetched only when the toggle is active.
+    const { data: prevPayload } = useQuery({
+        queryKey: ['dash-stats', 'admin', businessId, prevFromKey, prevToKey],
         queryFn: async () => {
-            // Keep ALL orders (incl exchange legs) — the Orders count line is
-            // operational volume and must match the dashboard's Total-orders card +
-            // the Orders page. Exchange legs are dropped only from the REVENUE line
-            // (see isRevenue below), not from the order count.
-            return await fetchAllRows(
-                'orders',
-                'id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, replace, package_statuses(label)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
+            const { data, error } = await (supabase as any).rpc('admin_dashboard_stats', {
+                p_business: businessId,
+                p_from: prevFromKey,
+                p_to: prevToKey,
+            });
+            if (error) throw error;
+            return data as { sales_chart: SalesChartSection };
         },
-        enabled: !!businessId,
+        enabled: !!businessId && useComparison,
+        staleTime: 60_000,
     });
+    const prevStats = useComparison ? prevPayload?.sales_chart : undefined;
 
     const built = useMemo(() => {
         const now = new Date();
-        if (!orders) {
+        if (!stats) {
             return null;
         }
-        const ordersTyped = orders as unknown as SCCOrder[];
 
-        // "All Time" → span the real dataset. Use the earliest of placement or
-        // delivery timestamps so the chart covers every bucket we attribute to
-        // (orders line uses placement date, revenue line uses delivery date).
-        const timestamps: number[] = [];
-        ordersTyped.forEach((o) => {
-            if (o.date) {
-                const t = new Date(o.date).getTime();
-                if (!Number.isNaN(t)) timestamps.push(t);
-            }
-            const deliv = o.date_livraison ?? o.updated_at;
-            if (deliv) {
-                const t = new Date(deliv).getTime();
-                if (!Number.isNaN(t)) timestamps.push(t);
-            }
-        });
-        const earliest = timestamps.length ? new Date(Math.min(...timestamps)) : subDays(now, 30);
+        const ordersByDay = new Map(stats.orders_by_day.map((r) => [r.d, r.orders]));
+        const revenueByDay = new Map(stats.revenue_by_day.map((r) => [r.d, r.revenue]));
+        const prevOrdersByDay = new Map((prevStats?.orders_by_day || []).map((r) => [r.d, r.orders]));
+        const prevRevenueByDay = new Map((prevStats?.revenue_by_day || []).map((r) => [r.d, r.revenue]));
+
+        // "All Time" → span the real dataset: earliest bucketed day across the
+        // orders (placement) and revenue (delivery) series.
+        const dayKeys = [...ordersByDay.keys(), ...revenueByDay.keys()];
+        const earliest = dayKeys.length
+            ? parseISO(dayKeys.reduce((min, d) => (d < min ? d : min)))
+            : subDays(now, 30);
 
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(now);
@@ -120,53 +121,6 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
             rangeDays <= 31 ? 'daily' : rangeDays <= 120 ? 'weekly' : 'monthly';
         const granularity: Granularity =
             granularityChoice === 'auto' ? autoGranularity : granularityChoice;
-
-        // Comparison only makes sense with an explicit range of ≥1 day.
-        const hasExplicitRange = !!dateFilter.from && !!dateFilter.to;
-        const comparisonEligible = hasExplicitRange && rangeDays >= 1;
-        const useComparison = showComparison && comparisonEligible;
-
-        const prevOffsetDays = rangeDays + 1;
-        const prevRangeStart = subDays(rangeStart, prevOffsetDays);
-        const prevRangeEnd = subDays(rangeEnd, prevOffsetDays);
-
-        // Revenue: delivered-only. Use the SHARED revenue definition so this
-        // chart matches the P&L / analytics everywhere — product revenue PLUS the
-        // delivery the customer paid when it's folded into the order total
-        // (include_delivery_in_total = true). The old inline version stripped
-        // shipping unconditionally, understating revenue by the collected delivery
-        // and diverging from the Orders page "Total sales".
-        const productRevenue = (o: SCCOrder) => pureRevenueForOrder(o as unknown as AnalyticsOrder);
-        // Revenue excludes exchange/swap legs (replace=true) — they are not sales.
-        // The Orders count line keeps them (operational volume), so the count
-        // matches the Total-orders card while revenue matches the P&L.
-        const isRevenue = (o: SCCOrder) => o.replace !== true && isDeliveredForCommission(o, deliveredPkgIds);
-
-        const parse = (s: string | null | undefined) => (s ? new Date(s) : null);
-        // Revenue is attributed to when the money was realized — the delivery
-        // timestamp — not when the order was placed. Matches every other
-        // analytics surface (BusinessHealthSection, seller_daily_earnings, …).
-        // `updated_at` is a safety net for legacy rows missing `date_livraison`.
-        const revenueTimestamp = (o: SCCOrder) => parse(o.date_livraison ?? o.updated_at);
-        const placementTs = (o: SCCOrder) => parse(o.date);
-        const inRange = (d: Date | null, from: Date, to: Date) =>
-            d ? isWithinInterval(d, { start: from, end: to }) : false;
-
-        // Two working sets — placement-bucketed for orders line, delivery-bucketed
-        // for revenue line. An order can appear in one window and not the other
-        // (e.g. placed in March, delivered in April).
-        const currentOrdersByPlacement = ordersTyped.filter((o) =>
-            inRange(placementTs(o), rangeStart, rangeEnd),
-        );
-        const currentDeliveriesInRange = ordersTyped.filter((o) =>
-            isRevenue(o) && inRange(revenueTimestamp(o), rangeStart, rangeEnd),
-        );
-        const prevOrdersByPlacement = useComparison
-            ? ordersTyped.filter((o) => inRange(placementTs(o), prevRangeStart, prevRangeEnd))
-            : [];
-        const prevDeliveriesInRange = useComparison
-            ? ordersTyped.filter((o) => isRevenue(o) && inRange(revenueTimestamp(o), prevRangeStart, prevRangeEnd))
-            : [];
 
         let intervals: Date[];
         let formatStr: string;
@@ -182,7 +136,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         }
 
         // Clamp every bucket to the actual range so edge buckets don't pull in
-        // out-of-window orders (old bug: first weekly/monthly bucket leaked).
+        // out-of-window days (old bug: first weekly/monthly bucket leaked).
         const bucketBounds = (date: Date): { start: Date; end: Date } => {
             if (granularity === 'monthly') {
                 const s = startOfMonth(date).getTime() < rangeStart.getTime() ? rangeStart : startOfMonth(date);
@@ -199,35 +153,31 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
             return { start: startOfDay(date), end: endOfDay(date) };
         };
 
+        // Sum a day-keyed map over a bucket's calendar days.
+        const sumDays = (map: Map<string, number>, start: Date, end: Date) =>
+            eachDayOfInterval({ start, end }).reduce(
+                (s, d) => s + (map.get(format(d, 'yyyy-MM-dd')) || 0),
+                0,
+            );
+
         const rows = intervals.map((date) => {
             const { start, end } = bucketBounds(date);
-            // Orders line: placement-bucketed (top-of-funnel volume).
-            const ordersInBucket = currentOrdersByPlacement.filter((o) =>
-                inRange(placementTs(o), start, end),
-            );
-            // Revenue line: delivery-bucketed (money realized on that day).
-            const deliveriesInBucket = currentDeliveriesInRange.filter((o) =>
-                inRange(revenueTimestamp(o), start, end),
-            );
-            const curRevenue = deliveriesInBucket.reduce((s, o) => s + productRevenue(o), 0);
 
             let prevOrdersCount = 0;
             let prevRevenue = 0;
             if (useComparison) {
                 const prevStart = subDays(start, prevOffsetDays);
                 const prevEnd = subDays(end, prevOffsetDays);
-                prevOrdersCount = prevOrdersByPlacement.filter((o) =>
-                    inRange(placementTs(o), prevStart, prevEnd),
-                ).length;
-                prevRevenue = prevDeliveriesInRange
-                    .filter((o) => inRange(revenueTimestamp(o), prevStart, prevEnd))
-                    .reduce((s, o) => s + productRevenue(o), 0);
+                prevOrdersCount = sumDays(prevOrdersByDay, prevStart, prevEnd);
+                prevRevenue = sumDays(prevRevenueByDay, prevStart, prevEnd);
             }
 
             return {
                 label: format(date, formatStr),
-                orders: ordersInBucket.length,
-                revenue: curRevenue,
+                // Orders line: placement-bucketed (top-of-funnel volume).
+                orders: sumDays(ordersByDay, start, end),
+                // Revenue line: delivery-bucketed (money realized on that day).
+                revenue: sumDays(revenueByDay, start, end),
                 prevOrders: prevOrdersCount,
                 prevRevenue,
             };
@@ -248,16 +198,12 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
             totals,
             granularity,
             autoGranularity,
-            comparisonEligible,
-            useComparison,
         };
-    }, [orders, dateFilter, granularityChoice, showComparison, deliveredPkgIds]);
+    }, [stats, prevStats, dateFilter, granularityChoice, useComparison, prevOffsetDays]);
 
     const totals = built?.totals ?? { orders: 0, revenue: 0, prevOrders: 0, prevRevenue: 0 };
     const rows = built?.rows ?? [];
     const autoGranularity = built?.autoGranularity ?? 'daily';
-    const comparisonEligible = built?.comparisonEligible ?? false;
-    const useComparison = built?.useComparison ?? false;
 
     const orderGrowth = useComparison && totals.prevOrders > 0
         ? ((totals.orders - totals.prevOrders) / totals.prevOrders) * 100

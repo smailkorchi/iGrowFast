@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { type CommissionBasis } from '@/lib/commercialCommission';
 import {
     ShoppingBag,
     MapPin,
@@ -66,26 +66,10 @@ interface ProductPerformance {
 
 const SellerStatistics = () => {
     const { toast } = useToast();
+    // Labels/colors for the status distribution — the counts come from the RPC.
     const statusCats = useStatusCategories();
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<PerformanceStats>({
-        successRate: 0,
-        totalRealized: 0,
-        efficiency: 0,
-        totalOrders: 0,
-        deliveredOrders: 0,
-        growth: 0,
-        confirmRate: 0,
-        integrityScore: 0,
-        deliveryEff: 0,
-        liveCommission: 0,
-        earnedCommission: 0,
-        commissionBasis: 'per_order',
-    });
     const [revenueData, setRevenueData] = useState<ChartData[]>([]);
-    const [orderDistribution, setOrderDistribution] = useState<StatusDistribution[]>([]);
-    const [regionalData, setRegionalData] = useState<RegionalData[]>([]);
-    const [productPerformance, setProductPerformance] = useState<ProductPerformance[]>([]);
+    const [growth, setGrowth] = useState(0);
     const [perfDateFilter, setPerfDateFilter] = useState<DateFilter>({
         from: undefined,
         to: undefined,
@@ -112,253 +96,140 @@ const SellerStatistics = () => {
         })();
     }, []);
 
+    const sellerId = sellerPerfContext?.id ?? null;
+    const businessId = sellerPerfContext?.businessId ?? null;
+    const statsEnabled = !!sellerId && !!businessId;
+
+    // D2 — ONE server-side aggregate (seller_dashboard_stats) replaces the
+    // own-orders full scan, the TWO business-wide parcel dumps, both
+    // seller_payments sums and the seller_presences count. Commission money
+    // is ledger-reconciled in the RPC — no client commission math remains.
+    // This page's own stat block is LIFETIME (the date filter only drives the
+    // SellerSelfPerformanceSection), so no window params are sent. p_seller is
+    // ALWAYS the auth uid — the RPC raises 42501 for anything else.
+    const { data: dashStats, isLoading: statsFetching, error: statsError } = useQuery<any>({
+        queryKey: ['dash-stats', 'seller', businessId, sellerId],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('seller_dashboard_stats', {
+                p_business: businessId,
+                p_seller: sellerId,
+            });
+            if (error) throw error;
+            return data;
+        },
+        enabled: statsEnabled,
+        staleTime: 60_000,
+    });
+
     useEffect(() => {
-        fetchAllStats();
-    }, [statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size, statusCats.orderStatuses.length]);
+        if (statsError) {
+            console.error('Error fetching analytics:', statsError);
+            toast({ title: "Data Error", description: "Failed to load performance metrics.", variant: "destructive" });
+        }
+    }, [statsError, toast]);
 
-    const fetchAllStats = async () => {
-        setLoading(true);
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+    const loading = !sellerPerfContext || (statsEnabled && statsFetching);
 
-            const { data: sellerProfile } = await supabase
-                .from('users')
-                .select('"DigiCom Business"')
-                .eq('id', user.id)
-                .single();
-            const sellerBusinessId = (sellerProfile as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
-
-            // Paginated so a seller exceeding 1000 orders is never truncated.
-            const ordersFilters: { column: string; op: 'eq' | 'is'; value: unknown }[] = [
-                { column: 'seller_id', op: 'eq', value: user.id },
-                { column: 'date_deleted', op: 'is', value: null },
-            ];
-            if (sellerBusinessId) ordersFilters.push({ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId });
-            const ordersData = await fetchAllRows<any>(
-                'orders',
-                'id, order_status_id, package_status_id, replace, master_cities(name), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))',
-                { filters: ordersFilters },
-            );
-
-            // Exclude exchange swap/return legs (replace=true) — not sales, so the
-            // seller's delivered/confirmed stats stay consistent with the guarded
-            // seller_daily_earnings commission shown alongside.
-            const orders = (ordersData || []).filter((o: any) => o.replace !== true).map(o => ({
-                ...o,
-                order_status_id: (o as any).order_status_id,
-                package_status_id: (o as any).package_status_id,
-                status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
-                packageStatus: ((o as any).package_statuses?.label || '').toLowerCase(),
-                cityData: (o.master_cities as any)
-            }));
-
-            // Fetch parcel tracking codes up front — the `orders.tracking_number`
-            // column is not populated in production; the authoritative source is
-            // company_parcels.tracking_code / courier_parcels.tracking_code.
-            // Every "has tracking" check below must use this set, otherwise
-            // confirmed counts / rates drift from the real state.
-            const trackedSet = new Set<string>();
-            if (sellerBusinessId) {
-                const [cpRows, xpRows] = await Promise.all([
-                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                        'company_parcels', 'order_id, tracking_code',
-                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
-                    ),
-                    fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                        'courier_parcels', 'order_id, tracking_code',
-                        { filters: [{ column: 'DigiCom Business', op: 'eq', value: sellerBusinessId }] },
-                    ),
-                ]);
-                (cpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
-                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+    // Earnings history is a real ROW LIST (monthly commission chart + growth)
+    // — it stays a direct fetch per the D2 contract.
+    useEffect(() => {
+        if (!sellerId) return;
+        (async () => {
+            try {
+                // Paginated so a seller with >1000 earning-days is never truncated.
+                const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
+                    filters: [{ column: 'seller_id', op: 'eq', value: sellerId }],
+                    orderBy: 'date',
+                    ascending: true,
                 });
-                (xpRows || []).forEach((p: { order_id: string | null; tracking_code: string | null }) => {
-                    if (p.order_id && p.tracking_code && String(p.tracking_code).trim().length > 0) trackedSet.add(p.order_id);
+
+                const monthlyMap: Record<string, ChartData> = {};
+                earnings?.forEach(e => {
+                    const monthStr = format(parseISO(e.date), 'MMM yyyy');
+                    if (!monthlyMap[monthStr]) monthlyMap[monthStr] = { month: monthStr, commission: 0, total: 0 };
+                    monthlyMap[monthStr].commission += Number(e.commission_earned);
+                    monthlyMap[monthStr].total += Number(e.total_earned);
                 });
+                setRevenueData(Object.values(monthlyMap));
+
+                const currentMonth = startOfMonth(new Date());
+                const lastMonth = startOfMonth(subMonths(new Date(), 1));
+                const currentMonthTotal = earnings?.filter(e => isWithinInterval(parseISO(e.date), { start: currentMonth, end: endOfMonth(new Date()) })).reduce((acc, curr) => acc + Number(curr.total_earned), 0) || 0;
+                const lastMonthTotal = earnings?.filter(e => isWithinInterval(parseISO(e.date), { start: lastMonth, end: endOfMonth(lastMonth) })).reduce((acc, curr) => acc + Number(curr.total_earned), 0) || 0;
+                setGrowth(lastMonthTotal > 0 ? ((currentMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0);
+            } catch (error) {
+                console.error('Error fetching analytics:', error);
+                toast({ title: "Data Error", description: "Failed to load performance metrics.", variant: "destructive" });
             }
-            const hasTracking = (o: any) => !!o?.id && trackedSet.has(o.id);
+        })();
+    }, [sellerId, toast]);
 
-            const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
-            // Confirmed = status in confirmed bucket OR parcel already handed to
-            // a courier (tracking code). Must match the rule used for the rate
-            // below, otherwise "Confirmées" count and "Taux de confirmation"
-            // disagree on the same orders.
-            const isConfirmedOrBeyond = (o: any) => hasTracking(o) || statusCats.confirmedIds.has(o.order_status_id);
-            const isFake = (o: any) => statusCats.isOrderInCategories(o.order_status_id, ['fake', 'double']);
-
-            const distMap: Record<string, number> = {};
-            orders?.forEach(o => {
-                const id = o.order_status_id || 'unknown';
-                distMap[id] = (distMap[id] || 0) + 1;
-            });
-
-            const formattedDist = Object.entries(distMap).map(([statusId, count]) => ({
-                name: statusCats.orderStatuses.find(s => s.id === statusId)?.label || statusId.slice(0, 8),
-                value: count,
-                color: statusCats.getOrderStatusColor(statusId)
-            })).sort((a, b) => b.value - a.value);
-            setOrderDistribution(formattedDist);
-
-            const cityMap: Record<string, { count: number }> = {};
-            orders?.filter(o => isDelivered(o)).forEach(o => {
-                const cityData = (o.master_cities as any);
-                const cityName = cityData?.name || 'Unknown';
-                if (!cityMap[cityName]) cityMap[cityName] = { count: 0 };
-                cityMap[cityName].count++;
-            });
-
-            const formattedRegional = Object.entries(cityMap)
-                .map(([city, data]) => ({ city, delivered: data.count }))
-                .sort((a, b) => b.delivered - a.delivered);
-            setRegionalData(formattedRegional);
-
-            const prodMap: Record<string, ProductPerformance> = {};
-            orders?.forEach((o: any) => {
-                const items = o.order_items || [];
-                const seenProducts = new Set<string>();
-                const isTracked = !!o.id && trackedSet.has(o.id);
-                const isPullback = isTracked && isAdminPullback(
-                    o,
-                    true,
-                    statusCats.adminPullbackOrderIds,
-                    statusCats.adminPullbackPackageIds,
-                );
-                items.forEach((item: any) => {
-                    const product = item.products;
-                    const pName = product?.name || 'Generic Item';
-                    const pImage = product?.image_url || null;
-                    if (!prodMap[pName]) prodMap[pName] = { name: pName, image: pImage, attributed: 0, delivered: 0, tracked: 0, pullback: 0, successRate: 0, revenue: 0 };
-                    if (!seenProducts.has(pName)) {
-                        seenProducts.add(pName);
-                        prodMap[pName].attributed += 1;
-                        if (isTracked) prodMap[pName].tracked += 1;
-                        if (isPullback) prodMap[pName].pullback += 1;
-                        if (isDelivered(o)) prodMap[pName].delivered += 1;
-                    }
-                    if (isDelivered(o)) prodMap[pName].revenue += Number(item.unit_price) * Number(item.quantity);
-                });
-            });
-
-            // Coliaty delivery-rate per product: delivered ÷ (tracked − admin-pullback).
-            const formattedProducts = Object.values(prodMap).map(p => {
-                const denom = p.tracked - p.pullback;
-                return { ...p, successRate: denom > 0 ? (p.delivered / denom) * 100 : 0 };
-            }).sort((a, b) => b.delivered - a.delivered).slice(0, 5);
-            setProductPerformance(formattedProducts);
-
-            // Paginated so a seller with >1000 earning-days is never truncated.
-            const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
-                filters: [{ column: 'seller_id', op: 'eq', value: user.id }],
-                orderBy: 'date',
-                ascending: true,
-            });
-
-            const monthlyMap: Record<string, ChartData> = {};
-            earnings?.forEach(e => {
-                const monthStr = format(parseISO(e.date), 'MMM yyyy');
-                if (!monthlyMap[monthStr]) monthlyMap[monthStr] = { month: monthStr, commission: 0, total: 0 };
-                monthlyMap[monthStr].commission += Number(e.commission_earned);
-                monthlyMap[monthStr].total += Number(e.total_earned);
-            });
-            setRevenueData(Object.values(monthlyMap));
-
-            // Realized = cash actually paid out to the seller = Σ paid_amount across
-            // ALL payout rows. The old code summed total_amount only for status='paid'
-            // rows, which dropped partial payouts (ghita: 4800 paid -> showed 0).
-            const { data: payments, error: paymentsError } = await supabase
-                .from('seller_payments')
-                .select('paid_amount')
-                .eq('seller_id', user.id);
-            if (paymentsError) throw paymentsError;
-            const totalRealized = payments?.reduce((acc, curr) => acc + Number(curr.paid_amount), 0) || 0;
-
-            const { count: presenceCount, error: presenceError } = await supabase
-                .from('seller_presences')
-                .select('*', { count: 'exact', head: true })
-                .eq('seller_id', user.id);
-            if (presenceError) throw presenceError;
-
-            const totalAttributed = orders?.length || 0;
-            const deliveredOrders = orders?.filter(o => isDelivered(o)).length || 0;
-            const efficiency = (presenceCount || 0) > 0 ? deliveredOrders / (presenceCount || 0) : 0;
-
-            const currentMonth = startOfMonth(new Date());
-            const lastMonth = startOfMonth(subMonths(new Date(), 1));
-            const currentMonthTotal = earnings?.filter(e => isWithinInterval(parseISO(e.date), { start: currentMonth, end: endOfMonth(new Date()) })).reduce((acc, curr) => acc + Number(curr.total_earned), 0) || 0;
-            const lastMonthTotal = earnings?.filter(e => isWithinInterval(parseISO(e.date), { start: lastMonth, end: endOfMonth(lastMonth) })).reduce((acc, curr) => acc + Number(curr.total_earned), 0) || 0;
-            const growth = lastMonthTotal > 0 ? ((currentMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0;
-
-            const { data: sellerInfo, error: sellerError } = await supabase
-                .from('users')
-                .select('commission_price, commission_basis, products')
-                .eq('id', user.id)
-                .single();
-            if (sellerError && sellerError.code !== 'PGRST116') console.warn('Could not fetch seller commission info');
-
-            const commissionRate = sellerInfo?.commission_price || 0;
-            const commissionBasis = normalizeCommissionBasis(sellerInfo?.commission_basis as string | null | undefined);
-            const sellerProductIds = Array.isArray(sellerInfo?.products)
-                ? (sellerInfo!.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
-                : [];
-
-            const totalOrdersCount = orders?.length || 0;
-            const confirmedOrders = orders?.filter(o => isConfirmedOrBeyond(o)).length || 0;
-            const deliveredOrdersCount = orders?.filter(o => isDelivered(o)).length || 0;
-            const fakeOrders = orders?.filter(o => isFake(o)).length || 0;
-            // Confirmation rate: numerator = orders NOT in pending (new +
-            // postponed) OR with tracking. Denominator = total orders.
-            const statusMapsReady = statusCats.pendingIds.size > 0;
-            const rateConfirmedCount = orders?.filter((o: any) => {
-                if (hasTracking(o)) return true;
-                return statusMapsReady
-                    && !!o.order_status_id
-                    && !statusCats.pendingIds.has(o.order_status_id);
-            }).length || 0;
-            const confirmRate = totalOrdersCount > 0 ? (rateConfirmedCount / totalOrdersCount) * 100 : 0;
-
-            // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-            // `trackedSet` was fetched above (before the confirmation rules).
-            const trackedCount = (orders || []).filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
-            const pullbackCount = (orders || []).filter((o: any) =>
-                !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
-            ).length;
-            const deliveryDenom = trackedCount - pullbackCount;
-            const deliveryEff = deliveryDenom > 0 ? (deliveredOrdersCount / deliveryDenom) * 100 : 0;
-            const successRate = deliveryEff;
-            const integrityScore = totalOrdersCount > 0 ? (1 - (fakeOrders / totalOrdersCount)) * 100 : 100;
-
-            // Owed = accrued − ALL cash paid (Σ paid_amount across every payout
-            // row, incl. partials). The old code summed delivered_orders only for
-            // status='paid' rows, which dropped partial payouts entirely and made
-            // "commission en attente" show the full accrual (6,420 instead of
-            // 1,620). Mirrors the seller Dashboard's owed calc exactly.
-            const { data: paymentsData } = await supabase
-                .from('seller_payments')
-                .select('paid_amount')
-                .eq('seller_id', user.id);
-            const alreadyPaidAmount = (paymentsData || []).reduce((sum, p) => sum + (Number(p.paid_amount) || 0), 0);
-
-            const { unpaidCommission: liveCommission, accruedTotal } = computeUnpaidCommission({
-                basis: commissionBasis,
-                commissionPrice: Number(commissionRate) || 0,
-                orders: orders || [],
-                isDelivered,
-                sellerProductIds,
-                paidAmount: alreadyPaidAmount,
-            });
+    const stats: PerformanceStats = useMemo(() => {
+        const strip = dashStats?.stat_strip;
+        const money = dashStats?.money;
+        const extra = dashStats?.statistics;
+        const total = Number(strip?.total) || 0;
+        const delivered = Number(strip?.delivered) || 0;
+        const presenceDays = Number(extra?.presence_days) || 0;
+        const fakeOrders = Number(extra?.fake_count) || 0;
+        // Delivery rate (Coliaty, raw ratio) computed server-side.
+        const successRate = Number(strip?.success_rate) || 0;
+        return {
+            successRate,
+            totalRealized: Number(extra?.total_realized) || 0,
+            efficiency: presenceDays > 0 ? delivered / presenceDays : 0,
+            totalOrders: total,
+            deliveredOrders: delivered,
+            growth,
+            confirmRate: Number(strip?.confirm_rate) || 0,
+            integrityScore: total > 0 ? (1 - fakeOrders / total) * 100 : 100,
+            deliveryEff: successRate,
+            liveCommission: Number(money?.live_commission) || 0,
             // Gross commission earned (delivered units/orders × rate), independent of
             // how much has been paid — drives the per-order earning rate card.
-            const earnedCommission = accruedTotal * (Number(commissionRate) || 0);
+            earnedCommission: Number(money?.earned_commission) || 0,
+            commissionBasis: money?.commission_basis === 'per_unit' ? 'per_unit' : 'per_order',
+        };
+    }, [dashStats, growth]);
 
-            setStats({ successRate, totalRealized, efficiency, totalOrders: totalAttributed, deliveredOrders: deliveredOrdersCount, growth, confirmRate, integrityScore, deliveryEff, liveCommission, earnedCommission, commissionBasis });
-        } catch (error) {
-            console.error('Error fetching analytics:', error);
-            toast({ title: "Data Error", description: "Failed to load performance metrics.", variant: "destructive" });
-        } finally {
-            setLoading(false);
-        }
-    };
+    const orderDistribution: StatusDistribution[] = useMemo(() => (
+        ((dashStats?.statistics?.status_distribution ?? []) as any[]).map((row) => {
+            const statusId: string = row.order_status_id || 'unknown';
+            return {
+                name: statusCats.orderStatuses.find(s => s.id === statusId)?.label || statusId.slice(0, 8),
+                value: Number(row.count) || 0,
+                color: statusCats.getOrderStatusColor(statusId),
+            };
+        }).sort((a, b) => b.value - a.value)
+    ), [dashStats, statusCats]);
+
+    const regionalData: RegionalData[] = useMemo(() => (
+        ((dashStats?.statistics?.regional ?? []) as any[]).map((r) => ({
+            city: r.city || 'Unknown',
+            delivered: Number(r.delivered) || 0,
+        }))
+    ), [dashStats]);
+
+    // Top-5 per-product cards from the RPC (delivered desc); Coliaty
+    // delivery-rate per product: delivered ÷ (tracked − admin-pullback).
+    const productPerformance: ProductPerformance[] = useMemo(() => (
+        ((dashStats?.statistics?.product_perf ?? []) as any[]).map((p) => {
+            const tracked = Number(p.tracked) || 0;
+            const pullback = Number(p.pullback) || 0;
+            const delivered = Number(p.delivered) || 0;
+            const denom = tracked - pullback;
+            return {
+                name: p.name || 'Generic Item',
+                image: p.image ?? null,
+                attributed: Number(p.attributed) || 0,
+                delivered,
+                tracked,
+                pullback,
+                successRate: denom > 0 ? (delivered / denom) * 100 : 0,
+                revenue: Number(p.revenue) || 0,
+            };
+        })
+    ), [dashStats]);
 
     const totalOrdersForDist = orderDistribution.reduce((s, d) => s + d.value, 0);
 

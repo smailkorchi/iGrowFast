@@ -1,19 +1,34 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { MapPin, AlertTriangle, ChevronRight } from 'lucide-react';
-import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
-import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { isAdminPullback, pureRevenueForOrder, type AnalyticsOrder } from '@/lib/analyticsDefinitions';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
+/**
+ * `city_stats` section of admin_dashboard_stats (D2). Cities are grouped by
+ * name server-side (orders without a city name skipped entirely), sorted
+ * delivered desc then total desc; revenue = delivered non-exchange orders,
+ * collapsed pureRevenue (price/shipping branch), like the old client.
+ */
+export interface CityStatsSection {
+    cities: Array<{
+        name: string;
+        total: number;
+        /** Coliaty delivery denominator: tracked − admin-pullback. */
+        denom: number;
+        delivered: number;
+        revenue: number;
+    }>;
+    totals: {
+        orders: number;
+        denom: number;
+        delivered: number;
+        revenue: number;
+    };
+}
+
 interface DashboardCityStatsProps {
-    businessId: string;
-    dateFilter: DateFilter;
+    stats: CityStatsSection | undefined;
 }
 
 const TOP_N_PREVIEW = 8;
@@ -32,124 +47,25 @@ const TOP_COLORS = [
 ];
 const OTHERS_COLOR = '#e8e6dc';
 
-export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStatsProps) => {
-    const { deliveredPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
+export const DashboardCityStats = ({ stats }: DashboardCityStatsProps) => {
     const [showAll, setShowAll] = useState(false);
 
-    const { data: orders } = useQuery({
-        queryKey: ['dashboard-orders-cities', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'orders',
-                'id, date, price, shipping_cost, include_delivery_in_total, package_status_id, master_city_id, replace, master_cities(name), order_status_id, package_statuses(label)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
-        if (!orders) return null;
+        if (!stats) return null;
 
-        const hasExplicitFilter = !!dateFilter.from || !!dateFilter.to;
-        const isInRange = (dateStr: string | null) => {
-            // All-Time view lets everything through (null dates included).
-            if (!hasExplicitFilter) return true;
-            // Explicit window: null-date rows are excluded so they don't
-            // leak into every filtered period.
-            if (!dateStr) return false;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
+        // Already sorted delivered desc, total desc by the RPC.
+        const sortedByDelivered = stats.cities.map((c) => ({
+            name: c.name,
+            total: c.total,
+            deliveryDenom: c.denom,
+            delivered: c.delivered,
+            revenue: c.revenue,
+        }));
 
-        type CityOrderRow = {
-            id?: string;
-            date?: string | null;
-            master_cities?: { name?: string | null } | null;
-            package_status_id?: string | null;
-            package_statuses?: { label?: string | null } | null;
-            order_status_id?: string | null;
-            price?: number | string | null;
-            shipping_cost?: number | string | null;
-            include_delivery_in_total?: boolean | null;
-            replace?: boolean | null;
-        };
-        const filtered = orders.filter((o: CityOrderRow) => isInRange(o.date));
-
-        // Per-city delivery rate uses Coliaty's formula: delivered divided by
-        // (tracked − admin-pullback). `deliveryDenom` replaces the old strict
-        // "confirmed" counter.
-        const cityMap: Record<
-            string,
-            { name: string; total: number; deliveryDenom: number; delivered: number; revenue: number }
-        > = {};
-
-        // Shared revenue definition (product + collected delivery when folded
-        // into the order total) so per-city revenue matches the P&L / analytics.
-        // The old inline version stripped shipping, understating revenue by the
-        // delivery the customer reimbursed.
-        const productRevenue = (o: CityOrderRow) => pureRevenueForOrder(o as unknown as AnalyticsOrder);
-
-        let totalOrders = 0;
-        let totalDeliveryDenom = 0;  // tracked − admin-pullback, per Coliaty
-        let totalDelivered = 0;
-        let totalRevenue = 0;
-
-        filtered.forEach((o: CityOrderRow) => {
-            const cityName = o.master_cities?.name;
-            if (!cityName) return;
-            if (!cityMap[cityName]) {
-                cityMap[cityName] = { name: cityName, total: 0, deliveryDenom: 0, delivered: 0, revenue: 0 };
-            }
-            cityMap[cityName].total += 1;
-            totalOrders += 1;
-
-            // Delivery-rate denominator = tracked orders minus admin pullbacks.
-            const hasTracking = !!o.id && trackedOrderIds.has(o.id);
-            if (hasTracking) {
-                const pullback = isAdminPullback(
-                    o,
-                    true,
-                    adminPullbackOrderIds,
-                    adminPullbackPackageIds,
-                );
-                if (!pullback) {
-                    cityMap[cityName].deliveryDenom += 1;
-                    totalDeliveryDenom += 1;
-                }
-            }
-
-            // Delivered iff package_status_id resolves to a delivered-category row.
-            // Single source of truth — matches seller_daily_earnings view.
-            const delivered = !!o.package_status_id && deliveredPkgIds.has(o.package_status_id);
-            if (delivered) {
-                cityMap[cityName].delivered += 1;
-                totalDelivered += 1;
-                // Swap/return legs (replace=true) are real deliveries (kept in the
-                // operational delivered count + rate) but are NOT sales — exclude
-                // them from per-city revenue so it matches the P&L / analytics.
-                if (o.replace !== true) {
-                    cityMap[cityName].revenue += productRevenue(o);
-                    totalRevenue += productRevenue(o);
-                }
-            }
-        });
-
-        // Primary sort: delivered desc (ops signal), tiebreaker: total desc.
-        const sortedByDelivered = Object.values(cityMap).sort((a, b) => {
-            if (b.delivered !== a.delivered) return b.delivered - a.delivered;
-            return b.total - a.total;
-        });
+        const totalOrders = stats.totals.orders;
+        const totalDeliveryDenom = stats.totals.denom;
+        const totalDelivered = stats.totals.delivered;
+        const totalRevenue = stats.totals.revenue;
 
         // Concentration bar: top-N as named segments, remainder rolled up as "Others".
         const byVolume = [...sortedByDelivered].sort((a, b) => b.total - a.total);
@@ -192,7 +108,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             totalRevenue,
             overallRate,
         };
-    }, [orders, dateFilter, deliveredPkgIds, trackedOrderIds, adminPullbackOrderIds, adminPullbackPackageIds]);
+    }, [stats]);
 
     if (!metrics) return null;
 

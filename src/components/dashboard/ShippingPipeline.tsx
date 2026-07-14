@@ -1,47 +1,58 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Truck, Building2, Bike } from 'lucide-react';
-import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
-import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { StackedProportionBar } from './performance/StackedProportionBar';
 
+/**
+ * `shipping_pipeline` section of admin_dashboard_stats (D2). shipped = pkg in
+ * (is_shipped ∪ is_delivered ∪ is_returned); overall rate reconciles with the
+ * KPI tile (Coliaty denominator over the FULL filtered set). Names/logos stay
+ * client-side (providers/couriers support queries below).
+ */
+export interface ShippingPipelineSection {
+    filtered_total: number;
+    shipped_total: number;
+    delivered: number;
+    returned: number;
+    in_transit: number;
+    overall_denom: number;
+    overall_rate: number;
+    by_status: Array<{
+        package_status_id: string;
+        label: string;
+        count: number;
+    }>;
+    by_fulfiller: Array<{
+        kind: 'provider' | 'courier';
+        id: string;
+        total: number;
+        delivered: number;
+        returned: number;
+        in_transit: number;
+        denom: number;
+        rate: number;
+    }>;
+    provider_shipments: number;
+    courier_shipments: number;
+}
+
 interface ShippingPipelineProps {
     businessId: string;
-    dateFilter: DateFilter;
+    stats: ShippingPipelineSection | undefined;
 }
 
 const COLOR_DELIVERED = '#788c5d'; // ant green
 const COLOR_RETURNED = '#c96356'; // ant rose
 const COLOR_IN_TRANSIT = '#6a9bcc'; // ant blue
 
-export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelineProps) => {
-    const { getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
-
-    const { data: orders } = useQuery({
-        queryKey: ['shipping-pipeline-orders', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'orders',
-                'id, date, order_status_id, package_status_id, package_statuses(label), company_id, courier_id',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
+export const ShippingPipeline = ({ businessId, stats }: ShippingPipelineProps) => {
+    // Status masters stay client-side only for the per-status colors.
+    const { getPkgStatusColor } = useStatusCategories();
 
     const { data: providers } = useQuery({
         queryKey: ['dashboard-providers', businessId],
@@ -71,190 +82,69 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
     });
 
     const metrics = useMemo(() => {
-        if (!orders || !providers || !couriers) return null;
+        if (!stats || !providers || !couriers) return null;
 
-        type SPOrder = {
-            id: string;
-            date: string | null;
-            company_id: string | null;
-            courier_id: string | null;
-            order_status_id: string | null;
-            package_status_id: string | null;
-            package_statuses?: { label?: string | null } | null;
-        };
         type SPProvider = { id: string; name: string; provider_type: string | null; logo_url: string | null };
         type SPCourier = { id: string; name: string; avatar_url: string | null };
 
-        const hasExplicitFilter = !!dateFilter.from || !!dateFilter.to;
-        const isInRange = (dateStr: string | null) => {
-            // All-Time view: let everything through (null-date rows are fine).
-            if (!hasExplicitFilter) return true;
-            // Explicit window: null-date rows are excluded. Previously they
-            // leaked into every filtered window and skewed the top-line chips.
-            if (!dateStr) return false;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
-
-        const isInShipLifecycle = (pkgId: string | null) =>
-            !!pkgId && (shippedPkgIds.has(pkgId) || deliveredPkgIds.has(pkgId) || returnedPkgIds.has(pkgId));
-        // `filtered` = every in-window order (used for the Coliaty denominator
-        // so it matches DashboardKPICards). `shipped` = just the lifecycle
-        // subset (used for the header chips and the pipeline bar).
-        const filtered = (orders as unknown as SPOrder[]).filter((o) => isInRange(o.date));
-        const shipped = filtered.filter((o) => isInShipLifecycle(o.package_status_id));
-
-        // Top-line funnel within the shipping lifecycle
-        const delivered = shipped.filter(
-            (o) => o.package_status_id && deliveredPkgIds.has(o.package_status_id),
-        ).length;
-        const returned = shipped.filter(
-            (o) => o.package_status_id && returnedPkgIds.has(o.package_status_id),
-        ).length;
-        const inTransit = shipped.length - delivered - returned;
-
-        // Status distribution for the left column.
-        // Bucket by statusId (not label) so two rows can't collide in the React
-        // render with duplicate keys when the same status was saved with
-        // slightly different label strings.
-        const statusDist: Record<string, { label: string; count: number }> = {};
-        shipped.forEach((o) => {
-            const statusId = o.package_status_id;
-            if (!statusId) return;
-            const label = o.package_statuses?.label || statusId;
-            if (!statusDist[statusId]) statusDist[statusId] = { label, count: 0 };
-            statusDist[statusId].count += 1;
-        });
-        const statusChart = Object.entries(statusDist)
-            .map(([statusId, { label, count }]) => ({
-                id: statusId,
-                label,
-                count,
-                color: getPkgStatusColor(statusId),
-            }))
-            .sort((a, b) => b.count - a.count);
-
-        // Fulfiller distribution covers BOTH external providers (company_id) and
-        // in-house couriers (courier_id). A single "fulfiller" row is keyed by
-        // kind + id so the two lookup tables never collide.
-        type FulfillerKind = 'provider' | 'courier';
-        type FulfillerStats = {
-            kind: FulfillerKind;
-            id: string;
-            total: number;
-            delivered: number;
-            returned: number;
-            // Coliaty denom — tracked minus admin-pullback for this fulfiller.
-            deliveryDenom: number;
-        };
-        const fulfillerDist = new Map<string, FulfillerStats>();
-        const bump = (kind: FulfillerKind, id: string, o: SPOrder) => {
-            const key = `${kind}:${id}`;
-            const row = fulfillerDist.get(key) || { kind, id, total: 0, delivered: 0, returned: 0, deliveryDenom: 0 };
-            row.total += 1;
-            if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) row.delivered += 1;
-            if (o.package_status_id && returnedPkgIds.has(o.package_status_id)) row.returned += 1;
-            if (!!o.id && trackedOrderIds.has(o.id)) {
-                const pullback = isAdminPullback(
-                    o,
-                    true,
-                    adminPullbackOrderIds,
-                    adminPullbackPackageIds,
-                );
-                if (!pullback) row.deliveryDenom += 1;
-            }
-            fulfillerDist.set(key, row);
-        };
-        shipped.forEach((o) => {
-            if (o.company_id) bump('provider', o.company_id, o);
-            else if (o.courier_id) bump('courier', o.courier_id, o);
-            // Orders without either are invisible in this section; they still show
-            // up in the top summary and the "By status" column.
-        });
+        const statusChart = stats.by_status.map((s) => ({
+            id: s.package_status_id,
+            label: s.label,
+            count: s.count,
+            color: getPkgStatusColor(s.package_status_id),
+        }));
 
         const providersTyped = (providers || []) as unknown as SPProvider[];
         const couriersTyped = (couriers || []) as unknown as SPCourier[];
         const providerById = new Map(providersTyped.map((p) => [p.id, p]));
         const courierById = new Map(couriersTyped.map((c) => [c.id, c]));
 
-        const fulfillerList = Array.from(fulfillerDist.values())
-            .map((stats) => {
-                // Delivery rate (Coliaty): delivered ÷ (tracked − admin-pullback).
-                const rate = stats.deliveryDenom > 0
-                    ? Math.min(100, (stats.delivered / stats.deliveryDenom) * 100)
-                    : 0;
-                const inTransitCount = stats.total - stats.delivered - stats.returned;
-                if (stats.kind === 'provider') {
-                    const p = providerById.get(stats.id);
-                    return {
-                        kind: 'provider' as const,
-                        id: stats.id,
-                        name: p?.name || 'Unknown provider',
-                        imageUrl: resolveProviderLogo(p),
-                        total: stats.total,
-                        delivered: stats.delivered,
-                        returned: stats.returned,
-                        inTransit: Math.max(0, inTransitCount),
-                        deliveryRate: rate,
-                    };
-                }
-                const c = courierById.get(stats.id);
+        // RPC rows are already sorted total desc; only names/logos are resolved here.
+        const fulfillerList = stats.by_fulfiller.map((f) => {
+            if (f.kind === 'provider') {
+                const p = providerById.get(f.id);
                 return {
-                    kind: 'courier' as const,
-                    id: stats.id,
-                    name: c?.name || 'Unknown courier',
-                    imageUrl: c?.avatar_url || null,
-                    total: stats.total,
-                    delivered: stats.delivered,
-                    returned: stats.returned,
-                    inTransit: Math.max(0, inTransitCount),
-                    deliveryRate: rate,
+                    kind: 'provider' as const,
+                    id: f.id,
+                    name: p?.name || 'Unknown provider',
+                    imageUrl: resolveProviderLogo(p),
+                    total: f.total,
+                    delivered: f.delivered,
+                    returned: f.returned,
+                    inTransit: f.in_transit,
+                    deliveryRate: f.rate,
                 };
-            })
-            .sort((a, b) => b.total - a.total);
-
-        const providerShipments = fulfillerList
-            .filter((f) => f.kind === 'provider')
-            .reduce((s, f) => s + f.total, 0);
-        const courierShipments = fulfillerList
-            .filter((f) => f.kind === 'courier')
-            .reduce((s, f) => s + f.total, 0);
-
-        // Overall delivery rate must reconcile with the top-of-page
-        // DashboardKPICards "Delivery Rate" tile. Both use the full Coliaty
-        // denominator — every tracked in-window order minus admin pullbacks —
-        // regardless of whether the current package_status happens to sit in
-        // the shipping-lifecycle set. Restricting the denom to lifecycle-only
-        // (as before) silently excluded ~14 tracked non-pullback orders for
-        // Golden Design Pub and inflated the rate from 82.2% to 92.3%.
-        const overallTracked = filtered.filter((o) => !!o.id && trackedOrderIds.has(o.id));
-        const overallPullback = overallTracked.filter((o) =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const overallDeliveryDenom = overallTracked.length - overallPullback.length;
+            }
+            const c = courierById.get(f.id);
+            return {
+                kind: 'courier' as const,
+                id: f.id,
+                name: c?.name || 'Unknown courier',
+                imageUrl: c?.avatar_url || null,
+                total: f.total,
+                delivered: f.delivered,
+                returned: f.returned,
+                inTransit: f.in_transit,
+                deliveryRate: f.rate,
+            };
+        });
 
         return {
-            total: shipped.length,
-            delivered,
-            returned,
-            inTransit,
-            deliveryDenom: overallDeliveryDenom,
+            total: stats.shipped_total,
+            delivered: stats.delivered,
+            returned: stats.returned,
+            inTransit: stats.in_transit,
+            overallRate: stats.overall_rate,
             statusChart,
             fulfillerList,
-            providerShipments,
-            courierShipments,
+            providerShipments: stats.provider_shipments,
+            courierShipments: stats.courier_shipments,
         };
-    }, [orders, providers, couriers, dateFilter, getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [stats, providers, couriers, getPkgStatusColor]);
 
     if (!metrics) return null;
 
-    const overallDeliveryRate =
-        metrics.deliveryDenom > 0
-            ? Math.min(100, (metrics.delivered / metrics.deliveryDenom) * 100)
-            : 0;
+    const overallDeliveryRate = metrics.overallRate;
 
     return (
         <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">

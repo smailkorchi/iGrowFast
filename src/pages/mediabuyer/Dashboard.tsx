@@ -27,7 +27,6 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useMediaBuyerStats } from '@/hooks/useMediaBuyerStats';
-import { useMediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { todayBusinessYmd, shiftYmd } from '@/lib/dateBuckets';
 import { fmtCur, fmtNum } from '@/lib/formatNumbers';
 import { getPlatformColor, getPlatformIcon } from '@/lib/campaignConstants';
@@ -44,7 +43,6 @@ type Profile = {
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const currentUserId = useCurrentUserId();
-    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const todayKey = todayBusinessYmd();
     const currentMonth = todayKey.slice(0, 7);
@@ -76,12 +74,21 @@ const Dashboard: React.FC = () => {
         }
     }, [preset, todayKey, currentMonth]);
 
-    const { totals, perCampaign, campaigns, currency, isLoading: loadingStats } = useMediaBuyerStats(filterRange);
+    // ONE mb_dashboard_stats call per window (D2) — it also carries the
+    // today-entry campaign ids and the current-month earnings block that the
+    // separate campaign_daily_entries + useMediaBuyerEarnings queries used to fetch.
+    const {
+        totals,
+        perCampaign,
+        campaigns,
+        currency,
+        isLoading: loadingStats,
+        todayEntryCampaignIds,
+        monthEarnings: myEarnings,
+    } = useMediaBuyerStats(filterRange);
 
     const allTimeRange = useMemo(() => ({ from: '2020-01-01', to: todayKey }), [todayKey]);
     const { daily } = useMediaBuyerStats(allTimeRange);
-    const { rows: earningsRows } = useMediaBuyerEarnings(currentMonth, { selfMbId: currentUserId });
-    const myEarnings = useMemo(() => earningsRows.find((r) => r.mediabuyer_id === currentUserId) || null, [earningsRows, currentUserId]);
 
     const { data: profile } = useQuery<Profile | null>({
         queryKey: ['mb-dash-profile', currentUserId],
@@ -95,21 +102,6 @@ const Dashboard: React.FC = () => {
             return (data || null) as Profile | null;
         },
         enabled: !!currentUserId,
-    });
-
-    const { data: todayEntryCampaignIds = new Set<string>() } = useQuery<Set<string>>({
-        queryKey: ['mb-dash-today-entries', currentUserId, todayKey],
-        queryFn: async () => {
-            if (!currentUserId) return new Set();
-            const { data, error } = await (supabase as any)
-                .from('campaign_daily_entries')
-                .select('campaign_id')
-                .eq('created_by', currentUserId)
-                .eq('entry_date', todayKey);
-            if (error) throw error;
-            return new Set((data || []).map((e: any) => e.campaign_id).filter(Boolean));
-        },
-        enabled: !!currentUserId && !!activeBusinessId,
     });
 
     const sparklineStart = shiftYmd(todayKey, -13);

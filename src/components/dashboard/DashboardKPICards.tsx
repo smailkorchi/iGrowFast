@@ -1,7 +1,5 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -10,23 +8,31 @@ import {
     Package, Ban, FileText, TrendingUp, Target,
     type LucideIcon,
 } from 'lucide-react';
-import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
-import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isAdminPullback,
-    isDelivered,
-    isFailed,
-    isRateConfirmed,
-    placementTimestamp,
-} from '@/lib/analyticsDefinitions';
+
+/**
+ * `kpi_cards` section of admin_dashboard_stats (D2). All counts/rates are
+ * computed server-side with the exact old client math (window on placement
+ * `date`, null dates dropped, Coliaty delivery denominator, clamped rates).
+ */
+export interface KpiCardsSection {
+    total: number;
+    rate_confirmed: number;
+    confirmation_rate: number;
+    delivered: number;
+    tracked: number;
+    pullback: number;
+    delivery_denom: number;
+    delivery_rate: number;
+    pending_confirmation: number;
+    in_transit: number;
+    canceled: number;
+    refused: number;
+    invoices: { count: number; net_total: number };
+}
 
 interface DashboardKPICardsProps {
-    businessId: string;
-    dateFilter: DateFilter;
+    stats: KpiCardsSection | undefined;
 }
 
 interface KPICardData {
@@ -42,65 +48,20 @@ interface KPICardData {
     valueColor?: string;
 }
 
-export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsProps) => {
+export const DashboardKPICards = ({ stats }: DashboardKPICardsProps) => {
     const navigate = useNavigate();
+    // Status masters stay client-side ONLY for the click-through filter id
+    // arrays passed to /orders — the counts themselves come from the RPC.
     const {
         confirmedIds,
         cancelledIds,
         pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
         deliveredPkgIds,
-        returnedPkgIds,
         getPkgsByCategories,
-        isPkgCategory,
     } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
-
-    const { data: orders } = useQuery({
-        queryKey: ['kpi-cards-orders-v2', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'orders',
-                'id, date, order_status_id, package_status_id, package_statuses(label)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: paymentNotes } = useQuery({
-        queryKey: ['dashboard-payment-notes', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('company_payment_notes')
-                .select('id, total_amount, net_amount, status, created_at')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
 
     const cards = useMemo<KPICardData[]>(() => {
-        if (!orders) return [];
-        const ordersTyped = orders as unknown as AnalyticsOrder[];
-
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return false;
-            const d = new Date(dateStr);
-            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start: windowStart, end: windowEnd });
-        };
-
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-        const total = filtered.length;
+        if (!stats) return [];
 
         // Each "click card → filter Orders" link must pass ALL status ids the
         // card's count aggregates, not just one. Picking a single representative
@@ -113,66 +74,16 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const pendingIdList = Array.from(pendingIds);
         const deliveredPkgIdList = Array.from(deliveredPkgIds);
         // Shipping flow = every status the click filter will match, and nothing
-        // else. The old count used "company_id set AND not delivered/returned",
-        // which also swept in callback, postponed, cancelled and no-package-yet
-        // orders — 32 in the count vs 11 after the click, which is the bug the
-        // user flagged. Keeping count === filter guarantees no drift.
+        // else, so the In-Transit count === the post-click list length.
         const shippedPkgIdList = Array.from(getPkgsByCategories(['in_transit', 'out_for_delivery', 'picked_up', 'pickup_pending']).map(s => s.id));
-        const shippedPkgIdsSet = new Set(shippedPkgIdList);
         const refusedPkgIdList = Array.from(getPkgsByCategories(['refused']).map(s => s.id));
 
-        const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
-
-        // Confirmation-rate metric. Pending = `order_statuses.pending_confirmation = true`
-        // (NEW + the six RAPPELE retry slots + REPORTER). Confirmed = everything else,
-        // with tracking-code override (handed to courier ⇒ confirmed regardless of
-        // status). Denominator = total filtered orders.
-        const rateConfirmed = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds));
-
-        // Delivery rate (Coliaty formula):
-        //   delivered ÷ (tracked − admin-pullback)
-        // Tracked = order has a tracking_code in company_parcels or courier_parcels.
-        // Admin-pullback = tracked AND flagged fake/double/blacklisted/cancelled
-        //   at order level, OR Hors-zone/Annulé at package level.
-        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
-        const adminPullback = tracked.filter(o =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const deliveryDenom = tracked.length - adminPullback.length;
-
-        const confirmationRateNum =
-            total > 0 ? Math.min(100, (rateConfirmed.length / total) * 100) : 0;
-        const confirmationRate = confirmationRateNum.toFixed(1);
-        const deliveryRateNum =
-            deliveryDenom > 0 ? Math.min(100, (delivered.length / deliveryDenom) * 100) : 0;
-        const deliveryRate = deliveryRateNum.toFixed(1);
-
-        // Pending confirmation = order_statuses with pending_confirmation=true
-        // (NEW + RAPPELE 1-6 + REPORTER) AND no tracking code. Tracking code
-        // (company_parcels/courier_parcels) is a hard override: if one exists,
-        // the order is confirmed regardless of status.
-        const pendingConfirmation = filtered.filter(o => {
-            if (o.id && trackedOrderIds.has(o.id)) return false;
-            return !!o.order_status_id && pendingIds.has(o.order_status_id);
-        });
-
-        const enCoursLivraison = filtered.filter(o =>
-            !!o.package_status_id && shippedPkgIdsSet.has(o.package_status_id),
-        );
-
-        // Failed — merged bucket (§4): cancelled + fake + blacklisted + double.
-        const canceled = filtered.filter(o => isFailed(o, cancelledIds));
-
-        const refused = filtered.filter(o =>
-            !!o.package_status_id && isPkgCategory(o.package_status_id, 'refused'),
-        );
-
+        const total = stats.total;
         const pct = (n: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-        type PaymentNote = { created_at: string | null; net_amount: number };
-        const filteredNotes = (paymentNotes || []).filter((n: PaymentNote) => isInRange(n.created_at));
-        const notesTotal = filteredNotes.reduce((s: number, n: PaymentNote) => s + Number(n.net_amount || 0), 0);
-        void returnedPkgIds;
+        const confirmationRateNum = stats.confirmation_rate;
+        const deliveryRateNum = stats.delivery_rate;
+        const deliveryDenom = stats.delivery_denom;
 
         // Anthropic-brand palette — single warm accent (orange) reserved for hero
         // metric + any "rate" progress bar. Status tones use semantic blues/greens.
@@ -194,83 +105,83 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             },
             {
                 title: 'Confirmed',
-                value: rateConfirmed.length,
-                subtitle: `${pct(rateConfirmed.length)}% of total`,
+                value: stats.rate_confirmed,
+                subtitle: `${pct(stats.rate_confirmed)}% of total`,
                 icon: CheckCircle2,
                 accent: ANT.green,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: confirmedIdList, filterStatusLabel: 'Confirmed' } }),
             },
             {
                 title: 'Confirmation Rate',
-                value: `${confirmationRate}%`,
-                subtitle: `${rateConfirmed.length}/${total} of total`,
+                value: `${confirmationRateNum.toFixed(1)}%`,
+                subtitle: `${stats.rate_confirmed}/${total} of total`,
                 icon: Target,
                 accent: ANT.orange,
                 rate: confirmationRateNum,
             },
             {
                 title: 'Delivered',
-                value: delivered.length,
+                value: stats.delivered,
                 subtitle:
                     deliveryDenom > 0
-                        ? `${((delivered.length / deliveryDenom) * 100).toFixed(1)}% of shipped`
-                        : `${pct(delivered.length)}% of total`,
+                        ? `${((stats.delivered / deliveryDenom) * 100).toFixed(1)}% of shipped`
+                        : `${pct(stats.delivered)}% of total`,
                 icon: Package,
                 accent: ANT.green,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: deliveredPkgIdList, filterPackageStatusLabel: 'Delivered' } }),
             },
             {
                 title: 'Delivery Rate',
-                value: `${deliveryRate}%`,
-                subtitle: `${delivered.length}/${deliveryDenom} shipped`,
+                value: `${deliveryRateNum.toFixed(1)}%`,
+                subtitle: `${stats.delivered}/${deliveryDenom} shipped`,
                 icon: TrendingUp,
                 accent: ANT.orange,
                 rate: deliveryRateNum,
             },
             {
                 title: 'Pending Confirmation',
-                value: pendingConfirmation.length,
-                subtitle: `${pct(pendingConfirmation.length)}% of total`,
+                value: stats.pending_confirmation,
+                subtitle: `${pct(stats.pending_confirmation)}% of total`,
                 icon: Clock,
                 accent: ANT.blue,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: pendingIdList, filterStatusLabel: 'Pending confirmation' } }),
             },
             {
                 title: 'In Transit',
-                value: enCoursLivraison.length,
-                subtitle: `${pct(enCoursLivraison.length)}% of total`,
+                value: stats.in_transit,
+                subtitle: `${pct(stats.in_transit)}% of total`,
                 icon: Truck,
                 accent: ANT.blue,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: shippedPkgIdList, filterPackageStatusLabel: 'In transit' } }),
             },
             {
                 title: 'Canceled',
-                value: canceled.length,
-                subtitle: `${pct(canceled.length)}% of total`,
+                value: stats.canceled,
+                subtitle: `${pct(stats.canceled)}% of total`,
                 icon: XCircle,
                 accent: ANT.rose,
-                valueColor: canceled.length > 0 ? 'text-ant-rose' : undefined,
+                valueColor: stats.canceled > 0 ? 'text-ant-rose' : undefined,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: cancelledIdList, filterStatusLabel: 'Canceled' } }),
             },
             {
                 title: 'Refused Packages',
-                value: refused.length,
-                subtitle: `${pct(refused.length)}% of total`,
+                value: stats.refused,
+                subtitle: `${pct(stats.refused)}% of total`,
                 icon: Ban,
                 accent: ANT.rose,
-                valueColor: refused.length > 0 ? 'text-ant-rose' : undefined,
+                valueColor: stats.refused > 0 ? 'text-ant-rose' : undefined,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: refusedPkgIdList, filterPackageStatusLabel: 'Refused' } }),
             },
             {
                 title: 'Invoices',
-                value: filteredNotes.length,
-                subtitle: `${notesTotal.toLocaleString('fr-MA')} MAD`,
+                value: stats.invoices.count,
+                subtitle: `${stats.invoices.net_total.toLocaleString('fr-MA')} MAD`,
                 icon: FileText,
                 accent: ANT.mid,
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
+    }, [stats, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, getPkgsByCategories]);
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
