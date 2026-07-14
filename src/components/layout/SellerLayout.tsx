@@ -4,6 +4,7 @@ import SuspensionOverlay from './SuspensionOverlay';
 import { supabase } from '@/lib/supabase';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 import { OrderStatusNotifications } from '@/components/orders/OrderStatusNotifications';
+import { EcomBizRealtime } from '@/components/realtime/EcomBizRealtime';
 import { WaUserRealtime } from '@/whatsapp/lib/queries/waChannels';
 
 interface SellerLayoutProps {
@@ -65,6 +66,10 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
             {isSuspended && businessId && (
                 <SuspensionOverlay role="commercial" businessId={businessId} />
             )}
+            {/* THE single ecom:biz broadcast channel (orders/parcels/stock events →
+                cache invalidation + ecomBus fan-out) — W7 R1a. */}
+            <EcomBizRealtime role="seller" />
+
             {/* Surfaces status changes on every seller page — only for orders attributed to this user. */}
             <OrderStatusNotifications role="seller" targetPath="/seller/orders" />
             {/* Persistent wa:user realtime — WhatsApp cache sync + inbound-message

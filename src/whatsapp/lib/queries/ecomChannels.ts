@@ -1,22 +1,20 @@
-// E-commerce realtime seam (W7 foundation) — consumer side.
+// E-commerce realtime bridge for the WA inbox (W7 R1a).
 //
-// Subscribes ONE private ecom:biz:<business_id> broadcast channel per inbox
-// client and turns 'order' events (emitted by the public.broadcast_order_change
-// trigger, mig 20260711160000) into targeted react-query invalidations of the
-// chat-header order-history queries (queries/customerOrders.ts). This keeps the
-// button's count + dropdown live when an order is created/changed for the open
-// customer — WITHOUT a postgres_changes firehose, matching the WhatsApp side's
-// broadcast discipline. Same authz shape as wa:biz (private + a realtime.messages
-// SELECT policy), but readable by ANY business member (admins + sellers) because
-// the order history is business-wide.
+// The private ecom:biz:<business_id> broadcast channel is owned by the
+// layout-mounted <EcomBizRealtime/> (src/components/realtime/EcomBizRealtime.tsx)
+// — AppLayout wraps the admin inbox and SellerLayout the seller inbox, so the
+// channel is always live while this module is mounted. Opening a SECOND
+// channel on the same topic here would collide (Phoenix replaces same-topic
+// joins on the shared socket), so this bridge consumes the in-app ecomBus
+// instead and turns 'order' events into targeted invalidations of the
+// chat-header order-history queries (queries/customerOrders.ts).
 //
 // Runs under the WA module's waQueryClient (mounted inside WaShell), which is
 // exactly where the ['chat-orders', …] queries live.
 
 import { useEffect } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { supabase } from '../supabase'
-import { useInstances } from './instances'
+import { subscribeEcomBus } from '@/lib/ecomBus'
 
 function invalidateChatOrders(qc: QueryClient, phone: string | null): void {
   if (phone) {
@@ -29,39 +27,20 @@ function invalidateChatOrders(qc: QueryClient, phone: string | null): void {
   }
 }
 
-/** One ecom:biz channel per client. Mount once inside the inbox. */
-export function useEcomBizChannel(businessId: string | null): void {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!businessId) return
-    let hadError = false
-    const ch = supabase
-      .channel(`ecom:biz:${businessId}`, { config: { private: true } })
-      .on('broadcast', { event: 'order' }, ({ payload }) => {
-        const phone = (payload as { phone?: string | null } | null)?.phone ?? null
-        invalidateChatOrders(qc, phone)
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // Broadcast is at-most-once: anything missed while the socket was
-          // down self-heals on reconnect.
-          if (hadError) { hadError = false; invalidateChatOrders(qc, null) }
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          hadError = true
-        }
-      })
-    return () => { void supabase.removeChannel(ch) }
-  }, [businessId, qc])
-}
-
 /**
- * Mounter — resolves the business id from the (RLS-scoped) instances cache and
- * opens the single ecom:biz channel. Works for admins AND sellers: both have at
- * least one assigned instance while the inbox is open, and instances carry
- * business_id. No-ops until the id resolves.
+ * Bridge — mount once inside each inbox (admin Conversations, seller Whatsapp).
+ * 'order' → targeted chat-orders invalidation; 'reconnect' (the layout channel
+ * re-subscribed after an error) → broad reconciliation, since broadcast is
+ * at-most-once.
  */
-export function EcomBizRealtime(): null {
-  const { data: instances } = useInstances()
-  useEcomBizChannel(instances?.[0]?.business_id ?? null)
+export function ChatOrdersBridge(): null {
+  const qc = useQueryClient()
+  useEffect(() => subscribeEcomBus((event) => {
+    if (event.type === 'order') {
+      invalidateChatOrders(qc, event.payload.phone ?? null)
+    } else if (event.type === 'reconnect') {
+      invalidateChatOrders(qc, null)
+    }
+  }), [qc])
   return null
 }

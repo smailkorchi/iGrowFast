@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { subscribeEcomBus } from '@/lib/ecomBus';
 import { showOrderStatusToast } from './OrderStatusToast';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { resolveProviderLogo } from '@/lib/providerLogos';
@@ -15,161 +16,97 @@ interface Props {
 }
 
 /**
- * Mounts a single realtime subscription on `orders` UPDATEs and shows the status-change
- * toast for any package_status transition the user is allowed to see. Independent of
- * which page the user is currently on.
+ * Shows the status-change toast for any package_status transition the user is
+ * allowed to see. Independent of which page the user is currently on.
  *
- * - admin: every order on the active business (filtered client-side on `DigiCom Business`)
- * - seller: only orders where seller_id matches the signed-in user
+ * W7 R1a: consumes the ecomBus 'order' events republished by the layout's
+ * <EcomBizRealtime/> (the single owner of the private ecom:biz:<biz> broadcast
+ * channel) instead of its former unfiltered postgres_changes subscription.
+ * Business scoping is now guaranteed by the topic itself, and the broadcast
+ * payload carries the tracking/provider enrichment — ZERO follow-up queries
+ * (the old version fired a company_parcels SELECT per event per client).
  *
- * Reacts to auth changes (sign-in/out) and cross-tab storage events (business switch)
- * so a long-lived session always reflects the current scope.
+ * - admin: every order on the active business
+ * - seller: only orders where pkg.seller_id matches the signed-in user
  *
- * On click, navigates to `targetPath?view=<orderId>`; the destination Orders page reads
- * the query param and opens its existing preview modal.
+ * On click, navigates to `targetPath?view=<orderId>`; the destination Orders
+ * page reads the query param and opens its existing preview modal.
  */
 export function OrderStatusNotifications({ role, targetPath }: Props) {
     const navigate = useNavigate();
-    const { resolve, resolveById } = usePackageStatusResolver();
-    const [scope, setScope] = useState<{ businessId: string | null; userId: string | null }>({
-        businessId: null,
-        userId: null,
-    });
-    // Dedupe identical status pushes that arrive within a short window. Postgres logical
-    // replication occasionally double-delivers; webhook retries also flow through.
+    const { resolveById } = usePackageStatusResolver();
+    const [userId, setUserId] = useState<string | null>(null);
+    // Dedupe identical status pushes that arrive within a short window
+    // (webhook retries and double-syncs still flow through the trigger).
     const recentRef = useRef<Map<string, number>>(new Map());
 
-    const refreshScope = useCallback(async () => {
+    const refreshUser = useCallback(async () => {
         const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id || null;
-        const businessId = localStorage.getItem('activeBusinessId');
-        setScope((prev) =>
-            prev.userId === userId && prev.businessId === businessId
-                ? prev
-                : { businessId, userId },
-        );
+        setUserId(session?.user?.id || null);
     }, []);
 
     useEffect(() => {
-        refreshScope();
-
-        // Auth lifecycle — re-resolve on sign-in/out/user-update. Ignore INITIAL_SESSION
-        // and TOKEN_REFRESHED to avoid redundant teardowns.
+        refreshUser();
         const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-                refreshScope();
+                refreshUser();
             }
         });
-
-        // Cross-tab business switches.
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === 'activeBusinessId') refreshScope();
-        };
-        window.addEventListener('storage', onStorage);
-
-        return () => {
-            authSub.subscription.unsubscribe();
-            window.removeEventListener('storage', onStorage);
-        };
-    }, [refreshScope]);
+        return () => { authSub.subscription.unsubscribe(); };
+    }, [refreshUser]);
 
     useEffect(() => {
-        const { businessId, userId } = scope;
-        if (!businessId) return;
         if (role === 'seller' && !userId) return;
 
-        // No server-side filter on `DigiCom Business` — that column name contains a space
-        // and Supabase Realtime's postgres_changes filter syntax does not support escaped
-        // identifiers; the filter would silently match zero rows. Filter client-side instead.
-        // RLS already scopes what we can subscribe to per role.
-        const channel = supabase
-            .channel(`order-status-notify-${role}-${businessId}`)
-            .on(
-                'postgres_changes' as any,
+        const unsubscribe = subscribeEcomBus((event) => {
+            if (event.type !== 'order') return;
+            const payload = event.payload;
+            // Only package-status transitions toast; soft-deleted orders never do.
+            if (payload.op !== 'UPDATE' || !payload.pkg || payload.deleted) return;
+            const pkg = payload.pkg;
+
+            // Seller-side ownership filter — the biz-wide topic is readable by
+            // every member; display stays scoped to the seller's own orders.
+            if (role === 'seller' && (pkg.seller_id || null) !== userId) return;
+
+            // Suppress duplicate (orderId + statusId) pings within 4s.
+            const dedupeKey = `${payload.id}:${pkg.package_status_id || ''}`;
+            const now = Date.now();
+            const last = recentRef.current.get(dedupeKey);
+            if (last && now - last < 4000) return;
+            recentRef.current.set(dedupeKey, now);
+            // Prune the dedupe map so it doesn't grow unbounded.
+            if (recentRef.current.size > 200) {
+                for (const [k, t] of recentRef.current) {
+                    if (now - t > 60_000) recentRef.current.delete(k);
+                }
+            }
+
+            // Always resolve to the master status (label + color + icon).
+            const resolved = resolveById(pkg.package_status_id);
+
+            showOrderStatusToast(
                 {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
+                    orderId: payload.id,
+                    orderName: pkg.name || null,
+                    trackingCode: pkg.tracking_code || null,
+                    providerLogo: resolveProviderLogo({
+                        name: pkg.provider_name,
+                        provider_type: pkg.provider_type,
+                    }),
+                    providerName: pkg.provider_name || null,
+                    statusLabel: resolved?.label ?? null,
+                    statusColor: resolved?.color ?? null,
+                    statusIcon: resolved?.icon ?? null,
                 },
-                async (payload: any) => {
-                    const oldRow = payload.old || {};
-                    const newRow = payload.new || {};
-                    if (!newRow.id) return;
-
-                    // Business scope check — defense in depth against RLS gaps and against
-                    // owner sessions that subscribed to multiple businesses' realtime.
-                    if (newRow['DigiCom Business'] && newRow['DigiCom Business'] !== businessId) return;
-
-                    // Skip soft-deleted orders.
-                    if (newRow.date_deleted) return;
-
-                    const statusChanged =
-                        (newRow.package_status_id || null) !== (oldRow.package_status_id || null);
-                    if (!statusChanged) return;
-
-                    // Seller-side ownership filter. RLS may already enforce this, but the
-                    // realtime stream can leak rows when the underlying policy uses joins
-                    // the replication slot can't evaluate. Verifying client-side prevents
-                    // cross-seller leakage.
-                    if (role === 'seller') {
-                        if ((newRow.seller_id || null) !== userId) return;
-                    }
-
-                    // Suppress duplicate (orderId + statusId) pings within 4s.
-                    const dedupeKey = `${newRow.id}:${newRow.package_status_id || ''}`;
-                    const now = Date.now();
-                    const last = recentRef.current.get(dedupeKey);
-                    if (last && now - last < 4000) return;
-                    recentRef.current.set(dedupeKey, now);
-                    // Prune the dedupe map so it doesn't grow unbounded.
-                    if (recentRef.current.size > 200) {
-                        for (const [k, t] of recentRef.current) {
-                            if (now - t > 60_000) recentRef.current.delete(k);
-                        }
-                    }
-
-                    // Fetch enrichment: latest parcel + provider logo. The orders realtime
-                    // payload doesn't include joined relations.
-                    const { data: parcelRow } = await supabase
-                        .from('company_parcels')
-                        .select('tracking_code, provider:providers(name, provider_type, logo_url)')
-                        .eq('order_id', newRow.id)
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-
-                    const provider: any = (parcelRow as any)?.provider || null;
-                    const trackingCode =
-                        (parcelRow as any)?.tracking_code ||
-                        null;
-
-                    // Always resolve to the master status (label + color + icon); the raw
-                    // realtime columns are a fallback only when no master matches.
-                    const resolved = resolveById(newRow.package_status_id);
-
-                    showOrderStatusToast(
-                        {
-                            orderId: newRow.id,
-                            orderName: newRow.name || null,
-                            trackingCode,
-                            providerLogo: resolveProviderLogo(provider),
-                            providerName: provider?.name || null,
-                            statusLabel: resolved?.label ?? null,
-                            statusColor: resolved?.color ?? null,
-                            statusIcon: resolved?.icon ?? null,
-                        },
-                        () => {
-                            navigate(`${targetPath}?view=${newRow.id}`);
-                        },
-                    );
+                () => {
+                    navigate(`${targetPath}?view=${payload.id}`);
                 },
-            )
-            .subscribe();
+            );
+        });
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [scope, role, targetPath, navigate, resolve]);
+        return unsubscribe;
+    }, [role, userId, targetPath, navigate, resolveById]);
 
     return null;
 }

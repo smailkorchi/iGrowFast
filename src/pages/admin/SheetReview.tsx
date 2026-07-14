@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { subscribeEcomBus } from '@/lib/ecomBus';
 import {
     Loader2, CheckCircle2, AlertTriangle, Eye, FileSpreadsheet, Sparkles, Trash2, ChevronsUpDown,
 } from 'lucide-react';
@@ -95,19 +96,17 @@ const SheetReview = () => {
     const cityOpts: Opt[] = useMemo(() => (cities || []).map((c) => ({ value: c.id, label: c.name })), [cities]);
     const productOpts: Opt[] = useMemo(() => (products || []).map((p) => ({ value: p.id, label: p.name || p.code })), [products]);
 
+    // W7 R1a: rides the layout-owned ecom:biz broadcast (topic is already scoped
+    // to the active business). 'order' INSERTs flag review_pending when a
+    // sheet-imported draft lands in the review inbox.
     useEffect(() => {
         if (!activeBusinessId) return;
-        const channel = supabase
-            .channel(`sheet-review-${activeBusinessId}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `DigiCom Business=eq.${activeBusinessId}` },
-                (payload: { new: { source_review_status?: string } }) => {
-                    if (payload.new?.source_review_status === 'pending') {
-                        queryClient.invalidateQueries({ queryKey: ['sheet-review-drafts'] });
-                        toast({ title: 'New order from sheet', description: 'A draft just arrived and is waiting for your review.' });
-                    }
-                })
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
+        return subscribeEcomBus((event) => {
+            if (event.type === 'order' && event.payload.op === 'INSERT' && event.payload.review_pending) {
+                queryClient.invalidateQueries({ queryKey: ['sheet-review-drafts'] });
+                toast({ title: 'New order from sheet', description: 'A draft just arrived and is waiting for your review.' });
+            }
+        });
     }, [activeBusinessId, queryClient, toast]);
 
     // persist any edits made in the popup, then approve

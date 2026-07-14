@@ -666,83 +666,11 @@ const Orders = () => {
         return () => { document.head.removeChild(style); };
     }, []);
 
-    // --- Realtime: refresh the orders query when webhooks write status updates.
-    // The user-visible toast lives in the global OrderStatusNotifications component
-    // (mounted in AppLayout) so it fires regardless of which page is open. This
-    // subscription only handles cache invalidation for the current page.
-    useEffect(() => {
-        if (!activeBusinessId) return;
-
-        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-        const debouncedInvalidate = () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
-            }, 500);
-        };
-
-        // Stock changes from other users (confirm-deduct, restock, manual edit) must refresh
-        // product/accessory stock FAST so the red shortage highlight + stock badges flip in
-        // near-realtime. Short debounce = snappy, still coalesces bursts.
-        let stockTimer: ReturnType<typeof setTimeout> | null = null;
-        const debouncedStockInvalidate = () => {
-            if (stockTimer) clearTimeout(stockTimer);
-            stockTimer = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['products-dropdown', activeBusinessId] });
-                queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', activeBusinessId] });
-            }, 150);
-        };
-
-        const channel = supabase
-            .channel(`orders-cache-invalidate-${activeBusinessId}`)
-            .on(
-                'postgres_changes' as any,
-                { event: 'UPDATE', schema: 'public', table: 'orders' },
-                () => { debouncedInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: 'INSERT', schema: 'public', table: 'orders' },
-                () => { debouncedInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: 'DELETE', schema: 'public', table: 'orders' },
-                () => { debouncedInvalidate(); }
-            )
-            // Parcel rows carry the carrier/package status the list joins. Their changes
-            // (post-link sync, webhooks, note-page sync loop, links/unlinks) must refresh
-            // the list too — RLS scopes the stream to this tenant automatically.
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'company_parcels' },
-                () => { debouncedInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'courier_parcels' },
-                () => { debouncedInvalidate(); }
-            )
-            // Stock streams: products/accessories edits → refresh stock so the shortage
-            // highlight + badges update in realtime for every concurrent user.
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'products' },
-                () => { debouncedStockInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'accessories' },
-                () => { debouncedStockInvalidate(); }
-            )
-            .subscribe();
-
-        return () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            if (stockTimer) clearTimeout(stockTimer);
-            supabase.removeChannel(channel);
-        };
-    }, [activeBusinessId, queryClient]);
+    // --- Realtime (W7 R1a): cache invalidation now rides the layout-mounted
+    // <EcomBizRealtime/> (AppLayout) — ONE private ecom:biz broadcast channel per
+    // session handles ['orders-aggregate'] + the stock dropdown keys for every
+    // page. The user-visible toast likewise lives in OrderStatusNotifications.
+    // The former 7-binding postgres_changes channel is retired.
 
     // --- Queries ---
 

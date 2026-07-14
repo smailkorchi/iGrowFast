@@ -1,6 +1,7 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import { OrderStatusNotifications } from '@/components/orders/OrderStatusNotifications';
+import { EcomBizRealtime } from '@/components/realtime/EcomBizRealtime';
 import { AdminWaRealtime } from '@/whatsapp/lib/queries/waChannels';
 
 interface AppLayoutProps {
@@ -19,6 +20,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     </div>
                 </div>
             </main>
+
+            {/* THE single ecom:biz broadcast channel (orders/parcels/stock events →
+                cache invalidation + ecomBus fan-out) — W7 R1a. */}
+            <EcomBizRealtime role="admin" />
 
             {/* Mounted once per session — surfaces webhook-driven status changes on every admin page. */}
             <OrderStatusNotifications role="admin" targetPath="/orders" />

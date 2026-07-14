@@ -770,81 +770,11 @@ const Orders = () => {
         return () => { document.head.removeChild(style); };
     }, []);
 
-    // --- Realtime: refresh the orders query when webhooks write status updates.
-    // The user-visible toast lives in the global OrderStatusNotifications component
-    // (mounted in SellerLayout) so it fires regardless of which page is open.
-    useEffect(() => {
-        if (!activeBusinessId) return;
-
-        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-        const debouncedInvalidate = () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId, userId] });
-            }, 500);
-        };
-
-        // Stock changes from other users → refresh product/accessory stock FAST so the
-        // shortage highlight + stock badges flip in near-realtime.
-        let stockTimer: ReturnType<typeof setTimeout> | null = null;
-        const debouncedStockInvalidate = () => {
-            if (stockTimer) clearTimeout(stockTimer);
-            stockTimer = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['products-dropdown-seller'] });
-                queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
-            }, 150);
-        };
-
-        const channel = supabase
-            .channel(`orders-cache-invalidate-seller-${activeBusinessId}`)
-            .on(
-                'postgres_changes' as any,
-                { event: 'UPDATE', schema: 'public', table: 'orders' },
-                () => { debouncedInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: 'INSERT', schema: 'public', table: 'orders' },
-                () => { debouncedInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: 'DELETE', schema: 'public', table: 'orders' },
-                () => { debouncedInvalidate(); }
-            )
-            // Parcel rows carry the carrier/package status the list joins. Their changes
-            // (post-link sync, webhooks, note-page sync loop, links/unlinks) must refresh
-            // the list too — RLS scopes the stream to this tenant automatically.
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'company_parcels' },
-                () => { debouncedInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'courier_parcels' },
-                () => { debouncedInvalidate(); }
-            )
-            // Stock streams: products/accessories edits → refresh stock so the shortage
-            // highlight + badges update in realtime for every concurrent user.
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'products' },
-                () => { debouncedStockInvalidate(); }
-            )
-            .on(
-                'postgres_changes' as any,
-                { event: '*', schema: 'public', table: 'accessories' },
-                () => { debouncedStockInvalidate(); }
-            )
-            .subscribe();
-
-        return () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            if (stockTimer) clearTimeout(stockTimer);
-            supabase.removeChannel(channel);
-        };
-    }, [activeBusinessId, userId, queryClient]);
+    // --- Realtime (W7 R1a): cache invalidation now rides the layout-mounted
+    // <EcomBizRealtime/> (SellerLayout) — ONE private ecom:biz broadcast channel
+    // per session invalidates ['orders-aggregate'] (prefix — covers this page's
+    // ['orders-aggregate', biz, uid] key) + the seller stock dropdown keys.
+    // The former 7-binding postgres_changes channel is retired.
 
     // Parcel lookup + provider tracking sync moved into SellerOrderViewDialog
     // (self-contained view/preview dialog).
