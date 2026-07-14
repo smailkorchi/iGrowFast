@@ -1,7 +1,9 @@
 import React from 'react';
-import { Search, SlidersHorizontal, X, CalendarRange, Coins } from 'lucide-react';
+import { format } from 'date-fns';
+import { Search, SlidersHorizontal, X, CalendarDays, Coins } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import {
     Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
@@ -71,7 +73,7 @@ export function NotesFilterBar({
     search, onSearch, searchPlaceholder = 'Search name, phone, tracking or reference…',
     status, entity, createdBy, date, amount, activeCount, onReset, trailing,
 }: NotesFilterBarProps) {
-    const dateActive = !!(date && (date.from || date.to));
+    const dateActive = !!(date && date.from);
     const amountActive = !!(amount && (amount.min || amount.max));
 
     return (
@@ -110,26 +112,21 @@ export function NotesFilterBar({
                                 variant="outline"
                                 className={`h-9 px-3.5 rounded-full border-ant-line bg-ant-paper text-[11.5px] gap-1.5 ${dateActive ? 'text-ant-ink border-ant-ink/25' : 'text-ant-mid'}`}
                             >
-                                <CalendarRange className="w-3.5 h-3.5" />
-                                {dateActive ? `${date.from || '…'} → ${date.to || '…'}` : 'Date'}
+                                <CalendarDays className="w-3.5 h-3.5" />
+                                {dateActive ? format(new Date(date.from + 'T00:00:00'), 'dd MMM yyyy') : 'Date'}
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-64 rounded-xl border-ant-line p-3 space-y-2" align="start">
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase tracking-widest text-ant-mid">From</label>
-                                <Input type="date" value={date.from}
-                                    onChange={(e) => date.onChange(e.target.value, date.to)}
-                                    className="h-8 rounded-lg border-ant-line text-[12px]" />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase tracking-widest text-ant-mid">To</label>
-                                <Input type="date" value={date.to}
-                                    onChange={(e) => date.onChange(date.from, e.target.value)}
-                                    className="h-8 rounded-lg border-ant-line text-[12px]" />
-                            </div>
+                        <PopoverContent className="w-auto p-2 rounded-2xl border-ant-line" align="start">
+                            <CalendarComponent
+                                mode="single"
+                                selected={date.from ? new Date(date.from + 'T00:00:00') : undefined}
+                                onSelect={(d) => { const s = d ? format(d, 'yyyy-MM-dd') : ''; date.onChange(s, s); }}
+                                initialFocus
+                                className="rounded-2xl border-none bg-ant-line-soft p-2"
+                            />
                             {dateActive && (
                                 <Button variant="ghost" onClick={() => date.onChange('', '')}
-                                    className="w-full h-7 text-[11px] text-ant-mid hover:text-ant-ink">Clear dates</Button>
+                                    className="w-full h-7 mt-1 text-[11px] text-ant-mid hover:text-ant-ink">Clear date</Button>
                             )}
                         </PopoverContent>
                     </Popover>

@@ -100,7 +100,7 @@ returns setof uuid language sql stable security invoker
 set search_path = public, pg_catalog as $$
   with q as (select public.current_user_digicom_business_id() as biz,
                     public.fold_text(p_term) as fq,
-                    regexp_replace(coalesce(p_term,''),'\D','','g') as pq,
+                    regexp_replace(regexp_replace(coalesce(p_term,''),'\D','','g'),'^0+','') as pq,
                     btrim(coalesce(p_term,'')) as raw)
   select h.id from public.company_delivery_notes h, q
   where h."DigiCom Business" = q.biz and h.id in (
@@ -127,7 +127,7 @@ returns setof uuid language sql stable security invoker
 set search_path = public, pg_catalog as $$
   with q as (select public.current_user_digicom_business_id() as biz,
                     public.fold_text(p_term) as fq,
-                    regexp_replace(coalesce(p_term,''),'\D','','g') as pq,
+                    regexp_replace(regexp_replace(coalesce(p_term,''),'\D','','g'),'^0+','') as pq,
                     btrim(coalesce(p_term,'')) as raw)
   select h.id from public.courier_delivery_notes h, q
   where h."DigiCom Business" = q.biz and h.id in (
@@ -154,7 +154,7 @@ returns setof uuid language sql stable security invoker
 set search_path = public, pg_catalog as $$
   with q as (select public.current_user_digicom_business_id() as biz,
                     public.fold_text(p_term) as fq,
-                    regexp_replace(coalesce(p_term,''),'\D','','g') as pq,
+                    regexp_replace(regexp_replace(coalesce(p_term,''),'\D','','g'),'^0+','') as pq,
                     btrim(coalesce(p_term,'')) as raw)
   select h.id from public.company_return_notes h, q
   where h."DigiCom Business" = q.biz and h.id in (
@@ -181,7 +181,7 @@ returns setof uuid language sql stable security invoker
 set search_path = public, pg_catalog as $$
   with q as (select public.current_user_digicom_business_id() as biz,
                     public.fold_text(p_term) as fq,
-                    regexp_replace(coalesce(p_term,''),'\D','','g') as pq,
+                    regexp_replace(regexp_replace(coalesce(p_term,''),'\D','','g'),'^0+','') as pq,
                     btrim(coalesce(p_term,'')) as raw)
   select h.id from public.courier_return_notes h, q
   where h."DigiCom Business" = q.biz and h.id in (
@@ -208,7 +208,7 @@ returns setof uuid language sql stable security invoker
 set search_path = public, pg_catalog as $$
   with q as (select public.current_user_digicom_business_id() as biz,
                     public.fold_text(p_term) as fq,
-                    regexp_replace(coalesce(p_term,''),'\D','','g') as pq,
+                    regexp_replace(regexp_replace(coalesce(p_term,''),'\D','','g'),'^0+','') as pq,
                     btrim(coalesce(p_term,'')) as raw)
   select h.id from public.company_payment_notes h, q
   where h."DigiCom Business" = q.biz and h.id in (
@@ -235,7 +235,7 @@ returns setof uuid language sql stable security invoker
 set search_path = public, pg_catalog as $$
   with q as (select public.current_user_digicom_business_id() as biz,
                     public.fold_text(p_term) as fq,
-                    regexp_replace(coalesce(p_term,''),'\D','','g') as pq,
+                    regexp_replace(regexp_replace(coalesce(p_term,''),'\D','','g'),'^0+','') as pq,
                     btrim(coalesce(p_term,'')) as raw)
   select h.id from public.courier_payment_notes h, q
   where h."DigiCom Business" = q.biz and h.id in (

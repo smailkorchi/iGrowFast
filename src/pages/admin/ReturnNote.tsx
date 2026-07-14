@@ -683,7 +683,7 @@ const ReturnNote = () => {
         : [{ value: 'all', label: 'All couriers' }, ...((businessUsers || []).filter((u: any) => u.role === 'courier').map((u: any) => ({ value: u.id, label: u.name || '—' })))];
     const createdByOptions: FilterOption[] = [
         { value: 'all', label: 'All creators' },
-        ...((businessUsers || []).map((u: any) => ({ value: u.id, label: u.name || '—' }))),
+        ...((businessUsers || []).filter((u: any) => ['super admin', 'admin', 'commercial'].includes(u.role)).map((u: any) => ({ value: u.id, label: u.name || '—' }))),
     ];
     const filtersActive = debouncedSearch.trim().length >= 2 || filterStatus !== 'all' || entityFilter !== 'all' || createdByFilter !== 'all' || !!dateFrom || !!dateTo;
     const activeFilterCount = [filterStatus !== 'all', entityFilter !== 'all', createdByFilter !== 'all', !!dateFrom || !!dateTo].filter(Boolean).length;
