@@ -887,84 +887,13 @@ const DeliveryNote = () => {
                 parcels = data || [];
             }
 
-            // Fetch real-time status for each parcel from provider
-            let updatedParcels = parcels || [];
-            if (isCompanyNote && providerInfo?.provider_type && parcels && parcels.length > 0) {
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
-
-                    // Fetch real-time status for each parcel
-                    const statusPromises = parcels.map(async (parcel) => {
-                        if (!parcel.tracking_code) return parcel;
-
-                        try {
-                            const response = await fetch(EDGE_FUNCTION_URL, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${session?.access_token}`
-                                },
-                                body: JSON.stringify({
-                                    action: 'get_parcel_info',
-                                    provider_id: selectedNote.provider_id,
-                                    data: {
-                                        tracking_code: parcel.tracking_code
-                                    }
-                                })
-                            });
-
-                            if (response.ok) {
-                                const result = await response.json();
-                                if (result.success && result.data) {
-                                    const providerStatus = result.data.statusLabel || result.data.status || 'Nouveau';
-                                    const providerColor = result.data.statusColor || result.data.color;
-
-                                    // Map provider status to internal package_statuses (containment → RPC → ilike fallback)
-                                    const matched = await matchPackageStatus(supabase, providerStatus);
-                                    const mappedStatusId = matched?.id ?? parcel.status_id ?? null;
-                                    // Full master row (carries icon) for the embedded display object.
-                                    const fullMaster = mappedStatusId
-                                        ? (pkgStatuses?.find((ps) => ps.id === mappedStatusId) ?? null)
-                                        : null;
-
-                                    // Persist only the master id when it changed (label/color derive from master).
-                                    if (mappedStatusId && mappedStatusId !== parcel.status_id) {
-                                        await supabase
-                                            .from('company_parcels')
-                                            .update({
-                                                status_id: mappedStatusId,
-                                                provider_response: result.data // Update with latest info
-                                            })
-                                            .eq('id', parcel.id);
-                                    }
-
-                                    return {
-                                        ...parcel,
-                                        status_id: mappedStatusId,
-                                        status: fullMaster
-                                            ? { label: fullMaster.label, color: fullMaster.color, icon: fullMaster.icon }
-                                            : (matched ? { label: matched.label, color: matched.color, icon: parcel.status?.icon ?? null } : parcel.status),
-                                        real_time_status: result.data.status,
-                                        real_time_status_label: providerStatus,
-                                        real_time_status_color: providerColor || result.data.statusColor
-                                    };
-                                }
-                            }
-                        } catch (err) {
-                            console.error('Failed to fetch real-time status for parcel:', parcel.tracking_code, err);
-                        }
-                        return parcel;
-                    });
-
-                    updatedParcels = await Promise.all(statusPromises);
-                } catch (error) {
-                    console.error('Error fetching real-time parcel statuses:', error);
-                }
-            }
-
+            // Package status comes from the DB (company_parcels.status_id → package_statuses,
+            // embedded above as `status`), kept fresh by the provider webhook + tracking-sync
+            // cron — the SAME source the orders page reads. No per-parcel get_parcel_info pull
+            // on preview open (that hammered the carrier's rate limiter on large notes).
             setNoteDetails({
                 provider: providerInfo,
-                parcels: updatedParcels
+                parcels: parcels || []
             });
         }
 
