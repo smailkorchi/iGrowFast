@@ -2119,9 +2119,6 @@ const DeliveryNote = () => {
             {/* Delete Confirmation */}
             <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
                 <DialogContent className="ant-surface sm:max-w-[420px] rounded-2xl border border-ant-line p-7 text-center space-y-5 bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
-                    <div className="w-20 h-20 bg-ant-rose/10 rounded-full flex items-center justify-center text-ant-rose mx-auto">
-                        <Trash2 className="w-10 h-10" />
-                    </div>
                     <div className="w-12 h-12 rounded-2xl bg-ant-rose/10 ring-1 ring-ant-rose/20 flex items-center justify-center text-ant-rose mx-auto">
                         <Trash2 className="w-5 h-5" strokeWidth={1.75} />
                     </div>
