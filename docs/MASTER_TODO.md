@@ -35,12 +35,15 @@ Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ec
 
 ## 2. Phase R2 — retire the poller (the 61.4% kill)
 
-Mechanics established from `_realtime` schema (live-audited):
-- The poller's enable switch = the single `_realtime.extensions` row `type='postgres_cdc_rls'` (names slot `supabase_realtime`, publication, poll_interval_ms=100). **Retirement = remove that row (via Realtime tenant API or SQL) + restart the Realtime container**; the wal2json slot is `temporary=t` so Postgres auto-drops it with the session, and with no extensions row it is never recreated.
+**⚠ CORRECTED 2026-07-14 after a live incident: the `postgres_cdc_rls` extensions row is LOAD-BEARING on Realtime v2.102.3 — it carries the tenant's encrypted DB connection settings (db_host/db_user/db_password…). `Realtime.PostgresCdc.filter_settings/2` hard-crashes on `[]` during EVERY tenant connect → deleting the row kills ALL realtime (wa:* + ecom:*), not just the poller. NEVER delete it on this version.**
+- Incident: row deleted + `SEED_SELF_HOST=false` + recreate at 15:17 UTC → all channel joins CHANNEL_ERROR → rolled back (row re-inserted) 15:28 UTC. ~9 min realtime-down during business hours; zero write impact; pages self-healed. The morning's earlier "success" was the seed silently restoring the row 6s after deletion.
+- `SEED_SELF_HOST` stays **false** (it clobbers the Phase 1c tenant caps back to 200/100 defaults on every boot — proven). CONSEQUENCE: after any DB wipe/re-init, the tenant + extensions row must be restored manually (rollback SQL: box `/root/` + `~/.igrowfast/backups/`; the corrupt first version is superseded by the clean one).
+- **The actual poller lever = `settings.poll_interval_ms` inside the row** (100ms today). With the publication EMPTY and zero subscribers (R1 complete), the residual is already ~92% down (≈2.5s/hour vs ≈30s/hour pre-R1). Raising poll_interval_ms 100→60000 + tenant reload bounds it to ~seconds/day.
 - **Do NOT touch** the pgoutput side: `supabase_realtime_messages_replication_slot_` + `supabase_realtime_messages_publication` — ALL broadcast (wa:* + ecom:*) rides it.
 - [x] Pre-check: zero live subscriptions verified at each drop; publication emptied 2026-07-14.
-- [x] EXECUTED 2026-07-14 06:17 UTC: extensions row deleted as supabase_admin (rollback = ~/.igrowfast/backups/r2_extensions_row_rollback_2026-07-14.sql, copy on box /root/); Realtime restarted healthy; wal2json slot GONE; list_changes calls FROZEN (597356, zero growth); broadcast slot lazy-recreated on first client join, walsender streaming; live websocket broadcast round-trip SMOKE_PASS.
-- [~] **Re-measure on the fresh window** — pg_stat_statements RESET at 2026-07-14 06:19:52 UTC. Read the top consumers after a 24h business-hours soak; success = list_changes absent (was 61.4%) and no new top consumer.
+- [x] Row-deletion approach EXECUTED then ROLLED BACK (see correction above). Current live state: row present (100ms), SEED_SELF_HOST=false, caps 5000/1000/2000/500/1MB, publication EMPTY, smoke PASS.
+- [ ] QUIET-WINDOW step: `update _realtime.extensions set settings = jsonb_set(settings,'{poll_interval_ms}','60000') where type='postgres_cdc_rls';` as supabase_admin + restart Realtime + smoke test (owner go).
+- [~] **Re-measure on the fresh window** — pg_stat_statements RESET at 2026-07-14 15:19 UTC (clean, post-R1 state with 100ms idle poller). Read after a 24h business-hours soak; success = list_changes residual ≈ few % and shrinking with load (was 61.4%), no new top consumer.
 - [x] Rollback path saved: ~/.igrowfast/backups/r2_extensions_row_rollback_2026-07-14.sql (+ box /root/) — re-insert + restart = poller returns.
 
 ## 3. Phase D — data-layer rebuild (the "thousands of users" half)
