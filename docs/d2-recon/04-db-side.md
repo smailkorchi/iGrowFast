@@ -1,0 +1,187 @@
+# D2 RECON — Role-dashboard widget inventory + DB-side map (live-verified 2026-07-14)
+
+Repo: `/Users/ismailelqorchi/Desktop/iGrowFast/New Website/iGrowFast`. All DB facts read from the box via `~/.igrowfast/db.sh`.
+
+## 0. Role → dashboard map & global fetch config
+
+| Role | Route/entry | File | Orders download today? |
+|---|---|---|---|
+| super admin / admin | `/` (ProtectedRoute ['super admin','admin'] + BusinessGuard) | `src/pages/admin/Dashboard.tsx` (8 widgets in `src/components/dashboard/`) | YES — 6 independent FULL-history orders downloads + full order_items + full parcels ×2 |
+| commercial (seller) | `/seller/dashboard` | `src/pages/seller/Dashboard.tsx` + `src/components/dashboard/SellerSelfPerformanceSection.tsx` | YES — own-orders full history + BUSINESS-WIDE orders (self-perf section) + full parcels ×2 (twice: page builds its own trackedSet AND the section uses useTrackedOrders) |
+| mediabuyer | `/mediabuyer/dashboard` | `src/pages/mediabuyer/Dashboard.tsx` via `src/hooks/useMediaBuyerStats.ts` (×2 instances: windowed + all-time) + `src/hooks/useMediaBuyerEarnings.ts` | YES — windowed orders slim rows (id/date/source/status only) fetched 3× (range + all-time sparkline + month earnings) |
+| courier | `/courier/dashboard` | `src/pages/courier/Dashboard.tsx` | PARTIAL — KPIs already on `courier_self_stats` RPC; still downloads full courier_parcels roster (nested order+status joins) + all paid courier_payment_notes |
+| owner | `/owner/*` | `src/components/owner/OwnerPlatformDashboard.tsx` | NO — platform tables only (businesses, business_payments, plans, users count). OUT OF D2 SCOPE |
+
+**QueryClient**: `new QueryClient()` with NO defaultOptions (`src/App.tsx:180`) ⇒ every query below defaults to `staleTime: 0`, `refetchOnMount: true`, `refetchOnWindowFocus: true`. Every window focus re-fires the ENTIRE waterfall. Explicit overrides noted per widget.
+
+**Shared client machinery** (what the RPCs must absorb):
+- `fetchAllRows` (`src/lib/supabase.ts:30`) — 1000-row `.range()` pagination ordered by `id`.
+- `useTrackedOrders` (`src/hooks/useTrackedOrders.ts`) — downloads ALL `company_parcels` + `courier_parcels` `(order_id, tracking_code)` for the business (`staleTime: 0, refetchOnMount: 'always'`); `trackedOrderIds` = order_ids with a non-blank tracking_code in either table. Used by 6 admin widgets + seller self-perf.
+- `useStatusCategories` (`src/hooks/useStatusCategories.ts`) — order_statuses/package_statuses with semantic flags, `staleTime` 5 min. Sets: `pendingIds`=pending_confirmation, `deliveredPkgIds`=is_delivered, `shippedPkgIds`=is_shipped, `returnedPkgIds`=is_returned, `adminPullbackOrderIds`/`adminPullbackPackageIds`=excluded_from_delivery_rate, `cancelledIds`=is_cancelled, refused=is_refused.
+- `useSellerCommissionTotals` (`src/hooks/useSellerCommissionTotals.ts`) — fetchAllRows over `seller_daily_earnings` filtered biz + `date >= from` / `<= to` (`format(d,'yyyy-MM-dd')` browser-local), sums commission_earned/delivered_count per seller. `staleTime` 60 s. **Commission source of truth.**
+- Shared formulas: `src/lib/analyticsDefinitions.ts` (isRateConfirmed, isAdminPullback, isDelivered, isFailed, pureRevenueForOrder, placement/delivery timestamps) and `src/lib/commercialCommission.ts` (isDeliveredForCommission, assignmentTimestampForMetrics, commissionAccruedForDeliveredOrder, computeUnpaidCommission, sumAssignedProductUnits — empty `users.products` ⇒ 0 for per_unit).
+- Date window: `DateFilter {from?: Date, to?: Date, label}` from `AnalyticsDateFilter` (presets All Time/Today/Yesterday/7/30/90/This Month/Last Month/YTD, custom range). Every admin/seller widget normalizes with **browser-local** `startOfDay(from)`/`endOfDay(to)` (date-fns). All Time = `new Date(0)`..`now`. MB dashboard instead uses **Casablanca** YMD strings via `todayBusinessYmd()`/`toBusinessDate()` (`src/lib/dateBuckets.ts`, `BUSINESS_TZ='Africa/Casablanca'`).
+
+**Canonical semantic definitions (used verbatim across widgets — the RPC vocabulary):**
+- `tracked(o)` = o.id ∈ trackedOrderIds.
+- `rateConfirmed(o)` = tracked OR (pendingIds non-empty AND o.order_status_id NOT NULL AND ∉ pendingIds). (Empty-set guard is a client loading-race artifact; server has no race — see `pending_flag` CTE precedent in `ads_history_metrics`.)
+- `delivered(o)` = o.package_status_id ∈ deliveredPkgIds (`package_statuses.is_delivered`). Never label matching.
+- `adminPullback(o)` = tracked AND (order_status ∈ adminPullbackOrderIds OR package_status ∈ adminPullbackPackageIds).
+- Delivery rate (Coliaty) = delivered ÷ (tracked − pullback), clamped ≤ 100.
+- `pendingConfirmation(o)` = order_status ∈ pendingIds AND NOT tracked.
+- `pureRevenueForOrder(o)`: with order_items → Σ per product line coalesce(total_price>0, unit_price×qty); else raw_price>0; else (include_delivery_in_total === false ? price : max(0, price−shipping_cost)); PLUS shipping_cost when include_delivery_in_total === true. **When the widget's select omits order_items AND raw_price (SalesComparatif, CityStats), the effective formula collapses to the price/shipping branch only.**
+- Exchange legs: `replace = true` excluded from ALL revenue/commission/seller/product metrics client-side; KEPT in operational counts (KPI totals, SalesComparatif orders line, CityStats delivered count).
+
+---
+
+## 1. ADMIN DASHBOARD — 8 widgets
+
+Common server filters on every orders download: `"DigiCom Business" = biz`, `date_deleted IS NULL`, `source_review_status <> 'pending'`. **No date window server-side — full history every time.** Windowing is 100% client-side.
+
+### 1A. DashboardKPICards (`src/components/dashboard/DashboardKPICards.tsx`)
+- **(a) Queries**: ①`['kpi-cards-orders-v2', biz]` fetchAllRows `orders`: `id, date, order_status_id, package_status_id, package_statuses(label)`. ②`['dashboard-payment-notes', biz]` plain select (NOT paginated — 1000-cap latent bug; 68 rows today) `company_payment_notes`: `id, total_amount, net_amount, status, created_at` eq biz. Plus useStatusCategories + useTrackedOrders.
+- **(b) Math**: window = placement `o.date` ∈ [startOfDay(from), endOfDay(to)] browser-TZ; null/invalid date rows DROPPED (even All Time uses epoch..now). Over `filtered`: `total`; `rateConfirmed` per definition; `confirmationRate = min(100, rateConfirmed/total×100).toFixed(1)`; `delivered`; Coliaty denom + `deliveryRate`; `pendingConfirmation`; `enCoursLivraison` = pkg ∈ getPkgsByCategories(['in_transit','out_for_delivery','picked_up','pickup_pending']) = is_shipped set; `canceled` = order_status ∈ cancelledIds (**flag `is_cancelled` — merged bucket incl fake/double/blacklisted rows that carry is_cancelled**); `refused` = isPkgCategory 'refused' (is_refused); `pct(n)=n/total×100`. Notes tile: notes with `created_at` in window (**null created_at ⇒ excluded**), count + Σ Number(net_amount).
+- **(c) Renders**: 10 cards — Total Orders, Confirmed (+% of total), Confirmation Rate (value+progress bar, subtitle `x/total`), Delivered (subtitle % of shipped denom else % of total), Delivery Rate (+bar, `delivered/denom shipped`), Pending Confirmation, In Transit, Canceled, Refused Packages, Invoices (count + `Σ net_amount` MAD). Click-through passes FULL status-id arrays to /orders (`filterStatusIds`/`filterPackageStatusIds`) — RPC must ALSO return these id lists (or FE keeps deriving them from useStatusCategories, which stays client-side).
+- **(d) Refetch**: defaults (staleTime 0, focus refetch).
+- **(e) Visibility**: admin/super admin only.
+
+### 1B. SalesComparatifChart (`SalesComparatifChart.tsx`)
+- **(a)** `['sales-comparatif-orders', biz]` fetchAllRows `orders`: `id, date, date_livraison, updated_at, price, shipping_cost, include_delivery_in_total, package_status_id, replace, package_statuses(label)`.
+- **(b)** Two series over independent windows: Orders line = ALL orders (incl replace legs) bucketed by placement `date`; Revenue line = `replace !== true AND delivered` bucketed by `date_livraison ?? updated_at`. Revenue per order = pureRevenueForOrder **without items/raw_price** ⇒ include=false→price; true→max(0,price−ship)+ship; null→max(0,price−ship). All-Time range = min(any placement/delivery ts)..now. Granularity auto: ≤31d daily, ≤120d weekly, else monthly (user override); buckets clamped to range edges (weekStartsOn 1, month clamp). Comparison (only when explicit from+to, rangeDays≥1, toggle on): previous window shifted by rangeDays+1 days, per-bucket prevOrders/prevRevenue by shifting each bucket's bounds. Totals = Σ buckets; growth% = (cur−prev)/prev×100 when prev>0.
+- **(c)** Dual-axis area chart rows `{label, orders, revenue, prevOrders, prevRevenue}` + 2 headline stats (Revenue MAD rounded, Orders) with delta badges + tooltip per bucket.
+- **(d)** defaults. **(e)** admin.
+
+### 1C. PendingOrdersBreakdown (`PendingOrdersBreakdown.tsx`)
+- **(a)** `['pending-orders-breakdown-orders', biz]` fetchAllRows `orders`: `id, date, created_at, price, order_status_id`. + pendingIds + trackedOrderIds.
+- **(b)** pending = order_status ∈ pendingIds AND NOT tracked AND `isInRange(o.date)` — **null date passes ALWAYS here** (returns true). Age = differenceInDays(startOfDay(now), startOfDay(date ?? created_at)); buckets: today (≤0), 1–3, 4–7, 7+. Per bucket: count, Σ Number(price). staleCount = 4–7 + 7+ counts. totalValue = Σ price over pending.
+- **(c)** Header `N awaiting · X MAD`; stacked proportion bar; 4 tiles (count, % of total, MAD); red alert when staleCount>0.
+- **(d)** defaults. **(e)** admin.
+
+### 1D. ConfirmationPipeline (`ConfirmationPipeline.tsx`)
+- **(a)** `['confirmation-pipeline-orders', biz]` fetchAllRows `orders`: `id, date, order_status_id, order_statuses(code, label)`.
+- **(b)** Same predicate as 1C (pending AND not tracked AND in range; **null dates pass**). Group by order_status_id → {label (order_statuses.label ?? code ?? 'Unknown'), count}; sort count desc; color = status color.
+- **(c)** Total "being confirmed", stacked bar of all statuses, top-3 legend, full scrollable per-status list (label, mini-bar, count, pct.toFixed(1)).
+- **(d)** defaults. **(e)** admin.
+
+### 1E. ShippingPipeline (`ShippingPipeline.tsx`)
+- **(a)** ①fetchAllRows `orders`: `id, date, order_status_id, package_status_id, package_statuses(label), company_id, courier_id`; ②`providers`: `id, name, provider_type, logo_url` eq biz; ③`users` role='courier' eq biz: `id, name, avatar_url, avatar_config`. + status sets + trackedOrderIds.
+- **(b)** Window on `date`: All-Time passes nulls, explicit window EXCLUDES nulls. `shipped` = pkg ∈ shipped∪delivered∪returned sets. Header: delivered, returned, inTransit = shipped − delivered − returned. Status distribution over `shipped` keyed by package_status_id. Fulfiller distribution keyed `provider:company_id` else `courier:courier_id` (orders with neither invisible in that pane): per fulfiller total/delivered/returned + Coliaty deliveryDenom (tracked, non-pullback); rate = delivered/denom. providerShipments/courierShipments sums. **Overall delivery rate uses the FULL filtered set's Coliaty denom (not lifecycle-restricted) to reconcile with 1A.**
+- **(c)** 4 header chips, lifecycle proportion bar + overall rate (color-tiered ≥50 green /≥25 orange/ rose), per-status scroll list (count+pct), per-fulfiller rows (logo/avatar, rate %, 3-segment bar, `X del · Y ret · Z in transit`).
+- **(d)** defaults. **(e)** admin.
+
+### 1F. DashboardSellersPerformance (`DashboardSellersPerformance.tsx`) — heaviest widget
+- **(a)** 6 queries + 2 hooks: ①`['dashboard-sellers', biz]` users role='commercial': `id,name,avatar_url,avatar_config,active,commission_price,commission_basis,products`; ②`['dashboard-sellers-performance-orders', biz]` fetchAllRows `orders`: `id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, seller_id, company_id, source_name, replace, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code,label), package_statuses(label)` — **explicit `staleTime: 0, refetchOnMount: 'always'`**; replace===true rows dropped client-side; ③`['dashboard-ads-history', biz]` ads_history `id, product_id, amount, start_date, end_date`; ④`['dashboard-products', biz]` products `id,name,image_url,stock,cost_price,selling_price,active`; ⑤`['dashboard-accessories', biz]` accessories `id, cost_price`; ⑥useSellerCommissionTotals(biz, from, to). + useTrackedOrders.
+- **(b)** Per seller: cohort = seller_id match AND `assignmentTimestampForMetrics` (assignment_date ?? date) in window. `totalInWindow` = ALL orders windowed by `date` (assignedPercent denominator). confirmed = tracked OR (pendingIds ready AND status ∉ pendingIds); confirmedPercent = confirmed/cohort. delivered = deliveredPkgIds; Coliaty deliveredPercent. Sources: per source_name.toLowerCase() ?? 'other', counts of assigned/confirmed/delivered. Pre-conf pills = not-yet-confirmed grouped by order_status_id (null → 'Unset'); post-conf pills = confirmed-not-delivered grouped `pkg:<id>` else `os:<id>` else 'unset'. Financials over delivered: revenue Σ pureRevenueForOrder (FULL chain, items present); shipping Σ shipping_cost; COGS snapshot-first (product_unit_cost_snapshot>0 else products.cost_price; accessory_unit_price>0 else accessories.cost_price) × qty; adsShare = Σ_products (sellerDeliveredQty/globalDeliveredQty)×adsAmount where ads filtered by `start_date` in window (NO overlap pro-rating in this widget) and globalDeliveredQty = per-product delivered units across all cohort-windowed delivered orders; commission = seller_daily_earnings total (fallback client: per_order rate×deliveredCount; per_unit rate×assigned-product units, empty list ⇒ 0) + drift flag |view−client|>1; **net = revenue − cogs − shipping − adsShare − commission**. Sort deliveredCount desc.
+- **(c)** Header `N sellers · M orders`; per seller expandable row: avatar+name+active, 3-stage funnel (Assigned w/ % of all, Confirmed w/ rate, Delivered w/ rate), Net MAD (green/rose) + commission; expanded: two StatusQueuePanes, FinancialsWaterfall (revenue/cogs/ads/commission/shipping/net), SourcePills.
+- **(d)** orders query staleTime 0 + refetchOnMount 'always'; others default. **(e)** admin.
+
+### 1G. DashboardProductsPerformance (`DashboardProductsPerformance.tsx`)
+- **(a)** 6 queries: products (same as 1F④, shared key), accessories (shared), ②`['dashboard-order-items', biz]` fetchAllRows `order_items`: `id, order_id, product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot` eq biz (ALL items, no window — order_items has "DigiCom Business" col); ③`['dashboard-products-performance-orders', biz]` fetchAllRows `orders`: `id, date, shipping_cost, order_status_id, package_status_id, source_name, seller_id, replace, order_statuses(code,label), package_statuses(label)` (replace dropped client-side); ④ads_history (shared key); ⑤`['dashboard-sellers-for-products', biz]` users (ALL roles!) `id, commission_price, commission_basis, products`. + status sets + trackedOrders.
+- **(b)** Cohort = orders windowed by `date` (null excluded when hasWindow; `!d → false` even in All Time... note: `inWindow(null)` returns false always here since parseDate(null)=null). cohortItems = items of cohort orders. Per product: UNITS funnel — orderedUnits Σ qty; rateConfirmedUnits (tracked OR ready∧not-pending, per order, ×qty); rateTouchedUnits = all units (denominator); trackedUnits/pullbackUnits → Coliaty per units: deliveredPercent = deliveredUnits/(tracked−pullback). Revenue per delivered product line = coalesce(total_price>0, unit_price×qty); productCOGS snapshot-first; shippingAlloc = order.shipping_cost × qty/orderTotalProductQty; accessoryCOGS on delivered orders (accessory_unit_price snapshot else accessories.cost_price); adsShare = ads amount × day-overlap fraction (`adsOverlapFraction`: inclusive-day overlap/total, ads with no end_date = single day) attributed by product_id; commission per delivered order: per_unit → qty×price IF product ∈ seller.products OR **seller.products empty (lenient allow — OPPOSITE of the seller-side/DB empty⇒0 rule; known asymmetry)**; per_order → price × qty/orderProductQty; net = revenue − productCOGS − accessoryCOGS − shipping − ads − commission; unit economics = each ÷ deliveredUnits. Order-level funnel (totalOrders/confirmedOrders/deliveredOrders) + pre/post-conf pill panes + sources (per distinct order; delivered only counted under confirmed). Filter orderedUnits>0; sort deliveredUnits desc, revenue desc, name. TOP_N=3 + showAll.
+- **(c)** Per product expandable row: image/stock/active, units funnel (Ordered/Confirmed/Delivered w/ rates), Net + commission; expanded: dropoff panes, waterfall (with Accessory COGS line), 7-cell unit economics (Selling/Buying/Accessories/Shipping/Ads/Commission/Margin), source pills.
+- **(d)** defaults. **(e)** admin.
+
+### 1H. DashboardCityStats (`DashboardCityStats.tsx`)
+- **(a)** `['dashboard-orders-cities', biz]` fetchAllRows `orders`: `id, date, price, shipping_cost, include_delivery_in_total, package_status_id, master_city_id, replace, master_cities(name), order_status_id, package_statuses(label)`. + deliveredPkgIds, pullback sets, trackedOrders.
+- **(b)** Window on `date` (All-Time passes nulls; explicit excludes). Grouped **by city NAME** (orders w/o master_cities.name skipped). Per city: total; Coliaty deliveryDenom (tracked non-pullback); delivered (INCLUDING replace legs — real deliveries); revenue = delivered AND replace!==true, pureRevenueForOrder (no items/raw_price ⇒ price/shipping collapse, same as 1B). Sort delivered desc then total. Concentration = top 8 by total + Others. problemCities = denom≥3 AND delivered/denom<0.3, top 3. Overall rate = totalDelivered/totalDeliveryDenom.
+- **(c)** 4 chips (Delivered, Delivery rate tiered, Revenue MAD, Top-8 share), concentration bar + legend, problem-city alert, ranked list (rank, city, volume, volume-bar vs max, rate pill tiered, revenue MAD), top 10 + showAll.
+- **(d)** defaults. **(e)** admin.
+
+---
+
+## 2. SELLER DASHBOARD (`src/pages/seller/Dashboard.tsx`, role commercial)
+
+Not react-query — imperative `useEffect` (re-runs when status-set sizes change). Fetches:
+1. own `users` row: `products, commission_price, commission_basis, "DigiCom Business"`.
+2. fetchAllRows `orders` **filters: `seller_id = auth uid`, `date_deleted IS NULL`, + biz eq** (NO source_review_status filter — delta vs admin), select `id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))`; replace legs dropped client-side.
+3. fetchAllRows `company_parcels` + `courier_parcels` (`order_id, tracking_code`) for the WHOLE business → own trackedSet.
+4. `seller_payments` select `paid_amount, status` **eq seller_id only (no biz filter)**.
+
+**(b) Math (lifetime, NO date filter)**: todayOrders = created_at ≥ browser-local midnight; deliveredToday = `isDeliveredOnLocalDay` (delivered AND (date_livraison ?? updated_at) within browser-local today); pendingOrders = pendingIds AND not tracked; confirmedOrders = rateConfirmed count; deliveredOrders; successRate = Coliaty; confirmRate = rateConfirmed/total; liveCommission + unpaidDeliveries = `computeUnpaidCommission`: accruedCash (per_order: rate×delivered; per_unit: rate×Σ assigned-product units over delivered, empty products ⇒ 0) − Σ paid_amount, floored 0, back-converted to slots. recentOrders = top 10 by created_at desc (customer name, product[0] name/image, price, status pill, relative time, grouped Today/Yesterday/date). topProduct: grouped by FIRST order_item's product name — total/tracked/pullback/delivered/revenue (Σ order.price of delivered — **note: raw `price`, seller-total display rule), pick max revenue, per-product Coliaty successRate.
+**(c) Renders**: 4 KPI tiles (Commandes du jour, En attente, Livrées aujourd'hui w/ `total: delivered/total`, Commission en attente w/ `rate MAD × N unités|commandes`); 3-step conversion pipeline (Attribuées 100% / Confirmées confirmRate / Livrées successRate); activity feed; delivery-performance bars (successRate, confirmRate); top performer card (delivered, success %, CA MAD).
+**(d)**: refires on mount + when statusCats sets resolve; no focus refetch (not react-query).
+
+### SellerSelfPerformanceSection (windowed by its own AnalyticsDateFilter, default All Time)
+- **(a)** ①own users row; ②`['seller-self-performance-orders', biz|'no-biz', sellerId]` fetchAllRows `orders` — **BUSINESS-WIDE when biz known** (`"DigiCom Business" = biz`; only falls back to seller_id filter without biz), `date_deleted IS NULL`, `source_review_status <> 'pending'`, select `id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, order_status_id, package_status_id, seller_id, source_name, replace, order_items(product_id, quantity), order_statuses(code,label), package_statuses(label)`; replace dropped; **staleTime 0 + refetchOnMount 'always'**; ③useTrackedOrders(biz); ④useSellerCommissionTotals(biz, from, to).
+- **(b)** Identical math to 1F for one seller: cohort by assignment_date??date window; totalInWindow (biz-wide, by date) for assignedPercent; confirmed/delivered/Coliaty; source pills; pre/post-conf panes; commission = view total (windowed) fallback client calc + drift flag.
+- **(c)** Funnel (Attribuées % du total / Confirmées / Livrées), Commission MAD, dropoff panes, sources.
+- **(e) SECURITY**: seller client presently downloads every business order because **orders RLS SELECT is business-wide** — the D2 seller RPC MUST scope with an explicit predicate validated against `auth.uid()` (D1 pattern: `p_seller_scope = (select auth.uid()) or current_user_is_business_admin()` else raise) and return `total_in_window` as a **scalar** so assignedPercent no longer needs peers' rows.
+
+---
+
+## 3. MEDIA BUYER DASHBOARD (`src/pages/mediabuyer/Dashboard.tsx`)
+
+Window: preset → `{from,to}` **Casablanca YMD strings** ('all' = 2020-01-01..today). Two hook instances: `useMediaBuyerStats(filterRange)` for KPIs/top-campaigns + `useMediaBuyerStats(allTimeRange)` for the 14-day sparkline (full second download), + `useMediaBuyerEarnings(currentMonth, {selfMbId})` for the earnings card, + `campaign_daily_entries` today-check + own profile.
+
+### useMediaBuyerStats (`src/hooks/useMediaBuyerStats.ts`)
+- **(a)** ①`['mb-stats-entries', biz, uid, from, to]` fetchAllRows `campaign_daily_entries` `*` by biz + created_by=uid + entry_date ∈ [from,to]; ②`['mb-stats-campaigns', biz, uid]` campaigns `*` by biz + created_by; ③`['mb-stats-orders', biz, from, to, sources]` fetchAllRows `orders` `id, date, source_name, order_status_id, package_status_id, replace` by biz + `date >= shiftYmd(from,−1)` + `date <= shiftYmd(to,1)T23:59:59.999Z` (±1-day widening for TZ) + not-deleted + review filter; client-filtered to replace!==true AND source_name.toLowerCase() ∈ entry platform sources; ④own users row (payment_type, commission_price, salary_amount).
+- **(b)** Bucket orders per (toBusinessDate(date) Casablanca-day, source_lower): confirmed = pendingIds-ready AND status ∉ pendingIds; delivered = pkg is_delivered. Daily rollup: Σ entry spend/leads per entry_date, union of that day's entry sources' buckets → confirmed/delivered; revenue = delivered × own commission_price (0 for salary). Platform & per-campaign rollups re-count the same (day,source) buckets per campaign (two same-platform campaigns double count per-campaign, not in totals — documented). Orphaned entries → synthetic `(Deleted) <platform>` row. finalize(): costPerLead/Confirmed/Delivered, confirmRate=confirmed/leads, deliveryRate=delivered/confirmed, roas=revenue/spend, profit=revenue−spend. Grand totals from daily rows. Currency = dominant campaign currency else MAD.
+- **(c)** Dashboard renders: 4 KPI tiles (Dépenses=totals.spend, Revenus=totals.revenue, Livrées, Confirmées); 14-day sparkline {Livré, Revenu} from all-time instance filtered ≥ today−13; Top campagnes = perCampaign spend>0 top 5 (name, platform, delivered, ROAS `x.xx`x, revenue, spend); needs-attention = active campaigns without today's entry; earnings ink card = remaining_amount + delivered_orders + campaigns_count.
+- **(d)** all defaults. **(e)** mediabuyer role.
+- **MB-facing data rule check**: everything shown is the MB's OWN spend/leads and own commission-as-"revenue"/ROAS — permitted (own commission/rates + livré). The current order download carries **no money columns** (id/date/source/status only). D2's MB RPC must preserve that: return per-(day)/(campaign) `{spend, leads, confirmed, delivered}` + own commission math inputs ONLY — never order price sums, never business ROAS, never other MBs' rows.
+
+### useMediaBuyerEarnings (`src/hooks/useMediaBuyerEarnings.ts`) — month card
+Same (day,source) delivered-count attribution over month bounds, `selfMbId` narrows users fetch to self; commission_earned = delivered × commission_price (salary users: salary_amount flat); minus `mediabuyer_payments` rows for the month. Downloads month-widened orders again (3rd copy).
+**Server precedent already live**: `mb_month_earned(p_mb, p_business_id, p_month)` SECURITY DEFINER `TABLE(earned numeric, delivered int, spend numeric, campaigns int)` — implements the identical join `(o.date AT TIME ZONE 'Africa/Casablanca')::date = e.entry_date` + platform→source CASE map + `ps.is_delivered` + `coalesce(o.swap_only,false)=false` + deleted/review guards. D2 can generalize it to arbitrary [from,to] with a per-day breakdown array.
+
+---
+
+## 4. COURIER DASHBOARD (`src/pages/courier/Dashboard.tsx`) — half migrated
+
+- Already server-side: `['courier-dashboard-self-stats']` → **`courier_self_stats(p_courier, p_business)` → jsonb `{active_count, delivered_count, pending_earnings}`** (INVOKER, STABLE; finalized-note parcels; active = not delivered ∧ not terminal; pending_earnings = Σ delivered order shipping − Σ paid courier_payment_notes.total_shipping_fees, floored 0). Feeds 3 of 4 KPI tiles.
+- Remaining client downloads: ①`['courier-dashboard-parcels']` fetchAllRows `courier_parcels` with `courier_delivery_notes!inner(is_finalized=true)` + `package_statuses(...9 flags...)` + `orders(id,name,price,shipping_cost, master_cities(name))`, filters courier_id + biz → feeds: deliveredToday (is_delivered AND delivered_at same **browser-local** day), status-distribution (pkgChartGroup: delivered/refused/returned/cancelled/postponed|recheck/flow_rank 4=out_for_delivery/≥1=in_transit/0=new/other), recent 5 by updated_at??created_at, QR-scan match set, "Mes commandes N colis" count. ②`['courier-dashboard-payouts']` fetchAllRows `courier_payment_notes` `id, reference, total_shipping_fees, order_count, paid_at, created_at` status='paid' → lifetimePaid Σ total_shipping_fees, 6-month series by month(paid_at??created_at), payout count.
+- D2 targets: deliveredToday + chart_group counts + monthly-paid series + recent-5 are one aggregate away (extend courier_self_stats or add a companion `courier_self_dashboard`); QR match should become a targeted lookup by tracking code, not a roster download. Note existing partial index `courier_parcels(courier_id, delivered_at DESC) WHERE delivered_at IS NOT NULL` supports deliveredToday.
+
+## 5. OWNER — no orders analytics; out of scope for D2 (platform tables only).
+
+Adjacent but NOT dashboards (same full-download pattern, flag for later phases): `src/pages/seller/Statistics.tsx` (own orders + parcels + seller_daily_earnings `*` + payments + presences), `src/pages/mediabuyer/Statistics.tsx` (useMediaBuyerStats), `src/pages/admin/Analytics.tsx` sections.
+
+---
+
+## 6. DB-SIDE MAP (live box, verified)
+
+### 6.1 seller_daily_earnings — VIEW, `security_invoker=on` (relkind v)
+Columns: `id uuid (md5 synthetic), seller_id uuid, date date, salary_earned numeric (always 0), commission_earned numeric, delivered_count int, total_earned numeric, created_at timestamptz (max updated_at), "DigiCom Business" uuid`.
+Definition (exact): FROM orders o JOIN users u ON u.id=o.seller_id JOIN package_statuses ps ON ps.id=o.package_status_id LEFT JOIN LATERAL (per_unit ? sum_order_units_for_seller_products(o.id,o.seller_id) : 0) unit; WHERE `o.seller_id IS NOT NULL AND ps.is_delivered AND o.date_deleted IS NULL AND o.source_review_status IS DISTINCT FROM 'pending' AND coalesce(o.swap_only,false)=false`; GROUP BY seller, `date(coalesce(o.date_livraison, o.updated_at))`, biz; commission = per_unit ? price×units : price per order; delivered_count = units or 1.
+**Money semantics**: delivery-day–anchored accrued commission; per_unit gated on `sum_order_units_for_seller_products` (returns 0 for empty users.products); the payouts source of truth (pay via `pay_seller` RPC, never write seller_payments directly).
+**TZ caveat (verified)**: box `TimeZone = UTC` ⇒ `date(timestamptz)` buckets by **UTC day**, while client windows are browser-local and D4/D1 conventions are Casablanca (UTC+1). One-hour skew band: deliveries 23:00–24:00 UTC land on the "previous" day vs Casablanca. Any D2 RPC that reuses the view inherits UTC-day bucketing; a Casablanca-day parity delta must be either accepted (documented) or the view expression rewritten.
+**Perf**: no indexes (view); underlying scan rides orders(seller_id)/package_status_id indexes; prior LATERAL rewrite 210→79 ms; materialization BLOCKED (matview can't carry invoker RLS).
+
+### 6.2 Table schemas (dashboard-money-relevant columns)
+- `company_payment_notes`: id, provider_id (NOT NULL), reference, status, total_amount, total_shipping_fees, net_amount, order_count, paid_at, created_at, updated_at, "DigiCom Business". Dashboard tile = count + Σ net_amount over created_at window — rides **existing `idx_cpn_biz_keyset ("DigiCom Business", created_at DESC, id DESC)`**; also idx by provider/status + trgm reference.
+- `seller_payments` (rolling monthly ledger): id, seller_id, payout_month text, total_amount, delivered_orders, status, paid_at, created_at, "DigiCom Business", paid_amount NOT NULL, period_state NOT NULL, carried_in, month_earned, carried_out, closed_at, earned_frozen. Seller tile uses Σ paid_amount by seller (client currently omits biz filter; unique (seller_id, payout_month, biz)). Indexes: seller_id, biz.
+- `campaign_daily_entries`: id, campaign_id (nullable — orphan-safe), "DigiCom Business" NOT NULL, entry_date date NOT NULL, spend numeric NOT NULL, leads int NOT NULL, notes, created_at, updated_at, platform NOT NULL, created_by (nullable). Indexes: biz, campaign_id, created_by, entry_date, platform, unique (campaign_id, entry_date). MB spend/leads aggregates fully indexed (created_by + entry_date).
+
+### 6.3 D4 RPC precedents (pg_proc, all INVOKER/STABLE unless noted) — reuse, don't duplicate
+- `courier_self_stats(p_courier uuid, p_business uuid) → jsonb` — covers courier KPI tiles (body summarized §4).
+- `courier_roster_stats(p_business uuid) → TABLE(courier_id, total_orders, delivered, in_transit, returned, fees_sum, notes_paid_sum, notes_unpaid_sum, notes_count)` — admin roster page.
+- `ads_history_metrics(p_business uuid, p_created_by uuid=null, p_from date=null, p_to date=null) → jsonb` — **the closest template for D2's admin funnel semantics**: already encodes in SQL (i) tracked set = UNION of company_parcels/courier_parcels with non-blank tracking_code, (ii) `pending_flag` existence guard + `not_pending` (= isRateConfirmed), (iii) pullback = excluded_from_delivery_rate on either level, (iv) `replace is distinct from true`, (v) Casablanca window `o.date >= (start::timestamp AT TIME ZONE 'Africa/Casablanca') AND o.date < ((end+1)::timestamp AT TIME ZONE 'Africa/Casablanca')`, (vi) per-campaign delivered/cancelled(is_cancelled minus fake/double)/fake/confirmed/tracked/pullback counts + delivered-gated Σ price / Σ shipping.
+- `mb_month_earned(p_mb, p_business_id, p_month date)` **SECURITY DEFINER** `→ TABLE(earned, delivered, spend, campaigns)` — MB (entry_date × source) attribution with `(o.date AT TIME ZONE 'Africa/Casablanca')::date` and swap_only guard.
+- `sum_order_units_for_seller_products(p_order_id, p_seller_id) → bigint` — per_unit commission primitive (empty products ⇒ 0).
+- D1 already shipped: `orders_list_page(...23 params...) → jsonb` and `orders_kpis(...) → jsonb` — parameter-shape and Casablanca-boundary conventions to mirror.
+
+### 6.4 Window column & indexes
+- **Dashboards window on `orders.date` (placement)** for every cohort/count metric; seller cohort on `assignment_date ?? date`; revenue/commission bucket on `coalesce(date_livraison, updated_at)`; only the seller "Commandes du jour" tile and 1C's fallback use `created_at`.
+- `orders.date` is NOT created_at: **287/2,099 live rows (13.7%) have date(date) ≠ date(created_at)** (imports/backdating). `date` null count = 0 live; `created_at` null = 0; `date_livraison` set on 1,628/2,099.
+- Existing orders indexes: `idx_orders_biz_created_keyset (biz, created_at DESC, id DESC) WHERE date_deleted IS NULL` and `idx_orders_biz_seller_created (biz, seller_id, created_at DESC, id DESC)` (D1), plus single-col btrees on biz/seller_id/order_status_id/package_status_id/master_city_id/company_id/courier_id/created_at, trgm name/phone. **NO index covers (biz, date) or date_livraison** ⇒ the keyset index does NOT serve D2's date-windowed scans. Recommendation: `create index idx_orders_biz_date on public.orders ("DigiCom Business", date) where date_deleted is null;` and evaluate (biz, date_livraison) — or `(biz, coalesce(date_livraison, updated_at))` expression — only if EXPLAIN shows need. Scale today is small (biz max 1,787 live orders; total 2,099), so correctness/parity matters more than plan shape, but the index future-proofs per D1 discipline.
+- Per-business live orders: 77f59ea5… = 1,787; c88e9cd0… = 302; 88ec398a… = 10.
+
+### 6.5 order_items join cardinality (product-performance aggregates)
+- 5,783 rows / 2,104 distinct order_id = **2.75 lines/order avg; every order has ≥1 line** (distinct order_ids == orders count). Indexes: order_id, product_id, accessory_id, "DigiCom Business". A per-product aggregate should GROUP BY oi.product_id over a windowed orders join (≈2.75× fanout) — no jsonb_agg of lines needed for stats; snapshot-cost columns (product_unit_cost_snapshot, accessory_unit_price) live on the line, so COGS is computable without products join except for the missing-snapshot fallback (products.cost_price / accessories.cost_price).
+
+---
+
+## 7. Design-relevant deltas & traps for the D2 implementer
+
+1. **Timezone**: admin/seller widgets window in browser-local time; MB + all server precedents use Casablanca; seller_daily_earnings buckets UTC-day (box TimeZone=UTC). Adopting the D4 Casablanca convention in D2 RPCs is a (small, accepted-and-documented) parity delta vs today's browser-local numbers, and a 1-hour band delta vs the view.
+2. **Null-`date` rules differ per widget**: 1A drops nulls always; 1C/1D pass nulls always; 1E/1H pass nulls only in All-Time; 1G drops nulls always. RPC per-widget parity must replicate or document one rule.
+3. **`replace` vs `swap_only`**: client revenue/commission excludes `replace=true`; server money paths (view, mb_month_earned, ads_history_metrics) gate `swap_only=false` / `replace is distinct from true` respectively. City delivered counts and KPI totals KEEP replace legs. Pick per-metric semantics explicitly.
+4. **Cancelled bucket** = flag `is_cancelled` (merged incl fake/double/blacklisted rows carrying the flag) — not the facade's narrower 'cancelled' category.
+5. **Per-unit commission asymmetry**: products-performance widget treats empty seller.products as "all allowed"; seller-side/DB treat it as 0. Replicate as-is for parity or unify (flag to owner).
+6. **Ads attribution differs between 1F (start_date-in-window, full amount) and 1G (day-overlap pro-rating)** — both feed "adsShare"; keep both or unify deliberately.
+7. **Commission source of truth** = seller_daily_earnings; D2 seller/sellers RPCs should aggregate the view (windowed on its `date`) and may also return the client-formula value for the existing drift indicator.
+8. **Seller scoping is the security boundary** (orders RLS SELECT is business-wide): validate `p_seller = (select auth.uid())` or admin, per D1; return biz-wide denominators as scalars.
+9. **MB rule**: MB RPC output limited to own spend/leads/confirmed/delivered per day/campaign + own commission fields — no order money columns, no business ROAS, no peers.
+10. **Click-throughs**: KPI cards navigate with full status-id arrays — keep useStatusCategories client-side for navigation payloads; the stats RPC doesn't need to return them (or return the id lists per bucket to drop that dependency).
+11. **Refetch expectations**: default QueryClient means focus-refetch everywhere; 1F/self-perf orders add refetchOnMount 'always'. After D2, keep the same query-key + invalidation discipline (EcomBizRealtime `ecom:biz:<biz>` seam is the invalidation bus to ride — do NOT add postgres_changes).
+12. Latent client bugs worth fixing by the RPC move: 1A payment-notes select unpaginated (1000 cap); seller Dashboard seller_payments select missing biz filter; MB dashboard downloads orders 3× (range + all-time + month).
