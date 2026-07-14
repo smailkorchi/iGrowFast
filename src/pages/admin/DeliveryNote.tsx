@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
+import { NotesFilterBar, type FilterOption } from '@/components/notes/NotesFilterBar';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
+
+const NOTE_PAGE_SIZE = 50;
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import {
     FileText,
@@ -88,7 +91,13 @@ const DeliveryNote = () => {
     const [selectedNote, setSelectedNote] = useState<any>(null);
     const [noteDetails, setNoteDetails] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [providerFilter, setProviderFilter] = useState<string>("all");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'finalized'>('all');
+    const [entityFilter, setEntityFilter] = useState<string>('all');
+    const [createdByFilter, setCreatedByFilter] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [page, setPage] = useState(1);
 
     // Tracking States
     const [trackingHistory, setTrackingHistory] = useState<any>(null);
@@ -101,6 +110,19 @@ const DeliveryNote = () => {
     const [isReopening, setIsReopening] = useState(false);
     const [removingParcelId, setRemovingParcelId] = useState<string | null>(null);
     const [parcelPendingRemove, setParcelPendingRemove] = useState<{ id: string } | null>(null);
+
+    // Debounce the universal search box (name / phone / tracking / reference).
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+    // Any view change resets pagination to the first window.
+    useEffect(() => { setPage(1); }, [activeTab, debouncedSearch, statusFilter, entityFilter, createdByFilter, dateFrom, dateTo]);
+    // Filters are per-channel; clear them when switching Company <-> Courier.
+    useEffect(() => {
+        setStatusFilter('all'); setEntityFilter('all'); setCreatedByFilter('all');
+        setDateFrom(''); setDateTo(''); setSearchQuery('');
+    }, [activeTab]);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
@@ -878,52 +900,115 @@ const DeliveryNote = () => {
         fetchNoteDetails();
     }, [selectedNote, isViewModalOpen]);
 
-    // Fetch company delivery notes
-    const { data: companyNotes, isLoading: loadingCompany } = useQuery({
-        queryKey: ['company-delivery-notes', activeBusinessId],
+    // Option sources for the filter bar (providers + business users).
+    const { data: providerOptions } = useQuery({
+        queryKey: ['dn-provider-options', activeBusinessId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('company_delivery_notes')
-                .select(`
-                    *,
-                    providers:provider_id (
-                        id,
-                        name,
-                        provider_type,
-                        logo_url,
-                        business_name,
-                        color
-                    ),
-                    creator:users!company_delivery_notes_created_by_fkey(name, avatar_url, avatar_config, role)
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
+            if (!activeBusinessId) return [] as any[];
+            const { data } = await supabase.from('providers').select('id, name')
+                .eq('DigiCom Business', activeBusinessId).order('name');
             return data || [];
-        }
+        },
+        enabled: !!activeBusinessId,
+    });
+    const { data: businessUsers } = useQuery({
+        queryKey: ['dn-user-options', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [] as any[];
+            const { data } = await supabase.from('users').select('id, name, role')
+                .eq('DigiCom Business', activeBusinessId).order('name');
+            return data || [];
+        },
+        enabled: !!activeBusinessId,
     });
 
-    // Fetch courier delivery notes
-    const { data: courierNotes, isLoading: loadingCourier } = useQuery({
-        queryKey: ['courier-delivery-notes', activeBusinessId],
+    // Channel-total badges (unfiltered, cheap head counts).
+    const { data: companyTotalCount = 0 } = useQuery({
+        queryKey: ['company-delivery-notes', 'count', activeBusinessId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_delivery_notes')
-                .select(`
-                    *,
-                    courier:users!courier_delivery_notes_courier_id_fkey(id, name, avatar_url, phone),
-                    creator:users!courier_delivery_notes_created_by_fkey(id, name, avatar_url, avatar_config, role)
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            return data || [];
-        }
+            if (!activeBusinessId) return 0;
+            const { count } = await supabase.from('company_delivery_notes')
+                .select('id', { count: 'exact', head: true }).eq('DigiCom Business', activeBusinessId);
+            return count || 0;
+        },
+        enabled: !!activeBusinessId,
     });
+    const { data: courierTotalCount = 0 } = useQuery({
+        queryKey: ['courier-delivery-notes', 'count', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return 0;
+            const { count } = await (supabase as any).from('courier_delivery_notes')
+                .select('id', { count: 'exact', head: true }).eq('DigiCom Business', activeBusinessId);
+            return count || 0;
+        },
+        enabled: !!activeBusinessId,
+    });
+
+    // Active channel: server-side filtered + searched + paginated list (+ filtered totals).
+    const noteTable = activeTab === 'company' ? 'company_delivery_notes' : 'courier_delivery_notes';
+    const entityCol = activeTab === 'company' ? 'provider_id' : 'courier_id';
+    const searchRpc = activeTab === 'company' ? 'search_company_delivery_note_ids' : 'search_courier_delivery_note_ids';
+    const selectClause = activeTab === 'company'
+        ? `*, providers:provider_id (id, name, provider_type, logo_url, business_name, color), creator:users!company_delivery_notes_created_by_fkey(name, avatar_url, avatar_config, role)`
+        : `*, courier:users!courier_delivery_notes_courier_id_fkey(id, name, avatar_url, phone), creator:users!courier_delivery_notes_created_by_fkey(id, name, avatar_url, avatar_config, role)`;
+
+    const { data: activeNotesData, isLoading: activeLoading } = useQuery({
+        queryKey: [activeTab === 'company' ? 'company-delivery-notes' : 'courier-delivery-notes', 'list', activeBusinessId, statusFilter, entityFilter, createdByFilter, dateFrom, dateTo, debouncedSearch, page],
+        queryFn: async () => {
+            if (!activeBusinessId) return { rows: [] as any[], total: 0, drafts: 0 };
+            const term = debouncedSearch.trim();
+            let ids: string[] | null = null;
+            if (term.length >= 2) {
+                const { data: idRows, error: idErr } = await (supabase as any).rpc(searchRpc, { p_term: term });
+                if (idErr) throw idErr;
+                ids = (idRows || []).map((r: any) => (typeof r === 'string' ? r : Object.values(r)[0])) as string[];
+                if (ids.length === 0) return { rows: [], total: 0, drafts: 0 };
+            }
+            const applyFilters = (q: any) => {
+                q = q.eq('DigiCom Business', activeBusinessId);
+                if (statusFilter === 'draft') q = q.eq('is_finalized', false);
+                else if (statusFilter === 'finalized') q = q.eq('is_finalized', true);
+                if (entityFilter !== 'all') q = q.eq(entityCol, entityFilter);
+                if (createdByFilter !== 'all') q = q.eq('created_by', createdByFilter);
+                if (dateFrom) q = q.gte('created_at', dateFrom);
+                if (dateTo) { const d = new Date(dateTo); d.setDate(d.getDate() + 1); q = q.lt('created_at', d.toISOString().slice(0, 10)); }
+                if (ids) q = q.in('id', ids);
+                return q;
+            };
+            const dataQ = applyFilters((supabase as any).from(noteTable).select(selectClause))
+                .order('created_at', { ascending: false }).range(0, page * NOTE_PAGE_SIZE - 1);
+            const totalQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true }));
+            const draftsQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true })).eq('is_finalized', false);
+            const [dataRes, totalRes, draftsRes] = await Promise.all([dataQ, totalQ, draftsQ]);
+            if (dataRes.error) throw dataRes.error;
+            return { rows: dataRes.data || [], total: totalRes.count || 0, drafts: draftsRes.count || 0 };
+        },
+        enabled: !!activeBusinessId,
+    });
+    const activeNotes = activeNotesData?.rows || [];
+    const activeTotalFiltered = activeNotesData?.total || 0;
+    const activeDrafts = activeNotesData?.drafts || 0;
+    const hasMore = activeNotes.length < activeTotalFiltered;
+
+    // Filter-bar option lists.
+    const statusOptions: FilterOption[] = [
+        { value: 'all', label: 'All status' },
+        { value: 'draft', label: 'Drafts' },
+        { value: 'finalized', label: 'Finalized' },
+    ];
+    const entityOptions: FilterOption[] = activeTab === 'company'
+        ? [{ value: 'all', label: 'All providers' }, ...((providerOptions || []).map((p: any) => ({ value: p.id, label: p.name || '—' })))]
+        : [{ value: 'all', label: 'All couriers' }, ...((businessUsers || []).filter((u: any) => u.role === 'courier').map((u: any) => ({ value: u.id, label: u.name || '—' })))];
+    const createdByOptions: FilterOption[] = [
+        { value: 'all', label: 'All creators' },
+        ...((businessUsers || []).map((u: any) => ({ value: u.id, label: u.name || '—' }))),
+    ];
+    const filtersActive = debouncedSearch.trim().length >= 2 || statusFilter !== 'all' || entityFilter !== 'all' || createdByFilter !== 'all' || !!dateFrom || !!dateTo;
+    const activeFilterCount = [statusFilter !== 'all', entityFilter !== 'all', createdByFilter !== 'all', !!dateFrom || !!dateTo].filter(Boolean).length;
+    const resetFilters = () => {
+        setStatusFilter('all'); setEntityFilter('all'); setCreatedByFilter('all');
+        setDateFrom(''); setDateTo(''); setSearchQuery('');
+    };
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -1302,14 +1387,10 @@ const DeliveryNote = () => {
         </div>
     );
 
-    const totalCompany = companyNotes?.length || 0;
-    const totalCourier = courierNotes?.length || 0;
-    const openCompany = (companyNotes || []).filter((n: any) => !n.is_finalized).length;
-    const openCourier = (courierNotes || []).filter((n: any) => !n.is_finalized).length;
-    const activeList = activeTab === 'company' ? companyNotes : courierNotes;
-    const activeLoading = activeTab === 'company' ? loadingCompany : loadingCourier;
-    const activeOpen = activeTab === 'company' ? openCompany : openCourier;
-    const activeTotal = activeTab === 'company' ? totalCompany : totalCourier;
+    const totalCompany = companyTotalCount;
+    const totalCourier = courierTotalCount;
+    const activeOpen = activeDrafts;
+    const activeTotal = activeTotalFiltered;
 
     return (
         <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
@@ -1328,15 +1409,6 @@ const DeliveryNote = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <div className="relative w-full sm:w-[280px]">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
-                        <Input
-                            placeholder="Search reference or provider…"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
-                        />
-                    </div>
                     <Button
                         onClick={() => {
                             if (activeTab === 'courier') setIsCourierWizardOpen(true);
@@ -1413,41 +1485,88 @@ const DeliveryNote = () => {
                     </div>
                 </div>
 
-                <TabsContent value="company" className="mt-0">
-                    {activeLoading && activeList === companyNotes ? (
+                <NotesFilterBar
+                    search={searchQuery}
+                    onSearch={setSearchQuery}
+                    status={{ value: statusFilter, onChange: (v) => setStatusFilter(v as any), options: statusOptions, placeholder: 'Status' }}
+                    entity={{ value: entityFilter, onChange: setEntityFilter, options: entityOptions, placeholder: activeTab === 'company' ? 'Provider' : 'Courier' }}
+                    createdBy={{ value: createdByFilter, onChange: setCreatedByFilter, options: createdByOptions, placeholder: 'Created by' }}
+                    date={{ from: dateFrom, to: dateTo, onChange: (f, t) => { setDateFrom(f); setDateTo(t); } }}
+                    activeCount={activeFilterCount}
+                    onReset={resetFilters}
+                />
+
+                <TabsContent value="company" className="mt-0 space-y-3">
+                    {activeLoading ? (
                         <DeliveryListSkeleton />
-                    ) : !companyNotes || companyNotes.length === 0 ? (
-                        <EmptyDeliveryState
-                            kind="company"
-                            onAction={() => setIsWizardOpen(true)}
-                        />
-                    ) : (
-                        viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                {companyNotes.map((note) => renderNoteCard(note, 'company'))}
+                    ) : activeNotes.length === 0 ? (
+                        filtersActive ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                                <div className="w-12 h-12 rounded-2xl bg-ant-paper border border-ant-line flex items-center justify-center mb-3">
+                                    <SearchX className="w-5 h-5 text-ant-mid" />
+                                </div>
+                                <p className="text-[13px] font-medium text-ant-ink">No notes match your search</p>
+                                <p className="text-[12px] text-ant-muted mt-0.5">Try a different name, phone, tracking or reference.</p>
+                                <Button variant="ghost" onClick={resetFilters} className="mt-3 h-8 px-4 rounded-full text-[12px] text-ant-mid hover:text-ant-ink">Clear filters</Button>
                             </div>
                         ) : (
-                            renderNoteTable(companyNotes, 'company')
+                            <EmptyDeliveryState kind="company" onAction={() => setIsWizardOpen(true)} />
                         )
+                    ) : (
+                        <>
+                            {viewMode === 'grid' ? (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                    {activeNotes.map((note: any) => renderNoteCard(note, 'company'))}
+                                </div>
+                            ) : (
+                                renderNoteTable(activeNotes, 'company')
+                            )}
+                            {hasMore && (
+                                <div className="flex justify-center pt-1">
+                                    <Button variant="outline" onClick={() => setPage((p) => p + 1)}
+                                        className="h-9 px-5 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink gap-2">
+                                        Load more <span className="text-ant-mid tabular-nums">({activeNotes.length}/{activeTotalFiltered})</span>
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </TabsContent>
 
-                <TabsContent value="courier" className="mt-0">
-                    {loadingCourier ? (
+                <TabsContent value="courier" className="mt-0 space-y-3">
+                    {activeLoading ? (
                         <DeliveryListSkeleton />
-                    ) : !courierNotes || courierNotes.length === 0 ? (
-                        <EmptyDeliveryState
-                            kind="courier"
-                            onAction={() => setIsCourierWizardOpen(true)}
-                        />
-                    ) : (
-                        viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                {courierNotes.map((note) => renderNoteCard(note, 'courier'))}
+                    ) : activeNotes.length === 0 ? (
+                        filtersActive ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                                <div className="w-12 h-12 rounded-2xl bg-ant-paper border border-ant-line flex items-center justify-center mb-3">
+                                    <SearchX className="w-5 h-5 text-ant-mid" />
+                                </div>
+                                <p className="text-[13px] font-medium text-ant-ink">No notes match your search</p>
+                                <p className="text-[12px] text-ant-muted mt-0.5">Try a different name, phone, tracking or reference.</p>
+                                <Button variant="ghost" onClick={resetFilters} className="mt-3 h-8 px-4 rounded-full text-[12px] text-ant-mid hover:text-ant-ink">Clear filters</Button>
                             </div>
                         ) : (
-                            renderNoteTable(courierNotes, 'courier')
+                            <EmptyDeliveryState kind="courier" onAction={() => setIsCourierWizardOpen(true)} />
                         )
+                    ) : (
+                        <>
+                            {viewMode === 'grid' ? (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                    {activeNotes.map((note: any) => renderNoteCard(note, 'courier'))}
+                                </div>
+                            ) : (
+                                renderNoteTable(activeNotes, 'courier')
+                            )}
+                            {hasMore && (
+                                <div className="flex justify-center pt-1">
+                                    <Button variant="outline" onClick={() => setPage((p) => p + 1)}
+                                        className="h-9 px-5 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink gap-2">
+                                        Load more <span className="text-ant-mid tabular-nums">({activeNotes.length}/{activeTotalFiltered})</span>
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </TabsContent>
             </Tabs>

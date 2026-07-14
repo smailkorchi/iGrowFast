@@ -1,6 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { NotesFilterBar, type FilterOption } from '@/components/notes/NotesFilterBar';
+
+const NOTE_PAGE_SIZE = 50;
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import {
@@ -79,12 +82,32 @@ const Payments = () => {
     const [isViewNoteOpen, setIsViewNoteOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<PaymentNote | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'unpaid' | 'paid'>('all');
+    const [entityFilter, setEntityFilter] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [amountMin, setAmountMin] = useState('');
+    const [amountMax, setAmountMax] = useState('');
+    const [page, setPage] = useState(1);
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+
+    // Debounce the universal search box (client name / phone / tracking / reference / provider|courier name).
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+    // Any view change resets pagination to the first window.
+    useEffect(() => { setPage(1); }, [activeTab, debouncedSearch, filterStatus, entityFilter, dateFrom, dateTo, amountMin, amountMax]);
+    // Filters are per-channel; clear them when switching Companies <-> Couriers.
+    useEffect(() => {
+        setFilterStatus('all'); setEntityFilter('all');
+        setDateFrom(''); setDateTo(''); setAmountMin(''); setAmountMax(''); setSearchQuery('');
+    }, [activeTab]);
 
     // ─── Fetch unpaid+livré orders (exclude those already linked to a payment note, company or courier) ───
     const { data: unpaidOrders, isLoading: isLoadingUnpaid } = useQuery({
@@ -197,30 +220,103 @@ const Payments = () => {
         return o.master_city_id && targetId ? (feeMap.get(targetId)?.get(o.master_city_id) ?? 0) : 0;
     }, [courierFeeMap, companyFeeMap]);
 
-    // ─── Fetch payment notes (company + courier) ───
-    const { data: paymentNotes, isLoading: isLoadingNotes } = useQuery({
-        queryKey: ['payment-notes', activeBusinessId],
+    // ─── Option sources for the filter bar (providers + business users) ───
+    const { data: providerOptions } = useQuery({
+        queryKey: ['pay-provider-options', activeBusinessId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const [companyRes, courierRes] = await Promise.all([
-                (supabase as any)
-                    .from('company_payment_notes')
-                    .select(`*, provider:providers(id, name, provider_type, logo_url), line_items:company_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
-                    .eq('DigiCom Business', activeBusinessId)
-                    .order('created_at', { ascending: false }),
-                (supabase as any)
-                    .from('courier_payment_notes')
-                    .select(`*, courier:users!courier_payment_notes_courier_id_fkey(id, name, avatar_url, avatar_config), line_items:courier_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
-                    .eq('DigiCom Business', activeBusinessId)
-                    .order('created_at', { ascending: false }),
-            ]);
-            if (companyRes.error) throw companyRes.error;
-            if (courierRes.error) throw courierRes.error;
-            const companyNotes = (companyRes.data || []).map((n: any) => ({ ...n, kind: 'company' as const }));
-            const courierNotes = (courierRes.data || []).map((n: any) => ({ ...n, kind: 'courier' as const, provider: null }));
-            return [...companyNotes, ...courierNotes] as PaymentNote[];
+            if (!activeBusinessId) return [] as any[];
+            const { data } = await supabase.from('providers').select('id, name')
+                .eq('DigiCom Business', activeBusinessId).order('name');
+            return data || [];
         },
+        enabled: !!activeBusinessId,
     });
+    const { data: businessUsers } = useQuery({
+        queryKey: ['pay-user-options', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [] as any[];
+            const { data } = await supabase.from('users').select('id, name, role')
+                .eq('DigiCom Business', activeBusinessId).order('name');
+            return data || [];
+        },
+        enabled: !!activeBusinessId,
+    });
+
+    // ─── Channel-total badges (unfiltered, cheap head counts) ───
+    const { data: companyTotalCount = 0 } = useQuery({
+        queryKey: ['payment-notes', 'count', 'company', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return 0;
+            const { count } = await (supabase as any).from('company_payment_notes')
+                .select('id', { count: 'exact', head: true }).eq('DigiCom Business', activeBusinessId);
+            return count || 0;
+        },
+        enabled: !!activeBusinessId,
+    });
+    const { data: courierTotalCount = 0 } = useQuery({
+        queryKey: ['payment-notes', 'count', 'courier', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return 0;
+            const { count } = await (supabase as any).from('courier_payment_notes')
+                .select('id', { count: 'exact', head: true }).eq('DigiCom Business', activeBusinessId);
+            return count || 0;
+        },
+        enabled: !!activeBusinessId,
+    });
+
+    // ─── Active channel: server-side filtered + searched + paginated notes (+ filtered totals & pending sum) ───
+    const noteTable = activeTab === 'company' ? 'company_payment_notes' : 'courier_payment_notes';
+    const entityCol = activeTab === 'company' ? 'provider_id' : 'courier_id';
+    const searchRpc = activeTab === 'company' ? 'search_company_payment_note_ids' : 'search_courier_payment_note_ids';
+    const selectClause = activeTab === 'company'
+        ? `*, provider:providers(id, name, provider_type, logo_url), line_items:company_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`
+        : `*, courier:users!courier_payment_notes_courier_id_fkey(id, name, avatar_url, avatar_config), line_items:courier_payment_note_orders(id, order_id, tracking_code, amount, shipping_fee)`;
+
+    const { data: activeNotesData, isLoading: isLoadingNotes } = useQuery({
+        queryKey: ['payment-notes', 'list', activeTab, activeBusinessId, filterStatus, entityFilter, dateFrom, dateTo, amountMin, amountMax, debouncedSearch, page],
+        queryFn: async () => {
+            if (!activeBusinessId) return { rows: [] as PaymentNote[], total: 0, unpaid: 0, pendingAmount: 0 };
+            const term = debouncedSearch.trim();
+            let ids: string[] | null = null;
+            if (term.length >= 2) {
+                const { data: idRows, error: idErr } = await (supabase as any).rpc(searchRpc, { p_term: term });
+                if (idErr) throw idErr;
+                ids = (idRows || []).map((r: any) => (typeof r === 'string' ? r : Object.values(r)[0])) as string[];
+                if (ids.length === 0) return { rows: [], total: 0, unpaid: 0, pendingAmount: 0 };
+            }
+            const applyFilters = (q: any) => {
+                q = q.eq('DigiCom Business', activeBusinessId);
+                if (filterStatus !== 'all') q = q.eq('status', filterStatus);
+                if (entityFilter !== 'all') q = q.eq(entityCol, entityFilter);
+                if (dateFrom) q = q.gte('created_at', dateFrom);
+                if (dateTo) { const d = new Date(dateTo); d.setDate(d.getDate() + 1); q = q.lt('created_at', d.toISOString().slice(0, 10)); }
+                if (amountMin) q = q.gte('total_amount', Number(amountMin));
+                if (amountMax) q = q.lte('total_amount', Number(amountMax));
+                if (ids) q = q.in('id', ids);
+                return q;
+            };
+            const dataQ = applyFilters((supabase as any).from(noteTable).select(selectClause))
+                .order('created_at', { ascending: false }).range(0, page * NOTE_PAGE_SIZE - 1);
+            const totalQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true }));
+            const unpaidQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true })).eq('status', 'unpaid');
+            const pendingSumQ = applyFilters((supabase as any).from(noteTable).select('net_amount')).eq('status', 'unpaid');
+            const [dataRes, totalRes, unpaidRes, sumRes] = await Promise.all([dataQ, totalQ, unpaidQ, pendingSumQ]);
+            if (dataRes.error) throw dataRes.error;
+            const rows = (dataRes.data || []).map((n: any) => ({
+                ...n,
+                kind: activeTab,
+                ...(activeTab === 'courier' ? { provider: null } : {}),
+            })) as PaymentNote[];
+            const pendingAmount = (sumRes.data || []).reduce((s: number, r: any) => s + Number(r.net_amount || 0), 0);
+            return { rows, total: totalRes.count || 0, unpaid: unpaidRes.count || 0, pendingAmount };
+        },
+        enabled: !!activeBusinessId,
+    });
+    const activeNotes = (activeNotesData?.rows || []) as PaymentNote[];
+    const activeTotalFiltered = activeNotesData?.total || 0;
+    const activeUnpaidFiltered = activeNotesData?.unpaid || 0;
+    const activePendingAmount = activeNotesData?.pendingAmount || 0;
+    const hasMore = activeNotes.length < activeTotalFiltered;
 
     // ─── Group unpaid orders by kind ───
     const { companyGroups, courierGroups } = useMemo(() => {
@@ -417,40 +513,33 @@ const Payments = () => {
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
 
-    const notesForActiveTab = useMemo(() => {
-        return (paymentNotes || []).filter((n: PaymentNote) => n.kind === activeTab);
-    }, [paymentNotes, activeTab]);
-
-    const filteredNotes = useMemo(() => {
-        return notesForActiveTab.filter((n: PaymentNote) => {
-            if (filterStatus !== 'all' && n.status !== filterStatus) return false;
-            if (searchQuery) {
-                const q = searchQuery.toLowerCase();
-                return (
-                    n.reference.toLowerCase().includes(q) ||
-                    (n.provider?.name || '').toLowerCase().includes(q) ||
-                    (n.courier?.name || '').toLowerCase().includes(q)
-                );
-            }
-            return true;
-        });
-    }, [notesForActiveTab, filterStatus, searchQuery]);
-
     const stats = useMemo(() => {
-        const notes = notesForActiveTab;
-        const unpaidNotes = notes.filter((n: PaymentNote) => n.status === 'unpaid');
-        const paidNotes = notes.filter((n: PaymentNote) => n.status === 'paid');
         const activeUnpaidCount = activeTab === 'courier'
             ? courierGroups.reduce((s, g) => s + g.orders.length, 0)
             : companyGroups.reduce((s, g) => s + g.orders.length, 0);
         return {
             totalUnpaidOrders: activeUnpaidCount,
-            pendingNotes: unpaidNotes.length,
-            paidNotes: paidNotes.length,
-            pendingAmount: unpaidNotes.reduce((s: number, n: PaymentNote) => s + Number(n.net_amount), 0),
-            paidAmount: paidNotes.reduce((s: number, n: PaymentNote) => s + Number(n.net_amount), 0),
+            pendingNotes: activeUnpaidFiltered,
+            paidNotes: Math.max(0, activeTotalFiltered - activeUnpaidFiltered),
+            pendingAmount: activePendingAmount,
         };
-    }, [notesForActiveTab, companyGroups, courierGroups, activeTab]);
+    }, [companyGroups, courierGroups, activeTab, activeUnpaidFiltered, activeTotalFiltered, activePendingAmount]);
+
+    // ─── Filter-bar option lists ───
+    const statusOptions: FilterOption[] = [
+        { value: 'all', label: 'All status' },
+        { value: 'unpaid', label: 'Unpaid' },
+        { value: 'paid', label: 'Paid' },
+    ];
+    const entityOptions: FilterOption[] = activeTab === 'company'
+        ? [{ value: 'all', label: 'All providers' }, ...((providerOptions || []).map((p: any) => ({ value: p.id, label: p.name || '—' })))]
+        : [{ value: 'all', label: 'All couriers' }, ...((businessUsers || []).filter((u: any) => u.role === 'courier').map((u: any) => ({ value: u.id, label: u.name || '—' })))];
+    const filtersActive = debouncedSearch.trim().length >= 2 || filterStatus !== 'all' || entityFilter !== 'all' || !!dateFrom || !!dateTo || !!amountMin || !!amountMax;
+    const activeFilterCount = [filterStatus !== 'all', entityFilter !== 'all', !!dateFrom || !!dateTo, !!amountMin || !!amountMax].filter(Boolean).length;
+    const resetFilters = () => {
+        setFilterStatus('all'); setEntityFilter('all');
+        setDateFrom(''); setDateTo(''); setAmountMin(''); setAmountMax(''); setSearchQuery('');
+    };
 
     const toggleExpand = (id: string) => setExpandedCards(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -676,8 +765,8 @@ const Payments = () => {
         w.document.close();
     };
 
-    const companyCount = (paymentNotes || []).filter((n: PaymentNote) => n.kind === 'company').length;
-    const courierCount = (paymentNotes || []).filter((n: PaymentNote) => n.kind === 'courier').length;
+    const companyCount = companyTotalCount;
+    const courierCount = courierTotalCount;
 
     return (
         <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
@@ -734,7 +823,7 @@ const Payments = () => {
                 ))}
             </div>
 
-            {/* Tabs + filters toolbar */}
+            {/* Tabs + filter bar */}
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'company' | 'courier'); setSelectedTarget(null); }}>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -754,65 +843,64 @@ const Payments = () => {
                                 <span className="text-[10px] tabular-nums opacity-70">{courierCount}</span>
                             </TabsTrigger>
                         </TabsList>
-
-                        <div className="flex gap-1 items-center rounded-full border border-ant-line bg-ant-paper p-0.5">
-                            {(['all', 'unpaid', 'paid'] as const).map((s) => (
-                                <button
-                                    key={s}
-                                    onClick={() => setFilterStatus(s)}
-                                    className={cn(
-                                        'px-3.5 h-8 rounded-full text-[11px] font-medium transition',
-                                        filterStatus === s
-                                            ? s === 'paid'
-                                                ? 'bg-ant-green text-white'
-                                                : s === 'unpaid'
-                                                    ? 'bg-ant-orange text-white'
-                                                    : 'bg-ant-ink text-ant-light'
-                                            : 'text-ant-muted hover:text-ant-ink',
-                                    )}
-                                >
-                                    {s === 'all' ? 'All' : s === 'unpaid' ? 'Unpaid' : 'Paid'}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="relative w-full sm:w-[280px]">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
-                        <Input
-                            placeholder={activeTab === 'courier' ? 'Search reference or courier…' : 'Search reference or provider…'}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
-                        />
                     </div>
                 </div>
             </Tabs>
 
+            <NotesFilterBar
+                search={searchQuery}
+                onSearch={setSearchQuery}
+                status={{ value: filterStatus, onChange: (v) => setFilterStatus(v as any), options: statusOptions, placeholder: 'Status' }}
+                entity={{ value: entityFilter, onChange: setEntityFilter, options: entityOptions, placeholder: activeTab === 'company' ? 'Provider' : 'Courier' }}
+                date={{ from: dateFrom, to: dateTo, onChange: (f, t) => { setDateFrom(f); setDateTo(t); } }}
+                amount={{ min: amountMin, max: amountMax, onChange: (mn, mx) => { setAmountMin(mn); setAmountMax(mx); } }}
+                activeCount={activeFilterCount}
+                onReset={resetFilters}
+            />
+
             {/* Payment Notes List */}
             {isLoading ? (
                 <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl bg-ant-line-soft" />)}</div>
-            ) : filteredNotes.length === 0 ? (
-                <div className="rounded-2xl border border-ant-line bg-ant-paper px-6 py-14 text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-4">
-                        <DollarSign className="w-5 h-5 text-ant-orange" strokeWidth={1.5} />
+            ) : activeNotes.length === 0 ? (
+                filtersActive ? (
+                    <div className="rounded-2xl border border-ant-line bg-ant-paper px-6 py-14 text-center">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-paper border border-ant-line mb-4">
+                            <SearchX className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
+                        </div>
+                        <h3 className="font-display text-[18px] font-semibold text-ant-ink tracking-tight">No matches</h3>
+                        <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-5 max-w-md mx-auto">
+                            Try a different name, phone, tracking, reference, status or date range.
+                        </p>
+                        <Button
+                            variant="ghost"
+                            onClick={resetFilters}
+                            className="h-9 px-4 rounded-full text-[12px] text-ant-mid hover:text-ant-ink"
+                        >
+                            Clear filters
+                        </Button>
                     </div>
-                    <h3 className="font-display text-[18px] font-semibold text-ant-ink tracking-tight">No payment notes</h3>
-                    <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-5 max-w-md mx-auto">
-                        Bundle unpaid delivered orders into a reconciled payment note for your {activeTab === 'courier' ? 'courier' : 'provider'}.
-                    </p>
-                    <Button
-                        disabled={!activeGroups.length}
-                        onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedTarget(null); }}
-                        className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium gap-2 disabled:opacity-50"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                        Generate the first note
-                    </Button>
-                </div>
+                ) : (
+                    <div className="rounded-2xl border border-ant-line bg-ant-paper px-6 py-14 text-center">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-4">
+                            <DollarSign className="w-5 h-5 text-ant-orange" strokeWidth={1.5} />
+                        </div>
+                        <h3 className="font-display text-[18px] font-semibold text-ant-ink tracking-tight">No payment notes</h3>
+                        <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-5 max-w-md mx-auto">
+                            Bundle unpaid delivered orders into a reconciled payment note for your {activeTab === 'courier' ? 'courier' : 'provider'}.
+                        </p>
+                        <Button
+                            disabled={!activeGroups.length}
+                            onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedTarget(null); }}
+                            className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium gap-2 disabled:opacity-50"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Generate the first note
+                        </Button>
+                    </div>
+                )
             ) : (
                 <div className="space-y-3">
-                    {filteredNotes.map((note: PaymentNote) => {
+                    {activeNotes.map((note: PaymentNote) => {
                         const isExpanded = expandedCards.has(note.id);
                         const isPaid = note.status === 'paid';
                         const targetName = note.kind === 'courier' ? (note.courier?.name || '??') : (note.provider?.name || '??');
@@ -965,6 +1053,17 @@ const Payments = () => {
                             </Card>
                         );
                     })}
+                    {hasMore && (
+                        <div className="flex justify-center pt-1">
+                            <Button
+                                variant="outline"
+                                onClick={() => setPage((p) => p + 1)}
+                                className="h-9 px-5 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink gap-2"
+                            >
+                                Load more <span className="text-ant-mid tabular-nums">({activeNotes.length}/{activeTotalFiltered})</span>
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
 

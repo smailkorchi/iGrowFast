@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
@@ -25,6 +25,9 @@ import { format } from 'date-fns';
 import { pickShippedCompanyTrackingCode, pickShippedCourierTrackingCode } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { sendCourierReturnNoteEmail } from '@/lib/sendPayoutStatement';
 import { resolveProviderLogo } from '@/lib/providerLogos';
+import { NotesFilterBar, type FilterOption } from '@/components/notes/NotesFilterBar';
+
+const NOTE_PAGE_SIZE = 50;
 
 // Package status "Retourné"
 const RETOURNE_PACKAGE_STATUS_ID = 'c98d2ec2-94aa-4bfd-bc27-cdf93d46f3a9';
@@ -90,7 +93,13 @@ const ReturnNote = () => {
     const [isViewNoteOpen, setIsViewNoteOpen] = useState(false);
     const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'received'>('all');
+    const [entityFilter, setEntityFilter] = useState<string>('all');
+    const [createdByFilter, setCreatedByFilter] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [page, setPage] = useState(1);
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
     // Add-orders sub-dialog state. We open it from the View dialog when the
     // note is pending, scoped to the same provider/courier as the note.
@@ -107,6 +116,19 @@ const ReturnNote = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+
+    // Debounce the universal search box (name / phone / tracking / reference).
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+    // Any view change resets pagination to the first window.
+    useEffect(() => { setPage(1); }, [activeTab, debouncedSearch, filterStatus, entityFilter, createdByFilter, dateFrom, dateTo]);
+    // Filters are per-channel; clear them when switching Company <-> Courier.
+    useEffect(() => {
+        setFilterStatus('all'); setEntityFilter('all'); setCreatedByFilter('all');
+        setDateFrom(''); setDateTo(''); setSearchQuery('');
+    }, [activeTab]);
 
     // ─── Fetch orders with package_status = Retourné AND not already linked to a return note ───
     const { data: returnOrders, isLoading: isLoadingReturns } = useQuery({
@@ -132,35 +154,103 @@ const ReturnNote = () => {
         },
     });
 
-    // ─── Fetch existing return notes (company + courier) ───
-    const { data: returnNotes, isLoading: isLoadingNotes } = useQuery({
-        queryKey: ['return-notes', activeBusinessId],
+    // ─── Derived table selectors for the ACTIVE tab ───
+    const noteTable = activeTab === 'company' ? 'company_return_notes' : 'courier_return_notes';
+    const entityCol = activeTab === 'company' ? 'provider_id' : 'courier_id';
+    const searchRpc = activeTab === 'company' ? 'search_company_return_note_ids' : 'search_courier_return_note_ids';
+    const selectClause = activeTab === 'company'
+        ? `*, provider:providers(id, name, provider_type, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`
+        : `*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url, avatar_config), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`;
+
+    // ─── Fetch return notes for the ACTIVE tab (server-side filtered + searched + paginated) ───
+    const { data: activeNotesData, isLoading: isLoadingNotes } = useQuery({
+        queryKey: ['return-notes', 'list', activeBusinessId, filterStatus, entityFilter, createdByFilter, dateFrom, dateTo, debouncedSearch, page],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const [companyRes, courierRes] = await Promise.all([
-                (supabase as any)
-                    .from('company_return_notes')
-                    .select(`*, provider:providers(id, name, provider_type, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
-                    .eq('DigiCom Business', activeBusinessId)
-                    .order('created_at', { ascending: false }),
-                (supabase as any)
-                    .from('courier_return_notes')
-                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url, avatar_config), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, avatar_config, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
-                    .eq('DigiCom Business', activeBusinessId)
-                    .order('created_at', { ascending: false }),
-            ]);
-            if (companyRes.error) throw companyRes.error;
-            if (courierRes.error) throw courierRes.error;
-            const companyNotes = (companyRes.data || []).map((n: any) => ({ ...n, kind: 'company' as const }));
-            const courierNotes = (courierRes.data || []).map((n: any) => ({ ...n, kind: 'courier' as const, provider: null }));
-            return [...companyNotes, ...courierNotes] as ReturnNote[];
+            if (!activeBusinessId) return { rows: [] as ReturnNote[], total: 0, pending: 0 };
+            const term = debouncedSearch.trim();
+            let ids: string[] | null = null;
+            if (term.length >= 2) {
+                const { data: idRows, error: idErr } = await (supabase as any).rpc(searchRpc, { p_term: term });
+                if (idErr) throw idErr;
+                ids = (idRows || []).map((r: any) => (typeof r === 'string' ? r : Object.values(r)[0])) as string[];
+                if (ids.length === 0) return { rows: [] as ReturnNote[], total: 0, pending: 0 };
+            }
+            const applyFilters = (q: any) => {
+                q = q.eq('DigiCom Business', activeBusinessId);
+                if (filterStatus !== 'all') q = q.eq('status', filterStatus);
+                if (entityFilter !== 'all') q = q.eq(entityCol, entityFilter);
+                if (createdByFilter !== 'all') q = q.eq('created_by', createdByFilter);
+                if (dateFrom) q = q.gte('created_at', dateFrom);
+                if (dateTo) { const d = new Date(dateTo); d.setDate(d.getDate() + 1); q = q.lt('created_at', d.toISOString().slice(0, 10)); }
+                if (ids) q = q.in('id', ids);
+                return q;
+            };
+            const dataQ = applyFilters((supabase as any).from(noteTable).select(selectClause))
+                .order('created_at', { ascending: false }).range(0, page * NOTE_PAGE_SIZE - 1);
+            const totalQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true }));
+            const pendingQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true })).eq('status', 'pending');
+            const [dataRes, totalRes, pendingRes] = await Promise.all([dataQ, totalQ, pendingQ]);
+            if (dataRes.error) throw dataRes.error;
+            const rows = (dataRes.data || []).map((n: any) => activeTab === 'company'
+                ? ({ ...n, kind: 'company' as const })
+                : ({ ...n, kind: 'courier' as const, provider: null }));
+            return { rows: rows as ReturnNote[], total: totalRes.count || 0, pending: pendingRes.count || 0 };
         },
+        enabled: !!activeBusinessId,
+    });
+    const notesForActiveTab: ReturnNote[] = activeNotesData?.rows || [];
+    const activeTotalFiltered = activeNotesData?.total || 0;
+    const activePending = activeNotesData?.pending || 0;
+    const hasMore = notesForActiveTab.length < activeTotalFiltered;
+
+    // ─── Filter-bar option sources (providers + business users) ───
+    const { data: providerOptions } = useQuery({
+        queryKey: ['rn-provider-options', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [] as any[];
+            const { data } = await supabase.from('providers').select('id, name')
+                .eq('DigiCom Business', activeBusinessId).order('name');
+            return data || [];
+        },
+        enabled: !!activeBusinessId,
+    });
+    const { data: businessUsers } = useQuery({
+        queryKey: ['rn-user-options', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [] as any[];
+            const { data } = await supabase.from('users').select('id, name, role')
+                .eq('DigiCom Business', activeBusinessId).order('name');
+            return data || [];
+        },
+        enabled: !!activeBusinessId,
+    });
+
+    // ─── Channel-total badges (unfiltered head counts) ───
+    const { data: companyTotalCount = 0 } = useQuery({
+        queryKey: ['return-notes', 'count', 'company', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return 0;
+            const { count } = await (supabase as any).from('company_return_notes')
+                .select('id', { count: 'exact', head: true }).eq('DigiCom Business', activeBusinessId);
+            return count || 0;
+        },
+        enabled: !!activeBusinessId,
+    });
+    const { data: courierTotalCount = 0 } = useQuery({
+        queryKey: ['return-notes', 'count', 'courier', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return 0;
+            const { count } = await (supabase as any).from('courier_return_notes')
+                .select('id', { count: 'exact', head: true }).eq('DigiCom Business', activeBusinessId);
+            return count || 0;
+        },
+        enabled: !!activeBusinessId,
     });
 
     const selectedNote = useMemo<ReturnNote | null>(() => {
         if (!selectedNoteId) return null;
-        return (returnNotes || []).find((n: ReturnNote) => n.id === selectedNoteId) ?? null;
-    }, [returnNotes, selectedNoteId]);
+        return notesForActiveTab.find((n: ReturnNote) => n.id === selectedNoteId) ?? null;
+    }, [notesForActiveTab, selectedNoteId]);
 
     // ─── Fetch return fees maps (company + courier) for lookup by (entity, master_city_id) ───
     const { data: returnFeesMap } = useQuery({
@@ -563,36 +653,44 @@ const ReturnNote = () => {
         onError: (e: any) => toast({ title: 'Could not remove order', description: e.message, variant: 'destructive' }),
     });
 
-    const notesForActiveTab = useMemo(() => {
-        return (returnNotes || []).filter((n: ReturnNote) => n.kind === activeTab);
-    }, [returnNotes, activeTab]);
-
-    const filteredNotes = useMemo(() => {
-        return notesForActiveTab.filter((n: ReturnNote) => {
-            if (filterStatus !== 'all' && n.status !== filterStatus) return false;
-            if (searchQuery) {
-                const q = searchQuery.toLowerCase();
-                return (
-                    n.reference.toLowerCase().includes(q) ||
-                    (n.provider?.name || '').toLowerCase().includes(q) ||
-                    (n.courier?.name || '').toLowerCase().includes(q)
-                );
-            }
-            return true;
-        });
-    }, [notesForActiveTab, filterStatus, searchQuery]);
+    // Server-side query already applied status + entity + created-by + date + search
+    // filters and pagination, so the rendered list is the returned rows verbatim.
+    const filteredNotes = notesForActiveTab;
 
     const stats = useMemo(() => {
-        const notes = notesForActiveTab;
-        const pendingNotes = notes.filter((n: ReturnNote) => n.status === 'pending');
-        const receivedNotes = notes.filter((n: ReturnNote) => n.status === 'received');
         const activeReturnOrdersCount = activeTab === 'courier' ? courierGroups.reduce((s, g) => s + g.orders.length, 0) : companyGroups.reduce((s, g) => s + g.orders.length, 0);
+        // Note tallies come from the server head-counts; pending value is summed from the
+        // loaded page (an amount sum can't be a head-count).
+        const pendingAmount = notesForActiveTab
+            .filter((n: ReturnNote) => n.status === 'pending')
+            .reduce((s: number, n: ReturnNote) => s + Number(n.total_amount), 0);
         return {
             totalReturnOrders: activeReturnOrdersCount,
-            pendingNotes: pendingNotes.length, receivedNotes: receivedNotes.length,
-            pendingAmount: pendingNotes.reduce((s: number, n: ReturnNote) => s + Number(n.total_amount), 0),
+            pendingNotes: activePending,
+            receivedNotes: Math.max(0, activeTotalFiltered - activePending),
+            pendingAmount,
         };
-    }, [notesForActiveTab, companyGroups, courierGroups, activeTab]);
+    }, [notesForActiveTab, activePending, activeTotalFiltered, companyGroups, courierGroups, activeTab]);
+
+    // ─── Filter-bar option lists + active-filter bookkeeping ───
+    const statusOptions: FilterOption[] = [
+        { value: 'all', label: 'All status' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'received', label: 'Received' },
+    ];
+    const entityOptions: FilterOption[] = activeTab === 'company'
+        ? [{ value: 'all', label: 'All providers' }, ...((providerOptions || []).map((p: any) => ({ value: p.id, label: p.name || '—' })))]
+        : [{ value: 'all', label: 'All couriers' }, ...((businessUsers || []).filter((u: any) => u.role === 'courier').map((u: any) => ({ value: u.id, label: u.name || '—' })))];
+    const createdByOptions: FilterOption[] = [
+        { value: 'all', label: 'All creators' },
+        ...((businessUsers || []).map((u: any) => ({ value: u.id, label: u.name || '—' }))),
+    ];
+    const filtersActive = debouncedSearch.trim().length >= 2 || filterStatus !== 'all' || entityFilter !== 'all' || createdByFilter !== 'all' || !!dateFrom || !!dateTo;
+    const activeFilterCount = [filterStatus !== 'all', entityFilter !== 'all', createdByFilter !== 'all', !!dateFrom || !!dateTo].filter(Boolean).length;
+    const resetFilters = () => {
+        setFilterStatus('all'); setEntityFilter('all'); setCreatedByFilter('all');
+        setDateFrom(''); setDateTo(''); setSearchQuery('');
+    };
 
     const toggleExpand = (id: string) => setExpandedCards(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -835,8 +933,8 @@ const ReturnNote = () => {
         w.document.close();
     };
 
-    const companyCount = (returnNotes || []).filter((n: ReturnNote) => n.kind === 'company').length;
-    const courierCount = (returnNotes || []).filter((n: ReturnNote) => n.kind === 'courier').length;
+    const companyCount = companyTotalCount;
+    const courierCount = courierTotalCount;
 
     return (
         <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
@@ -914,44 +1012,34 @@ const ReturnNote = () => {
                             </TabsTrigger>
                         </TabsList>
 
-                        {/* Status pills */}
-                        <div className="flex gap-1 items-center rounded-full border border-ant-line bg-ant-paper p-0.5">
-                            {(['all', 'pending', 'received'] as const).map((s) => (
-                                <button
-                                    key={s}
-                                    onClick={() => setFilterStatus(s)}
-                                    className={cn(
-                                        'px-3.5 h-8 rounded-full text-[11px] font-medium transition',
-                                        filterStatus === s
-                                            ? s === 'received'
-                                                ? 'bg-ant-green text-white'
-                                                : s === 'pending'
-                                                    ? 'bg-ant-orange text-white'
-                                                    : 'bg-ant-ink text-ant-light'
-                                            : 'text-ant-muted hover:text-ant-ink',
-                                    )}
-                                >
-                                    {s === 'all' ? 'All' : s === 'pending' ? 'Pending' : 'Received'}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="relative w-full sm:w-[280px]">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
-                        <Input
-                            placeholder="Search reference or provider…"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
-                        />
                     </div>
                 </div>
+
+                <NotesFilterBar
+                    search={searchQuery}
+                    onSearch={setSearchQuery}
+                    status={{ value: filterStatus, onChange: (v) => setFilterStatus(v as any), options: statusOptions, placeholder: 'Status' }}
+                    entity={{ value: entityFilter, onChange: setEntityFilter, options: entityOptions, placeholder: activeTab === 'company' ? 'Provider' : 'Courier' }}
+                    createdBy={{ value: createdByFilter, onChange: setCreatedByFilter, options: createdByOptions, placeholder: 'Created by' }}
+                    date={{ from: dateFrom, to: dateTo, onChange: (f, t) => { setDateFrom(f); setDateTo(t); } }}
+                    activeCount={activeFilterCount}
+                    onReset={resetFilters}
+                />
 
             {/* Return Notes List */}
             {isLoading ? (
                 <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl bg-ant-line-soft" />)}</div>
             ) : filteredNotes.length === 0 ? (
+                filtersActive ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-ant-paper border border-ant-line flex items-center justify-center mb-3">
+                        <SearchX className="w-5 h-5 text-ant-mid" />
+                    </div>
+                    <p className="text-[13px] font-medium text-ant-ink">No notes match your search</p>
+                    <p className="text-[12px] text-ant-muted mt-0.5">Try a different name, phone, tracking or reference.</p>
+                    <Button variant="ghost" onClick={resetFilters} className="mt-3 h-8 px-4 rounded-full text-[12px] text-ant-mid hover:text-ant-ink">Clear filters</Button>
+                </div>
+                ) : (
                 <div className="rounded-2xl border border-ant-line bg-ant-paper px-6 py-14 text-center">
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-rose/10 ring-1 ring-ant-rose/20 mb-4">
                         <SearchX className="w-5 h-5 text-ant-rose" strokeWidth={1.5} />
@@ -969,6 +1057,7 @@ const ReturnNote = () => {
                         Generate the first note
                     </Button>
                 </div>
+                )
             ) : (
                 <div className="space-y-3">
                     {filteredNotes.map((note: ReturnNote) => {
@@ -1150,6 +1239,14 @@ const ReturnNote = () => {
                             </Card>
                         );
                     })}
+                    {hasMore && (
+                        <div className="flex justify-center pt-1">
+                            <Button variant="outline" onClick={() => setPage((p) => p + 1)}
+                                className="h-9 px-5 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink gap-2">
+                                Load more <span className="text-ant-mid tabular-nums">({filteredNotes.length}/{activeTotalFiltered})</span>
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
 
