@@ -42,8 +42,8 @@ Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ec
 - **Do NOT touch** the pgoutput side: `supabase_realtime_messages_replication_slot_` + `supabase_realtime_messages_publication` — ALL broadcast (wa:* + ecom:*) rides it.
 - [x] Pre-check: zero live subscriptions verified at each drop; publication emptied 2026-07-14.
 - [x] Row-deletion approach EXECUTED then ROLLED BACK (see correction above). Current live state: row present (100ms), SEED_SELF_HOST=false, caps 5000/1000/2000/500/1MB, publication EMPTY, smoke PASS.
-- [ ] QUIET-WINDOW step: `update _realtime.extensions set settings = jsonb_set(settings,'{poll_interval_ms}','60000') where type='postgres_cdc_rls';` as supabase_admin + restart Realtime + smoke test (owner go).
-- [~] **Re-measure on the fresh window** — pg_stat_statements RESET at 2026-07-14 15:19 UTC (clean, post-R1 state with 100ms idle poller). Read after a 24h business-hours soak; success = list_changes residual ≈ few % and shrinking with load (was 61.4%), no new top consumer.
+- [x] poll_interval_ms 100→60000 staged + activating restart EXECUTED 2026-07-14 ~20:20 UTC (owner go, zero live subs): container healthy, SMOKE_PASS, seed off, caps intact.
+- [x] **R2 VERDICT — COMPLETE.** 6.6h fresh window incl. business-hours traffic: `realtime.list_changes` ABSENT (0 calls; was 61.4% / 594k calls/wk). Causal model confirmed: zero postgres_changes subscribers → the CDC extension loads (tenant conn config) but never polls; 60s interval = dormant backstop. New top consumer = dispatch_prep at 9.1% (16.6s/6.6h); flat single-digit distribution, nothing replaced the poller. The 61.4% is reclaimed.
 - [x] Rollback path saved: ~/.igrowfast/backups/r2_extensions_row_rollback_2026-07-14.sql (+ box /root/) — re-insert + restart = poller returns.
 
 ## 3. Phase D — data-layer rebuild (the "thousands of users" half)
