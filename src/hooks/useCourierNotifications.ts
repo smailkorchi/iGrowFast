@@ -67,19 +67,17 @@ export function useCourierNotifications(opts: UseCourierNotificationsOpts) {
     useEffect(() => {
         if (!enabled || !courierId) return;
 
-        const channelName = `courier_notifications:${courierId}`;
+        // W7 R1b: private per-user broadcast feed (mirrors wa:user). The topic's
+        // READ policy is strictly auth.uid() = <uuid in topic>, so a courier can
+        // only ever join their own feed; the trigger publishes the full row.
+        // No other component opens ecom:user:* — CourierLayout is the sole owner.
         const channel = supabase
-            .channel(channelName)
+            .channel(`ecom:user:${courierId}`, { config: { private: true } })
             .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'courier_notifications',
-                    filter: `courier_id=eq.${courierId}`,
-                },
-                (payload) => {
-                    const row = payload.new as CourierNotificationRow;
+                'broadcast',
+                { event: 'notification' },
+                ({ payload }) => {
+                    const row = payload as CourierNotificationRow;
                     if (!row || row.courier_id !== courierId) return;
 
                     // ── 1. In-app toast (works on every platform, every page) ──

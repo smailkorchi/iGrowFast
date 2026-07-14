@@ -94,7 +94,13 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
                 publishEcomBus({ type: 'stock', payload } as EcomBusEvent);
                 debouncedStock();
             })
+            .on('broadcast', { event: 'webhook' }, ({ payload }) => {
+                // Live pulse for useWebhookHealth — bus fan-out only, no invalidation
+                // (its stats queries poll on their own cadence).
+                publishEcomBus({ type: 'webhook', payload } as EcomBusEvent);
+            })
             .subscribe((status) => {
+                publishEcomBus({ type: 'status', subscribed: status === 'SUBSCRIBED' });
                 if (status === 'SUBSCRIBED') {
                     // Anything missed while the socket was down self-heals here.
                     if (hadError) {

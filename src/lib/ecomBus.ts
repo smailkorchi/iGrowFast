@@ -44,17 +44,32 @@ export interface EcomStockPayload {
     id: string;
 }
 
+export interface EcomWebhookPayload {
+    op: 'INSERT';
+    /** webhook_logs row id */
+    id: string;
+}
+
 export type EcomBusEvent =
     | { type: 'order'; payload: EcomOrderPayload }
     | { type: 'parcel'; payload: EcomParcelPayload }
     | { type: 'stock'; payload: EcomStockPayload }
+    | { type: 'webhook'; payload: EcomWebhookPayload }
     /** channel re-subscribed after an error/timeout — broadcast is at-most-once,
      *  so subscribers should reconcile (broad refetch) on this signal */
-    | { type: 'reconnect' };
+    | { type: 'reconnect' }
+    /** live subscription state of the layout-owned ecom:biz channel */
+    | { type: 'status'; subscribed: boolean };
 
 type Listener = (event: EcomBusEvent) => void;
 
 const listeners = new Set<Listener>();
+let channelSubscribed = false;
+
+/** Current subscription state of the layout-owned ecom:biz channel. */
+export function getEcomChannelSubscribed(): boolean {
+    return channelSubscribed;
+}
 
 /** Subscribe to ecom events. Returns the unsubscribe function. */
 export function subscribeEcomBus(fn: Listener): () => void {
@@ -64,6 +79,7 @@ export function subscribeEcomBus(fn: Listener): () => void {
 
 /** Publish an event to every subscriber (isolation: one throwing listener never blocks the rest). */
 export function publishEcomBus(event: EcomBusEvent): void {
+    if (event.type === 'status') channelSubscribed = event.subscribed;
     for (const fn of [...listeners]) {
         try { fn(event); } catch { /* listener errors are its own problem */ }
     }

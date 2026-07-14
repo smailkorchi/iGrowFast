@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { subscribeEcomBus, getEcomChannelSubscribed } from '@/lib/ecomBus';
 
 export type ProviderHealth = {
     providerId: string;
@@ -59,31 +60,21 @@ export function useWebhookHealth(activeBusinessId: string | null): WebhookHealth
         refetchInterval: 30_000, // refresh every 30s
     });
 
-    // Realtime subscription on webhook_logs for live pulse
+    // W7 R1b: live pulse now rides the layout-owned ecom:biz broadcast channel
+    // ('webhook' events, published on the ecomBus by <EcomBizRealtime/>) —
+    // the per-page postgres_changes channel is retired. isListening mirrors the
+    // shared channel's subscription state via the bus 'status' events.
     useEffect(() => {
         if (!activeBusinessId) return;
-
-        const channel = supabase
-            .channel(`webhook-health-${activeBusinessId}`)
-            .on(
-                'postgres_changes' as any,
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'webhook_logs',
-                },
-                () => {
-                    pulseRef.current += 1;
-                    setPulse(pulseRef.current);
-                }
-            )
-            .subscribe((status: string) => {
-                setIsListening(status === 'SUBSCRIBED');
-            });
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        setIsListening(getEcomChannelSubscribed());
+        return subscribeEcomBus((event) => {
+            if (event.type === 'webhook') {
+                pulseRef.current += 1;
+                setPulse(pulseRef.current);
+            } else if (event.type === 'status') {
+                setIsListening(event.subscribed);
+            }
+        });
     }, [activeBusinessId]);
 
     // Build provider list

@@ -25,11 +25,12 @@ Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ec
   - [x] Port `src/components/orders/OrderStatusNotifications.tsx` (unfiltered orders UPDATE; mounted app-wide in AppLayout + SellerLayout — the widest slot-keeper). Topic-per-biz kills its client-side biz filter; keep dedupe map.
   - [x] Port `src/pages/admin/SheetReview.tsx` (orders INSERT, `source_review_status='pending'` → payload flag or dedicated event).
   - [x] Drop `orders`, `company_parcels`, `courier_parcels`, `products`, `accessories` from publication — DONE (publication now = the 4 R1b/R1c tables only).
-- [ ] **R1b — Logistics/health singles**
-  - [ ] `tracking_sync_runs` → port `src/hooks/useTrackingSyncStatus.ts` (INSERT+UPDATE) — or downgrade to poll-while-open (page-scoped, low churn: delete-only in stats window).
-  - [ ] `webhook_logs` → port `src/hooks/useWebhookHealth.ts` (INSERT). 2nd-highest churn table (4.3k writes/11d) — WHEN-guard the trigger.
-  - [ ] `courier_notifications` → port `src/hooks/useCourierNotifications.ts` (INSERT, courier-scoped → needs a `ecom:user:<uid>` style topic or payload-filtered biz topic; courier is a per-user feed — mirror `wa:user` recipe).
-  - [ ] Drop the 3 tables from publication.
+- [~] **R1b — Logistics/health singles** — PORT SHIPPED 2026-07-14 (mig 20260714170000 applied; reviewed, 0 findings). Tail drop 20260714180000 gated on FE deploy + zero subscribers.
+  - [x] `tracking_sync_runs` — bindings DELETED as dead code (RLS is owner-only → WALRUS starved every admin/seller; stronger: SyncTrackingStatus is mounted NOWHERE at HEAD). Product decision logged below.
+  - [x] `webhook_logs` → 'webhook' pulse event on ecom:biz (INSERT-only trigger); useWebhookHealth rides the ecomBus + shared-channel status.
+  - [x] `courier_notifications` → NEW `ecom:user:<uid>` topic family (strict auth.uid() policy, live-tested offsets); full-row payload, courier hook swapped to private broadcast.
+  - [ ] Drop the 3 tables from publication (tail mig 20260714180000 — apply at verified zero subscribers post-deploy).
+  - [ ] OWNER DECISION: make the tracking-sync pill live for admins? (needs an ops topic or RLS ruling; pill component currently unmounted dead code — also a deletion candidate, D7).
 - [ ] **R1c — `campaign_source_locks`** → port `src/pages/mediabuyer/CampaignForm.tsx` (event '*', unfiltered). Table has ZERO rows and zero writes ever on this box — lowest risk; consider plain refetch-on-submit instead of realtime at all. Then drop from publication.
 
 ## 2. Phase R2 — retire the poller (the 61.4% kill)

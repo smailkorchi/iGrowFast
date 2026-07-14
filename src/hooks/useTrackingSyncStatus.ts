@@ -63,38 +63,11 @@ export function useTrackingSyncStatus(ordersQueryKey?: QueryKey): TrackingSyncSt
         return () => { cancelled = true; };
     }, []);
 
-    // Realtime subscription.
-    useEffect(() => {
-        const channel = supabase
-            .channel('tracking-sync-runs-watch')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'tracking_sync_runs' },
-                (payload) => {
-                    const row = payload.new as TrackingSyncRun;
-                    setLatestRun((prev) => {
-                        if (!prev) return row;
-                        return new Date(row.started_at) >= new Date(prev.started_at) ? row : prev;
-                    });
-                },
-            )
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'tracking_sync_runs' },
-                (payload) => {
-                    const row = payload.new as TrackingSyncRun;
-                    setLatestRun((prev) => {
-                        if (!prev || prev.id === row.id) return row;
-                        return new Date(row.started_at) >= new Date(prev.started_at) ? row : prev;
-                    });
-                },
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, []);
+    // W7 R1b: the former postgres_changes subscription here was DEAD CODE —
+    // tracking_sync_runs' only SELECT policy is owner-only, so WALRUS delivered
+    // zero events to the admins/sellers who mount this pill (and owners never
+    // visit these pages). Deleted with no behavior change. Making the pill live
+    // for admins is a logged product decision (MASTER_TODO), not an infra port.
 
     // When a successful run with changes lands, invalidate the orders query
     // (idempotent — guarded by run id so we don't refetch repeatedly).
