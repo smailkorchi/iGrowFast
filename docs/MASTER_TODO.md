@@ -31,7 +31,7 @@ Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ec
   - [x] `courier_notifications` → NEW `ecom:user:<uid>` topic family (strict auth.uid() policy, live-tested offsets); full-row payload, courier hook swapped to private broadcast.
   - [ ] Drop the 3 tables from publication (tail mig 20260714180000 — apply at verified zero subscribers post-deploy).
   - [ ] OWNER DECISION: make the tracking-sync pill live for admins? (needs an ops topic or RLS ruling; pill component currently unmounted dead code — also a deletion candidate, D7).
-- [ ] **R1c — `campaign_source_locks`** → port `src/pages/mediabuyer/CampaignForm.tsx` (event '*', unfiltered). Table has ZERO rows and zero writes ever on this box — lowest risk; consider plain refetch-on-submit instead of realtime at all. Then drop from publication.
+- [~] **R1c — `campaign_source_locks`** — CampaignForm realtime RETIRED 2026-07-14 (30s poll while form open + submit-time source_taken guard; broadcast rejected — would grant MB sessions the whole ecom:biz feed). Remaining: apply mig 20260714190000 (empties the publication).
 
 ## 2. Phase R2 — retire the poller (the 61.4% kill)
 

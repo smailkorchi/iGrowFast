@@ -147,11 +147,16 @@ const CampaignForm: React.FC = () => {
         enabled: isEdit,
     });
 
-    // Source-ownership locks: one ad source per media buyer per business. Realtime so the
-    // platform picker live-reflects what other MBs currently hold.
+    // Source-ownership locks: one ad source per media buyer per business.
+    // W7 R1c: the postgres_changes subscription is retired — the table is
+    // near-static and the DB guard (source_taken) enforces correctness at
+    // submit regardless. A light poll while the form is open keeps the picker
+    // fresh enough for the rare two-MBs-in-the-form-simultaneously case.
     const { data: sourceLocks = [] } = useQuery({
         queryKey: ['campaign-source-locks', activeBusinessId],
         enabled: !!activeBusinessId,
+        refetchInterval: 30_000,
+        refetchOnWindowFocus: true,
         queryFn: async () => {
             const { data } = await (supabase as any)
                 .from('campaign_source_locks')
@@ -171,16 +176,6 @@ const CampaignForm: React.FC = () => {
         },
     });
     const isMediaBuyer = myRole === 'mediabuyer';
-    useEffect(() => {
-        if (!activeBusinessId) return;
-        const channel = supabase
-            .channel(`campaign-source-locks-${activeBusinessId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'campaign_source_locks' }, () => {
-                queryClient.invalidateQueries({ queryKey: ['campaign-source-locks', activeBusinessId] });
-            })
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
-    }, [activeBusinessId, queryClient]);
     // source -> owner name, only for sources held by ANOTHER media buyer (mine never blocks me).
     const lockedSources = useMemo(() => {
         const m = new Map<string, string>();
