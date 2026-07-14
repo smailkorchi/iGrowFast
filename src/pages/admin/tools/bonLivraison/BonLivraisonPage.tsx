@@ -77,6 +77,24 @@ type BusinessRow = {
 
 type SourceFilter = 'all' | BonLivraisonSource;
 
+type RegisterTotals = {
+  totalCount: number;
+  manualCount: number;
+  orderCount: number;
+  noteCount: number;
+  parcelCount: number;
+  thisMonth: number;
+};
+
+const EMPTY_TOTALS: RegisterTotals = {
+  totalCount: 0,
+  manualCount: 0,
+  orderCount: 0,
+  noteCount: 0,
+  parcelCount: 0,
+  thisMonth: 0,
+};
+
 async function uniqueBlNumber(businessId: string): Promise<string> {
   for (let i = 0; i < 12; i++) {
     const n = `BL-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -196,33 +214,13 @@ export default function BonLivraisonPage() {
 
   const { data: orderClients = [] } = useQuery({
     queryKey: ['bl-order-clients', activeBusinessId],
-    enabled: !!activeBusinessId,
+    enabled: !!activeBusinessId && wizardOpen,
     queryFn: async () => {
-      const orders = await fetchAllRows('orders', 'name, phone, address, city:master_cities(name)', {
-        filters: [
-          { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
-          { column: 'date_deleted', op: 'is', value: null },
-          { column: 'source_review_status', op: 'neq', value: 'pending' },
-        ],
+      const { data, error } = await (supabase as any).rpc('distinct_clients', {
+        p_business: activeBusinessId!,
       });
-      const map = new Map<string, OrderDerivedClient>();
-      orders.forEach((o: Record<string, unknown>) => {
-        const raw = String(o.phone || '');
-        const phone = raw.replace(/[^0-9]/g, '');
-        if (!phone) return;
-        const cityObj = o.city as { name?: string } | null;
-        const cityName = cityObj?.name || '';
-        const existing = map.get(phone);
-        const name = String(o.name || existing?.name || 'Client');
-        const address = String(o.address || existing?.address || '');
-        map.set(phone, {
-          phone,
-          name,
-          address,
-          city: cityName || existing?.city || '',
-        });
-      });
-      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+      if (error) throw error;
+      return ((data ?? []) as OrderDerivedClient[]);
     },
   });
 
@@ -299,13 +297,31 @@ export default function BonLivraisonPage() {
     queryKey: ['bl-list', activeBusinessId],
     enabled: !!activeBusinessId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bons_livraison')
-        .select('*')
-        .eq('business_id', activeBusinessId!)
-        .order('created_at', { ascending: false });
+      const rows = await fetchAllRows<BonLivraisonRow>('bons_livraison', '*', {
+        filters: [{ column: 'business_id', op: 'eq', value: activeBusinessId! }],
+      });
+      return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+  });
+
+  const { data: kpis = EMPTY_TOTALS } = useQuery({
+    queryKey: ['bl-totals', activeBusinessId],
+    enabled: !!activeBusinessId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('register_totals', {
+        p_business: activeBusinessId!,
+        p_register: 'bons_livraison',
+      });
       if (error) throw error;
-      return (data || []) as BonLivraisonRow[];
+      const t = (data ?? {}) as Record<string, number>;
+      return {
+        totalCount: Number(t.count || 0),
+        manualCount: Number(t.manual_count || 0),
+        orderCount: Number(t.order_count || 0),
+        noteCount: Number(t.note_count || 0),
+        parcelCount: Number(t.parcel_count || 0),
+        thisMonth: Number(t.this_month || 0),
+      } satisfies RegisterTotals;
     },
   });
 
@@ -488,7 +504,10 @@ export default function BonLivraisonPage() {
         setPreviewLoading(false);
         setPreviewOpen(true);
 
-        await queryClient.invalidateQueries({ queryKey: ['bl-list', activeBusinessId] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['bl-list', activeBusinessId] }),
+          queryClient.invalidateQueries({ queryKey: ['bl-totals', activeBusinessId] }),
+        ]);
 
         toast({ title: wasEdit ? 'Mis a jour' : 'Enregistre', description: blNumber });
       } catch (e) {
@@ -540,7 +559,10 @@ export default function BonLivraisonPage() {
       if (error) throw error;
       toast({ title: 'Supprime' });
       setDeleteTarget(null);
-      await queryClient.invalidateQueries({ queryKey: ['bl-list', activeBusinessId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['bl-list', activeBusinessId] }),
+        queryClient.invalidateQueries({ queryKey: ['bl-totals', activeBusinessId] }),
+      ]);
     } catch (e) {
       console.error(e);
       toast({ title: 'Suppression impossible', variant: 'destructive' });
@@ -566,32 +588,6 @@ export default function BonLivraisonPage() {
     () => !listLoading && filteredList.length === 0,
     [listLoading, filteredList.length],
   );
-
-  const kpis = useMemo(() => {
-    const totalCount = list.length;
-    let manualCount = 0;
-    let orderCount = 0;
-    let noteCount = 0;
-    let parcelCount = 0;
-    list.forEach(r => {
-      const s = parseSnapshot(r.snapshot_json);
-      if (!s) return;
-      if (s.source === 'manual') manualCount++;
-      else if (s.source === 'order') orderCount++;
-      else if (s.source === 'company_delivery_note') noteCount++;
-      parcelCount += Array.isArray(s.parcels) ? s.parcels.length : 0;
-    });
-    const now = new Date();
-    const thisMonth = list.filter(r => {
-      try {
-        const d = parseISO(r.issued_at);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      } catch {
-        return false;
-      }
-    }).length;
-    return { totalCount, manualCount, orderCount, noteCount, parcelCount, thisMonth };
-  }, [list]);
 
   useEffect(() => {
     return () => {

@@ -97,16 +97,17 @@ export function useMediaBuyerStats(range: StatsDateRange) {
         queryKey: ['mb-stats-entries', activeBusinessId, currentUserId, range.from, range.to],
         queryFn: async () => {
             if (!activeBusinessId || !currentUserId) return [];
-            const { data, error } = await (supabase as any)
-                .from('campaign_daily_entries')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId)
-                .eq('created_by', currentUserId)
-                .gte('entry_date', range.from)
-                .lte('entry_date', range.to)
-                .order('entry_date', { ascending: true });
-            if (error) throw error;
-            return (data || []) as CampaignDailyEntry[];
+            // Paginated so >1000 entries in the window never truncate the spend/lead
+            // inputs. Ordered by the pk for stable .range() pages (entry_date is not
+            // unique); the daily rollup below sorts by date itself.
+            return fetchAllRows<CampaignDailyEntry>('campaign_daily_entries', '*', {
+                filters: [
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    { column: 'created_by', op: 'eq', value: currentUserId },
+                    { column: 'entry_date', op: 'gte', value: range.from },
+                    { column: 'entry_date', op: 'lte', value: range.to },
+                ],
+            });
         },
         enabled: !!activeBusinessId && !!currentUserId,
     });

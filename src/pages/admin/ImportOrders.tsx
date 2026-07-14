@@ -158,12 +158,7 @@ const ImportOrders = () => {
         queryKey: ['courier-fees-all', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_fees')
-                .select('id, courier_id, master_city_id, fee')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+            return await fetchAllRows('courier_fees', 'id, courier_id, master_city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
         }
     });
 

@@ -77,6 +77,20 @@ type BusinessRow = {
   signature_url?: string | null;
 };
 
+type RegisterTotals = {
+  totalCount: number;
+  totalTTC: number;
+  avgTTC: number;
+  thisMonth: number;
+};
+
+const EMPTY_TOTALS: RegisterTotals = {
+  totalCount: 0,
+  totalTTC: 0,
+  avgTTC: 0,
+  thisMonth: 0,
+};
+
 async function uniqueDevisNumber(businessId: string): Promise<string> {
   for (let i = 0; i < 12; i++) {
     const n = `DEV-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -149,32 +163,13 @@ export default function DevisPage() {
 
   const { data: orderClients = [] } = useQuery({
     queryKey: ['devis-order-clients', activeBusinessId],
-    enabled: !!activeBusinessId,
+    enabled: !!activeBusinessId && wizardOpen,
     queryFn: async () => {
-      const orders = await fetchAllRows('orders', 'name, phone, address, city:master_cities(name)', {
-        filters: [
-          { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
-          { column: 'date_deleted', op: 'is', value: null },
-        ],
+      const { data, error } = await (supabase as any).rpc('distinct_clients', {
+        p_business: activeBusinessId!,
       });
-      const map = new Map<string, OrderDerivedClient>();
-      orders.forEach((o: Record<string, unknown>) => {
-        const raw = String(o.phone || '');
-        const phone = raw.replace(/[^0-9]/g, '');
-        if (!phone) return;
-        const cityObj = o.city as { name?: string } | null;
-        const cityName = cityObj?.name || '';
-        const existing = map.get(phone);
-        const name = String(o.name || existing?.name || 'Client');
-        const address = String(o.address || existing?.address || '');
-        map.set(phone, {
-          phone,
-          name,
-          address,
-          city: cityName || existing?.city || '',
-        });
-      });
-      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+      if (error) throw error;
+      return ((data ?? []) as OrderDerivedClient[]);
     },
   });
 
@@ -182,13 +177,29 @@ export default function DevisPage() {
     queryKey: ['devis-list', activeBusinessId],
     enabled: !!activeBusinessId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('devis')
-        .select('*')
-        .eq('business_id', activeBusinessId!)
-        .order('created_at', { ascending: false });
+      const rows = await fetchAllRows<DevisRow>('devis', '*', {
+        filters: [{ column: 'business_id', op: 'eq', value: activeBusinessId! }],
+      });
+      return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+  });
+
+  const { data: kpis = EMPTY_TOTALS } = useQuery({
+    queryKey: ['devis-totals', activeBusinessId],
+    enabled: !!activeBusinessId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('register_totals', {
+        p_business: activeBusinessId!,
+        p_register: 'devis',
+      });
       if (error) throw error;
-      return (data || []) as DevisRow[];
+      const t = (data ?? {}) as Record<string, number>;
+      return {
+        totalCount: Number(t.count || 0),
+        totalTTC: Number(t.total_ttc || 0),
+        avgTTC: Number(t.avg_ttc || 0),
+        thisMonth: Number(t.this_month || 0),
+      } satisfies RegisterTotals;
     },
   });
 
@@ -367,7 +378,10 @@ export default function DevisPage() {
         setPreviewRow(null);
         setPreviewLoading(false);
         setPreviewOpen(true);
-        await queryClient.invalidateQueries({ queryKey: ['devis-list', activeBusinessId] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['devis-list', activeBusinessId] }),
+          queryClient.invalidateQueries({ queryKey: ['devis-totals', activeBusinessId] }),
+        ]);
 
         toast({ title: wasEdit ? 'Devis mis a jour' : 'Devis enregistre', description: devisNumber });
       } catch (e) {
@@ -419,7 +433,10 @@ export default function DevisPage() {
       if (error) throw error;
       toast({ title: 'Devis supprime' });
       setDeleteTarget(null);
-      await queryClient.invalidateQueries({ queryKey: ['devis-list', activeBusinessId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['devis-list', activeBusinessId] }),
+        queryClient.invalidateQueries({ queryKey: ['devis-totals', activeBusinessId] }),
+      ]);
     } catch (e) {
       console.error(e);
       toast({ title: 'Suppression impossible', variant: 'destructive' });
@@ -437,23 +454,6 @@ export default function DevisPage() {
     () => !listLoading && devisList.length === 0,
     [listLoading, devisList.length],
   );
-
-  const kpis = useMemo(() => {
-    const totalCount = devisList.length;
-    const totalTTC = devisList.reduce((sum, r) => sum + Number(r.total_ttc || 0), 0);
-    const withVAT = devisList.filter(r => Number(r.tva_rate || 0) > 0).length;
-    const now = new Date();
-    const thisMonth = devisList.filter(r => {
-      try {
-        const d = parseISO(r.issued_at);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      } catch {
-        return false;
-      }
-    }).length;
-    const avgTTC = totalCount > 0 ? totalTTC / totalCount : 0;
-    return { totalCount, totalTTC, withVAT, thisMonth, avgTTC };
-  }, [devisList]);
 
   if (!activeBusinessId) {
     return (

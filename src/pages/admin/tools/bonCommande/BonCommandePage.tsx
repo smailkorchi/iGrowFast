@@ -81,6 +81,22 @@ type BusinessRow = {
 
 type DirectionFilter = 'all' | 'purchase' | 'sales';
 
+type RegisterTotals = {
+  totalCount: number;
+  purchaseCount: number;
+  salesCount: number;
+  totalTTC: number;
+  thisMonth: number;
+};
+
+const EMPTY_TOTALS: RegisterTotals = {
+  totalCount: 0,
+  purchaseCount: 0,
+  salesCount: 0,
+  totalTTC: 0,
+  thisMonth: 0,
+};
+
 async function uniqueBcNumber(businessId: string): Promise<string> {
   for (let i = 0; i < 12; i++) {
     const n = `BC-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -154,33 +170,13 @@ export default function BonCommandePage() {
 
   const { data: orderClients = [] } = useQuery({
     queryKey: ['bc-order-clients', activeBusinessId],
-    enabled: !!activeBusinessId,
+    enabled: !!activeBusinessId && wizardOpen,
     queryFn: async () => {
-      const orders = await fetchAllRows('orders', 'name, phone, address, city:master_cities(name)', {
-        filters: [
-          { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
-          { column: 'date_deleted', op: 'is', value: null },
-          { column: 'source_review_status', op: 'neq', value: 'pending' },
-        ],
+      const { data, error } = await (supabase as any).rpc('distinct_clients', {
+        p_business: activeBusinessId!,
       });
-      const map = new Map<string, OrderDerivedClient>();
-      orders.forEach((o: Record<string, unknown>) => {
-        const raw = String(o.phone || '');
-        const phone = raw.replace(/[^0-9]/g, '');
-        if (!phone) return;
-        const cityObj = o.city as { name?: string } | null;
-        const cityName = cityObj?.name || '';
-        const existing = map.get(phone);
-        const name = String(o.name || existing?.name || 'Client');
-        const address = String(o.address || existing?.address || '');
-        map.set(phone, {
-          phone,
-          name,
-          address,
-          city: cityName || existing?.city || '',
-        });
-      });
-      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+      if (error) throw error;
+      return ((data ?? []) as OrderDerivedClient[]);
     },
   });
 
@@ -188,13 +184,30 @@ export default function BonCommandePage() {
     queryKey: ['bc-list', activeBusinessId],
     enabled: !!activeBusinessId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bons_commande')
-        .select('*')
-        .eq('business_id', activeBusinessId!)
-        .order('created_at', { ascending: false });
+      const rows = await fetchAllRows<BonCommandeRow>('bons_commande', '*', {
+        filters: [{ column: 'business_id', op: 'eq', value: activeBusinessId! }],
+      });
+      return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+  });
+
+  const { data: kpis = EMPTY_TOTALS } = useQuery({
+    queryKey: ['bc-totals', activeBusinessId],
+    enabled: !!activeBusinessId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('register_totals', {
+        p_business: activeBusinessId!,
+        p_register: 'bons_commande',
+      });
       if (error) throw error;
-      return (data || []) as BonCommandeRow[];
+      const t = (data ?? {}) as Record<string, number>;
+      return {
+        totalCount: Number(t.count || 0),
+        purchaseCount: Number(t.purchase_count || 0),
+        salesCount: Number(t.sales_count || 0),
+        totalTTC: Number(t.total_ttc || 0),
+        thisMonth: Number(t.this_month || 0),
+      } satisfies RegisterTotals;
     },
   });
 
@@ -377,7 +390,10 @@ export default function BonCommandePage() {
         setPreviewLoading(false);
         setPreviewOpen(true);
 
-        await queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] }),
+          queryClient.invalidateQueries({ queryKey: ['bc-totals', activeBusinessId] }),
+        ]);
 
         toast({ title: wasEdit ? 'Document mis a jour' : 'Document enregistre', description: bcNumber });
       } catch (e) {
@@ -429,7 +445,10 @@ export default function BonCommandePage() {
       if (error) throw error;
       toast({ title: 'Supprime' });
       setDeleteTarget(null);
-      await queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] }),
+        queryClient.invalidateQueries({ queryKey: ['bc-totals', activeBusinessId] }),
+      ]);
     } catch (e) {
       console.error(e);
       toast({ title: 'Suppression impossible', variant: 'destructive' });
@@ -454,23 +473,6 @@ export default function BonCommandePage() {
     () => !listLoading && filteredList.length === 0,
     [listLoading, filteredList.length],
   );
-
-  const kpis = useMemo(() => {
-    const totalCount = list.length;
-    const purchaseCount = list.filter(r => r.direction === 'purchase').length;
-    const salesCount = list.filter(r => r.direction === 'sales').length;
-    const totalTTC = list.reduce((sum, r) => sum + Number(r.total_ttc || 0), 0);
-    const now = new Date();
-    const thisMonth = list.filter(r => {
-      try {
-        const d = parseISO(r.issued_at);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      } catch {
-        return false;
-      }
-    }).length;
-    return { totalCount, purchaseCount, salesCount, totalTTC, thisMonth };
-  }, [list]);
 
   if (!activeBusinessId) {
     return (

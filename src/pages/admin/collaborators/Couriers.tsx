@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import {
     Search,
     Truck,
@@ -30,9 +30,6 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { cn } from '@/lib/utils';
 import { differenceInDays } from 'date-fns';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
 // ============ TYPE DEFINITIONS ============
@@ -53,14 +50,17 @@ type Courier = {
     cin_number: string | null;
 };
 
-type OrderRow = {
-    id: string;
-    courier_id: string | null;
-    order_status_id: string | null;
-    package_status_id: string | null;
-    shipping_cost: number | string | null;
-    include_delivery_in_total: boolean | null;
-    master_city_id: string | null;
+/** Row of the server-side per-courier aggregate (courier_roster_stats RPC). */
+type RosterStatRow = {
+    courier_id: string;
+    total_orders: number | string;
+    delivered: number | string;
+    in_transit: number | string;
+    returned: number | string;
+    fees_sum: number | string;
+    notes_paid_sum: number | string;
+    notes_unpaid_sum: number | string;
+    notes_count: number | string;
 };
 
 type CourierFeeRow = {
@@ -97,7 +97,6 @@ type ReturnNote = {
 
 type CourierStat = {
     totalOrders: number;
-    confirmed: number;
     inTransit: number;
     delivered: number;
     returned: number;
@@ -185,8 +184,6 @@ const InfoRow: React.FC<{
 
 const Couriers = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const { deliveredPkgIds, shippedPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState<Courier | null>(null);
     const [sortBy, setSortBy] = useState<'delivered' | 'orders' | 'unpaid'>('delivered');
@@ -210,26 +207,18 @@ const Couriers = () => {
 
     const courierIds = useMemo(() => couriers.map((c) => c.id), [couriers]);
 
-    const { data: orders = [] } = useQuery<OrderRow[]>({
-        queryKey: ['couriers-orders', activeBusinessId, courierIds.slice().sort().join(',')],
+    // Server-side per-courier aggregate — replaces the client-side reduce over a
+    // full dump of every courier order (wrong money once past the 1000-row cap).
+    const { data: rosterStats = [] } = useQuery<RosterStatRow[]>({
+        queryKey: ['couriers-roster-stats', activeBusinessId],
         queryFn: async () => {
-            if (!activeBusinessId || courierIds.length === 0) return [];
-            // Paginated so we never truncate at the 1000-row default cap.
-            const data = await fetchAllRows(
-                'orders',
-                'id, courier_id, order_status_id, package_status_id, shipping_cost, include_delivery_in_total, master_city_id',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
-                        { column: 'courier_id', op: 'in', value: courierIds },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                }
-            );
-            return (data || []) as OrderRow[];
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .rpc('courier_roster_stats', { p_business: activeBusinessId });
+            if (error) throw error;
+            return (data || []) as RosterStatRow[];
         },
-        enabled: !!activeBusinessId && courierIds.length > 0,
+        enabled: !!activeBusinessId,
     });
 
     const { data: courierFees = [] } = useQuery<CourierFeeRow[]>({
@@ -245,14 +234,6 @@ const Couriers = () => {
         },
         enabled: !!activeBusinessId && courierIds.length > 0,
     });
-
-    const feeLookup = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const f of courierFees) {
-            map.set(`${f.courier_id}:${f.master_city_id}`, Number(f.fee || 0));
-        }
-        return map;
-    }, [courierFees]);
 
     // City names for the zones-and-fees list inside the modal.
     const cityIds = useMemo(() => [...new Set(courierFees.map((f) => f.master_city_id))], [courierFees]);
@@ -320,48 +301,24 @@ const Couriers = () => {
     const stats = useMemo(() => {
         const m = new Map<string, CourierStat>();
         for (const c of couriers) {
-            m.set(c.id, { totalOrders: 0, confirmed: 0, inTransit: 0, delivered: 0, returned: 0, totalShippingFees: 0, totalPaid: 0, totalUnpaid: 0, notesCount: 0, zones: zonesByCourier.get(c.id)?.size || 0 });
+            m.set(c.id, { totalOrders: 0, inTransit: 0, delivered: 0, returned: 0, totalShippingFees: 0, totalPaid: 0, totalUnpaid: 0, notesCount: 0, zones: zonesByCourier.get(c.id)?.size || 0 });
         }
-        for (const o of orders) {
-            if (!o.courier_id) continue;
-            const row = m.get(o.courier_id);
+        // Overlay the server-side aggregate (counts, fees and paid/unpaid note
+        // sums are computed in the DB over the FULL order/note history).
+        for (const r of rosterStats) {
+            const row = m.get(r.courier_id);
             if (!row) continue;
-            row.totalOrders += 1;
-            // Delivery-rate denominator (Coliaty): tracked orders minus admin pullbacks.
-            if (!!o.id && trackedOrderIds.has(o.id)) {
-                const pullback = isAdminPullback(
-                    o as any,
-                    true,
-                    adminPullbackOrderIds,
-                    adminPullbackPackageIds,
-                );
-                if (!pullback) row.confirmed += 1;
-            }
-            if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) {
-                row.delivered += 1;
-                const override = o.include_delivery_in_total
-                    ? Number(o.shipping_cost || 0)
-                    : null;
-                const fallback = o.master_city_id
-                    ? (feeLookup.get(`${o.courier_id}:${o.master_city_id}`) ?? 0)
-                    : 0;
-                row.totalShippingFees += override !== null ? override : fallback;
-            } else if (o.package_status_id && shippedPkgIds.has(o.package_status_id)) {
-                row.inTransit += 1;
-            } else if (o.package_status_id && returnedPkgIds.has(o.package_status_id)) {
-                row.returned += 1;
-            }
-        }
-        for (const n of paymentNotes) {
-            const row = m.get(n.courier_id);
-            if (!row) continue;
-            row.notesCount += 1;
-            const fees = Number(n.total_shipping_fees || 0);
-            if (n.status === 'paid') row.totalPaid += fees;
-            else row.totalUnpaid += fees;
+            row.totalOrders = Number(r.total_orders || 0);
+            row.delivered = Number(r.delivered || 0);
+            row.inTransit = Number(r.in_transit || 0);
+            row.returned = Number(r.returned || 0);
+            row.totalShippingFees = Number(r.fees_sum || 0);
+            row.totalPaid = Number(r.notes_paid_sum || 0);
+            row.totalUnpaid = Number(r.notes_unpaid_sum || 0);
+            row.notesCount = Number(r.notes_count || 0);
         }
         return m;
-    }, [couriers, orders, paymentNotes, deliveredPkgIds, shippedPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, feeLookup, zonesByCourier]);
+    }, [couriers, rosterStats, zonesByCourier]);
 
     // Delivery success rate = delivered ÷ (delivered + returned).
     const successRate = (s?: CourierStat) => {

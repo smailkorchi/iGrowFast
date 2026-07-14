@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus,
     Search,
@@ -69,7 +69,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
@@ -132,15 +132,30 @@ const ExpensesDetails = () => {
         queryKey: ['expenses', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase
-                .from('expenses' as any)
-                .select('*, expense_types(name)')
-                .eq('DigiCom Business', activeBusinessId)
-                .order('date', { ascending: false }) as any);
-
-            if (error) throw error;
-            return data;
+            // fetchAllRows paginates past the PostgREST 1000-row cap so the
+            // ledger stays complete; pages come back id-ordered (stable), so
+            // re-sort by date desc for display.
+            const rows = await fetchAllRows<any>('expenses', '*, expense_types(name)', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
+            rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            return rows;
         },
+    });
+
+    // Server-side money KPIs — the list above is display data; the totals must
+    // never depend on how many rows the client happened to receive. Lives under
+    // the ['expenses', biz] prefix so every mutation invalidation refreshes it.
+    const { data: expensesTotals, isLoading: isTotalsLoading } = useQuery({
+        queryKey: ['expenses', activeBusinessId, 'totals'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('expenses_totals', {
+                p_business: activeBusinessId,
+            });
+            if (error) throw error;
+            return data as { all_time: number; this_month: number; count: number };
+        },
+        enabled: !!activeBusinessId,
     });
 
     // Manual expenses use VARIABLE categories only. Recurrent categories are
@@ -274,17 +289,16 @@ const ExpensesDetails = () => {
     }, [expenses, searchQuery, selectedType]);
 
     const stats = useMemo(() => {
-        const all = expenses || [];
-        const monthStart = startOfMonth(new Date());
-        const thisMonthTotal = all
-            .filter((e: any) => new Date(e.date) >= monthStart)
-            .reduce((acc: number, e: any) => acc + Number(e.amount), 0);
-        const allTimeTotal = all.reduce((acc: number, e: any) => acc + Number(e.amount), 0);
-        const count = all.length;
+        // Money KPIs come from the expenses_totals RPC (server-side aggregate,
+        // immune to the 1000-row PostgREST cap). Only the filtered footer total
+        // stays client-side: it reflects the on-screen filter over the full list.
+        const thisMonthTotal = Number(expensesTotals?.this_month ?? 0);
+        const allTimeTotal = Number(expensesTotals?.all_time ?? 0);
+        const count = Number(expensesTotals?.count ?? 0);
         const avg = count > 0 ? allTimeTotal / count : 0;
         const filteredTotal = filteredExpenses.reduce((acc: number, e: any) => acc + Number(e.amount), 0);
         return { thisMonthTotal, allTimeTotal, count, avg, filteredTotal };
-    }, [expenses, filteredExpenses]);
+    }, [expensesTotals, filteredExpenses]);
 
     const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid';
     const inputCls =
@@ -317,7 +331,7 @@ const ExpensesDetails = () => {
                 </header>
 
                 {/* KPI strip */}
-                {isExpensesLoading ? (
+                {isExpensesLoading || isTotalsLoading ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                         {Array.from({ length: 4 }).map((_, i) => (
                             <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-12 rounded-lg" /></div>

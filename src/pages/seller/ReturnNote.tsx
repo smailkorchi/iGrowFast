@@ -126,30 +126,41 @@ const ReturnNote = () => {
     });
 
     // ─── Fetch orders with package_status = Retourné AND not already linked to a return note ───
+    // MONEY-CRITICAL COMPLETENESS: these rows feed the wizard totals AND the
+    // note-generation writes (total_amount / order_count / line_items persisted
+    // to the DB). A bare select silently caps at 1000 rows, so past 1000 returned
+    // orders a generated note would be wrong in the database. fetchAllRows pages
+    // through everything on a stable unique `id` order (created_at can tie under
+    // bulk imports, which would duplicate/skip rows across .range() pages); the
+    // original newest-first display order is restored with a client-side sort.
     const { data: returnOrders, isLoading: isLoadingReturns } = useQuery({
         queryKey: ['seller-retourne-orders', activeBusinessId, sellerShippingCtx?.userId, sellerShippingCtx?.productIds?.join(',')],
         queryFn: async () => {
             if (!activeBusinessId || !sellerShippingCtx?.userId) return [];
             const uid = sellerShippingCtx.userId;
-            const { data, error } = await (supabase as any)
-                .from('orders')
-                .select(`*,
+            const productSet = new Set(sellerShippingCtx.productIds);
+            if (productSet.size === 0) return [];
+            const rows = await fetchAllRows<ReturnOrder & { created_at: string | null }>(
+                'orders',
+                `*,
                     company:providers(id, name, provider_type, logo_url),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
                     items:order_items(quantity, unit_price, product_id, product:products(name)),
                     parcels:company_parcels(tracking_code, provider:providers(id, name, provider_type, logo_url), company_delivery_note_id, created_at),
-                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`)
-                .eq('DigiCom Business', activeBusinessId)
-                .eq('package_status_id', RETOURNE_PACKAGE_STATUS_ID)
-                .is('current_return_note_id', null)
-                .is('current_courier_return_note_id', null)
-                .eq('seller_id', uid)
-                .is('date_deleted', null)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            const productSet = new Set(sellerShippingCtx.productIds);
-            if (productSet.size === 0) return [];
-            return ((data || []) as ReturnOrder[]).filter((o) =>
+                    courier_parcels(tracking_code, courier_delivery_note_id, created_at)`,
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        { column: 'package_status_id', op: 'eq', value: RETOURNE_PACKAGE_STATUS_ID },
+                        { column: 'current_return_note_id', op: 'is', value: null },
+                        { column: 'current_courier_return_note_id', op: 'is', value: null },
+                        { column: 'seller_id', op: 'eq', value: uid },
+                        { column: 'date_deleted', op: 'is', value: null },
+                    ],
+                },
+            );
+            rows.sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+            return (rows as ReturnOrder[]).filter((o) =>
                 orderMatchesSellerProducts(o, uid, productSet)
             );
         },

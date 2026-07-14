@@ -1905,9 +1905,9 @@
     "semantic_hash": "6c0709b1872ff8a80743dac9c2d8be45"
   },
   "src/hooks/useCourierNotifications.ts": {
-    "mtime": 1775751590.0,
-    "ast_hash": "94ffcad84f31fe4d980822c3fbae88ef",
-    "semantic_hash": "94ffcad84f31fe4d980822c3fbae88ef"
+    "mtime": 1784004958.565703,
+    "ast_hash": "56838a68c7319866d17960790c6d75c7",
+    "semantic_hash": ""
   },
   "src/hooks/useCurrentUserId.ts": {
     "mtime": 1775763136.0,
@@ -1925,9 +1925,9 @@
     "semantic_hash": "536e477a7f602b63c01c0d105ece4d04"
   },
   "src/hooks/useMediaBuyerStats.ts": {
-    "mtime": 1782522737.2441423,
-    "ast_hash": "1ad7bd5980dbeccb32db7cc34cadf18e",
-    "semantic_hash": "1ad7bd5980dbeccb32db7cc34cadf18e"
+    "mtime": 1784043426.371608,
+    "ast_hash": "9871e513fbb344d5ac3c0f371e7c0953",
+    "semantic_hash": ""
   },
   "src/hooks/useMetaAds.ts": {
     "mtime": 1776880992.0,
@@ -1965,14 +1965,14 @@
     "semantic_hash": "e83cd1eac46c45f74ae7160e7f2a3e06"
   },
   "src/hooks/useTrackingSyncStatus.ts": {
-    "mtime": 1775502665.0,
-    "ast_hash": "aa3ae03100cdc726a2580f002507e59f",
-    "semantic_hash": "aa3ae03100cdc726a2580f002507e59f"
+    "mtime": 1784004944.9704456,
+    "ast_hash": "5e50ced7627b17ab4f5020617b394023",
+    "semantic_hash": ""
   },
   "src/hooks/useWebhookHealth.ts": {
-    "mtime": 1782186020.7181644,
-    "ast_hash": "140e531c38d0c1435b1bc0eaf579864e",
-    "semantic_hash": "140e531c38d0c1435b1bc0eaf579864e"
+    "mtime": 1784004953.8583326,
+    "ast_hash": "7b9d9f37b669bf68a23b8c3e1e6e62f4",
+    "semantic_hash": ""
   },
   "src/lib/analyticsDefinitions.ts": {
     "mtime": 1782609434.0918756,
@@ -2250,9 +2250,9 @@
     "semantic_hash": "c794bd6a8931a94c2a6a56464852190b"
   },
   "src/pages/AdsHistory.tsx": {
-    "mtime": 1782522737.24473,
-    "ast_hash": "e55193311ad8c5f1c7cfee9f3ec43b59",
-    "semantic_hash": "e55193311ad8c5f1c7cfee9f3ec43b59"
+    "mtime": 1784043591.9738941,
+    "ast_hash": "4032f26ca3e6ddbbd18d77e84ff09d95",
+    "semantic_hash": ""
   },
   "src/pages/Auth.tsx": {
     "mtime": 1783454010.572185,
@@ -2275,9 +2275,9 @@
     "semantic_hash": "c80ab152098791874dc5489a8c35d46a"
   },
   "src/pages/admin/Accessories.tsx": {
-    "mtime": 1781605992.4622302,
-    "ast_hash": "e9176621f3d121a9e1e89411ba13d804",
-    "semantic_hash": "e9176621f3d121a9e1e89411ba13d804"
+    "mtime": 1784043304.0245395,
+    "ast_hash": "94953d4b98f73c324bfb2021f69c69a1",
+    "semantic_hash": ""
   },
   "src/pages/admin/Analytics.tsx": {
     "mtime": 1781605992.4628518,
@@ -2315,9 +2315,9 @@
     "semantic_hash": "d73c16de382c3574ab71d071e5591cd2"
   },
   "src/pages/admin/ExpensesDetails.tsx": {
-    "mtime": 1782617580.1567473,
-    "ast_hash": "066f22354c5270643353a1ec31618aee",
-    "semantic_hash": "066f22354c5270643353a1ec31618aee"
+    "mtime": 1784043287.1418357,
+    "ast_hash": "22c94ac04e71f341fccf70ff9d20f26a",
+    "semantic_hash": ""
   },
   "src/pages/admin/ExpensesTypes.tsx": {
     "mtime": 1781898224.3860712,
@@ -2335,9 +2335,9 @@
     "semantic_hash": "362207936ed1dbaa6c97b36a01fe1518"
   },
   "src/pages/admin/ImportOrders.tsx": {
-    "mtime": 1782617580.157009,
-    "ast_hash": "2ea75c4634c920ff1cc672df09eeba5d",
-    "semantic_hash": "2ea75c4634c920ff1cc672df09eeba5d"
+    "mtime": 1784043061.4991176,
+    "ast_hash": "334540b85ada5b2c2b86b7acb1490068",
+    "semantic_hash": ""
   },
   "src/pages/admin/ImportProducts.tsx": {
     "mtime": 1781605992.467508,
@@ -2350,14 +2350,14 @@
     "semantic_hash": ""
   },
   "src/pages/admin/Payments.tsx": {
-    "mtime": 1783994675.961366,
-    "ast_hash": "13676a772118091cc18630f0d7278f1e",
+    "mtime": 1784043136.7248862,
+    "ast_hash": "fff400ff585398650eee64ec8744280a",
     "semantic_hash": ""
   },
   "src/pages/admin/Products.tsx": {
-    "mtime": 1781605992.469379,
-    "ast_hash": "ce64f826bb425b1e36936635355fdae8",
-    "semantic_hash": "ce64f826bb425b1e36936635355fdae8"
+    "mtime": 1784043250.2488136,
+    "ast_hash": "cd5cb16731b4be58b228f76d6b1f6b96",
+    "semantic_hash": ""
   },
   "src/pages/admin/Profile.tsx": {
     "mtime": 1782617580.1585424,
@@ -2370,8 +2370,8 @@
     "semantic_hash": "bf8c6a405f4a4302947c413a4e6e2b69"
   },
   "src/pages/admin/ReturnNote.tsx": {
-    "mtime": 1783995543.0245569,
-    "ast_hash": "10688a772480a49a21fa3280082beacc",
+    "mtime": 1784043131.7455788,
+    "ast_hash": "f43895bb50f70a4312620e26ca253f98",
     "semantic_hash": ""
   },
   "src/pages/admin/Salaries.tsx": {
@@ -2390,9 +2390,9 @@
     "semantic_hash": ""
   },
   "src/pages/admin/Transactions.tsx": {
-    "mtime": 1782617580.1599424,
-    "ast_hash": "de2696ac77b7cbd7732924a2884603f8",
-    "semantic_hash": "de2696ac77b7cbd7732924a2884603f8"
+    "mtime": 1784043311.7525575,
+    "ast_hash": "b6d9e3800fe73e90bf99ff712e6ea07d",
+    "semantic_hash": ""
   },
   "src/pages/admin/Trash.tsx": {
     "mtime": 1781908116.9694016,
@@ -2420,9 +2420,9 @@
     "semantic_hash": "399fe25b88a01fe915bb6ed699e2058e"
   },
   "src/pages/admin/collaborators/Couriers.tsx": {
-    "mtime": 1782104501.1688888,
-    "ast_hash": "5ed9f5612f03f29ad49fa25f9bd0e910",
-    "semantic_hash": "5ed9f5612f03f29ad49fa25f9bd0e910"
+    "mtime": 1784043567.842465,
+    "ast_hash": "a6652045cc4be2b0fba7ca3ac30fab1e",
+    "semantic_hash": ""
   },
   "src/pages/admin/collaborators/MediaBuyers.tsx": {
     "mtime": 1782617580.1613612,
@@ -2460,9 +2460,9 @@
     "semantic_hash": "55277222b859eeeb01a67505d24049d4"
   },
   "src/pages/admin/tools/bonCommande/BonCommandePage.tsx": {
-    "mtime": 1781752178.8678508,
-    "ast_hash": "ca756204a0d94c889563f126206d3482",
-    "semantic_hash": "ca756204a0d94c889563f126206d3482"
+    "mtime": 1784043674.8411784,
+    "ast_hash": "e7382dff827685c8670633034c23b561",
+    "semantic_hash": ""
   },
   "src/pages/admin/tools/bonCommande/BonCommandePdfDocument.tsx": {
     "mtime": 1776381657.0,
@@ -2475,9 +2475,9 @@
     "semantic_hash": "6b5b881710d2a89b71b6f485e609cf31"
   },
   "src/pages/admin/tools/bonLivraison/BonLivraisonPage.tsx": {
-    "mtime": 1781752192.7009394,
-    "ast_hash": "0880898410d9ba978ca77d134f0ca955",
-    "semantic_hash": "0880898410d9ba978ca77d134f0ca955"
+    "mtime": 1784043774.9851618,
+    "ast_hash": "287a602d940277f49d70ebef71bc1b48",
+    "semantic_hash": ""
   },
   "src/pages/admin/tools/bonLivraison/BonLivraisonPdfDocument.tsx": {
     "mtime": 1782531954.6092093,
@@ -2490,9 +2490,9 @@
     "semantic_hash": "9596fd1959712bfc9b13dc6a512308ff"
   },
   "src/pages/admin/tools/devis/DevisPage.tsx": {
-    "mtime": 1781752160.7308018,
-    "ast_hash": "3928fa539fbebd88b9619f75a9d4186e",
-    "semantic_hash": "3928fa539fbebd88b9619f75a9d4186e"
+    "mtime": 1784043707.2200997,
+    "ast_hash": "02f2ff81182e0d8a5507ea3b1053e210",
+    "semantic_hash": ""
   },
   "src/pages/admin/tools/devis/DevisPdfDocument.tsx": {
     "mtime": 1776381536.0,
@@ -2505,9 +2505,9 @@
     "semantic_hash": "1591f6810fa88d6e1f06a20ff8104f7a"
   },
   "src/pages/admin/tools/facture/FacturePage.tsx": {
-    "mtime": 1781752168.3796813,
-    "ast_hash": "95f53b9b773eda92db29024b642ec7f6",
-    "semantic_hash": "95f53b9b773eda92db29024b642ec7f6"
+    "mtime": 1784043740.7670755,
+    "ast_hash": "8ee7e4b97917a0d4384d1ecd6f2eba35",
+    "semantic_hash": ""
   },
   "src/pages/admin/tools/facture/FacturePdfDocument.tsx": {
     "mtime": 1776381598.0,
@@ -2530,14 +2530,14 @@
     "semantic_hash": "de7583b7efba5b8d64430d6e1f496cbb"
   },
   "src/pages/courier/Dashboard.tsx": {
-    "mtime": 1782408323.162024,
-    "ast_hash": "ae9ced2f9533ec6fad453c47d086aaa2",
-    "semantic_hash": "ae9ced2f9533ec6fad453c47d086aaa2"
+    "mtime": 1784045431.2333498,
+    "ast_hash": "f028d4f889f9434858ca213f62f9800f",
+    "semantic_hash": ""
   },
   "src/pages/courier/Orders.tsx": {
-    "mtime": 1782531954.6095793,
-    "ast_hash": "cef79ea1aa3a4a3283ad98e7f6d836ec",
-    "semantic_hash": "cef79ea1aa3a4a3283ad98e7f6d836ec"
+    "mtime": 1784043657.007128,
+    "ast_hash": "2e5daa466cadb4399d4828da506fded9",
+    "semantic_hash": ""
   },
   "src/pages/courier/Payments.tsx": {
     "mtime": 1782583813.6628335,
@@ -2550,9 +2550,9 @@
     "semantic_hash": "e4e96eb23d8e261af46e4fe5db2dd9c1"
   },
   "src/pages/mediabuyer/CampaignForm.tsx": {
-    "mtime": 1782617580.1634505,
-    "ast_hash": "f102e3d1e2453b58fc192f7b6e4277f0",
-    "semantic_hash": "f102e3d1e2453b58fc192f7b6e4277f0"
+    "mtime": 1784006682.4870746,
+    "ast_hash": "9ca1181f97e816b6c25ae796dd420efb",
+    "semantic_hash": ""
   },
   "src/pages/mediabuyer/CampaignManage.tsx": {
     "mtime": 1781605992.478403,
@@ -2580,9 +2580,9 @@
     "semantic_hash": "8dbecbce6f50c7a7d78d26f066c69363"
   },
   "src/pages/mediabuyer/Orders.tsx": {
-    "mtime": 1782522737.245526,
-    "ast_hash": "fad83798d909fb8376424cddb8ed02ac",
-    "semantic_hash": "fad83798d909fb8376424cddb8ed02ac"
+    "mtime": 1784045423.8044822,
+    "ast_hash": "762aa8f53a1889f337707993c92b19a0",
+    "semantic_hash": ""
   },
   "src/pages/mediabuyer/Payments.tsx": {
     "mtime": 1783055483.9436026,
@@ -2705,8 +2705,8 @@
     "semantic_hash": "96abe20446fe908b9390d3caf760388d"
   },
   "src/pages/seller/ReturnNote.tsx": {
-    "mtime": 1783994542.3170006,
-    "ast_hash": "1fe4a1cb6946bf31be3fa9a445737f77",
+    "mtime": 1784043151.8539917,
+    "ast_hash": "a2891fa8c7d000a52bbb8b77e26b9669",
     "semantic_hash": ""
   },
   "src/pages/seller/Statistics.tsx": {
@@ -5310,13 +5310,13 @@
     "semantic_hash": ""
   },
   "src/components/realtime/EcomBizRealtime.tsx": {
-    "mtime": 1784001887.4275892,
-    "ast_hash": "d11c34580d0aeaee876121c07bff61ba",
+    "mtime": 1784004973.4894176,
+    "ast_hash": "e2fc1d2cb7305cc13ac72b6bfe11ca27",
     "semantic_hash": ""
   },
   "src/lib/ecomBus.ts": {
-    "mtime": 1784001869.9624798,
-    "ast_hash": "130cd937b06d791d2765adda134792e7",
+    "mtime": 1784004967.5267818,
+    "ast_hash": "8e48f456ce49764a3c8183be5529f94b",
     "semantic_hash": ""
   },
   "supabase/migrations/20260714150000_ecom_biz_r1a_orders_family.sql": {
@@ -5325,8 +5325,33 @@
     "semantic_hash": ""
   },
   "docs/MASTER_TODO.md": {
-    "mtime": 1784004264.341872,
-    "ast_hash": "2f4f232313cedb8fd505e77255bed0f3",
+    "mtime": 1784045653.074973,
+    "ast_hash": "1a33cd5cb31a490d03c56563af179ada",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714160000_ecom_biz_r1a_publication_drop.sql": {
+    "mtime": 1784004597.5125225,
+    "ast_hash": "8fa99dc21988758b7705a7460a0a98c4",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714170000_ecom_r1b_logistics_broadcast.sql": {
+    "mtime": 1784004927.877076,
+    "ast_hash": "fcea6117f09e36849522b4247a84cbdc",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714180000_ecom_r1b_publication_drop.sql": {
+    "mtime": 1784004931.238085,
+    "ast_hash": "041a1c701f07adcbc710ceb03877e76e",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714190000_ecom_r1c_publication_empty.sql": {
+    "mtime": 1784006688.12545,
+    "ast_hash": "08367a01128cadf543468934bd754642",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714210000_d4_money_aggregates.sql": {
+    "mtime": 1784045419.0843012,
+    "ast_hash": "59952d10a4303b049798f6bdc1d4be98",
     "semantic_hash": ""
   }
 }

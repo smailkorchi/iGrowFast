@@ -79,6 +79,22 @@ type BusinessRow = {
   signature_url?: string | null;
 };
 
+type RegisterTotals = {
+  totalCount: number;
+  totalTTC: number;
+  avgTTC: number;
+  thisMonth: number;
+  overdue: number;
+};
+
+const EMPTY_TOTALS: RegisterTotals = {
+  totalCount: 0,
+  totalTTC: 0,
+  avgTTC: 0,
+  thisMonth: 0,
+  overdue: 0,
+};
+
 async function uniqueFactureNumber(businessId: string): Promise<string> {
   for (let i = 0; i < 12; i++) {
     const n = `FAC-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -151,32 +167,13 @@ export default function FacturePage() {
 
   const { data: orderClients = [] } = useQuery({
     queryKey: ['facture-order-clients', activeBusinessId],
-    enabled: !!activeBusinessId,
+    enabled: !!activeBusinessId && wizardOpen,
     queryFn: async () => {
-      const orders = await fetchAllRows('orders', 'name, phone, address, city:master_cities(name)', {
-        filters: [
-          { column: 'DigiCom Business', op: 'eq', value: activeBusinessId! },
-          { column: 'date_deleted', op: 'is', value: null },
-        ],
+      const { data, error } = await (supabase as any).rpc('distinct_clients', {
+        p_business: activeBusinessId!,
       });
-      const map = new Map<string, OrderDerivedClient>();
-      orders.forEach((o: Record<string, unknown>) => {
-        const raw = String(o.phone || '');
-        const phone = raw.replace(/[^0-9]/g, '');
-        if (!phone) return;
-        const cityObj = o.city as { name?: string } | null;
-        const cityName = cityObj?.name || '';
-        const existing = map.get(phone);
-        const name = String(o.name || existing?.name || 'Client');
-        const address = String(o.address || existing?.address || '');
-        map.set(phone, {
-          phone,
-          name,
-          address,
-          city: cityName || existing?.city || '',
-        });
-      });
-      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+      if (error) throw error;
+      return ((data ?? []) as OrderDerivedClient[]);
     },
   });
 
@@ -184,13 +181,30 @@ export default function FacturePage() {
     queryKey: ['facture-list', activeBusinessId],
     enabled: !!activeBusinessId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('factures')
-        .select('*')
-        .eq('business_id', activeBusinessId!)
-        .order('created_at', { ascending: false });
+      const rows = await fetchAllRows<FactureRow>('factures', '*', {
+        filters: [{ column: 'business_id', op: 'eq', value: activeBusinessId! }],
+      });
+      return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+  });
+
+  const { data: kpis = EMPTY_TOTALS } = useQuery({
+    queryKey: ['facture-totals', activeBusinessId],
+    enabled: !!activeBusinessId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('register_totals', {
+        p_business: activeBusinessId!,
+        p_register: 'factures',
+      });
       if (error) throw error;
-      return (data || []) as FactureRow[];
+      const t = (data ?? {}) as Record<string, number>;
+      return {
+        totalCount: Number(t.count || 0),
+        totalTTC: Number(t.total_ttc || 0),
+        avgTTC: Number(t.avg_ttc || 0),
+        thisMonth: Number(t.this_month || 0),
+        overdue: Number(t.overdue || 0),
+      } satisfies RegisterTotals;
     },
   });
 
@@ -377,7 +391,10 @@ export default function FacturePage() {
         setPreviewRow(null);
         setPreviewLoading(false);
         setPreviewOpen(true);
-        await queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] }),
+          queryClient.invalidateQueries({ queryKey: ['facture-totals', activeBusinessId] }),
+        ]);
 
         toast({ title: wasEdit ? 'Facture mise a jour' : 'Facture enregistree', description: factureNumber });
       } catch (e) {
@@ -429,7 +446,10 @@ export default function FacturePage() {
       if (error) throw error;
       toast({ title: 'Facture supprimee' });
       setDeleteTarget(null);
-      await queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] }),
+        queryClient.invalidateQueries({ queryKey: ['facture-totals', activeBusinessId] }),
+      ]);
     } catch (e) {
       console.error(e);
       toast({ title: 'Suppression impossible', variant: 'destructive' });
@@ -447,30 +467,6 @@ export default function FacturePage() {
     () => !listLoading && factureList.length === 0,
     [listLoading, factureList.length],
   );
-
-  const kpis = useMemo(() => {
-    const totalCount = factureList.length;
-    const totalTTC = factureList.reduce((sum, r) => sum + Number(r.total_ttc || 0), 0);
-    const avgTTC = totalCount > 0 ? totalTTC / totalCount : 0;
-    const now = new Date();
-    const thisMonth = factureList.filter(r => {
-      try {
-        const d = parseISO(r.issued_at);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      } catch {
-        return false;
-      }
-    }).length;
-    const overdue = factureList.filter(r => {
-      if (!r.due_date) return false;
-      try {
-        return differenceInDays(parseISO(r.due_date), now) < 0;
-      } catch {
-        return false;
-      }
-    }).length;
-    return { totalCount, totalTTC, avgTTC, thisMonth, overdue };
-  }, [factureList]);
 
   if (!activeBusinessId) {
     return (

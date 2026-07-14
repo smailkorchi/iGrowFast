@@ -299,15 +299,29 @@ const Payments = () => {
                 .order('created_at', { ascending: false }).range(0, page * NOTE_PAGE_SIZE - 1);
             const totalQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true }));
             const unpaidQ = applyFilters((supabase as any).from(noteTable).select('id', { count: 'exact', head: true })).eq('status', 'unpaid');
-            const pendingSumQ = applyFilters((supabase as any).from(noteTable).select('net_amount')).eq('status', 'unpaid');
+            // Server-side aggregate: a bare select('net_amount') silently caps at 1000 rows
+            // (PGRST_DB_MAX_ROWS), so the client-side reduce showed wrong money past 1000
+            // notes. The RPC mirrors applyFilters exactly and sums under the caller's RLS.
+            const pendingSumQ = (supabase as any).rpc('payment_notes_unpaid_total', {
+                p_business: activeBusinessId,
+                p_kind: activeTab,
+                p_status: filterStatus === 'all' ? null : filterStatus,
+                p_entity: entityFilter === 'all' ? null : entityFilter,
+                p_date_from: dateFrom || null,
+                p_date_to: dateTo || null,
+                p_amount_min: amountMin ? Number(amountMin) : null,
+                p_amount_max: amountMax ? Number(amountMax) : null,
+                p_ids: ids,
+            });
             const [dataRes, totalRes, unpaidRes, sumRes] = await Promise.all([dataQ, totalQ, unpaidQ, pendingSumQ]);
             if (dataRes.error) throw dataRes.error;
+            if (sumRes.error) throw sumRes.error;
             const rows = (dataRes.data || []).map((n: any) => ({
                 ...n,
                 kind: activeTab,
                 ...(activeTab === 'courier' ? { provider: null } : {}),
             })) as PaymentNote[];
-            const pendingAmount = (sumRes.data || []).reduce((s: number, r: any) => s + Number(r.net_amount || 0), 0);
+            const pendingAmount = Number(sumRes.data || 0);
             return { rows, total: totalRes.count || 0, unpaid: unpaidRes.count || 0, pendingAmount };
         },
         enabled: !!activeBusinessId,

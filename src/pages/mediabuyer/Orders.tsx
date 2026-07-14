@@ -16,7 +16,7 @@ import {
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { getPlatformSource, getPlatformIcon, getPlatformColor, type CampaignDailyEntry } from '@/lib/campaignConstants';
+import { getPlatformSource, getPlatformIcon, getPlatformColor } from '@/lib/campaignConstants';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -57,6 +57,8 @@ type OrderRow = {
 
 type TabKey = 'all' | 'delivered' | 'inProgress' | 'cancelled';
 
+type EntryDay = { entry_date: string; platform: string };
+
 const fmtMAD = (n: number) => new Intl.NumberFormat('fr-MA').format(n || 0);
 
 const MediaBuyerOrders = () => {
@@ -70,17 +72,22 @@ const MediaBuyerOrders = () => {
     const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
     const [historyOrder, setHistoryOrder] = useState<OrderRow | null>(null);
 
-    const { data: entries = [], isLoading: loadingEntries } = useQuery<CampaignDailyEntry[]>({
+    const { data: entries = [], isLoading: loadingEntries } = useQuery<EntryDay[]>({
         queryKey: ['mb-orders-entries', activeBusinessId, currentUserId],
         queryFn: async () => {
             if (!activeBusinessId || !currentUserId) return [];
+            // Server-side DISTINCT (entry_date, platform) — the attribution base is the
+            // MB's LIFETIME entries, so a bare select silently caps at 1000 rows and
+            // drops attribution days. The RPC exposes no spend/leads (MB-facing rule)
+            // and returns ONE jsonb array (immune to the PostgREST 1000-row response
+            // cap that would apply to a set-returning RPC).
             const { data, error } = await (supabase as any)
-                .from('campaign_daily_entries')
-                .select('id, campaign_id, "DigiCom Business", entry_date, spend, leads, notes, platform, created_by, created_at, updated_at')
-                .eq('DigiCom Business', activeBusinessId)
-                .eq('created_by', currentUserId);
+                .rpc('mb_entry_days', {
+                    p_business: activeBusinessId,
+                    p_created_by: currentUserId,
+                });
             if (error) throw error;
-            return (data || []) as CampaignDailyEntry[];
+            return (Array.isArray(data) ? data : []) as EntryDay[];
         },
         enabled: !!activeBusinessId && !!currentUserId,
     });

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Search,
     Wallet,
@@ -222,19 +222,42 @@ const Transactions = () => {
         queryKey: ['transactions', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('transactions')
-                .select(`
+            // fetchAllRows paginates past the PostgREST 1000-row cap so the
+            // ledger stays complete; pages come back id-ordered (stable) and
+            // displayTransactions re-sorts by date for the UI.
+            return fetchAllRows<any>(
+                'transactions',
+                `
                     *,
                     items:trns_purchase(*, product:products(name, code), accessory:accessories(name, code)),
                     payments:trns_payment(*)
-                `)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            return data;
+                `,
+                { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] }
+            );
         },
+    });
+
+    // Server-side money KPIs + status counts — must never depend on how many
+    // rows the client happened to receive. Lives under the ['transactions', biz]
+    // prefix so every mutation invalidation refreshes it.
+    const { data: txTotals } = useQuery({
+        queryKey: ['transactions', activeBusinessId, 'totals'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('transactions_totals', {
+                p_business: activeBusinessId,
+            });
+            if (error) throw error;
+            return data as {
+                invoiced: number;
+                paid: number;
+                outstanding: number;
+                count_all: number;
+                count_paid: number;
+                count_partial: number;
+                count_unpaid: number;
+            };
+        },
+        enabled: !!activeBusinessId,
     });
 
     const { data: products } = useQuery({
@@ -505,30 +528,21 @@ const Transactions = () => {
         );
     };
 
-    const totals = useMemo(() => {
-        const list = transactions || [];
-        return list.reduce(
-            (acc, tx: any) => {
-                const total = Number(tx.total_price || 0);
-                const paid = Number(tx.paid_price || 0);
-                acc.invoiced += total;
-                acc.paid += paid;
-                acc.outstanding += Math.max(0, total - paid);
-                return acc;
-            },
-            { invoiced: 0, paid: 0, outstanding: 0 }
-        );
-    }, [transactions]);
+    // KPI money + status counts come from the transactions_totals RPC
+    // (server-side aggregate, immune to the 1000-row PostgREST cap). The RPC
+    // replicates getPaymentStatus() exactly on the server.
+    const totals = useMemo(() => ({
+        invoiced: Number(txTotals?.invoiced ?? 0),
+        paid: Number(txTotals?.paid ?? 0),
+        outstanding: Number(txTotals?.outstanding ?? 0),
+    }), [txTotals]);
 
-    const tabCounts = useMemo(() => {
-        const list = transactions || [];
-        return {
-            all: list.length,
-            paid: list.filter((t: any) => getPaymentStatus(t) === 'paid').length,
-            partial: list.filter((t: any) => getPaymentStatus(t) === 'partial').length,
-            unpaid: list.filter((t: any) => getPaymentStatus(t) === 'unpaid').length,
-        };
-    }, [transactions]);
+    const tabCounts = useMemo(() => ({
+        all: Number(txTotals?.count_all ?? 0),
+        paid: Number(txTotals?.count_paid ?? 0),
+        partial: Number(txTotals?.count_partial ?? 0),
+        unpaid: Number(txTotals?.count_unpaid ?? 0),
+    }), [txTotals]);
 
     return (
         <div className="ant-surface min-h-screen">

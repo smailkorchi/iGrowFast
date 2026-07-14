@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus,
     Search,
@@ -94,6 +94,38 @@ const productSchema = z.object({
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
+type ProductRow = {
+    id: string;
+    name: string;
+    code: string;
+    label: string | null;
+    description: string | null;
+    cost_price: number;
+    selling_price: number;
+    stock: number | null;
+    active: boolean | null;
+    image_url: string | null;
+    created_at: string;
+};
+
+type CatalogTotalsPayload = {
+    products: {
+        count: number;
+        active_count: number;
+        stock_sum: number;
+        inventory_cost: number;
+        inventory_value: number;
+        low_stock_count: number;
+    };
+    accessories: {
+        count: number;
+        active_count: number;
+        stock_sum: number;
+        inventory_cost: number;
+        low_stock_count: number;
+    };
+};
+
 const PRODUCT_KPI_ACCENTS = {
     ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
     orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
@@ -157,15 +189,31 @@ const Products = () => {
         queryKey: ['products', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('products')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            return data;
+            // fetchAllRows paginates past the PostgREST 1000-row cap; stable `id`
+            // ordering keeps pages consistent, then sort newest-first for display.
+            const rows = await fetchAllRows<ProductRow>(
+                'products',
+                'id, name, code, label, description, cost_price, selling_price, stock, active, image_url, created_at',
+                { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] }
+            );
+            return rows.sort((a, b) =>
+                b.created_at === a.created_at
+                    ? b.id.localeCompare(a.id)
+                    : b.created_at.localeCompare(a.created_at)
+            );
         },
+    });
+
+    const { data: catalogTotalsData, isLoading: isTotalsLoading } = useQuery({
+        queryKey: ['catalog-totals', activeBusinessId],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('catalog_totals', {
+                p_business: activeBusinessId,
+            });
+            if (error) throw error;
+            return data as CatalogTotalsPayload;
+        },
+        enabled: !!activeBusinessId,
     });
 
     const form = useForm<ProductFormValues>({
@@ -229,6 +277,7 @@ const Products = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['catalog-totals', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
             queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setIsModalOpen(false);
@@ -266,6 +315,7 @@ const Products = () => {
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['catalog-totals', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
             queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setProductToDelete(null);
@@ -291,6 +341,7 @@ const Products = () => {
         },
         onSuccess: (_, { active }) => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['catalog-totals', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products-dropdown', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products-user-modal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products-minimal', activeBusinessId] });
@@ -319,6 +370,7 @@ const Products = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['catalog-totals', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
             setProductToResetStock(null);
             toast({ title: "Stock Updated", description: "Product stock has been modified." });
@@ -381,23 +433,18 @@ const Products = () => {
             .map((x) => x.p);
     }, [products, searchQuery]);
 
+    // Server-side aggregates (catalog_totals RPC) — never a client reduce()
+    // over a PostgREST-capped row set, so the money KPIs stay exact.
     const catalogTotals = useMemo(() => {
-        const list = products ?? [];
-        let totalQuantity = 0;
-        let totalCost = 0;
-        let totalValue = 0;
-        let activeCount = 0;
-        for (const p of list) {
-            const q = Number(p.stock ?? 0);
-            const c = Number(p.cost_price ?? 0);
-            const s = Number(p.selling_price ?? 0);
-            totalQuantity += q;
-            totalCost += q * c;
-            totalValue += q * s;
-            if (p.active) activeCount += 1;
-        }
-        return { totalQuantity, totalCost, totalValue, activeCount };
-    }, [products]);
+        const t = catalogTotalsData?.products;
+        return {
+            count: Number(t?.count ?? 0),
+            totalQuantity: Number(t?.stock_sum ?? 0),
+            totalCost: Number(t?.inventory_cost ?? 0),
+            totalValue: Number(t?.inventory_value ?? 0),
+            activeCount: Number(t?.active_count ?? 0),
+        };
+    }, [catalogTotalsData]);
 
     const openModal = (product: any = null) => {
         if (product) {
@@ -468,7 +515,7 @@ const Products = () => {
                 </header>
 
                 {/* KPI strip */}
-                {isLoading ? (
+                {isLoading || isTotalsLoading ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                         {Array.from({ length: 4 }).map((_, i) => (
                             <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-12 rounded-lg" /></div>
@@ -478,7 +525,7 @@ const Products = () => {
                     <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                         <ProductKpi
                             label="Products"
-                            value={String(products?.length ?? 0)}
+                            value={String(catalogTotals.count)}
                             suffix={`${catalogTotals.activeCount} active`}
                             accent="ink"
                             icon={Package}

@@ -19,7 +19,7 @@ import {
     Clock,
     Hash,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { cn } from '@/lib/utils';
@@ -78,6 +78,13 @@ type PayoutRow = {
     created_at: string | null;
 };
 
+/** Server-side KPI aggregate (courier_self_stats RPC). */
+type SelfStats = {
+    active_count: number;
+    delivered_count: number;
+    pending_earnings: number;
+};
+
 const fmtMAD = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0);
 
@@ -121,9 +128,11 @@ const CourierDashboard = () => {
         queryKey: ['courier-dashboard-parcels', courierId, businessId],
         queryFn: async () => {
             if (!courierId || !businessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_parcels')
-                .select(`
+            // Paginated so the chart / recent activity / QR match never silently
+            // truncate at the 1000-row default cap.
+            const data = await fetchAllRows<any>(
+                'courier_parcels',
+                `
                     id, tracking_code, created_at, updated_at, delivered_at, status_id,
                     note:courier_delivery_notes!inner(id, is_finalized),
                     status:package_statuses(id, label, color, recheck, is_delivered, is_returned, is_refused, is_cancelled, is_postponed, is_recheck, is_terminal, flow_rank),
@@ -131,11 +140,15 @@ const CourierDashboard = () => {
                         id, name, price, shipping_cost,
                         city:master_cities(id, name)
                     )
-                `)
-                .eq('courier_id', courierId)
-                .eq('DigiCom Business', businessId)
-                .eq('note.is_finalized', true);
-            if (error) throw error;
+                `,
+                {
+                    filters: [
+                        { column: 'courier_id', op: 'eq', value: courierId },
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'note.is_finalized', op: 'eq', value: true },
+                    ],
+                }
+            );
             return ((data || []) as any[])
                 .filter((p) => p?.note && p?.order)
                 .map((p) => {
@@ -167,15 +180,37 @@ const CourierDashboard = () => {
         queryKey: ['courier-dashboard-payouts', courierId, businessId],
         queryFn: async () => {
             if (!courierId || !businessId) return [];
+            // fetchAllRows: lifetimePaid ('Mes paiements' MAD total) is a money
+            // reduce over this set — a bare select caps at 1000 rows and would
+            // silently understate it. Stable id order; display re-sorted below.
+            const rows = await fetchAllRows<PayoutRow>(
+                'courier_payment_notes',
+                'id, reference, total_shipping_fees, order_count, paid_at, created_at',
+                {
+                    filters: [
+                        { column: 'courier_id', op: 'eq', value: courierId },
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'status', op: 'eq', value: 'paid' },
+                    ],
+                },
+            );
+            return rows.sort((a, b) =>
+                new Date(b.paid_at || b.created_at || 0).getTime() - new Date(a.paid_at || a.created_at || 0).getTime());
+        },
+        enabled: !!courierId && !!businessId,
+    });
+
+    // Server-side KPI aggregate — active / delivered counts and the pending
+    // earnings money are computed in the DB over the FULL parcel + payout
+    // history (a client-side reduce over a capped fetch renders wrong money).
+    const { data: selfStats, isLoading: isLoadingSelfStats } = useQuery<SelfStats | null>({
+        queryKey: ['courier-dashboard-self-stats', courierId, businessId],
+        queryFn: async () => {
+            if (!courierId || !businessId) return null;
             const { data, error } = await (supabase as any)
-                .from('courier_payment_notes')
-                .select('id, reference, total_shipping_fees, order_count, paid_at, created_at')
-                .eq('courier_id', courierId)
-                .eq('DigiCom Business', businessId)
-                .eq('status', 'paid')
-                .order('paid_at', { ascending: false, nullsFirst: false });
+                .rpc('courier_self_stats', { p_courier: courierId, p_business: businessId });
             if (error) throw error;
-            return (data || []) as PayoutRow[];
+            return (data || null) as SelfStats | null;
         },
         enabled: !!courierId && !!businessId,
     });
@@ -183,36 +218,22 @@ const CourierDashboard = () => {
     const stats = useMemo(() => {
         const today = new Date();
         let deliveredToday = 0;
-        let activeCount = 0;
-        let pendingEarningsGross = 0;
-        let deliveredTotal = 0;
 
         const byCategory = new Map<string, number>();
 
         for (const p of parcels) {
             byCategory.set(p.chart_group, (byCategory.get(p.chart_group) || 0) + 1);
 
-            if (p.is_delivered) {
-                deliveredTotal++;
-                pendingEarningsGross += p.order_shipping;
-                if (p.delivered_at && isSameDay(new Date(p.delivered_at), today)) deliveredToday++;
-            } else if (!p.is_terminal) {
-                // Not delivered and not terminal (returned/refused/cancelled) → still active.
-                activeCount++;
+            if (p.is_delivered && p.delivered_at && isSameDay(new Date(p.delivered_at), today)) {
+                deliveredToday++;
             }
         }
 
         const lifetimePaid = payouts.reduce((s, n) => s + Number(n.total_shipping_fees || 0), 0);
-        const lifetimeDelivered = payouts.reduce((s, n) => s + Number(n.order_count || 0), 0);
-        const pendingEarnings = Math.max(0, pendingEarningsGross - lifetimePaid);
 
         return {
             deliveredToday,
-            activeCount,
-            pendingEarnings,
-            deliveredTotal,
             lifetimePaid,
-            lifetimeDelivered,
             byCategory,
         };
     }, [parcels, payouts]);
@@ -294,9 +315,9 @@ const CourierDashboard = () => {
 
     const kpiTiles = [
         { label: "Livrés aujourd'hui", value: isLoadingParcels ? '—' : String(stats.deliveredToday), accent: 'bg-ant-green' },
-        { label: 'Colis actifs', value: isLoadingParcels ? '—' : String(stats.activeCount), accent: 'bg-ant-ink' },
-        { label: 'En attente (MAD)', value: isLoadingParcels ? '—' : fmtMAD(stats.pendingEarnings), accent: 'bg-ant-orange' },
-        { label: 'Total livrés', value: isLoadingParcels ? '—' : String(stats.deliveredTotal), accent: 'bg-ant-ink' },
+        { label: 'Colis actifs', value: isLoadingSelfStats ? '—' : String(Number(selfStats?.active_count ?? 0)), accent: 'bg-ant-ink' },
+        { label: 'En attente (MAD)', value: isLoadingSelfStats ? '—' : fmtMAD(Number(selfStats?.pending_earnings ?? 0)), accent: 'bg-ant-orange' },
+        { label: 'Total livrés', value: isLoadingSelfStats ? '—' : String(Number(selfStats?.delivered_count ?? 0)), accent: 'bg-ant-ink' },
     ];
 
     return (

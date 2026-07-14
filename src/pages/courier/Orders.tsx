@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import {
@@ -143,9 +143,11 @@ const CourierOrders = () => {
         queryFn: async () => {
             if (!courierId || !businessId) return [];
 
-            const { data, error } = await (supabase as any)
-                .from('courier_parcels')
-                .select(`
+            // Paginated so the lifetime list never silently truncates at the
+            // 1000-row default cap (search / QR scan need every parcel).
+            const data = await fetchAllRows<any>(
+                'courier_parcels',
+                `
                     id,
                     tracking_code,
                     status_id,
@@ -160,12 +162,15 @@ const CourierOrders = () => {
                         items:order_items(quantity, product:products(name, code))
                     ),
                     status:package_statuses(id, code, label, color, recheck, ranking, icon, is_new, is_postponed, is_delivered, is_returned)
-                `)
-                .eq('courier_id', courierId)
-                .eq('DigiCom Business', businessId)
-                .eq('note.is_finalized', true)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
+                `,
+                {
+                    filters: [
+                        { column: 'courier_id', op: 'eq', value: courierId },
+                        { column: 'DigiCom Business', op: 'eq', value: businessId },
+                        { column: 'note.is_finalized', op: 'eq', value: true },
+                    ],
+                }
+            );
 
             const list = (data || []) as any[];
             return list
@@ -179,7 +184,12 @@ const CourierOrders = () => {
                     note_reference: p.note.reference,
                     note_finalized_at: p.note.updated_at,
                     order: p.order,
-                })) as CourierOrderRow[];
+                }))
+                // fetchAllRows paginates on a stable id order — restore the
+                // page's newest-first display order here.
+                .sort((a, b) =>
+                    new Date(b.parcel_created_at || 0).getTime() - new Date(a.parcel_created_at || 0).getTime()
+                ) as CourierOrderRow[];
         },
         enabled: !!courierId && !!businessId,
     });
@@ -211,13 +221,31 @@ const CourierOrders = () => {
         setSearchParams(next, { replace: true });
     }, [rows, searchParams, setSearchParams, toast]);
 
-    const counts = useMemo(() => {
-        const c: Record<TabKey, number> = { all: 0, livre: 0, nouveau: 0, suivi: 0, reported: 0, retour: 0 };
-        for (const r of rows) {
-            for (const t of TABS) if (t.match(r.parcel_status)) c[t.key]++;
-        }
-        return c;
-    }, [rows]);
+    // Server-side tab counts (courier_parcel_counts RPC) — the client set is
+    // page-scoped, so counting it locally undercounts once it exceeds a page.
+    const EMPTY_COUNTS: Record<TabKey, number> = useMemo(
+        () => ({ all: 0, livre: 0, nouveau: 0, suivi: 0, reported: 0, retour: 0 }),
+        [],
+    );
+    const { data: counts = EMPTY_COUNTS } = useQuery<Record<TabKey, number>>({
+        queryKey: ['courier-parcel-counts', courierId, businessId],
+        queryFn: async () => {
+            if (!courierId || !businessId) return EMPTY_COUNTS;
+            const { data, error } = await (supabase as any)
+                .rpc('courier_parcel_counts', { p_courier: courierId, p_business: businessId });
+            if (error) throw error;
+            const d = (data || {}) as Record<string, number | string>;
+            return {
+                all: Number(d.all || 0),
+                livre: Number(d.livre || 0),
+                nouveau: Number(d.nouveau || 0),
+                suivi: Number(d.suivi || 0),
+                reported: Number(d.reported || 0),
+                retour: Number(d.retour || 0),
+            };
+        },
+        enabled: !!courierId && !!businessId,
+    });
 
     const searchableRows = useMemo(() => {
         const normalizeDigits = (v: string) => v.replace(/\D/g, '');
@@ -308,6 +336,7 @@ const CourierOrders = () => {
         },
         onSuccess: (_d, variables) => {
             queryClient.invalidateQueries({ queryKey: ['courier-orders', courierId, businessId] });
+            queryClient.invalidateQueries({ queryKey: ['courier-parcel-counts', courierId, businessId] });
             toast({
                 title: 'Statut mis à jour',
                 description: `Le colis est maintenant marqué « ${variables.status.label} ».`,

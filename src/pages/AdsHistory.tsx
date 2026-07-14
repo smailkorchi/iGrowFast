@@ -89,10 +89,6 @@ import { format, differenceInDays } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import {
     FaWhatsapp,
     FaInstagram,
@@ -126,20 +122,8 @@ const getPlatformIcon = (platformName: string) => {
     }
 };
 
-const PLATFORM_SOURCE_MAP: Record<string, string> = {
-    "whatsapp ads": "whatsapp",
-    "messenger ads": "messenger",
-    "instagram ads": "instagram",
-    "facebook ads": "facebook",
-    "google ads": "google",
-    "tiktok ads": "tiktok",
-    "native ads": "native",
-    "snapchat ads": "snapchat",
-    "twitter ads": "twitter",
-    "bing ads": "bing",
-    "pinterest ads": "pinterest",
-    "reddit ads": "reddit",
-};
+// Platform → orders.source_name mapping lives server-side in the
+// ads_history_metrics RPC (same CASE map as mediabuyer_month_orders).
 
 const adsHistorySchema = z.object({
     product_id: z.string().uuid("Please select a product"),
@@ -195,6 +179,27 @@ interface CampaignMetrics {
     fakeRate: number;
     wastedSpend: number;
     qualityScore: number;
+}
+
+/** One per-campaign attribution row from the ads_history_metrics RPC. */
+interface CampaignAttribution {
+    ads_history_id: string;
+    total_orders: number;
+    confirmed_orders: number;
+    delivered_orders: number;
+    cancelled_orders: number;
+    fake_orders: number;
+    tracked_orders: number;
+    pullback_orders: number;
+    gross_revenue: number;
+    shipping_costs: number;
+    cost_price: number;
+}
+
+interface AdsHistoryMetricsPayload {
+    total_spend: number;
+    platform_totals: Array<{ platform: string | null; spend: number }>;
+    per_campaign: CampaignAttribution[];
 }
 
 const ADS_KPI_ACCENTS = {
@@ -382,9 +387,6 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({ products, value, onCh
 };
 
 const AdsHistory = () => {
-    const { cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, isOrderInCategories } = useStatusCategories();
-    const activeBusinessIdForTracking = typeof localStorage !== 'undefined' ? localStorage.getItem('activeBusinessId') : null;
-    const { trackedOrderIds } = useTrackedOrders(activeBusinessIdForTracking);
     const location = useLocation();
     const currentUserId = useCurrentUserId();
 
@@ -406,17 +408,22 @@ const AdsHistory = () => {
         queryKey: ['ads_history', activeBusinessId, isMediaBuyerView, currentUserId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            let query = (supabase as any)
-                .from('ads_history')
-                .select('*, products(id, name, code, image_url)')
-                .eq('DigiCom Business', activeBusinessId)
-                .order('start_date', { ascending: false });
-            if (isMediaBuyerView && currentUserId) {
-                query = query.eq('created_by', currentUserId);
-            }
-            const { data, error } = await query;
-            if (error) throw error;
-            return data;
+            // Paginated (stable id order) so the list never truncates at the
+            // 1000-row PostgREST cap; display order restored client-side.
+            const rows = await fetchAllRows<any>(
+                'ads_history',
+                '*, products(id, name, code, image_url)',
+                {
+                    filters: [
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                        ...(isMediaBuyerView && currentUserId
+                            ? [{ column: 'created_by', op: 'eq' as const, value: currentUserId }]
+                            : []),
+                    ],
+                }
+            );
+            rows.sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)));
+            return rows;
         },
         enabled: !!activeBusinessId && (!isMediaBuyerView || !!currentUserId),
     });
@@ -462,115 +469,54 @@ const AdsHistory = () => {
         }
     });
 
-    const { data: allOrders } = useQuery({
-        queryKey: ['orders-for-ads', activeBusinessId],
+    // Server-side aggregates (ads_history_metrics RPC): spend totals for the
+    // KPI strip plus per-campaign order attribution — matched on the box by
+    // business + date window + platform source + campaign product, with the
+    // delivered/cancelled/fake/confirmed/tracked/pullback tallies computed
+    // against the status flags and parcel tracking. The full business order
+    // history never ships to the client anymore.
+    const { data: adsMetrics } = useQuery({
+        queryKey: ['ads_history-metrics', activeBusinessId, isMediaBuyerView, currentUserId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            // Paginated so we never truncate at the 1000-row default cap.
-            return await fetchAllRows(
-                'orders',
-                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, replace, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                    ],
-                }
-            );
-        }
+            if (!activeBusinessId) return null;
+            const { data, error } = await (supabase as any).rpc('ads_history_metrics', {
+                p_business: activeBusinessId,
+                p_created_by: isMediaBuyerView ? currentUserId : null,
+            });
+            if (error) throw error;
+            return data as AdsHistoryMetricsPayload;
+        },
+        enabled: !!activeBusinessId && (!isMediaBuyerView || !!currentUserId),
     });
 
-    const { data: productCosts } = useQuery({
-        queryKey: ['product-costs', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, cost_price, selling_price')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+    const attributionByCampaign = useMemo(() => {
+        const map = new Map<string, CampaignAttribution>();
+        for (const row of adsMetrics?.per_campaign || []) {
+            map.set(row.ads_history_id, row);
         }
-    });
+        return map;
+    }, [adsMetrics]);
 
     const getCampaignMetrics = useMemo(() => {
         return (campaign: any): CampaignMetrics | null => {
-            if (!campaign || !allOrders) return null;
+            if (!campaign || !adsMetrics) return null;
+            const a = attributionByCampaign.get(campaign.id);
+            if (!a) return null;
 
             const adSpend = Number(campaign.amount);
             const days = differenceInDays(new Date(campaign.end_date), new Date(campaign.start_date)) + 1;
-            const sourceName = PLATFORM_SOURCE_MAP[campaign.method.toLowerCase()] || '';
-            const startDate = new Date(campaign.start_date);
-            const endDate = new Date(campaign.end_date);
-            endDate.setHours(23, 59, 59, 999);
 
-            const matchedOrders = allOrders.filter((o: any) => {
-                // Exchange swap/return legs (replace=true) are not sales — exclude
-                // them so per-ad delivered / revenue / ROAS aren't inflated.
-                if (o.replace === true) return false;
-                const orderDate = new Date(o.date);
-                const inDateRange = orderDate >= startDate && orderDate <= endDate;
-                const matchesSource = sourceName && (o.source_name || '').toLowerCase() === sourceName;
-                const hasProduct = o.order_items?.some((item: any) => item.product_id === campaign.product_id);
-                return inDateRange && matchesSource && hasProduct;
-            });
+            const totalOrders = a.total_orders;
+            const confirmedOrders = a.confirmed_orders;
+            const deliveredOrders = a.delivered_orders;
+            const cancelledOrders = a.cancelled_orders;
+            const fakeOrders = a.fake_orders;
+            const grossRevenue = Number(a.gross_revenue) || 0;
+            const shippingCosts = Number(a.shipping_costs) || 0;
+            // Coliaty delivery denominator = tracked − admin-pullback.
+            const deliveryDenomOrders = a.tracked_orders - a.pullback_orders;
 
-            const totalOrders = matchedOrders.length;
-            let deliveredOrders = 0;
-            let cancelledOrders = 0;
-            let fakeOrders = 0;
-            let grossRevenue = 0;
-            let shippingCosts = 0;
-            // Confirmed = the one true definition: has tracking_number OR
-            // status is anything except `new`/`callback`. Touched = cohort
-            // minus orders sitting fresh at `new`.
-            let confirmedOrders = 0;
-            let rateTouchedOrders = 0;
-            // Coliaty delivery-rate denominator: tracked minus admin-pullback.
-            let trackedOrdersCount = 0;
-            let pullbackOrdersCount = 0;
-
-            matchedOrders.forEach((o: any) => {
-                const isDelivered = isDeliveredForCommission(o, deliveredPkgIds);
-                const sid = o.order_status_id;
-                // `orders.tracking_number` is never populated; the authoritative
-                // tracking source is company_parcels/courier_parcels, which
-                // `trackedOrderIds` already aggregates.
-                const hasTracking = !!o.id && trackedOrderIds.has(o.id);
-
-                if (isDelivered) {
-                    deliveredOrders++;
-                    grossRevenue += Number(o.price) || 0;
-                    shippingCosts += Number(o.shipping_cost) || 0;
-                } else if (sid && cancelledIds.has(sid)) {
-                    if (isOrderInCategories(sid, ['fake', 'double'])) {
-                        fakeOrders++;
-                    } else {
-                        cancelledOrders++;
-                    }
-                }
-
-                // Confirmed = tracking OR status NOT in pending (new+postponed).
-                // Denominator = total filtered orders (rate = confirmed / total).
-                // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
-                rateTouchedOrders++;
-                const statusMapsReady = pendingIds.size > 0;
-                if (hasTracking || (statusMapsReady && sid && !pendingIds.has(sid))) {
-                    confirmedOrders++;
-                }
-
-                // Coliaty delivery denominator = tracked − admin-pullback.
-                if (!!o.id && trackedOrderIds.has(o.id)) {
-                    trackedOrdersCount++;
-                    if (isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds)) {
-                        pullbackOrdersCount++;
-                    }
-                }
-            });
-            const deliveryDenomOrders = trackedOrdersCount - pullbackOrdersCount;
-
-            const productCost = productCosts?.find((p: any) => p.id === campaign.product_id);
-            const costPrice = Number(productCost?.cost_price || 0);
+            const costPrice = Number(a.cost_price) || 0;
             const cogs = deliveredOrders * costPrice;
             const netRevenue = grossRevenue - cogs - shippingCosts;
             const profit = netRevenue - adSpend;
@@ -583,7 +529,7 @@ const AdsHistory = () => {
                 deliveredOrders,
                 cancelledOrders,
                 fakeOrders,
-                confirmRate: rateTouchedOrders > 0 ? (confirmedOrders / rateTouchedOrders) * 100 : 0,
+                confirmRate: totalOrders > 0 ? (confirmedOrders / totalOrders) * 100 : 0,
                 deliveryRate: deliveryDenomOrders > 0 ? (deliveredOrders / deliveryDenomOrders) * 100 : 0,
                 fulfillmentRate: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
                 cpa: totalOrders > 0 ? adSpend / totalOrders : 0,
@@ -603,7 +549,7 @@ const AdsHistory = () => {
                 qualityScore: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
             };
         };
-    }, [allOrders, productCosts, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, isOrderInCategories]);
+    }, [adsMetrics, attributionByCampaign]);
 
     const form = useForm<AdsHistoryValues>({
         resolver: zodResolver(adsHistorySchema),
@@ -653,6 +599,7 @@ const AdsHistory = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ads_history', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['ads_history-metrics'] });
             setIsUpsertOpen(false);
             setEditingHistory(null);
             toast({
@@ -678,6 +625,7 @@ const AdsHistory = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ads_history'] });
+            queryClient.invalidateQueries({ queryKey: ['ads_history-metrics'] });
             setHistoryToDelete(null);
             toast({ title: "Record deleted", description: "The ads history record was removed." });
         },
@@ -738,19 +686,10 @@ const AdsHistory = () => {
         return 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose';
     };
 
-    const totalSpend: number = (filteredHistory || []).reduce(
-        (s: number, h: any) => s + Number(h.amount || 0),
-        0
-    );
-    const platformTotals: Record<string, number> = (filteredHistory || []).reduce(
-        (acc: Record<string, number>, h: any) => {
-            const key = (h.method as string) || 'Other';
-            acc[key] = (acc[key] || 0) + Number(h.amount || 0);
-            return acc;
-        },
-        {} as Record<string, number>
-    );
-    const topPlatforms: Array<[string, number]> = Object.entries(platformTotals)
+    // Server-side totals (ads_history_metrics RPC) — never capped at 1000 rows.
+    const totalSpend: number = Number(adsMetrics?.total_spend) || 0;
+    const topPlatforms: Array<[string, number]> = (adsMetrics?.platform_totals || [])
+        .map((p): [string, number] => [p.platform || 'Other', Number(p.spend) || 0])
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3);
 
