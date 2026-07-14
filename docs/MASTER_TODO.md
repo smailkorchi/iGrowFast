@@ -17,14 +17,14 @@
 
 Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ecomChannels.ts`): exception-safe SECDEF AFTER trigger, WHEN column guards, tiny payload, private topic `ecom:biz:<business_id>`, FE = ONE channel per client mounted in the role layout, events → targeted react-query invalidation, reconnect self-heal. Per-consumer order: trigger (additive) → FE consumer alongside → verify parity live → delete pg_changes binding → drop table from publication. One batch at a time, owner "go" per prod apply.
 
-- [~] **R1a — Orders family** — PORT SHIPPED 2026-07-14 (mig 20260714150000 applied to box, live emission verified; adversarially reviewed, 0 WA regressions). Publication drop = the remaining sub-item, gated on FE deploy + grace window.
+- [x] **R1a — Orders family** — COMPLETE 2026-07-14 (mig 20260714150000 port + mig 20260714160000 publication drop; live emission verified; adversarially reviewed, 0 WA regressions; drop applied at verified zero live postgres_changes subscriptions).
   - [x] Extend `broadcast_order_change` payload/WHEN as consumers need (⚠ current WHEN covers only order_status_id/package_status_id/date_deleted/phone/price — verify each ported consumer's trigger-column expectations; carry package-status toast fields: order_id, name, package_status_id, seller_id, tracking_code+provider, so `OrderStatusNotifications` needs ZERO follow-up queries).
   - [x] New WHEN-guarded triggers: `company_parcels`, `courier_parcels`, `products` (stock cols only), `accessories` (stock cols only) → events on `ecom:biz`.
   - [x] Port `src/pages/admin/Orders.tsx` (7 bindings, L697-743) — order/parcel events → `['orders-aggregate',biz]` (keep 500ms debounce); product/accessory → dropdown keys (keep 150ms).
   - [x] Port `src/pages/seller/Orders.tsx` (7 bindings, L799-845) — same mapping, seller keys.
   - [x] Port `src/components/orders/OrderStatusNotifications.tsx` (unfiltered orders UPDATE; mounted app-wide in AppLayout + SellerLayout — the widest slot-keeper). Topic-per-biz kills its client-side biz filter; keep dedupe map.
   - [x] Port `src/pages/admin/SheetReview.tsx` (orders INSERT, `source_review_status='pending'` → payload flag or dedicated event).
-  - [ ] Drop `orders`, `company_parcels`, `courier_parcels`, `products`, `accessories` from publication (grace-window rule: old bundles silently stop receiving — deploy FE first, wait a reload cycle).
+  - [x] Drop `orders`, `company_parcels`, `courier_parcels`, `products`, `accessories` from publication — DONE (publication now = the 4 R1b/R1c tables only).
 - [ ] **R1b — Logistics/health singles**
   - [ ] `tracking_sync_runs` → port `src/hooks/useTrackingSyncStatus.ts` (INSERT+UPDATE) — or downgrade to poll-while-open (page-scoped, low churn: delete-only in stats window).
   - [ ] `webhook_logs` → port `src/hooks/useWebhookHealth.ts` (INSERT). 2nd-highest churn table (4.3k writes/11d) — WHEN-guard the trigger.
