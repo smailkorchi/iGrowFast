@@ -3228,6 +3228,7 @@ export type Database = {
           is_delivered: boolean
           is_returned: boolean
           is_shipped: boolean
+          is_awaiting_pickup: boolean
           is_refused: boolean
           is_new: boolean
           is_cancelled: boolean
@@ -3257,6 +3258,7 @@ export type Database = {
           is_delivered?: boolean
           is_returned?: boolean
           is_shipped?: boolean
+          is_awaiting_pickup?: boolean
           is_refused?: boolean
           is_new?: boolean
           is_cancelled?: boolean
@@ -3286,6 +3288,7 @@ export type Database = {
           is_delivered?: boolean
           is_returned?: boolean
           is_shipped?: boolean
+          is_awaiting_pickup?: boolean
           is_refused?: boolean
           is_new?: boolean
           is_cancelled?: boolean

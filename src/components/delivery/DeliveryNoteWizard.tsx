@@ -2,7 +2,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
-import { matchPackageStatus } from '@/lib/matchPackageStatus';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
@@ -503,8 +502,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const { getOrderByCategory } = useStatusCategories();
+    const { getOrderByCategory, getPkgByCategory } = useStatusCategories();
     const confirmedStatusId = getOrderByCategory('confirmed')?.id;
+    // Package statuses stamped LOCALLY (no provider call): P_NEW at create, and
+    // P_A_RAMASSAGE (Attente De Ramassage) once the parcel is placed in a pickup note.
+    const newPkgStatusId = getPkgByCategory('new')?.id ?? null;
+    const awaitingPickupStatusId = getPkgByCategory('awaiting_pickup')?.id ?? null;
 
     const sellerProductKey = sellerScope?.productIds?.length
         ? [...sellerScope.productIds].sort().join(',')
@@ -664,17 +667,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             // shape ({ order, parcel, tracking_code } | { order, error }) either way.
             if (orders.length > 1 && providerSupportsBatch(provider)) {
                 const results = [];
-                // Memoize status resolution: freshly-created parcels share the same
-                // initial status, so this collapses N lookups to ~1 per chunk.
-                const statusCache = new Map<string, string | null>();
-                const resolveStatusId = async (providerStatus: string) => {
-                    const key = providerStatus || 'Nouveau';
-                    if (statusCache.has(key)) return statusCache.get(key) ?? null;
-                    const matched = await matchPackageStatus(supabase, key);
-                    const id = matched?.id ?? null;
-                    statusCache.set(key, id);
-                    return id;
-                };
 
                 for (let start = 0; start < orders.length; start += BATCH_MAX) {
                     const chunk = orders.slice(start, start + BATCH_MAX);
@@ -735,14 +727,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             results.push({ order, error: r.error || 'Création échouée (aucun code de suivi renvoyé).' });
                             continue;
                         }
-                        const statusId = await resolveStatusId(r.status || r.label || r.statusLabel || 'Nouveau');
                         rows.push({
                             provider_id: providerId,
                             order_id: order.id,
                             tracking_code: r.tracking_code,
                             external_id: r.external_id ? String(r.external_id) : '',
                             provider_response: r.provider_response ?? r,
-                            status_id: statusId,
+                            // Created, not yet in a note → Nouveau (P_NEW). Stamped to
+                            // "Attente De Ramassage" on link (no provider call).
+                            status_id: newPkgStatusId,
                             'DigiCom Business': activeBusinessId
                         });
                         rowMeta.push({ order, tracking_code: r.tracking_code });
@@ -815,11 +808,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                     const result = await response.json();
 
-                    // Map provider status to our internal package_statuses (containment → RPC → ilike fallback)
-                    const providerStatus = result.data?.status || result.data?.label || result.data?.statusLabel || 'Nouveau';
-                    const matched = await matchPackageStatus(supabase, providerStatus);
-                    const mappedStatusId = matched?.id ?? null;
-
                     // Sweep prior orphan parcels for this (provider, order) pair before inserting.
                     // An orphan = no company_delivery_note_id. Left behind by a previous attempt
                     // whose linking step never completed (failed call, page reload, retry).
@@ -830,7 +818,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         .eq('order_id', order.id)
                         .is('company_delivery_note_id', null);
 
-                    // Save to database with mapped status_id and native color
+                    // Save to DB. Created, not yet in a note → Nouveau (P_NEW); stamped to
+                    // "Attente De Ramassage" on link (no provider call).
                     const { data: parcel, error: parcelError } = await supabase
                         .from('company_parcels')
                         .insert({
@@ -839,7 +828,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             tracking_code: result.data?.tracking_code || result.data?.reference || result.data?.bar_code,
                             external_id: result.data?.id || String(result.data?.external_id || ''),
                             provider_response: result.data,
-                            status_id: mappedStatusId,
+                            status_id: newPkgStatusId,
                             'DigiCom Business': activeBusinessId
                         })
                         .select()
@@ -1150,8 +1139,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     throw linkError;
                 }
 
-                // Status is populated by the provider webhook / tracking-sync cron — no
-                // eager per-parcel carrier pull here (see note on syncLinkedParcelStatuses removal).
+                // Parcels are now in a pickup note → stamp "Attente De Ramassage"
+                // (P_A_RAMASSAGE) locally in ONE bulk update — no provider call. The status
+                // trigger propagates it to orders.package_status_id; the webhook /
+                // tracking-sync cron move it forward (picked up → delivered → …) from here.
+                if (awaitingPickupStatusId) {
+                    await supabase
+                        .from('company_parcels')
+                        .update({ status_id: awaitingPickupStatusId })
+                        .in('id', parcelIds);
+                }
             } else {
                 // Nothing accepted this round (all duplicates/errors) — keep count honest.
                 const { count } = await supabase
@@ -1411,7 +1408,13 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         p_delivery_note_id: ctx.deliveryNoteId,
                         p_parcel_ids: linkIds,
                     });
-                    // Status comes from the webhook / tracking-sync cron (no eager per-parcel pull).
+                    // In the pickup note now → stamp "Attente De Ramassage" locally (no provider call).
+                    if (awaitingPickupStatusId) {
+                        await supabase
+                            .from('company_parcels')
+                            .update({ status_id: awaitingPickupStatusId })
+                            .in('id', linkIds);
+                    }
                 }
                 ignoredCount += linkIds.length;
 

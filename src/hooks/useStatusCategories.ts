@@ -57,6 +57,7 @@ export interface PackageStatus {
   // Semantic behavior flags — owner-governable source of truth.
   is_delivered: boolean;
   is_shipped: boolean;
+  is_awaiting_pickup: boolean;
   is_returned: boolean;
   is_refused: boolean;
   is_new: boolean;
@@ -92,6 +93,9 @@ const ORDER_CAT_PRED: Record<string, (s: OrderStatus) => boolean> = {
 const PKG_CAT_PRED: Record<string, (s: PackageStatus) => boolean> = {
   delivered: s => s.is_delivered,
   new: s => s.is_new,
+  // The single "Attente De Ramassage" status a parcel enters when placed in a
+  // provider pickup note (a specific is_shipped sub-status, uniquely flagged).
+  awaiting_pickup: s => s.is_awaiting_pickup,
   recheck: s => s.is_recheck,
   refused: s => s.is_refused,
   returned: s => s.is_returned,
@@ -129,7 +133,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('package_statuses')
-        .select('id, code, label, color, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase, is_delivered, is_shipped, is_returned, is_refused, is_new, is_cancelled, is_postponed, is_recheck, is_terminal, flow_rank, excluded_from_delivery_rate')
+        .select('id, code, label, color, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase, is_delivered, is_shipped, is_awaiting_pickup, is_returned, is_refused, is_new, is_cancelled, is_postponed, is_recheck, is_terminal, flow_rank, excluded_from_delivery_rate')
         .order('ranking');
       return (data || []) as PackageStatus[];
     },

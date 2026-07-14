@@ -1358,6 +1358,7 @@ const ORDER_BEHAVIORS: BehaviorDef[] = [
 const PKG_BEHAVIORS: BehaviorDef[] = [
     { flag: 'is_new', accent: 'bg-ant-mid', title: 'Nouveau colis', desc: "Colis pas encore expédié." },
     { flag: 'is_shipped', accent: 'bg-ant-ink', title: 'Expédié / en transit', desc: "Pris en charge, en transit, ou en distribution." },
+    { flag: 'is_awaiting_pickup', accent: 'bg-ant-ink', title: 'En attente de ramassage', desc: "Colis placé dans un bon de ramassage, en attente d'enlèvement par le transporteur. Le statut stampé automatiquement à la création du bon (sous-ensemble d'expédié)." },
     { flag: 'is_delivered', accent: 'bg-ant-green', title: 'Livré', desc: "Colis livré — numérateur du taux de livraison et déclencheur des paiements." },
     { flag: 'is_returned', accent: 'bg-ant-rose', title: 'Retourné', desc: "Retour, préparation retour, ou refusé." },
     { flag: 'is_refused', accent: 'bg-ant-rose', title: 'Refusé', desc: "Colis refusé par le client (sous-ensemble de retourné)." },
@@ -1461,7 +1462,7 @@ const BehaviorsConfig = ({ isOwner }: { isOwner: boolean }) => {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('package_statuses')
-                .select('id, code, label, color, ranking, is_new, is_shipped, is_delivered, is_returned, is_refused, is_cancelled, is_postponed, is_recheck, is_terminal, excluded_from_delivery_rate')
+                .select('id, code, label, color, ranking, is_new, is_shipped, is_awaiting_pickup, is_delivered, is_returned, is_refused, is_cancelled, is_postponed, is_recheck, is_terminal, excluded_from_delivery_rate')
                 .order('ranking', { ascending: true });
             if (error) throw error;
             return (data || []) as unknown as BehaviorRow[];
