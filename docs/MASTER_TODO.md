@@ -31,17 +31,17 @@ Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ec
   - [x] `courier_notifications` → NEW `ecom:user:<uid>` topic family (strict auth.uid() policy, live-tested offsets); full-row payload, courier hook swapped to private broadcast.
   - [ ] Drop the 3 tables from publication (tail mig 20260714180000 — apply at verified zero subscribers post-deploy).
   - [ ] OWNER DECISION: make the tracking-sync pill live for admins? (needs an ops topic or RLS ruling; pill component currently unmounted dead code — also a deletion candidate, D7).
-- [~] **R1c — `campaign_source_locks`** — CampaignForm realtime RETIRED 2026-07-14 (30s poll while form open + submit-time source_taken guard; broadcast rejected — would grant MB sessions the whole ecom:biz feed). Remaining: apply mig 20260714190000 (empties the publication).
+- [x] **R1c — `campaign_source_locks`** — COMPLETE 2026-07-14 (realtime retired → 30s poll + source_taken guard; mig 20260714190000 applied — PUBLICATION EMPTY).
 
 ## 2. Phase R2 — retire the poller (the 61.4% kill)
 
 Mechanics established from `_realtime` schema (live-audited):
 - The poller's enable switch = the single `_realtime.extensions` row `type='postgres_cdc_rls'` (names slot `supabase_realtime`, publication, poll_interval_ms=100). **Retirement = remove that row (via Realtime tenant API or SQL) + restart the Realtime container**; the wal2json slot is `temporary=t` so Postgres auto-drops it with the session, and with no extensions row it is never recreated.
 - **Do NOT touch** the pgoutput side: `supabase_realtime_messages_replication_slot_` + `supabase_realtime_messages_publication` — ALL broadcast (wa:* + ecom:*) rides it.
-- [ ] Pre-check: `realtime.subscription` re-sampled across business hours = 0 rows (verify no stale bundle keeps subscribing).
-- [ ] Remove the `postgres_cdc_rls` extensions row (backed up first) + restart Realtime; confirm slot gone, broadcast unaffected (wa:biz smoke test).
-- [ ] **Re-measure on a fresh `pg_stat_statements` window** (reset, 24h soak): success = `realtime.list_changes` GONE from top consumers (was 61.4%) and no new top consumer appeared (rule: [[feedback-verify-perf-on-real-metric]]).
-- [ ] Rollback path documented: re-insert extensions row + restart = poller returns.
+- [x] Pre-check: zero live subscriptions verified at each drop; publication emptied 2026-07-14.
+- [x] EXECUTED 2026-07-14 06:17 UTC: extensions row deleted as supabase_admin (rollback = ~/.igrowfast/backups/r2_extensions_row_rollback_2026-07-14.sql, copy on box /root/); Realtime restarted healthy; wal2json slot GONE; list_changes calls FROZEN (597356, zero growth); broadcast slot lazy-recreated on first client join, walsender streaming; live websocket broadcast round-trip SMOKE_PASS.
+- [~] **Re-measure on the fresh window** — pg_stat_statements RESET at 2026-07-14 06:19:52 UTC. Read the top consumers after a 24h business-hours soak; success = list_changes absent (was 61.4%) and no new top consumer.
+- [x] Rollback path saved: ~/.igrowfast/backups/r2_extensions_row_rollback_2026-07-14.sql (+ box /root/) — re-insert + restart = poller returns.
 
 ## 3. Phase D — data-layer rebuild (the "thousands of users" half)
 
