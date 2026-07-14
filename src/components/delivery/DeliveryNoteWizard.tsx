@@ -1235,7 +1235,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+        queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
         queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
 
         toast({
@@ -1517,7 +1517,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+        queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
         queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
         toast({
             title: 'Progression annulée',

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus,
@@ -74,10 +74,9 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
-import { orderMatchesTopSearch } from '@/lib/orderSearch';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
-import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
@@ -333,6 +332,9 @@ const SALES_SOURCES = [
     "other"
 ];
 
+/** Pipeline tabs, in server-count order (one orders_kpis count per tab). */
+const SELLER_TAB_IDS = ['all', 'new', 'confirmed', 'delivered', 'returned', 'confirmation', 'suivi', 'reported'] as const;
+
 /**
  * Compact searchable dropdown used across the seller filter bar. Mirrors the
  * admin Orders page helper: Popover + cmdk Command + caller-supplied row
@@ -423,53 +425,12 @@ function SearchableFilter<T>({
     );
 }
 
-const DATE_FIELD_MAP: Record<string, string> = {
-    date: 'date',
-    created_at: 'created_at',
-    updated_at: 'updated_at',
-    assignment_date: 'assignment_date',
-    confirmation_date: 'confirmation_date',
-    annulation_date: 'annulation_date',
-    date_livraison: 'date_livraison',
-    reported_date: 'reported_date',
-};
-
 function productNameLabel(p: { name?: unknown; code?: string | null; id?: string } | null | undefined): string {
     if (!p) return 'Product';
     const n = p.name as any;
     if (typeof n === 'string') return n;
     if (n && typeof n === 'object') return String(n.en || n.fr || n.ar || p.code || p.id || 'Product');
     return String(p.code || p.id || 'Product');
-}
-
-function orderMatchesTrackingFilter(order: any, raw: string): boolean {
-    const needle = raw.trim().toLowerCase().replace(/\s+/g, '');
-    if (!needle) return true;
-    const codes: string[] = [];
-    if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
-    if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
-    if (order?.quicklivraison_old_tracking) codes.push(String(order.quicklivraison_old_tracking));
-    if (order?.forcelog_old_tracking) codes.push(String(order.forcelog_old_tracking));
-    if (order?.sendit_old_tracking) codes.push(String(order.sendit_old_tracking));
-    if (order?.delvoexpress_old_tracking) codes.push(String(order.delvoexpress_old_tracking));
-    for (const p of order?.parcels || []) {
-        if (p?.tracking_code && p?.company_delivery_note_id) codes.push(String(p.tracking_code));
-    }
-    for (const p of order?.courier_parcels || []) {
-        if (p?.tracking_code && p?.courier_delivery_note_id) codes.push(String(p.tracking_code));
-    }
-    return codes.some((c) => c.toLowerCase().replace(/\s+/g, '').includes(needle));
-}
-
-/** True if the order has any tracking identifier (column or parcel/courier codes). */
-function orderHasTrackingNumber(order: any): boolean {
-    for (const p of order?.parcels || []) {
-        if (p?.tracking_code && String(p.tracking_code).trim()) return true;
-    }
-    for (const p of order?.courier_parcels || []) {
-        if (p?.tracking_code && String(p.tracking_code).trim()) return true;
-    }
-    return false;
 }
 
 type StatusBucket = { id: string; label: string; color: string; icon: string | null; count: number; ranking: number };
@@ -597,22 +558,14 @@ function StatusPillsRibbon({
 
 /**
  * For courier (internal) orders the package status lives on the latest
- * courier_parcels row, not on orders.package_status_id. Picks the most recent
- * parcel that has a master status and returns it in the same shape the badge
- * renderer expects. Reads the label/color off the embedded package_statuses row.
+ * courier_parcels row, not on orders.package_status_id. The orders_list_page
+ * RPC computes that fallback server-side (latest courier parcel's embedded
+ * status) and ships it as `courier_pkg_fallback` on every slim row.
  */
 function getCourierPackageStatus(order: any): { label: string; color: string | null } | null {
-    const courierParcels = (order?.courier_parcels || []) as Array<{
-        status?: { label?: string | null; color?: string | null } | null;
-        created_at?: string | null;
-    }>;
-    if (!courierParcels.length) return null;
-    const sorted = [...courierParcels].sort(
-        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
-    );
-    const latest = sorted.find((p) => p.status?.label && String(p.status.label).trim());
-    if (!latest) return null;
-    return { label: String(latest.status!.label).trim(), color: latest.status!.color || null };
+    const fb = order?.courier_pkg_fallback as { label?: string | null; color?: string | null } | null | undefined;
+    if (!fb?.label || !String(fb.label).trim()) return null;
+    return { label: String(fb.label).trim(), color: fb.color || null };
 }
 
 const Orders = () => {
@@ -647,8 +600,9 @@ const Orders = () => {
             setActiveTab(tab);
         }
     }, [searchParams]);
-    // sellerStats is derived (useMemo) from `aggregateOrders` further down so
-    // KPI cards always reflect the seller's FULL order history, not the page.
+    // sellerStats is derived (useMemo) from the slim `statsOrders` lifetime
+    // aggregate further down so KPI cards 1-3 always reflect the seller's FULL
+    // order history, not the page.
 
     // Reported Modal States
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
@@ -732,9 +686,9 @@ const Orders = () => {
     const [filterProduct, setFilterProduct] = useState<string>('all');
     const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
-    // Server-side pagination — fetch only the visible page; bump pageSize to
-    // search across more history without exhausting the database on every mount.
-    const [page, setPage] = useState(1);
+    // Server-side keyset pagination — orders_list_page fetches only the
+    // visible page; the cursor stack lives below (after the filter params it
+    // depends on). pageSize options unchanged.
     const [pageSize, setPageSize] = useState<100 | 500 | 1000>(100);
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [parcelTrackingOpen, setParcelTrackingOpen] = useState(false);
@@ -770,11 +724,11 @@ const Orders = () => {
         return () => { document.head.removeChild(style); };
     }, []);
 
-    // --- Realtime (W7 R1a): cache invalidation now rides the layout-mounted
+    // --- Realtime (W7 R1a): cache invalidation rides the layout-mounted
     // <EcomBizRealtime/> (SellerLayout) — ONE private ecom:biz broadcast channel
-    // per session invalidates ['orders-aggregate'] (prefix — covers this page's
-    // ['orders-aggregate', biz, uid] key) + the seller stock dropdown keys.
-    // The former 7-binding postgres_changes channel is retired.
+    // per session invalidates the D1 keys (['orders-page'] / ['orders-kpis']
+    // prefixes — cover this page's biz+uid-scoped keys) + the seller stock
+    // dropdown keys. The former 7-binding postgres_changes channel is retired.
 
     // Parcel lookup + provider tracking sync moved into SellerOrderViewDialog
     // (self-contained view/preview dialog).
@@ -782,64 +736,46 @@ const Orders = () => {
     // --- Queries ---
 
 
-    // Single source of truth: ONE query pulls every order this seller can see
-    // (assigned OR owned). Pagination is a pure client-side slice further
-    // down. `history` is the only heavy join skipped — it's lazy-fetched
-    // per-order when the detail modal opens.
-    const { data: aggregateOrders = [], isLoading: aggregateLoading } = useQuery<any[]>({
-        queryKey: ['orders-aggregate', activeBusinessId, userId],
+    // D1 teardown (mig 20260714220000_d1_orders_list): the page no longer
+    // downloads every order. Rows come from the orders_list_page RPC (ONE
+    // keyset page, every filter pushed down) and all counters from orders_kpis
+    // — both defined below, after the filter states they depend on.
+    //
+    // The ONLY remaining full pass is this SLIM, filter-independent
+    // seller-lifetime aggregate: KPI cards 1-3 (delivery rate / confirmation
+    // rate / commission due) are lifetime metrics the fixed D1 RPC surface
+    // cannot produce (recon 02 §6 — no seller-lifetime RPC was authored), and
+    // the city/provider filter dropdowns derive their options from it. Light
+    // scalar columns + tracking codes only — a fraction of the old payload.
+    // Keyed under the ['orders-kpis', biz] prefix so mutation/realtime
+    // invalidation covers it.
+    const { data: statsOrders = [] } = useQuery<any[]>({
+        queryKey: ['orders-kpis', activeBusinessId, userId, 'seller-lifetime-stats'],
         queryFn: async () => {
             if (!activeBusinessId || !userId) return [];
-            // Paginated (fetchAllRows) so a seller with >1000 orders is never
-            // truncated at the 1000-row cap. Paginate by stable 'id', then restore
-            // created_at-desc display order client-side (the list is newest-first).
-            const rows = await fetchAllRows<any>(
+            return fetchAllRows<any>(
                 'orders',
                 `
-                    *,
-                    status:order_statuses(*),
-                    package_status:package_statuses(*),
-                    city:master_cities(id, name),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                    assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
-                    company:providers(id, name, provider_type, logo_url),
-                    channel:sales_channels!orders_source_id_fkey(id, name, type),
-                    items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_id, created_at, company_delivery_note_id, status:package_statuses(label, color), provider:providers(id, name, logo_url)),
-                    courier_parcels(id, tracking_code, status_id, created_at, courier_delivery_note_id, status:package_statuses(label, color))
+                    id, replace, seller_id, order_status_id, package_status_id,
+                    master_city_id, courier_id, company_id,
+                    items:order_items(product_id, quantity),
+                    parcels:company_parcels(tracking_code),
+                    courier_parcels(tracking_code)
                 `,
                 {
                     orderBy: 'id',
-                    orFilter: `seller_id.eq.${userId}`,
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
                         { column: 'date_deleted', op: 'is', value: null },
                         { column: 'source_review_status', op: 'neq', value: 'pending' },
+                        { column: 'seller_id', op: 'eq', value: userId },
                     ],
                 },
             );
-            return rows.sort((a, b) =>
-                new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
-            );
         },
         enabled: !!activeBusinessId && !!userId,
-        staleTime: 60 * 1000,
-        // Realtime only covers changes made WHILE this page is mounted. Anything that
-        // happened on another page (e.g. deleting a delivery note reverts the order) is
-        // missed by the subscription, so always refetch on mount / tab refocus instead of
-        // serving the 60s-stale cache until a hard refresh.
-        refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
+        staleTime: 5 * 60 * 1000,
     });
-
-    // Back-compat aliases — every existing reader of `orders` / `isLoading`
-    // keeps working, but now sees the seller's full set. `isLoading` also
-    // covers the pre-auth window: until `userId` / `activeBusinessId` exist,
-    // the React Query is `enabled: false` so `aggregateLoading` reads
-    // `false` even though we don't have data yet — without this guard, the
-    // page would flash an empty-state card on every cold mount.
-    const orders = aggregateOrders;
-    const isLoading = aggregateLoading || !activeBusinessId || !userId;
 
     // Per-order status history + timeline icon lookup moved into
     // SellerOrderViewDialog (fetched there when the dialog opens).
@@ -1287,19 +1223,18 @@ const Orders = () => {
 
     /** Cities that appear on this seller's orders (filter dropdown only; form still uses full `cities`). */
     const sellerFilterCities = useMemo(() => {
-        // Source the dropdown from the FULL aggregate so options exist for
-        // every city in the seller's history, not just the visible page.
-        if (!aggregateOrders?.length) return [] as { id: string; name: string }[];
+        // Source the dropdown from the slim lifetime aggregate so options exist
+        // for every city in the seller's history, not just the visible page.
+        if (!statsOrders?.length) return [] as { id: string; name: string }[];
         const byId = new Map<string, { id: string; name: string }>();
-        for (const o of aggregateOrders as any[]) {
+        for (const o of statsOrders as any[]) {
             const cid = o.master_city_id;
             if (!cid) continue;
-            const embedded = o.city as { id?: string; name?: string } | null | undefined;
-            const name = embedded?.name || (cities as any[])?.find((c: any) => c.id === cid)?.name;
+            const name = (cities as any[])?.find((c: any) => c.id === cid)?.name;
             if (name) byId.set(cid, { id: cid, name });
         }
         return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [aggregateOrders, cities]);
+    }, [statsOrders, cities]);
 
     /** Couriers / companies that appear on this seller's orders (filter dropdown only). */
     type SellerFilterProvider = {
@@ -1309,32 +1244,377 @@ const Orders = () => {
         imageUrl: string | null;
     };
     const sellerFilterProviders = useMemo<SellerFilterProvider[]>(() => {
-        // Dropdown spans the seller's full history, not just the current page.
-        // Avatars come from the couriers/companies lookup queries (aggregate's
-        // joined courier/company rows only carry id/name to stay light).
-        if (!aggregateOrders?.length) return [];
+        // Dropdown spans the seller's full history (slim lifetime aggregate),
+        // not just the current page. Names/avatars come from the couriers/
+        // companies lookup queries.
+        if (!statsOrders?.length) return [];
         const list: SellerFilterProvider[] = [];
         const seen = new Set<string>();
-        for (const o of aggregateOrders as any[]) {
+        for (const o of statsOrders as any[]) {
             if (o.courier_id && !seen.has(`c-${o.courier_id}`)) {
                 seen.add(`c-${o.courier_id}`);
-                const emb = o.courier as { name?: string } | null | undefined;
                 const row = (couriers as any[])?.find((c: any) => c.id === o.courier_id);
-                const name = emb?.name || row?.name || 'Courier';
+                const name = row?.name || 'Courier';
                 const imageUrl = row?.avatar_url ?? null;
                 list.push({ id: o.courier_id, name, type: 'courier', imageUrl });
             }
             if (o.company_id && !seen.has(`co-${o.company_id}`)) {
                 seen.add(`co-${o.company_id}`);
-                const emb = o.company as { name?: string } | null | undefined;
                 const row = (companies as any[])?.find((c: any) => c.id === o.company_id);
-                const name = emb?.name || row?.name || 'Company';
-                const imageUrl = resolveProviderLogo(row ?? (o.company as any) ?? { name });
+                const name = row?.name || 'Company';
+                const imageUrl = resolveProviderLogo(row ?? { name });
                 list.push({ id: o.company_id, name, type: 'company', imageUrl });
             }
         }
         return list.sort((a, b) => a.name.localeCompare(b.name));
-    }, [aggregateOrders, couriers, companies]);
+    }, [statsOrders, couriers, companies]);
+
+    // ------------------------------------------------------------------
+    // D1 server-side list + counters (mig 20260714220000_d1_orders_list).
+    // orders_list_page returns ONE keyset page of slim rows; orders_kpis
+    // returns counts over the byte-identical filter surface. BOTH RPCs are
+    // called with p_seller_scope = this user's id — the seller security
+    // boundary, since orders RLS SELECT is business-wide (recon 03 §5.1); the
+    // RPC raises 42501 on any foreign scope.
+    // ------------------------------------------------------------------
+
+    // Search is debounced once and the debounced value feeds EVERY server
+    // query (list + counters) so the page and its counters can never disagree
+    // mid-keystroke. (Design step 1 debounces the KPI query; debouncing the
+    // list too costs nothing thanks to keepPreviousData.)
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery), 350);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+
+    // Every dataset the tab→id-set mapping depends on must be loaded before
+    // the first RPC fires — otherwise a tab would briefly query with an empty
+    // id set and flash "no orders".
+    const serverFiltersReady =
+        !!activeBusinessId &&
+        !!userId &&
+        statusCats.orderStatuses.length > 0 &&
+        statusCats.packageStatuses.length > 0 &&
+        ((orderStatuses as any[])?.length ?? 0) > 0 &&
+        ((packageStatuses as any[])?.length ?? 0) > 0;
+
+    // Pipeline tabs compiled to server id sets. The fixed RPC surface has no
+    // tab parameter, so each tab becomes an order-status and/or package-status
+    // id set intersected with the user's own status filter + pills.
+    // ACCEPTED DELTAS (design step 7 — not expressible with the fixed
+    // orders_list_page/orders_kpis signatures):
+    //   * confirmation: the "no tracking number yet" gate and the package-side
+    //     show_in_seller_confirmation cross-gate are dropped — the recheck
+    //     order-status id set carries the semantics (pre-shipping statuses).
+    //   * suivi: the "has tracking number" gate and the order-side
+    //     show_in_seller_suivi cross-gate are dropped — the package recheck id
+    //     set implies a parcel exists, and package_status_id must be one of
+    //     them (which preserves the old "package_status_id set" requirement).
+    const tabServerFilters = useMemo(() => {
+        const newId = statusCats.getOrderByCategory('new')?.id;
+        const confirmedIds = (statusCats.orderStatuses as any[])
+            .filter((s) => s.deducts_stock)
+            .map((s) => s.id);
+        const confirmationIds = ((orderStatuses as any[]) || [])
+            .filter((s) => s.recheck === true && s.show_in_seller_confirmation !== false)
+            .map((s) => s.id)
+            .filter((id) => id !== newId && id !== REPORTED_STATUS_ID);
+        const suiviPkgIds = ((packageStatuses as any[]) || [])
+            .filter((s) => (s.recheck === true || statusCats.isPkgCategory(s.id, 'recheck')) && s.show_in_seller_suivi !== false)
+            .map((s) => s.id);
+        return {
+            all: {},
+            new: { statusIds: newId ? [newId] : [] },
+            confirmed: { statusIds: confirmedIds },
+            confirmation: { statusIds: confirmationIds },
+            suivi: { packageIds: suiviPkgIds },
+            reported: { statusIds: REPORTED_STATUS_ID ? [REPORTED_STATUS_ID] : [] },
+            delivered: { packageIds: [...statusCats.deliveredPkgIds] },
+            returned: { packageIds: [...statusCats.returnedPkgIds] },
+        } as Record<string, { statusIds?: string[]; packageIds?: string[] }>;
+    }, [statusCats, orderStatuses, packageStatuses, REPORTED_STATUS_ID]);
+
+    /** AND-intersect id sets. null = dimension unconstrained; [] = matches nothing. */
+    const intersectIds = (sets: string[][]): string[] | null => {
+        if (!sets.length) return null;
+        let acc = new Set(sets[0]);
+        for (let i = 1; i < sets.length; i++) {
+            const s = new Set(sets[i]);
+            acc = new Set([...acc].filter((id) => s.has(id)));
+        }
+        return [...acc].sort();
+    };
+
+    // Axis filters — everything EXCEPT the status/package dimension (which is
+    // tab-dependent). Predicate semantics live in the RPC (recon 01 §1 parity).
+    const axisRpcParams = useMemo(() => ({
+        p_business: activeBusinessId,
+        p_seller_scope: userId, // seller RLS-leak guard — ALWAYS the own uid
+        p_search: debouncedSearch.trim() || null,
+        p_city: filterCity !== 'all' ? filterCity : null,
+        p_source: filterSource !== 'all' ? filterSource : null,
+        p_provider: filterProvider !== 'all' ? filterProvider : null,
+        p_date_field: filterDateField || 'date',
+        // Casablanca calendar days server-side (D4 convention) — the old
+        // browser-local midnight boundary is an accepted delta.
+        p_date_from: getDateRange ? format(getDateRange.from, 'yyyy-MM-dd') : null,
+        p_date_to: getDateRange ? format(getDateRange.to, 'yyyy-MM-dd') : null,
+        p_customer_name: filterCustomerName || null,
+        p_phone: filterPhone || null,
+        p_tracking: filterTracking.trim() || null,
+        p_product: filterProduct !== 'all' ? filterProduct : null,
+        p_exchange: filterExchange !== 'all' ? filterExchange : null,
+    }), [activeBusinessId, userId, debouncedSearch, filterCity, filterSource, filterProvider, filterDateField, getDateRange, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange]);
+
+    /** Status/package id sets for a tab, intersected with the user's own status filter + pills. */
+    const effectiveIdsForTab = (tabId: string) => {
+        const t = tabServerFilters[tabId] || {};
+        const statusSets: string[][] = [];
+        if (t.statusIds) statusSets.push(t.statusIds);
+        if (filterStatus !== 'all') statusSets.push([filterStatus]);
+        if (pillStatusIds.size > 0) statusSets.push([...pillStatusIds]);
+        const packageSets: string[][] = [];
+        if (t.packageIds) packageSets.push(t.packageIds);
+        if (filterPackageStatus !== 'all') packageSets.push([filterPackageStatus]);
+        if (pillPackageStatusIds.size > 0) packageSets.push([...pillPackageStatusIds]);
+        return {
+            statusIds: intersectIds(statusSets),
+            packageIds: intersectIds(packageSets),
+        };
+    };
+
+    const rpcOrdersListPage = async (params: Record<string, unknown>) => {
+        const { data, error } = await (supabase as any).rpc('orders_list_page', params);
+        if (error) throw error;
+        return data;
+    };
+
+    const rpcOrdersKpis = async (params: Record<string, unknown>) => {
+        const { data, error } = await (supabase as any).rpc('orders_kpis', params);
+        if (error) throw error;
+        return data;
+    };
+
+    // Adapt a SLIM RPC row to the legacy shape the (untouched) grid cards and
+    // SellerOrdersListView read: embedded city/product objects plus synthetic
+    // one-entry parcel arrays derived from can_track + latest_tracking_code
+    // (display code = latest_tracking_code; trackability = can_track — exact
+    // truthiness parity with the old array scans).
+    const adaptRpcRow = (r: any) => ({
+        ...r,
+        city: r.city_name ? { name: r.city_name } : null,
+        items: (Array.isArray(r.items) ? r.items : []).map((it: any) => ({
+            ...it,
+            product: it.product_id ? { name: it.name, code: it.code, image_url: it.image_url } : null,
+            accessory: it.accessory_id ? { name: it.name, code: it.code, image_url: it.image_url } : null,
+        })),
+        parcels: r.can_track && r.can_track.provider_id
+            ? [{
+                id: r.can_track.parcel_id,
+                tracking_code: r.latest_tracking_code || r.can_track.tracking_code,
+                external_id: r.can_track.external_id,
+                provider_id: r.can_track.provider_id,
+                created_at: r.created_at,
+            }]
+            : [],
+        courier_parcels: r.can_track && !r.can_track.provider_id
+            ? [{
+                id: r.can_track.parcel_id,
+                tracking_code: r.latest_tracking_code || r.can_track.tracking_code,
+                created_at: r.created_at,
+            }]
+            : [],
+    });
+
+    const listRpcParams = useMemo(() => {
+        const ids = effectiveIdsForTab(activeTab);
+        return { ...axisRpcParams, p_status_ids: ids.statusIds, p_package_ids: ids.packageIds };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [axisRpcParams, activeTab, tabServerFilters, filterStatus, pillStatusIds, filterPackageStatus, pillPackageStatusIds]);
+    const filtersKey = useMemo(() => JSON.stringify(listRpcParams), [listRpcParams]);
+
+    // Keyset cursor STACK (design step 2): Next pushes the returned
+    // next_cursor, Previous pops. `page` is the stack depth + 1; totalPages
+    // comes from the active tab's server count.
+    const [cursorStack, setCursorStack] = useState<{ created_at: string; id: string }[]>([]);
+    const cursor = cursorStack.length > 0 ? cursorStack[cursorStack.length - 1] : null;
+
+    // Snap back to page 1 whenever the active filter set, tab, page size or
+    // search changes — all folded into filtersKey.
+    useEffect(() => {
+        setCursorStack((prev) => (prev.length ? [] : prev));
+    }, [filtersKey, pageSize]);
+
+    const {
+        data: listPage,
+        isLoading: listLoading,
+        isFetching: listFetching,
+    } = useQuery<any>({
+        queryKey: ['orders-page', activeBusinessId, userId, filtersKey, cursor ? `${cursor.created_at}|${cursor.id}` : null, pageSize],
+        queryFn: () => rpcOrdersListPage({
+            ...listRpcParams,
+            p_cursor_created: cursor?.created_at ?? null,
+            p_cursor_id: cursor?.id ?? null,
+            p_limit: pageSize,
+        }),
+        enabled: serverFiltersReady,
+        staleTime: 60 * 1000,
+        // Realtime only covers changes made WHILE this page is mounted. Anything
+        // that happened on another page (e.g. deleting a delivery note reverts
+        // the order) is missed by the subscription, so always refetch on mount /
+        // tab refocus instead of serving the 60s-stale cache — now O(page).
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
+        placeholderData: keepPreviousData,
+    });
+
+    const pageRows = useMemo(
+        () => ((((listPage as any)?.rows as any[]) || []).map(adaptRpcRow)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [listPage],
+    );
+    const nextCursor = ((listPage as any)?.next_cursor ?? null) as { created_at: string; id: string } | null;
+
+    // Back-compat aliases — every existing reader of `orders` / `isLoading`
+    // keeps working, but now sees ONE server page instead of the full set.
+    // `isLoading` also covers the pre-auth / pre-master-status window where the
+    // list query is still `enabled: false`.
+    const orders = pageRows;
+    const filteredOrders = pageRows;
+    const isLoading = !serverFiltersReady || listLoading;
+
+    // If the current cursor page emptied out (realtime delete / count shrink),
+    // step back one page instead of stranding the user on an empty page —
+    // replaces the old totalPages clamp.
+    useEffect(() => {
+        if (!listFetching && listPage && ((((listPage as any).rows as any[]) || []).length === 0) && cursorStack.length > 0) {
+            setCursorStack((prev) => prev.slice(0, -1));
+        }
+    }, [listFetching, listPage, cursorStack.length]);
+
+    // Tab badges: one orders_kpis count per tab over the SAME axis filters
+    // (the old client counted every tab over the full filtered aggregate).
+    // The active tab's entry doubles as the records-pill / KPI card 4 source.
+    const tabCountQueries = useQueries({
+        queries: SELLER_TAB_IDS.map((tabId) => {
+            const ids = effectiveIdsForTab(tabId);
+            const params = { ...axisRpcParams, p_status_ids: ids.statusIds, p_package_ids: ids.packageIds };
+            return {
+                queryKey: ['orders-kpis', activeBusinessId, userId, 'tab', tabId, JSON.stringify(params)],
+                queryFn: () => rpcOrdersKpis(params),
+                enabled: serverFiltersReady,
+                staleTime: 60 * 1000,
+                placeholderData: keepPreviousData,
+            };
+        }),
+    });
+    const tabCountById = Object.fromEntries(
+        SELLER_TAB_IDS.map((tabId, i) => [tabId, Number((tabCountQueries[i]?.data as any)?.total_count ?? 0)]),
+    ) as Record<(typeof SELLER_TAB_IDS)[number], number>;
+
+    // reportedToday / reportedNow (orange / pulsing tab styling): hour
+    // granularity is not expressible in the KPI RPC, so probe the reported
+    // rows (same filters) and inspect reported_date client-side. Capped at 500
+    // rows — beyond that the booleans are best-effort.
+    const reportedProbeParams = useMemo(() => {
+        const ids = effectiveIdsForTab('reported');
+        return { ...axisRpcParams, p_status_ids: ids.statusIds, p_package_ids: ids.packageIds };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [axisRpcParams, tabServerFilters, filterStatus, pillStatusIds, filterPackageStatus, pillPackageStatusIds]);
+    const { data: reportedProbe } = useQuery<any>({
+        queryKey: ['orders-kpis', activeBusinessId, userId, 'reported-probe', JSON.stringify(reportedProbeParams)],
+        queryFn: () => rpcOrdersListPage({ ...reportedProbeParams, p_limit: 500 }),
+        enabled: serverFiltersReady && tabCountById.reported > 0,
+        staleTime: 60 * 1000,
+    });
+
+    const tabCounts = (() => {
+        const counts = {
+            all: tabCountById.all,
+            confirmed: tabCountById.confirmed,
+            new: tabCountById.new,
+            confirmation: tabCountById.confirmation,
+            suivi: tabCountById.suivi,
+            reported: tabCountById.reported,
+            delivered: tabCountById.delivered,
+            returned: tabCountById.returned,
+            reportedToday: false,
+            reportedNow: false,
+        };
+        const now = new Date();
+        const todayStr = format(now, 'yyyy-MM-dd');
+        const currentHour = now.getHours();
+        for (const r of (((reportedProbe as any)?.rows as any[]) || [])) {
+            if (!r.reported_date) continue;
+            const rDate = new Date(r.reported_date);
+            if (format(rDate, 'yyyy-MM-dd') === todayStr) {
+                counts.reportedToday = true;
+                if (rDate.getHours() === currentHour) counts.reportedNow = true;
+            }
+        }
+        return counts;
+    })();
+
+    // Records pill / KPI card 4 / total pages — the active tab's server count.
+    const totalOrdersCount = tabCountById[activeTab] ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
+    const page = cursorStack.length + 1;
+
+    // Recheck pill buckets (Confirmation / Suivi ribbons): one orders_kpis
+    // count per candidate recheck status, applying every filter EXCEPT the
+    // pill's own dimension (parity with the old orderPassesNonStatusFilters
+    // math — confirmation pills still honor package filters, suivi pills still
+    // honor order-status filters). Candidates come from the same master-list
+    // seeding as before; only count>0 (or currently-selected) buckets render.
+    const pillCandidateIds = activeTab === 'confirmation'
+        ? (tabServerFilters.confirmation.statusIds || [])
+        : activeTab === 'suivi'
+            ? (tabServerFilters.suivi.packageIds || [])
+            : [];
+    const pillCountQueries = useQueries({
+        queries: pillCandidateIds.map((sid) => {
+            const params = activeTab === 'confirmation'
+                ? {
+                    ...axisRpcParams,
+                    p_status_ids: [sid],
+                    p_package_ids: intersectIds([
+                        ...(filterPackageStatus !== 'all' ? [[filterPackageStatus]] : []),
+                        ...(pillPackageStatusIds.size > 0 ? [[...pillPackageStatusIds]] : []),
+                    ]),
+                }
+                : {
+                    ...axisRpcParams,
+                    p_status_ids: intersectIds([
+                        ...(filterStatus !== 'all' ? [[filterStatus]] : []),
+                        ...(pillStatusIds.size > 0 ? [[...pillStatusIds]] : []),
+                    ]),
+                    p_package_ids: [sid],
+                };
+            return {
+                queryKey: ['orders-kpis', activeBusinessId, userId, 'pill', activeTab, sid, JSON.stringify(params)],
+                queryFn: () => rpcOrdersKpis(params),
+                enabled: serverFiltersReady,
+                staleTime: 60 * 1000,
+                placeholderData: keepPreviousData,
+            };
+        }),
+    });
+    const recheckBuckets: StatusBucket[] = pillCandidateIds
+        .map((sid, i) => {
+            const master = activeTab === 'confirmation'
+                ? ((orderStatuses as any[]) || []).find((s) => s.id === sid)
+                : ((packageStatuses as any[]) || []).find((s) => s.id === sid);
+            return {
+                id: sid,
+                label: master?.label || 'Status',
+                color: master?.color || '#94a3b8',
+                icon: master?.icon || null,
+                ranking: master?.ranking ?? 9999,
+                count: Number((pillCountQueries[i]?.data as any)?.total_count ?? 0),
+            };
+        })
+        .sort((a, b) => a.ranking - b.ranking);
 
     // Auto-select best provider and set fee when city changes
     React.useEffect(() => {
@@ -1540,7 +1820,8 @@ const Orders = () => {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             setIsAddModalOpen(false);
             // Defer form.reset so Radix completes its close cycle first.
@@ -1732,7 +2013,8 @@ const Orders = () => {
             return { id: selectedOrder.id };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
@@ -1798,7 +2080,8 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Status Updated" });
         },
@@ -1826,7 +2109,8 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
@@ -1916,103 +2200,11 @@ const Orders = () => {
         return duplicates;
     }, [orders, businessDuplicatePhones]);
 
-    const isOrderInTab = (o: any, tab: string) => {
-        const newStatusId = statusCats.getOrderByCategory('new')?.id;
-        const isReported = !!(REPORTED_STATUS_ID && o.order_status_id === REPORTED_STATUS_ID);
-        const isNew = !!(newStatusId && o.order_status_id === newStatusId);
-
-        // Confirmation tab: both order_status AND package_status must allow it
-        const orderStatusAllowsConfirmation = o.status?.show_in_seller_confirmation !== false;
-        const packageStatusAllowsConfirmation = o.package_status?.show_in_seller_confirmation !== false;
-        const orderStatusRecheckActive =
-            o.status?.recheck === true &&
-            o.status?.active !== false &&
-            orderStatusAllowsConfirmation &&
-            packageStatusAllowsConfirmation;
-
-        // Suivi tab: both order_status AND package_status must allow it
-        const orderStatusAllowsSuivi = o.status?.show_in_seller_suivi !== false;
-        const packageStatusAllowsSuivi = o.package_status?.show_in_seller_suivi !== false;
-        // DB: package_statuses.recheck + active (see Supabase); category 'recheck' counts when flag not set.
-        const packageRecheckActive =
-            !!o.package_status_id &&
-            (o.package_status?.active !== false) &&
-            orderStatusAllowsSuivi &&
-            packageStatusAllowsSuivi &&
-            (o.package_status?.recheck === true ||
-                statusCats.isPkgCategory(o.package_status_id, 'recheck'));
-
-        switch (tab) {
-            case 'all':
-                return true;
-            case 'confirmed':
-                // Order status category is exactly 'confirmed' (same rule used to
-                // stamp confirmed_by_id / confirmation_date on save).
-                return !!o.order_status_id
-                    && statusCats.isOrderCategory(o.order_status_id, 'confirmed');
-            case 'new':
-                return isNew;
-            case 'confirmation':
-                if (isReported || isNew) return false;
-                if (orderHasTrackingNumber(o)) return false;
-                return orderStatusRecheckActive;
-            case 'suivi':
-                if (isReported) return false;
-                if (!orderHasTrackingNumber(o)) return false;
-                return packageRecheckActive;
-            case 'reported':
-                return isReported;
-            case 'delivered':
-                // Terminal success: package_status category is 'delivered'.
-                // Category-strict (no label match) to match the P&L / Coliaty
-                // rule used everywhere else in the app.
-                return !!o.package_status_id
-                    && statusCats.isPkgCategory(o.package_status_id, 'delivered');
-            case 'returned':
-                // Returned family: package_status category in returned / returning / refused.
-                return !!o.package_status_id
-                    && statusCats.returnedPkgIds.has(o.package_status_id);
-            default:
-                return false;
-        }
-    };
-
-    // Reusable predicate — applied to both the paginated `orders` and the
-    // full `aggregateOrders` so the KPI strip stays stable across page-size
-    // changes but still reacts to active filters.
-    const orderMatchesAllFilters = useMemo(() => (o: any) => {
-        const matchesSearch = orderMatchesTopSearch(o, searchQuery);
-        const matchesStatus = (filterStatus === "all" || o.order_status_id === filterStatus)
-            && (pillStatusIds.size === 0 || pillStatusIds.has(o.order_status_id));
-        const matchesCity = filterCity === "all" || o.master_city_id === filterCity;
-        const matchesSource = filterSource === "all" || o.source_name === filterSource;
-        const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
-        let matchesDate = true;
-        if (getDateRange) {
-            const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
-            const dateVal = o[fieldKey];
-            if (dateVal) {
-                matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
-            } else {
-                matchesDate = false;
-            }
-        }
-        const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
-        const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
-        const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
-        const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
-        const matchesPackageStatus = (filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus)
-            && (pillPackageStatusIds.size === 0 || pillPackageStatusIds.has(o.package_status_id));
-        const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
-        return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider
-            && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesExchange;
-    }, [searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillStatusIds, pillPackageStatusIds]);
-
-    // `baseFilteredOrders` is kept as an alias of `baseFilteredAggregate`
-    // because `orders === aggregateOrders` now — every consumer reading either
-    // gets the same full filtered set.
-    const baseFilteredAggregate = useMemo(() => aggregateOrders.filter(orderMatchesAllFilters), [aggregateOrders, orderMatchesAllFilters]);
-    const baseFilteredOrders = baseFilteredAggregate;
+    // Tab membership, filter predicates, KPI math and pill-bucket counting all
+    // moved SERVER-SIDE (orders_list_page / orders_kpis — see the D1 block
+    // above). The old client machinery (isOrderInTab, orderMatchesAllFilters,
+    // orderMatchesTopSearch, orderMatchesTrackingFilter, full-aggregate
+    // derivations) is deleted.
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -2051,178 +2243,8 @@ const Orders = () => {
         setShowCalendar(false);
     };
 
-    // Snap back to page 1 whenever the active filter set, tab, or search bar
-    // changes. Without this, applying a filter while on page 6 would land the
-    // user on an empty page even though matches exist earlier in the list.
-    useEffect(() => {
-        setPage(1);
-    }, [searchQuery, activeTab, filterStatus, pillStatusIds, pillPackageStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
-
-    const tabCounts = useMemo(() => {
-        const counts = { all: 0, confirmed: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, delivered: 0, returned: 0, reportedToday: false, reportedNow: false };
-        const now = new Date();
-        const todayStr = format(now, 'yyyy-MM-dd');
-        const currentHour = now.getHours();
-
-        // Tab badges must count the FULL filtered aggregate (every order this
-        // seller can see that passes active filters), not just the current page.
-        baseFilteredAggregate.forEach((o: any) => {
-            counts.all++;
-            if (isOrderInTab(o, 'confirmed')) counts.confirmed++;
-            if (isOrderInTab(o, 'new')) counts.new++;
-            if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
-            if (isOrderInTab(o, 'suivi')) counts.suivi++;
-            if (isOrderInTab(o, 'delivered')) counts.delivered++;
-            if (isOrderInTab(o, 'returned')) counts.returned++;
-            if (isOrderInTab(o, 'reported')) {
-                counts.reported++;
-                if (o.reported_date) {
-                    const rDate = new Date(o.reported_date);
-                    const rDateStr = format(rDate, 'yyyy-MM-dd');
-                    if (rDateStr === todayStr) {
-                        counts.reportedToday = true;
-                        if (rDate.getHours() === currentHour) {
-                            counts.reportedNow = true;
-                        }
-                    }
-                }
-            }
-        });
-        return counts;
-    }, [baseFilteredAggregate]);
-
-    // KPI/pill totals — over the FULL filtered aggregate, not the visible page.
-    const filteredAggregate = useMemo(
-        () => baseFilteredAggregate.filter((o: any) => isOrderInTab(o, activeTab)),
-        [baseFilteredAggregate, activeTab],
-    );
-    const filteredAggregateCount = filteredAggregate.length;
-
-    // Pagination is a pure client-side slice of the FILTERED aggregate. KPIs,
-    // tab counts, recheck pills and dropdowns all see the full set above; only
-    // the rendered rows shrink to one page. Filter / tab changes auto-reset
-    // page below so the user can never strand themselves on an empty page.
-    const totalOrdersCount = filteredAggregateCount;
-    const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
-    const filteredOrders = useMemo(() => {
-        const from = (page - 1) * pageSize;
-        return filteredAggregate.slice(from, from + pageSize);
-    }, [filteredAggregate, page, pageSize]);
-
-    // Clamp `page` when filteredAggregate shrinks past it (e.g. realtime delete
-    // removes the row that was the last one on the current page).
-    useEffect(() => {
-        if (page > totalPages) setPage(totalPages);
-    }, [page, totalPages]);
-
-    // Recheck status pill buckets for Confirmation/Suivi tabs.
-    // Apply all base filters EXCEPT the one the pill itself controls.
-    const orderPassesNonStatusFilters = (o: any) => {
-        if (!orderMatchesTopSearch(o, searchQuery)) return false;
-        if (filterCity !== 'all' && o.master_city_id !== filterCity) return false;
-        if (filterSource !== 'all' && o.source_name !== filterSource) return false;
-        if (filterProvider !== 'all' && o.courier_id !== filterProvider && o.company_id !== filterProvider) return false;
-        if (getDateRange) {
-            const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
-            const dateVal = o[fieldKey];
-            if (!dateVal) return false;
-            if (!isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to })) return false;
-        }
-        if (filterCustomerName && !o.name?.toLowerCase().includes(filterCustomerName.toLowerCase())) return false;
-        if (filterPhone && !o.phone?.includes(filterPhone)) return false;
-        if (!orderMatchesTrackingFilter(o, filterTracking)) return false;
-        if (filterProduct !== 'all' && !o.items?.some((item: any) => item.product_id === filterProduct)) return false;
-        if (filterExchange !== 'all') {
-            if (filterExchange === 'yes' && !o.replace) return false;
-            if (filterExchange === 'no' && o.replace) return false;
-        }
-        return true;
-    };
-
-    const recheckOrderStatusBuckets = useMemo(() => {
-        if (activeTab !== 'confirmation') return [] as StatusBucket[];
-        const seed = (orderStatuses as any[] | undefined)?.filter((s) => s.recheck === true && s.show_in_seller_confirmation !== false) ?? [];
-        const buckets = new Map<string, StatusBucket>();
-        for (const s of seed) {
-            buckets.set(s.id, {
-                id: s.id,
-                label: s.label || 'Status',
-                color: s.color || '#94a3b8',
-                icon: s.icon || null,
-                ranking: s.ranking ?? 9999,
-                count: 0,
-            });
-        }
-        // Count over the FULL aggregate so pill numbers match what the seller
-        // would see across every page, not just the current one.
-        for (const o of (aggregateOrders as any[] | undefined) ?? []) {
-            if (!orderPassesNonStatusFilters(o)) continue;
-            if (filterPackageStatus !== 'all' && o.package_status_id !== filterPackageStatus) continue;
-            if (pillPackageStatusIds.size > 0 && !pillPackageStatusIds.has(o.package_status_id)) continue;
-            if (!isOrderInTab(o, 'confirmation')) continue;
-            const sid = o.status?.id;
-            if (!sid) continue;
-            const existing = buckets.get(sid);
-            if (existing) {
-                existing.count++;
-            } else if (o.status?.recheck === true) {
-                buckets.set(sid, {
-                    id: sid,
-                    label: o.status.label || 'Status',
-                    color: o.status.color || '#94a3b8',
-                    icon: o.status.icon || null,
-                    ranking: o.status.ranking ?? 9999,
-                    count: 1,
-                });
-            }
-        }
-        return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [aggregateOrders, orderStatuses, activeTab, searchQuery, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillPackageStatusIds]);
-
-    const recheckPackageStatusBuckets = useMemo(() => {
-        if (activeTab !== 'suivi') return [] as StatusBucket[];
-        const seedFromMaster = (packageStatuses as any[] | undefined)?.filter((s) => s.recheck === true && s.show_in_seller_suivi !== false) ?? [];
-        const buckets = new Map<string, StatusBucket>();
-        for (const s of seedFromMaster) {
-            buckets.set(s.id, {
-                id: s.id,
-                label: s.label || 'Status',
-                color: s.color || '#94a3b8',
-                icon: s.icon || null,
-                ranking: s.ranking ?? 9999,
-                count: 0,
-            });
-        }
-        // Also seed any package status flagged as the 'recheck' category even if recheck flag missing.
-        for (const s of (packageStatuses as any[] | undefined) ?? []) {
-            if (buckets.has(s.id)) continue;
-            if (statusCats.isPkgCategory(s.id, 'recheck')) {
-                buckets.set(s.id, {
-                    id: s.id,
-                    label: s.label || 'Status',
-                    color: s.color || '#94a3b8',
-                    icon: s.icon || null,
-                    ranking: s.ranking ?? 9999,
-                    count: 0,
-                });
-            }
-        }
-        // Count over the FULL aggregate so pill numbers match what the seller
-        // would see across every page, not just the current one.
-        for (const o of (aggregateOrders as any[] | undefined) ?? []) {
-            if (!orderPassesNonStatusFilters(o)) continue;
-            if (filterStatus !== 'all' && o.order_status_id !== filterStatus) continue;
-            if (pillStatusIds.size > 0 && !pillStatusIds.has(o.order_status_id)) continue;
-            if (!isOrderInTab(o, 'suivi')) continue;
-            const sid = o.package_status?.id;
-            if (!sid) continue;
-            const existing = buckets.get(sid);
-            if (existing) existing.count++;
-        }
-        return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [aggregateOrders, packageStatuses, activeTab, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange, pillStatusIds]);
+    // Tab counts, page totals, keyset pagination and recheck pill buckets are
+    // all served by the D1 RPC queries above.
 
     // Lifetime paid-out cash for this seller. Cached separately so it doesn't
     // refetch on page changes. Drives the "Commission due" KPI.
@@ -2244,9 +2266,9 @@ const Orders = () => {
         staleTime: 60 * 1000,
     });
 
-    // Seller KPI cards — derived from the FULL aggregate (every order this
-    // seller can see), never the paginated page. Cards stay consistent across
-    // page-size / page-number changes.
+    // Seller KPI cards 1-3 — derived from the SLIM lifetime aggregate
+    // (`statsOrders`, every order attributed to this seller), never the
+    // paginated page. Filter-independent by design (recon 02 §6).
     const sellerStats = useMemo(() => {
         const basis = normalizeCommissionBasis(sellerProfile?.commission_basis);
         const commissionRate = Number(sellerProfile?.commission_price) || 0;
@@ -2258,12 +2280,12 @@ const Orders = () => {
             commissionRate,
             commissionBasis: basis,
         };
-        if (!aggregateOrders?.length || !userId) return empty;
+        if (!statsOrders?.length || !userId) return empty;
 
         // Exclude exchange swap/return legs (replace=true) from the KPI math — not
         // sales, so they must not inflate delivered / unpaid commission. The order
         // LIST below still shows exchange legs (this filter is local to the KPIs).
-        const allOrders = aggregateOrders.filter((o: any) => o.replace !== true);
+        const allOrders = statsOrders.filter((o: any) => o.replace !== true);
 
         const delivered = allOrders.filter((o: any) =>
             isDeliveredForCommission(o, statusCats.deliveredPkgIds),
@@ -2315,10 +2337,39 @@ const Orders = () => {
             commissionRate,
             commissionBasis: basis,
         };
-    }, [aggregateOrders, userId, sellerProfile, sellerProductIds, sellerPaidAmount, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
+    }, [statsOrders, userId, sellerProfile, sellerProductIds, sellerPaidAmount, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
 
-    const handleEdit = (order: any) => {
-        if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
+    // Page rows are SLIM (orders_list_page) — the edit form needs the full
+    // column set + raw item money fields, so the prefill is a lazy by-id fetch
+    // (the SellerOrderViewDialog precedent). NOTE: the shared
+    // src/lib/orders/fetchOrderById.ts module (design step 4) did not exist at
+    // implementation time — the fetch is inlined here; converge on the shared
+    // module once the admin half lands it.
+    const handleEdit = async (rowOrOrder: any) => {
+        if (isOrderLocked(rowOrOrder)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
+        let order: any = null;
+        try {
+            const { data, error } = await (supabase as any)
+                .from('orders')
+                .select(`
+                    *,
+                    status:order_statuses(*),
+                    channel:sales_channels!orders_source_id_fkey(id, name, type),
+                    items:order_items(*)
+                `)
+                .eq('id', rowOrOrder.id)
+                .is('date_deleted', null)
+                .maybeSingle();
+            if (error) throw error;
+            order = data;
+        } catch (e: any) {
+            toast({ title: "Error", description: e?.message || 'Impossible de charger la commande.', variant: "destructive" });
+            return;
+        }
+        if (!order) {
+            toast({ title: "Error", description: 'Commande introuvable.', variant: "destructive" });
+            return;
+        }
         setSelectedOrder(order);
         form.reset({
             name: order.name,
@@ -2455,7 +2506,7 @@ const Orders = () => {
                         { label: 'Taux de livraison', value: `${sellerStats.deliveryRate.toFixed(1)}%`, sub: `${sellerStats.totalDelivered} livrées`, dot: 'bg-ant-green', text: 'text-ant-green' },
                         { label: 'Taux de confirmation', value: `${sellerStats.confirmRate.toFixed(1)}%`, sub: 'taux de succès', dot: 'bg-ant-ink', text: 'text-ant-ink' },
                         { label: 'Commission due', value: `${new Intl.NumberFormat('fr-FR').format(Math.round(sellerStats.unpaidCommission))}`, unit: 'MAD', sub: `${sellerStats.commissionRate} MAD / ${sellerStats.commissionBasis === 'per_unit' ? 'unité' : 'commande'}`, dot: 'bg-ant-orange', text: 'text-ant-orange' },
-                        { label: 'Mes commandes', value: new Intl.NumberFormat('fr-FR').format(filteredAggregateCount), sub: 'vue actuelle', dot: 'bg-ant-mid', text: 'text-ant-ink' },
+                        { label: 'Mes commandes', value: new Intl.NumberFormat('fr-FR').format(totalOrdersCount), sub: 'vue actuelle', dot: 'bg-ant-mid', text: 'text-ant-ink' },
                     ].map((s, i) => (
                         <div key={i} className="bg-ant-paper p-4">
                             <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
@@ -2523,7 +2574,7 @@ const Orders = () => {
 
             {/* Recheck status pills (Confirmation = order_statuses.recheck, Suivi = package_statuses.recheck) */}
             {(activeTab === 'confirmation' || activeTab === 'suivi') && (() => {
-                const allBuckets = activeTab === 'confirmation' ? recheckOrderStatusBuckets : recheckPackageStatusBuckets;
+                const allBuckets = recheckBuckets;
                 const selectedSet = activeTab === 'confirmation' ? pillStatusIds : pillPackageStatusIds;
                 const setSelectedSet = activeTab === 'confirmation' ? setPillStatusIds : setPillPackageStatusIds;
                 // Show only buckets with data, or buckets currently selected (so the user can deselect them).
@@ -2682,8 +2733,8 @@ const Orders = () => {
                                     {filteredOrders.length.toLocaleString('fr-FR')}
                                 </span>
                                 <span className="text-[10px] font-medium text-ant-mid">of</span>
-                                <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]" title={`Total ${filteredAggregateCount.toLocaleString('fr-FR')}`}>
-                                    {filteredAggregateCount.toLocaleString('fr-FR')}
+                                <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]" title={`Total ${totalOrdersCount.toLocaleString('fr-FR')}`}>
+                                    {totalOrdersCount.toLocaleString('fr-FR')}
                                 </span>
                                 <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ant-mid ml-0.5">records</span>
                             </div>
@@ -2704,7 +2755,7 @@ const Orders = () => {
                                     {[100, 500, 1000].map((n) => (
                                         <DropdownMenuItem
                                             key={n}
-                                            onClick={() => { setPageSize(n as 100 | 500 | 1000); setPage(1); }}
+                                            onClick={() => setPageSize(n as 100 | 500 | 1000)}
                                             className={cn(
                                                 'rounded-lg px-3 py-1.5 text-[12px] font-semibold tabular-nums cursor-pointer flex items-center justify-between gap-3',
                                                 pageSize === n ? 'text-ant-ink bg-ant-ink/[0.04]' : 'text-ant-mid hover:text-ant-ink',
@@ -3318,13 +3369,13 @@ const Orders = () => {
             )
             }
 
-            {/* Pagination (Prev/Next — page size lives in the pill above) */}
-            {totalPages > 1 && (
+            {/* Pagination (keyset cursor stack — Previous pops, Next pushes next_cursor) */}
+            {(totalPages > 1 || cursorStack.length > 0) && (
                 <div className="flex items-center justify-center gap-2 mt-4">
                     <button
                         type="button"
-                        onClick={() => setPage(Math.max(1, page - 1))}
-                        disabled={page <= 1 || isLoading}
+                        onClick={() => setCursorStack((prev) => prev.slice(0, -1))}
+                        disabled={cursorStack.length === 0 || isLoading || listFetching}
                         className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                         Previous
@@ -3334,8 +3385,8 @@ const Orders = () => {
                     </span>
                     <button
                         type="button"
-                        onClick={() => setPage(Math.min(totalPages, page + 1))}
-                        disabled={page >= totalPages || isLoading}
+                        onClick={() => { if (nextCursor) setCursorStack((prev) => [...prev, nextCursor]); }}
+                        disabled={!nextCursor || isLoading || listFetching}
                         className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                         Next

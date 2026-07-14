@@ -12,17 +12,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { OrderPhoneContactDropdown, OrderContactSubmenu } from '@/components/orders/OrderPhoneQuickActions';
-import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import SourceIcon from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { cn } from '@/lib/utils';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
+// D1: rows are the SLIM `orders_list_page` RPC shape — flat `city_name`,
+// server-computed `latest_tracking_code` / `can_track` / `is_duplicate_phone`,
+// and flat `items[]` ({product_id, accessory_id, quantity, accessory_quantity,
+// name, code, image_url}) instead of the old nested PostgREST joins.
 interface OrdersListViewProps {
   orders: any[];
   selectedOrders: string[];
-  duplicatePhones: Set<string>;
   shortOrderIds?: Set<string>;
   lockedOrderIds?: Set<string>;
   toggleOrderSelection: (id: string) => void;
@@ -41,7 +43,6 @@ interface OrdersListViewProps {
 export default function OrdersListView({
   orders,
   selectedOrders,
-  duplicatePhones,
   shortOrderIds,
   lockedOrderIds,
   toggleOrderSelection,
@@ -82,15 +83,12 @@ export default function OrdersListView({
           </thead>
           <tbody>
             {orders.map((order, idx) => {
-              const isDuplicate = duplicatePhones.has(order.phone);
+              const isDuplicate = !!order.is_duplicate_phone;
               const isShort = !!shortOrderIds?.has(order.id);
               const locked = !!lockedOrderIds?.has(order.id);
               const exchangeRole = order._exchangeRole as ('exchange' | 'sale' | 'original' | undefined);
-              const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
-              const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
-              const trackingCode = latestParcel?.tracking_code;
-              const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
-              const canTrack = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
+              const trackingCode = order.latest_tracking_code;
+              const canTrack = !!order.can_track;
 
               const courierPkg = getCourierPackageStatus(order);
               const rawPkgLabel = order.package_status?.label || courierPkg?.label;
@@ -102,21 +100,19 @@ export default function OrdersListView({
               const pkgColor = resolvedPkg?.color ?? rawPkgColor;
               const pkgIcon = resolvedPkg?.icon ?? order.package_status?.icon ?? null;
 
-              // First product (or accessory) with an image — the customer avatar
-              // was never filled, so we surface the actually-ordered product
-              // and reuse the products-page hover preview component.
+              // First item with an image — the customer avatar was never
+              // filled, so we surface the actually-ordered product and reuse
+              // the products-page hover preview component. Slim items carry a
+              // flat name/code/image_url (product name, accessory image
+              // coalesced server-side).
               const firstItemWithImage = (Array.isArray(order.items) ? order.items : [])
-                .find((it: any) => it?.product?.image_url || it?.accessory?.image_url);
-              const productThumb: string | null =
-                firstItemWithImage?.product?.image_url || firstItemWithImage?.accessory?.image_url || null;
+                .find((it: any) => it?.image_url);
+              const productThumb: string | null = firstItemWithImage?.image_url || null;
               const productLabel: string =
-                firstItemWithImage?.product?.name
-                || firstItemWithImage?.accessory?.name
-                || (order.items || []).find((i: any) => i?.product?.name || i?.accessory?.name)?.product?.name
-                || (order.items || []).find((i: any) => i?.accessory?.name)?.accessory?.name
+                firstItemWithImage?.name
+                || (order.items || []).find((i: any) => i?.name)?.name
                 || '';
-              const productCode: string =
-                firstItemWithImage?.product?.code || firstItemWithImage?.accessory?.code || '';
+              const productCode: string = firstItemWithImage?.code || '';
 
               const isSelected = selectedOrders.includes(order.id);
 
@@ -227,7 +223,7 @@ export default function OrdersListView({
                     <div className="space-y-1">
                       <p className="text-[12px] font-bold text-ant-ink leading-tight flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-ant-ink/25 shrink-0" />
-                        {order.city?.name || '—'}
+                        {order.city_name || '—'}
                       </p>
                       {(order as any).channel?.name ? (
                         <div className="flex items-center gap-1 text-[10px] font-bold text-ant-ink/70">

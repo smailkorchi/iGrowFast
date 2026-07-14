@@ -14,9 +14,9 @@ import { publishEcomBus, type EcomBusEvent } from '@/lib/ecomBus';
  * ecomBus for page-local consumers (SheetReview toast, WA chat-orders bridge);
  * the GLOBAL react-query invalidations live here:
  *
- *   order/parcel → ['orders-aggregate'] prefix, debounced 500ms
- *                  (covers admin ['orders-aggregate', biz] AND seller
- *                   ['orders-aggregate', biz, uid])
+ *   order/parcel → ['orders-page'] + ['orders-kpis'] prefixes, debounced 500ms
+ *                  (D1: covers the admin AND seller keyset-page/KPI query
+ *                   variants — both key families start with these prefixes)
  *   stock        → the role's product/accessory dropdown keys, debounced 150ms
  *                  (snappy shortage-highlight flip, still coalesces bursts)
  *
@@ -56,8 +56,9 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
 
         let ordersTimer: ReturnType<typeof setTimeout> | null = null;
         const invalidateOrders = () => {
-            // Prefix key: matches both the admin and the seller aggregate variants.
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+            // Prefix keys: match both the admin and the seller D1 query variants.
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
         };
         const debouncedOrders = () => {
             if (ordersTimer) clearTimeout(ordersTimer);

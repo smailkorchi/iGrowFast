@@ -348,7 +348,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
         } catch (error: any) {
             const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
@@ -657,7 +657,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
 
             if (selectedNote?.id === note.id) {
                 setSelectedNote({ ...note, is_finalized: true });
@@ -744,7 +744,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
 
             if (selectedNote?.id === note.id) {
                 setSelectedNote({ ...note, is_finalized: false });
@@ -834,7 +834,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
 
         } catch (error: any) {

@@ -966,7 +966,7 @@ export function SellerChatCartOrderDialog(props: {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             // DELTA 3: close, reset to blank defaults, clear this conv's draft, notify saved.
             props.onOpenChange(false);
@@ -1144,7 +1144,7 @@ export function SellerChatCartOrderDialog(props: {
             return { id: selectedOrder.id };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['order-view'] });
             toast({ title: "Order Updated", description: "Changes saved successfully." });

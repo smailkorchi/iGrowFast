@@ -150,11 +150,8 @@ const OrderViewDialog: React.FC<OrderViewDialogProps> = ({ orderId, open, onOpen
         },
         enabled: open && !!orderId,
         staleTime: 30 * 1000,
-        placeholderData: () => {
-            if (!orderId || !activeBusinessId) return undefined;
-            const agg = queryClient.getQueryData<any[]>(['orders-aggregate', activeBusinessId]);
-            return (agg as any[] | undefined)?.find((o: any) => o.id === orderId);
-        },
+        // D1: the old full-business 'orders-aggregate' cache is gone (keyset
+        // pages carry slim rows) — the dialog's own fetch is the sole source.
     });
 
     // An order that resolves to nothing while the dialog is open (soft-deleted
@@ -422,7 +419,7 @@ const OrderViewDialog: React.FC<OrderViewDialogProps> = ({ orderId, open, onOpen
                     }
                 }
 
-                queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+                queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             } else {
                 throw new Error(result?.error || 'Unknown error');
             }

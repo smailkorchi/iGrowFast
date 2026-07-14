@@ -1320,7 +1320,7 @@ export function AdminChatCartOrderDialog(props: {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             toast({ title: "Order Created", description: "Successfully logged new order." });
             // DELTA 3: close, reset to blank defaults, clear this conv's draft, notify saved.
             props.onOpenChange(false);
@@ -1488,7 +1488,7 @@ export function AdminChatCartOrderDialog(props: {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['order-view'] });
             toast({ title: "Order Updated", description: "Changes saved successfully." });
             // Close, clear the host's edit state, reset to blank; NO draft snapshot.

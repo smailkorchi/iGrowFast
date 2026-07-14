@@ -79,9 +79,8 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
-import { orderMatchesTopSearch } from '@/lib/orderSearch';
 import { resolveProviderLogo } from '@/lib/providerLogos';
-import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
@@ -93,7 +92,7 @@ import {
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
 import OrderViewDialog from '@/components/orders/OrderViewDialog';
 import { WebhookHealthIndicator } from '@/components/orders/WebhookHealthIndicator';
-import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
+import { fetchOrderById } from '@/lib/orders/fetchOrderById';
 import { OrderStatusHistoryDialog } from '@/components/orders/OrderStatusHistoryDialog';
 import OrdersListView from '@/components/orders/OrdersListView';
 import { StockShortageModal, type StockShortageGroup } from '@/components/orders/StockShortageModal';
@@ -154,16 +153,20 @@ const friendlyStockError = (error: any): string => {
     return m || 'Something went wrong.';
 };
 
+// D1: items are the SLIM `orders_list_page` shape — flat {product_id,
+// accessory_id, quantity, accessory_quantity, name, code, image_url} where
+// `name` is the PRODUCT name (accessory lines fall back to a generic label —
+// documented contract deviation, the slim row doesn't carry accessory names).
 const computeShortLines = (order: any, productMap: Map<string, number>, accessoryMap: Map<string, number>) => {
     const lines: { name: string; needed: number; have: number }[] = [];
     (order?.items || []).forEach((it: any) => {
         if (it.product_id && Number(it.quantity) > 0) {
             const have = productMap.get(it.product_id) ?? 0;
-            if (Number(it.quantity) > have) lines.push({ name: it.product?.name || 'Produit', needed: Number(it.quantity), have });
+            if (Number(it.quantity) > have) lines.push({ name: it.name || 'Produit', needed: Number(it.quantity), have });
         }
         if (it.accessory_id && Number(it.accessory_quantity) > 0) {
             const have = accessoryMap.get(it.accessory_id) ?? 0;
-            if (Number(it.accessory_quantity) > have) lines.push({ name: it.accessory?.name ? `${it.accessory.name} (accessoire)` : 'Accessoire', needed: Number(it.accessory_quantity), have });
+            if (Number(it.accessory_quantity) > have) lines.push({ name: 'Accessoire', needed: Number(it.accessory_quantity), have });
         }
     });
     return lines;
@@ -348,25 +351,6 @@ function toOrderLineForRecords(item: OrderFormValues['items'][number]): OrderLin
     };
 }
 
-function orderMatchesTrackingFilter(order: any, raw: string): boolean {
-    const needle = raw.trim().toLowerCase().replace(/\s+/g, '');
-    if (!needle) return true;
-    const codes: string[] = [];
-    if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
-    if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
-    if (order?.quicklivraison_old_tracking) codes.push(String(order.quicklivraison_old_tracking));
-    if (order?.forcelog_old_tracking) codes.push(String(order.forcelog_old_tracking));
-    if (order?.sendit_old_tracking) codes.push(String(order.sendit_old_tracking));
-    if (order?.delvoexpress_old_tracking) codes.push(String(order.delvoexpress_old_tracking));
-    for (const p of order?.parcels || []) {
-        if (p?.tracking_code && p?.company_delivery_note_id) codes.push(String(p.tracking_code));
-    }
-    for (const p of order?.courier_parcels || []) {
-        if (p?.tracking_code && p?.courier_delivery_note_id) codes.push(String(p.tracking_code));
-    }
-    return codes.some((c) => c.toLowerCase().replace(/\s+/g, '').includes(needle));
-}
-
 const SALES_SOURCES = [
     "whatsapp",
     "facebook",
@@ -485,22 +469,14 @@ function SearchableFilter<T>({
 
 /**
  * For courier (internal) orders the package status lives on the latest
- * courier_parcels row, not on orders.package_status_id. Picks the most recent
- * parcel that has a master status and returns it in the same shape the badge
- * renderer expects. Reads the label/color off the embedded package_statuses row.
+ * courier_parcels row, not on orders.package_status_id. D1: the lookup runs
+ * server-side inside `orders_list_page` (LATERAL over courier_parcels) and
+ * ships as `courier_pkg_fallback: {label, color} | null` on each slim row.
  */
 function getCourierPackageStatus(order: any): { label: string; color: string | null } | null {
-    const courierParcels = (order?.courier_parcels || []) as Array<{
-        status?: { label?: string | null; color?: string | null } | null;
-        created_at?: string | null;
-    }>;
-    if (!courierParcels.length) return null;
-    const sorted = [...courierParcels].sort(
-        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
-    );
-    const latest = sorted.find((p) => p.status?.label && String(p.status.label).trim());
-    if (!latest) return null;
-    return { label: String(latest.status!.label).trim(), color: latest.status!.color || null };
+    const fallback = order?.courier_pkg_fallback as { label?: string | null; color?: string | null } | null | undefined;
+    if (!fallback?.label || !String(fallback.label).trim()) return null;
+    return { label: String(fallback.label).trim(), color: fallback.color || null };
 }
 
 const Orders = () => {
@@ -625,10 +601,9 @@ const Orders = () => {
     const [filterConfirmedBy, setFilterConfirmedBy] = useState<string>('all');
     const [filterAssignedTo, setFilterAssignedTo] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
-    // Server-side pagination. The query fetches only the visible page; filters
-    // operate over the loaded subset, so users wanting to search across
-    // history should bump pageSize up to 500 or 1000.
-    const [page, setPage] = useState(1);
+    // Server-side keyset pagination (D1): the page number lives in the cursor
+    // stack declared next to the `orders_list_page` query below; only the page
+    // size is plain state here.
     const [pageSize, setPageSize] = useState<100 | 500 | 1000>(100);
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
@@ -668,55 +643,118 @@ const Orders = () => {
 
     // --- Realtime (W7 R1a): cache invalidation now rides the layout-mounted
     // <EcomBizRealtime/> (AppLayout) — ONE private ecom:biz broadcast channel per
-    // session handles ['orders-aggregate'] + the stock dropdown keys for every
-    // page. The user-visible toast likewise lives in OrderStatusNotifications.
-    // The former 7-binding postgres_changes channel is retired.
+    // session handles ['orders-page'] + ['orders-kpis'] + the stock dropdown keys
+    // for every page. The user-visible toast likewise lives in
+    // OrderStatusNotifications. The former 7-binding postgres_changes channel is
+    // retired.
 
     // --- Queries ---
 
 
-    // Single source of truth: ONE query pulls every order this business owns
-    // (with the joins needed for filters, KPIs and the list view). Pagination
-    // is then a pure client-side slice of the filtered aggregate (see
-    // `filteredOrders` below). `history` is the only heavy join we skip — the
-    // OrderViewDialog component lazy-fetches it per-order when the modal opens.
-    const { data: aggregateOrders = [], isLoading: aggregateLoading } = useQuery<any[]>({
-        queryKey: ['orders-aggregate', activeBusinessId],
+    // D1 (docs/d1-recon/04-design.md): the old 'orders-aggregate' full-business
+    // download is gone. ONE keyset page of SLIM rows comes from the
+    // `orders_list_page` RPC; the KPI strip / counter pill / totalPages come
+    // from the `orders_kpis` RPC over the SAME server-side filter surface.
+    // Accepted behavior deltas (documented in the contract): top-search axes
+    // trimmed (no raw-uuid / raw-price / joined-label / accessory matching;
+    // length guards fold>=2 / digits>=3 / raw>=2), date presets evaluate as
+    // Africa/Casablanca calendar days server-side, exchange-pair grouping
+    // stays page-local.
+
+    // Text inputs are debounced together so typing doesn't fire one RPC per
+    // keystroke; keepPreviousData on the queries hides the transition.
+    const [debouncedText, setDebouncedText] = useState({ search: '', customer: '', phone: '', tracking: '' });
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedText({
+            search: searchQuery.trim(),
+            customer: filterCustomerName.trim(),
+            phone: filterPhone.trim(),
+            tracking: filterTracking.trim(),
+        }), 350);
+        return () => clearTimeout(t);
+    }, [searchQuery, filterCustomerName, filterPhone, filterTracking]);
+
+    // --- Date range helper (presets → calendar-day bounds for the RPC) ---
+    const getDateRange = useMemo(() => {
+        const now = new Date();
+        switch (filterTimeRange) {
+            case 'today': return { from: startOfDay(now), to: endOfDay(now) };
+            case 'yesterday': return { from: startOfDay(subDays(now, 1)), to: endOfDay(subDays(now, 1)) };
+            case 'last7': return { from: startOfDay(subDays(now, 6)), to: endOfDay(now) };
+            case 'last30': return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
+            case 'last90': return { from: startOfDay(subDays(now, 89)), to: endOfDay(now) };
+            case 'ytd': return { from: startOfYear(now), to: endOfDay(now) };
+            case 'thisMonth': return { from: startOfMonth(now), to: endOfDay(now) };
+            case 'lastMonth': { const lm = subMonths(now, 1); return { from: startOfMonth(lm), to: endOfMonth(lm) }; }
+            case 'custom': return filterCustomRange?.from && filterCustomRange?.to ? { from: startOfDay(filterCustomRange.from), to: endOfDay(filterCustomRange.to) } : null;
+            default: return null;
+        }
+    }, [filterTimeRange, filterCustomRange]);
+
+    // The RPC takes DATE params and applies Africa/Casablanca inclusive-day
+    // boundaries itself — only the calendar days travel over the wire.
+    const dateBounds = useMemo(() => {
+        if (!getDateRange) return { from: null as string | null, to: null as string | null };
+        return {
+            from: format(getDateRange.from, 'yyyy-MM-dd'),
+            to: format(getDateRange.to, 'yyyy-MM-dd'),
+        };
+    }, [getDateRange]);
+
+    // Filter/nav state → RPC params, 1:1 (recon 01 §1 predicates pushed down).
+    // Shared verbatim by the page query and the KPI query so the counters can
+    // never disagree with the visible rows.
+    const listParams = useMemo(() => ({
+        p_business: activeBusinessId,
+        p_search: debouncedText.search || null,
+        p_status: filterStatus !== 'all' ? filterStatus : null,
+        p_status_ids: filterStatus === 'all' && filterStatusIds && filterStatusIds.length > 0 ? filterStatusIds : null,
+        p_package: filterPackageStatus !== 'all' ? filterPackageStatus : null,
+        p_package_ids: filterPackageStatus === 'all' && filterPackageStatusIds && filterPackageStatusIds.length > 0 ? filterPackageStatusIds : null,
+        p_city: filterCity !== 'all' ? filterCity : null,
+        p_source: filterSource !== 'all' ? filterSource : null,
+        p_provider: filterProvider !== 'all' ? filterProvider : null,
+        p_date_field: filterDateField,
+        p_date_from: dateBounds.from,
+        p_date_to: dateBounds.to,
+        p_customer_name: debouncedText.customer || null,
+        p_phone: debouncedText.phone || null,
+        p_tracking: debouncedText.tracking || null,
+        p_product: filterProduct !== 'all' ? filterProduct : null,
+        p_confirmed_by: filterConfirmedBy !== 'all' ? filterConfirmedBy : null,
+        p_assigned_to: filterAssignedTo !== 'all' ? filterAssignedTo : null,
+        p_exchange: filterExchange !== 'all' ? filterExchange : null,
+    }), [activeBusinessId, debouncedText, filterStatus, filterStatusIds, filterPackageStatus, filterPackageStatusIds, filterCity, filterSource, filterProvider, filterDateField, dateBounds, filterProduct, filterConfirmedBy, filterAssignedTo, filterExchange]);
+
+    // Keyset cursor STACK — Prev pops, Next pushes the page's next_cursor.
+    // The page number is implicit (stack depth + 1).
+    const [cursorStack, setCursorStack] = useState<{ created_at: string; id: string }[]>([]);
+    const cursor = cursorStack.length > 0 ? cursorStack[cursorStack.length - 1] : null;
+    const page = cursorStack.length + 1;
+
+    // Snap back to page 1 whenever the active filter set or the search text
+    // mutates. Without this, filtering while deep in the stack would strand
+    // the user on a cursor that no longer matches anything.
+    const paramsKey = useMemo(() => JSON.stringify(listParams), [listParams]);
+    useEffect(() => {
+        setCursorStack((prev) => (prev.length > 0 ? [] : prev));
+    }, [paramsKey]);
+
+    const {
+        data: pageData,
+        isLoading: pageLoading,
+        isFetching: pageFetching,
+    } = useQuery<{ rows: any[]; next_cursor: { created_at: string; id: string } | null; page_count: number }>({
+        queryKey: ['orders-page', activeBusinessId, listParams, cursor, pageSize],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            // Paginated so we never truncate at PostgREST's 1000-row default. A
-            // business with >1000 orders was silently showing only the newest
-            // 1000 (KPIs, counts, Total sales all undercounted, and any package
-            // filter like "Livré" matched against a truncated set). fetchAllRows
-            // pages by `id` (stable .range() ordering, no skip/dup on created_at
-            // ties); we re-sort newest-first below since `filteredOrders` slices
-            // this array directly with no further sort.
-            const rows = await fetchAllRows<any>(
-                'orders',
-                `
-                    *,
-                    status:order_statuses(*),
-                    package_status:package_statuses(*),
-                    city:master_cities(id, name),
-                    courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                    assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
-                    company:providers(id, name, provider_type, logo_url),
-                    channel:sales_channels!orders_source_id_fkey(id, name, type),
-                    items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_id, created_at, company_delivery_note_id, status:package_statuses(label, color), provider:providers(id, name, logo_url)),
-                    courier_parcels(id, tracking_code, status_id, created_at, courier_delivery_note_id, status:package_statuses(label, color))
-                `,
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            return (rows as any[]).sort(
-                (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
-            );
+            const { data, error } = await (supabase as any).rpc('orders_list_page', {
+                ...listParams,
+                p_cursor_created: cursor?.created_at ?? null,
+                p_cursor_id: cursor?.id ?? null,
+                p_limit: pageSize,
+            });
+            if (error) throw error;
+            return data as { rows: any[]; next_cursor: { created_at: string; id: string } | null; page_count: number };
         },
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
@@ -726,14 +764,38 @@ const Orders = () => {
         // tab — otherwise the 60s-stale cache shows the pre-change state until a hard refresh.
         refetchOnMount: 'always',
         refetchOnWindowFocus: true,
+        // keepPreviousData: the old page stays visible while the next one loads.
+        placeholderData: (prev) => prev,
     });
 
-    // Back-compat aliases — every existing reader of `orders` / `isLoading`
-    // keeps working, but now sees the full business set. Treat the pre-auth
+    const { data: orderKpis } = useQuery<any>({
+        queryKey: ['orders-kpis', activeBusinessId, listParams],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('orders_kpis', listParams);
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!activeBusinessId,
+        staleTime: 60 * 1000,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
+        placeholderData: (prev) => prev,
+    });
+
+    // The visible page rows (SLIM `orders_list_page` shape). Treat the pre-auth
     // window (no `activeBusinessId` yet) as loading so we don't flash an
     // empty-state card before the React Query is even enabled.
-    const orders = aggregateOrders;
-    const isLoading = aggregateLoading || !activeBusinessId;
+    const pageRows = useMemo(() => ((pageData?.rows ?? []) as any[]), [pageData]);
+    const isLoading = pageLoading || !activeBusinessId;
+
+    // If the current cursor page went empty under us (the filtered set shrank),
+    // snap back to page 1 — keyset cursors can't clamp to a "last page" the way
+    // the old client-side slice did.
+    useEffect(() => {
+        if (!pageFetching && pageData && pageData.page_count === 0 && cursorStack.length > 0) {
+            setCursorStack([]);
+        }
+    }, [pageFetching, pageData, cursorStack.length]);
 
     // Shared resolver — master status label+color+icon, raw only as fallback.
     const { resolve: resolvePkgStatus, resolveById } = usePackageStatusResolver();
@@ -997,10 +1059,8 @@ const Orders = () => {
     // the order it just announced. Cleans the param after handling so a refresh
     // doesn't re-open the modal. The handled-ref is reset whenever the param is
     // absent so a second toast for the same order still opens the modal.
-    // If the order isn't in the cached `orders` list (e.g. filtered out by a date
-    // range, or trashed, or simply not yet loaded after a fresh navigation), we
-    // fall back to a direct fetch that mirrors the main query's joins so the modal
-    // can still open with everything it needs.
+    // D1: the page only holds SLIM rows now, so this always goes through the
+    // shared lazy `fetchOrderById` (full joins + history).
     const viewParamHandledRef = useRef<string | null>(null);
     useEffect(() => {
         const requestedId = searchParams.get('view');
@@ -1009,53 +1069,27 @@ const Orders = () => {
             return;
         }
         if (viewParamHandledRef.current === requestedId) return;
-        if (!orders) return;
-
-        const target = (orders as any[]).find((o) => o.id === requestedId);
         viewParamHandledRef.current = requestedId;
 
-        const openWith = (row: any) => {
-            if (!row) return;
-            setSelectedOrder(row);
-            setIsViewModalOpen(true);
-        };
-
-        if (target) {
-            openWith(target);
-        } else {
-            // Direct fetch fallback when the order is outside the current view filters.
-            (async () => {
-                const { data } = await (supabase as any)
-                    .from('orders')
-                    .select(`
-                        *,
-                        status:order_statuses(*),
-                        package_status:package_statuses(*),
-                        city:master_cities(id, name),
-                        courier:users!orders_courier_id_fkey(id, name, avatar_url, avatar_config),
-                        assignee:users!orders_seller_id_fkey(id, name, avatar_url, avatar_config),
-                        company:providers(id, name, provider_type, logo_url),
-                    channel:sales_channels!orders_source_id_fkey(id, name, type),
-                        items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
-                        history:order_status_history(*, user:users!changed_by(name, avatar_url, avatar_config), status:order_statuses!status_id(*)),
-                        parcels:company_parcels(id, tracking_code, external_id, provider_id, status_id, created_at, company_delivery_note_id, status:package_statuses(label, color), provider:providers(id, name, logo_url)),
-                        courier_parcels(id, tracking_code, status_id, created_at, courier_delivery_note_id, status:package_statuses(label, color))
-                    `)
-                    .eq('id', requestedId)
-                    .is('date_deleted', null)
-                    .maybeSingle();
+        (async () => {
+            try {
+                const data = await fetchOrderById(requestedId);
+                if (!data) return;
                 // Seed the view dialog's own cache so it renders instantly with
                 // this row (history included) instead of flashing while it
                 // re-fetches what we just pulled.
-                if (data) queryClient.setQueryData(['order-view', requestedId], data);
-                openWith(data);
-            })();
-        }
+                queryClient.setQueryData(['order-view', requestedId], data);
+                setSelectedOrder(data);
+                setIsViewModalOpen(true);
+            } catch (err) {
+                console.error('?view deep-link fetch error:', err);
+            }
+        })();
 
         const next = new URLSearchParams(searchParams);
         next.delete('view');
         setSearchParams(next, { replace: true });
-    }, [searchParams, orders, setSearchParams]);
+    }, [searchParams, setSearchParams, queryClient]);
 
     // ?addProductId=<uuid> — opens the New Order modal with the product
     // already on line 1 (mirrors what OrderLineProductCombobox does on select).
@@ -1796,7 +1830,8 @@ const Orders = () => {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             setIsAddModalOpen(false);
             // Defer form.reset so Radix completes its close cycle first.
             setTimeout(() => {
@@ -1978,7 +2013,8 @@ const Orders = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
             toast({ title: "Order Updated", description: "Changes saved successfully." });
@@ -2002,7 +2038,8 @@ const Orders = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             setOrderPendingDelete(null);
             toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
@@ -2023,102 +2060,89 @@ const Orders = () => {
         return m;
     }, [accessories]);
 
+    // D1: the locked / soft-deleted / foreign-business guards moved server-side
+    // into the `orders_bulk_guarded` RPC (selection persists across pages, so a
+    // page-local locked check cannot protect the write). Per-row subtransactions
+    // in the RPC keep a trigger rejection (e.g. stock shortage on a confirmed
+    // status) scoped to that order only — same isolation the old per-order
+    // client loop had.
     const bulkStatusMutation = useMutation({
-        mutationFn: async ({ orderIds: rawOrderIds, statusId, reportedDate, commentOverride }: { orderIds: string[], statusId: string, reportedDate?: string, commentOverride?: string }) => {
-            const orderIds = rawOrderIds.filter((id: string) => !lockedOrderIds.has(id));
-            const userRes = await (supabase as any).auth.getUser();
-            const userId = userRes.data.user?.id;
-
-            // Build update payload with status-specific fields
-            const updatePayload: any = {
-                order_status_id: statusId,
-                updated_at: new Date().toISOString()
-            };
-
-            if (isOrderCategory(statusId, 'confirmed')) {
-                updatePayload.confirmed_by_id = userId;
-                updatePayload.confirmation_date = new Date().toISOString();
-            }
-            if (isOrderCategory(statusId, 'cancelled')) {
-                updatePayload.canceled_by_id = userId;
-                updatePayload.annulation_date = new Date().toISOString();
-            }
-            if (isOrderCategory(statusId, 'paid')) {
-                updatePayload.date_livraison = new Date().toISOString();
-            }
-            if (isOrderCategory(statusId, 'postponed')) {
-                updatePayload.reported_date = reportedDate || new Date().toISOString();
+        mutationFn: async ({ orderIds, statusId, reportedDate, commentOverride }: { orderIds: string[], statusId: string, reportedDate?: string, commentOverride?: string }) => {
+            // History is written INSIDE the RPC's per-row subtransaction (before
+            // each update, preserving the auto-log trigger's 5s dedup ordering) —
+            // skipped ids get NO history row (phantom-row fix, D1 review).
+            let finalCommentTemplate = commentOverride || bulkStatusComment || 'Bulk status update';
+            if ((isOrderCategory(statusId, 'postponed') || statusId === REPORTED_STATUS_ID) && reportedDate) {
+                const formattedDate = format(new Date(reportedDate), 'dd/MM/yyyy HH:mm');
+                finalCommentTemplate = `[Reporté pour: ${formattedDate}] ${finalCommentTemplate}`;
             }
 
-            // Insert history BEFORE the update so the DB trigger's 5-second
-            // dedup check finds it and skips its own "Changement automatique" row.
-            try {
-                let finalCommentTemplate = commentOverride || bulkStatusComment || 'Bulk status update';
-
-                if ((isOrderCategory(statusId, 'postponed') || statusId === REPORTED_STATUS_ID) && reportedDate) {
-                    const formattedDate = format(new Date(reportedDate), 'dd/MM/yyyy HH:mm');
-                    finalCommentTemplate = `[Reporté pour: ${formattedDate}] ${finalCommentTemplate}`;
-                }
-
-                const historyRecords = orderIds.map(oId => ({
-                    order_id: oId,
-                    status_id: statusId,
-                    comment: finalCommentTemplate,
-                    changed_by: userId,
-                    'DigiCom Business': activeBusinessId
-                }));
-                await (supabase as any).from('order_status_history').insert(historyRecords);
-            } catch (err) {
-                console.error("Bulk history error", err);
-            }
-
-            // For confirmed status: update each order individually so a stock
-            // shortage on one order only blocks that order and doesn't abort
-            // the entire batch.
-            if (isOrderCategory(statusId, 'confirmed')) {
-                const succeeded: string[] = [];
-                const failed: { id: string; reason: string }[] = [];
-                for (const oId of orderIds) {
-                    try {
-                        const { error } = await (supabase as any)
-                            .from('orders')
-                            .update(updatePayload)
-                            .eq('id', oId)
-                            .eq('DigiCom Business', activeBusinessId);
-                        if (error) throw error;
-                        succeeded.push(oId);
-                    } catch (err: any) {
-                        failed.push({ id: oId, reason: friendlyStockError(err) });
-                    }
-                }
-                return { succeeded, failed };
-            }
-
-            const { error } = await (supabase as any)
-                .from('orders')
-                .update(updatePayload)
-                .in('id', orderIds)
-                .eq('DigiCom Business', activeBusinessId);
+            const { data, error } = await (supabase as any).rpc('orders_bulk_guarded', {
+                p_ids: orderIds,
+                p_action: 'status',
+                p_status: statusId,
+                p_reported_date: reportedDate ?? null,
+                p_comment: finalCommentTemplate,
+            });
             if (error) throw error;
-            return { succeeded: orderIds, failed: [] as { id: string; reason: string }[] };
+            const succeeded: string[] = Array.isArray(data?.applied) ? data.applied : [];
+            const failed: { id: string; reason: string }[] = Array.isArray(data?.skipped) ? data.skipped : [];
+            return { succeeded, failed };
         },
-        onSuccess: (result) => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+        onSuccess: async (result) => {
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             setSelectedOrders([]);
             setIsBulkStatusModalOpen(false);
             setBulkStatusComment("");
             const { succeeded = [], failed = [] } = result || {};
             if (failed.length > 0) {
+                // Skip reasons come from the guarded RPC: locked / deleted /
+                // not_found / not_updatable, or the raw trigger error (e.g.
+                // insufficient_stock on a confirmed status).
+                const reasonLabel = (reason: string) => {
+                    if (reason === 'locked') return 'verrouillée';
+                    if (reason === 'deleted') return 'supprimée';
+                    if (reason === 'not_found') return 'introuvable';
+                    if (reason === 'not_updatable') return 'non modifiable';
+                    return friendlyStockError(reason);
+                };
                 toast({
-                    title: `${succeeded.length} confirmed, ${failed.length} blocked`,
-                    description: `${failed.length} order(s) could not be confirmed due to insufficient stock.`,
+                    title: `${succeeded.length} updated, ${failed.length} skipped`,
+                    description: failed.slice(0, 3).map((f) => reasonLabel(String(f.reason || ''))).join(' · ')
+                        + (failed.length > 3 ? ` · +${failed.length - 3} more` : ''),
                     variant: "destructive"
                 });
-                const groups = failed.map((f: any) => {
-                    const o = (orders as any[]).find((x) => x.id === f.id);
-                    return { orderName: o?.name || 'Commande', lines: o ? computeShortLines(o, productStockById, accessoryStockById) : [] };
-                });
-                setStockAlert(groups);
+                const stockFailed = failed.filter((f) => String(f.reason || '').includes('insufficient_stock'));
+                if (stockFailed.length > 0) {
+                    // Selection persists across keyset pages — off-page failures
+                    // are lazily resolved so the modal always shows real names +
+                    // shortage lines (D1 review fix).
+                    const groups = await Promise.all(stockFailed.map(async (f) => {
+                        let o: any = pageRows.find((x) => x.id === f.id);
+                        if (!o) {
+                            try {
+                                const full: any = await fetchOrderById(f.id);
+                                if (full) {
+                                    o = {
+                                        ...full,
+                                        items: (full.items || []).map((it: any) => ({
+                                            product_id: it.product_id,
+                                            accessory_id: it.accessory_id,
+                                            quantity: it.quantity,
+                                            accessory_quantity: it.accessory_quantity,
+                                            name: it.product?.name ?? it.accessory?.name ?? null,
+                                            code: it.product?.code ?? it.accessory?.code ?? null,
+                                            image_url: it.product?.image_url ?? it.accessory?.image_url ?? null,
+                                        })),
+                                    };
+                                }
+                            } catch { /* generic fallback below */ }
+                        }
+                        return { orderName: o?.name || 'Commande', lines: o ? computeShortLines(o, productStockById, accessoryStockById) : [] };
+                    }));
+                    setStockAlert(groups);
+                }
             } else {
                 toast({ title: "Success", description: "Orders status updated successfully." });
             }
@@ -2129,25 +2153,34 @@ const Orders = () => {
     });
 
     const bulkAttributeMutation = useMutation({
-        mutationFn: async ({ orderIds: rawOrderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
-            const orderIds = rawOrderIds.filter((id: string) => !lockedOrderIds.has(id));
-            const updatePayload: any = {
-                seller_id: sellerId,
-                updated_at: new Date().toISOString(),
-                assignment_date: sellerId ? new Date().toISOString() : null
-            };
-            const { error } = await (supabase as any)
-                .from('orders')
-                .update(updatePayload)
-                .in('id', orderIds)
-                .eq('DigiCom Business', activeBusinessId);
+        mutationFn: async ({ orderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
+            // D1: locked/deleted/foreign guards run server-side in the RPC
+            // (NULL p_seller = unassign, mirroring the old client payload).
+            const { data, error } = await (supabase as any).rpc('orders_bulk_guarded', {
+                p_ids: orderIds,
+                p_action: 'attribute',
+                p_seller: sellerId,
+            });
             if (error) throw error;
+            const succeeded: string[] = Array.isArray(data?.applied) ? data.applied : [];
+            const failed: { id: string; reason: string }[] = Array.isArray(data?.skipped) ? data.skipped : [];
+            return { succeeded, failed };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders-aggregate', activeBusinessId] });
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             setSelectedOrders([]);
             setIsAttributionModalOpen(false);
-            toast({ title: "Success", description: "Orders attributed successfully." });
+            const { succeeded = [], failed = [] } = result || {};
+            if (failed.length > 0) {
+                toast({
+                    title: `${succeeded.length} attributed, ${failed.length} skipped`,
+                    description: `${failed.length} order(s) skipped (locked, trashed or inaccessible).`,
+                    variant: "destructive"
+                });
+            } else {
+                toast({ title: "Success", description: "Orders attributed successfully." });
+            }
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -2170,41 +2203,13 @@ const Orders = () => {
         }
     };
 
-    // --- Date range helper ---
-    const getDateRange = useMemo(() => {
-        const now = new Date();
-        switch (filterTimeRange) {
-            case 'today': return { from: startOfDay(now), to: endOfDay(now) };
-            case 'yesterday': return { from: startOfDay(subDays(now, 1)), to: endOfDay(subDays(now, 1)) };
-            case 'last7': return { from: startOfDay(subDays(now, 6)), to: endOfDay(now) };
-            case 'last30': return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
-            case 'last90': return { from: startOfDay(subDays(now, 89)), to: endOfDay(now) };
-            case 'ytd': return { from: startOfYear(now), to: endOfDay(now) };
-            case 'thisMonth': return { from: startOfMonth(now), to: endOfDay(now) };
-            case 'lastMonth': { const lm = subMonths(now, 1); return { from: startOfMonth(lm), to: endOfMonth(lm) }; }
-            case 'custom': return filterCustomRange?.from && filterCustomRange?.to ? { from: startOfDay(filterCustomRange.from), to: endOfDay(filterCustomRange.to) } : null;
-            default: return null;
-        }
-    }, [filterTimeRange, filterCustomRange]);
-
-    const DATE_FIELD_MAP: Record<string, string> = {
-        'date': 'date',
-        'created_at': 'created_at',
-        'updated_at': 'updated_at',
-        'assignment_date': 'assignment_date',
-        'confirmation_date': 'confirmation_date',
-        'annulation_date': 'annulation_date',
-        'date_livraison': 'date_livraison',
-        'reported_date': 'reported_date',
-    };
-
-    // --- Helpers ---
-    // Highlight rows whose phone is shared with ANOTHER order anywhere in the
-    // business (not just the visible page). Built from the full aggregate so
-    // the flag is stable regardless of pagination.
+    // --- Helpers (page-row derivations — the slim RPC rows carry everything) ---
+    // Short flag: computed over the VISIBLE PAGE rows only (slim items vs the
+    // active-only stock maps). Locked: `status.is_paid || is_unpaid` per row —
+    // UI-only; the bulk write guard lives server-side in orders_bulk_guarded.
     const shortOrderIds = useMemo(() => {
         const s = new Set<string>();
-        ((orders as any[]) || []).forEach((o) => {
+        pageRows.forEach((o) => {
             if (o?.stock_changed === true) return; // already reserved, not short
             const short = (o?.items || []).some((it: any) => {
                 if (it?.product_id && Number(it.quantity) > 0) {
@@ -2220,87 +2225,17 @@ const Orders = () => {
             if (short) s.add(o.id);
         });
         return s;
-    }, [orders, productStockById, accessoryStockById]);
+    }, [pageRows, productStockById, accessoryStockById]);
 
     const lockedOrderIds = useMemo(() => {
         const s = new Set<string>();
-        ((orders as any[]) || []).forEach((o) => { if (isOrderLocked(o)) s.add(o.id); });
+        pageRows.forEach((o) => { if (isOrderLocked(o)) s.add(o.id); });
         return s;
-    }, [orders]);
+    }, [pageRows]);
 
-    const duplicatePhones = useMemo(() => {
-        if (!aggregateOrders?.length) return new Set<string>();
-        const phoneCounts: Record<string, number> = {};
-        aggregateOrders.forEach((o: any) => {
-            if (o.phone) {
-                const normalized = (o.phone || '').replace(/[\s-]/g, '');
-                phoneCounts[normalized] = (phoneCounts[normalized] || 0) + 1;
-            }
-        });
-        const duplicates = new Set<string>();
-        aggregateOrders.forEach((o: any) => {
-            if (o.phone) {
-                const normalized = (o.phone || '').replace(/[\s-]/g, '');
-                if (phoneCounts[normalized] > 1) {
-                    duplicates.add(o.phone);
-                }
-            }
-        });
-        return duplicates;
-    }, [aggregateOrders]);
-
-    // Reusable filter predicate — applied to both the paginated `orders`
-    // (drives what the user sees) and `aggregateOrders` (drives the KPI strip),
-    // so KPIs respect filters but stay stable across page-size changes.
-    const orderMatchesAllFilters = useMemo(() => (o: any) => {
-        const matchesSearch = orderMatchesTopSearch(o, searchQuery);
-        const matchesStatus =
-            filterStatus !== 'all'
-                ? o.order_status_id === filterStatus
-                : filterStatusIds && filterStatusIds.length > 0
-                    ? !!o.order_status_id && filterStatusIds.includes(o.order_status_id)
-                    : true;
-        const matchesCity = filterCity === "all" || o.master_city_id === filterCity;
-        const matchesSource = filterSource === "all" || o.source_name === filterSource;
-        const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
-        let matchesDate = true;
-        if (getDateRange) {
-            const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
-            const dateVal = o[fieldKey];
-            if (dateVal) {
-                matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
-            } else {
-                matchesDate = false;
-            }
-        }
-        const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
-        const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
-        const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
-        const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
-        const matchesPackageStatus =
-            filterPackageStatus !== 'all'
-                ? o.package_status_id === filterPackageStatus
-                : filterPackageStatusIds && filterPackageStatusIds.length > 0
-                    ? !!o.package_status_id && filterPackageStatusIds.includes(o.package_status_id)
-                    : true;
-        const matchesConfirmedBy = filterConfirmedBy === 'all' || o.confirmed_by_id === filterConfirmedBy;
-        const matchesAssignedTo = filterAssignedTo === 'all' || o.seller_id === filterAssignedTo;
-        const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
-        return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
-    }, [searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
-
-    const filteredAggregate = useMemo(() => aggregateOrders.filter(orderMatchesAllFilters), [aggregateOrders, orderMatchesAllFilters]);
-
-    // Pagination is now a pure client-side slice of the FILTERED aggregate.
-    // This is the only place page-size touches anything — KPIs, dropdowns,
-    // counters all see the full filtered list above. Filter changes auto-reset
-    // page below so the user can never strand themselves on an empty page.
-    const totalOrdersCount = filteredAggregate.length;
+    // totalPages / counter pill ride the KPI aggregate's filtered total_count.
+    const totalOrdersCount = Number(orderKpis?.total_count ?? 0);
     const totalPages = Math.max(1, Math.ceil(totalOrdersCount / pageSize));
-    const filteredOrders = useMemo(() => {
-        const from = (page - 1) * pageSize;
-        return filteredAggregate.slice(from, from + pageSize);
-    }, [filteredAggregate, page, pageSize]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -2344,21 +2279,24 @@ const Orders = () => {
         setFilterExchange('all');
     };
 
-    // Snap back to page 1 whenever the active filter set changes OR the search
-    // bar mutates. Without this, applying a filter while on page 6 would land
-    // the user on an empty page even though matches exist earlier in the list.
-    useEffect(() => {
-        setPage(1);
-    }, [searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
-
-    // Also clamp the page when filteredAggregate shrinks past the current page
-    // (e.g. realtime delete removes the last row on the page).
-    useEffect(() => {
-        if (page > totalPages) setPage(totalPages);
-    }, [page, totalPages]);
-
-    const handleEdit = (order: any) => {
-        if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
+    // D1: the slim page row doesn't carry the edit-form payload (address,
+    // shipping, notes, item money fields, old-tracking values) — the edit form
+    // rides the shared lazy `fetchOrderById` (full joins + history). The lock
+    // check still runs on the page row first so a locked order never fetches.
+    const handleEdit = async (orderRow: any) => {
+        if (isOrderLocked(orderRow)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
+        let order: any;
+        try {
+            order = await fetchOrderById(orderRow.id);
+        } catch {
+            order = null;
+        }
+        if (!order) {
+            toast({ title: "Commande introuvable", description: "Impossible de charger la commande pour modification.", variant: "destructive" });
+            return;
+        }
+        // Seed the view dialog's cache — it shows the same full row.
+        queryClient.setQueryData(['order-view', order.id], order);
         setSelectedOrder(order);
         form.reset({
             name: order.name,
@@ -2511,16 +2449,17 @@ const Orders = () => {
         setIsAddModalOpen(true);
     };
 
-    // KPIs derive from the FULL filtered aggregate (independent of page size).
-    // MONEY excludes exchange/swap legs (replace=true) — they are return+reship
-    // logistics, not sales — so "Total sales" matches the dashboard/P&L revenue.
-    // COUNTS keep them (Active orders stays the operational total; exchanges are
-    // also surfaced separately in their own KPI).
-    const salesAggregate = filteredAggregate.filter((o) => o.replace !== true);
-    const totalRevenue = salesAggregate.reduce((acc, o) => acc + (Number(o.price) || 0), 0);
-    const exchangeCount = filteredAggregate.filter((o) => o.replace).length;
-    const avgOrderValue = salesAggregate.length > 0 ? Math.round(totalRevenue / salesAggregate.length) : 0;
-    const filteredAggregateCount = filteredAggregate.length;
+    // KPIs come from the `orders_kpis` RPC over the FULL filtered set
+    // (independent of page size). MONEY excludes exchange/swap legs
+    // (replace=true) — they are return+reship logistics, not sales — so
+    // "Total sales" matches the dashboard/P&L revenue. COUNTS keep them
+    // (Active orders stays the operational total; exchanges are also surfaced
+    // separately in their own KPI). Parity math lives server-side (recon 01 §3).
+    const activeOrdersCount = Number(orderKpis?.active_count ?? 0);
+    const totalRevenue = Number(orderKpis?.total_sales ?? 0);
+    const exchangeCount = Number(orderKpis?.exchange_count ?? 0);
+    const avgOrderValue = Number(orderKpis?.avg_order ?? 0);
+    const filteredAggregateCount = totalOrdersCount;
 
     return (
         <div className="ant-surface px-2 md:px-3 py-2 space-y-4">
@@ -2576,7 +2515,7 @@ const Orders = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
                 <OrderKpi
                     label="Active orders"
-                    value={new Intl.NumberFormat('fr-FR').format(filteredAggregateCount)}
+                    value={new Intl.NumberFormat('fr-FR').format(activeOrdersCount)}
                     accent="#141413"
                     icon={ShoppingCart}
                 />
@@ -2746,7 +2685,7 @@ const Orders = () => {
                         <div className="inline-flex items-stretch h-8 rounded-full bg-ant-paper border border-ant-line overflow-hidden">
                             <div className="inline-flex items-baseline gap-1 px-3 tabular-nums self-center">
                                 <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]">
-                                    {filteredOrders.length.toLocaleString('fr-FR')}
+                                    {pageRows.length.toLocaleString('fr-FR')}
                                 </span>
                                 <span className="text-[10px] font-medium text-ant-mid">of</span>
                                 <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em]" title={`Total ${filteredAggregateCount.toLocaleString('fr-FR')}`}>
@@ -2771,7 +2710,7 @@ const Orders = () => {
                                     {[100, 500, 1000].map((n) => (
                                         <DropdownMenuItem
                                             key={n}
-                                            onClick={() => { setPageSize(n as 100 | 500 | 1000); setPage(1); }}
+                                            onClick={() => { setPageSize(n as 100 | 500 | 1000); setCursorStack([]); }}
                                             className={cn(
                                                 'rounded-lg px-3 py-1.5 text-[12px] font-semibold tabular-nums cursor-pointer flex items-center justify-between gap-3',
                                                 pageSize === n ? 'text-ant-ink bg-ant-ink/[0.04]' : 'text-ant-mid hover:text-ant-ink',
@@ -3201,7 +3140,7 @@ const Orders = () => {
                         <Skeleton key={i} className="h-64 w-full rounded-2xl" />
                     ))}
                 </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : pageRows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-ant-paper rounded-2xl shadow-sm border border-ant-line">
                     <div className="w-24 h-24 bg-ant-ink/[0.04] rounded-full flex items-center justify-center">
                         <ShoppingCart className="w-12 h-12 text-ant-mid" />
@@ -3215,27 +3154,22 @@ const Orders = () => {
                 <>
                     {viewMode === 'grid' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
-                                {arrangeExchangePairs(filteredOrders).map((order) => {
-                                            const isDuplicateClient = duplicatePhones.has(order.phone);
+                                {arrangeExchangePairs(pageRows).map((order) => {
+                                            // Slim RPC row: server-computed duplicate flag,
+                                            // latest_tracking_code, can_track, flat items.
+                                            const isDuplicateClient = !!order.is_duplicate_phone;
                                             const isShortCard = shortOrderIds.has(order.id);
                                             const cardLocked = isOrderLocked(order);
-                                            const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
-                                            const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
-                                            const trackingCode = latestParcel?.tracking_code;
-                                            const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
-                                            const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
+                                            const trackingCode = order.latest_tracking_code;
+                                            const canTrackParcel = !!order.can_track;
                                             const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
-                                                .find((it: any) => it?.product?.image_url || it?.accessory?.image_url);
-                                            const cardProductThumb: string | null =
-                                                cardFirstItem?.product?.image_url || cardFirstItem?.accessory?.image_url || null;
+                                                .find((it: any) => it?.image_url);
+                                            const cardProductThumb: string | null = cardFirstItem?.image_url || null;
                                             const cardProductLabel: string =
-                                                cardFirstItem?.product?.name
-                                                || cardFirstItem?.accessory?.name
-                                                || (order.items || []).find((i: any) => i?.product?.name)?.product?.name
-                                                || (order.items || []).find((i: any) => i?.accessory?.name)?.accessory?.name
+                                                cardFirstItem?.name
+                                                || (order.items || []).find((i: any) => i?.name)?.name
                                                 || '';
-                                            const cardProductCode: string =
-                                                cardFirstItem?.product?.code || cardFirstItem?.accessory?.code || '';
+                                            const cardProductCode: string = cardFirstItem?.code || '';
                                             const exchangeRole = order._exchangeRole as ('exchange' | 'sale' | 'original' | undefined);
                                             return (
                                                 <div
@@ -3407,9 +3341,9 @@ const Orders = () => {
 
                                             {/* Row 3: Metadata chips */}
                                             <div className="flex flex-wrap items-center gap-1.5">
-                                                {order.city?.name && (
+                                                {order.city_name && (
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
-                                                        <MapPin className="w-3 h-3 text-ant-mid" />{order.city.name}
+                                                        <MapPin className="w-3 h-3 text-ant-mid" />{order.city_name}
                                                     </span>
                                                 )}
                                                 {(order as any).channel?.name ? (
@@ -3506,9 +3440,8 @@ const Orders = () => {
                         </div>
                     ) : (
                         <OrdersListView
-                            orders={arrangeExchangePairs(filteredOrders)}
+                            orders={arrangeExchangePairs(pageRows)}
                             selectedOrders={selectedOrders}
-                            duplicatePhones={duplicatePhones}
                             shortOrderIds={shortOrderIds}
                             lockedOrderIds={lockedOrderIds}
                             toggleOrderSelection={toggleOrderSelection}
@@ -3525,13 +3458,13 @@ const Orders = () => {
                         />
                     )}
 
-                    {/* Pagination (Prev/Next — page size lives in the pill above) */}
-                    {totalPages > 1 && (
+                    {/* Pagination (Prev/Next keyset cursor stack — page size lives in the pill above) */}
+                    {(totalPages > 1 || cursorStack.length > 0 || !!pageData?.next_cursor) && (
                         <div className="flex items-center justify-center gap-2 mt-4">
                             <button
                                 type="button"
-                                onClick={() => setPage(Math.max(1, page - 1))}
-                                disabled={page <= 1 || isLoading}
+                                onClick={() => setCursorStack((prev) => prev.slice(0, -1))}
+                                disabled={cursorStack.length === 0 || pageFetching}
                                 className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 Previous
@@ -3541,8 +3474,11 @@ const Orders = () => {
                             </span>
                             <button
                                 type="button"
-                                onClick={() => setPage(Math.min(totalPages, page + 1))}
-                                disabled={page >= totalPages || isLoading}
+                                onClick={() => {
+                                    const next = pageData?.next_cursor;
+                                    if (next) setCursorStack((prev) => [...prev, next]);
+                                }}
+                                disabled={!pageData?.next_cursor || pageFetching}
                                 className="h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 Next

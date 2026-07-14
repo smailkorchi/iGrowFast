@@ -300,7 +300,7 @@ const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit, ownSellerI
                     }
                 }
 
-                queryClient.invalidateQueries({ queryKey: ['orders-aggregate'] });
+                queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             } else {
                 throw new Error(result?.error || 'Unknown error');
             }
