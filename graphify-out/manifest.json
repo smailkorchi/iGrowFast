@@ -1535,8 +1535,8 @@
     "semantic_hash": "3c33d87163410ffc73e1f07e7b920e20"
   },
   "src/components/salaries/PayoutPaymentDialogs.tsx": {
-    "mtime": 1784083620.663056,
-    "ast_hash": "9df33e9d05493972f6d929e7350d89b1",
+    "mtime": 1784135898.1197908,
+    "ast_hash": "d047294f176191c2e7fd323078f580bb",
     "semantic_hash": ""
   },
   "src/components/salaries/SellerLedgerDialogs.tsx": {
@@ -1935,9 +1935,9 @@
     "semantic_hash": "f96181bd307e6f265f83f590aacf9edc"
   },
   "src/hooks/useSellerLedger.ts": {
-    "mtime": 1781906983.4628687,
-    "ast_hash": "a62bf7c9893db0c69013c36961b553b2",
-    "semantic_hash": "a62bf7c9893db0c69013c36961b553b2"
+    "mtime": 1784141505.800966,
+    "ast_hash": "402638afc2ca2f93915017f8c7f16703",
+    "semantic_hash": ""
   },
   "src/hooks/useSellerLiveOwed.ts": {
     "mtime": 1781907010.0260713,
@@ -2350,8 +2350,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/Salaries.tsx": {
-    "mtime": 1784091987.1488826,
-    "ast_hash": "411d0c8a590ebb666ed30cbe1824edf6",
+    "mtime": 1784140181.8761923,
+    "ast_hash": "8c8baf6d47c99faf363652ed65bc0618",
     "semantic_hash": ""
   },
   "src/pages/admin/SalesChannels.tsx": {
@@ -5300,8 +5300,8 @@
     "semantic_hash": ""
   },
   "docs/MASTER_TODO.md": {
-    "mtime": 1784092143.1585093,
-    "ast_hash": "42b71797cab81a5783b50163a1a39b8e",
+    "mtime": 1784141598.1507404,
+    "ast_hash": "e1891be2676f03a8eab3b5d1ebcf6af8",
     "semantic_hash": ""
   },
   "supabase/migrations/20260714160000_ecom_biz_r1a_publication_drop.sql": {
@@ -5454,14 +5454,29 @@
     "ast_hash": "1b7f1570468e5eb3efd15134ecf451af",
     "semantic_hash": ""
   },
-  "docs/parked/PARKED_pay_sellers_bulk.sql": {
-    "mtime": 1784089375.4336572,
-    "ast_hash": "96ca757e7c6271edf8064835e493c153",
-    "semantic_hash": ""
-  },
   "supabase/migrations/20260715040000_d7_customers_and_fixes.sql": {
     "mtime": 1784089061.950911,
     "ast_hash": "5a3305df0325217419cd677b1dbcf871",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260715060000_p1_overpay_guard.sql": {
+    "mtime": 1784138543.0763743,
+    "ast_hash": "08ef5e83528a5f5a891d443af1c00c74",
+    "semantic_hash": ""
+  },
+  "docs/payout-recon/01-authority.md": {
+    "mtime": 1784132714.967472,
+    "ast_hash": "876b00102aca21097841785e5003e73a",
+    "semantic_hash": ""
+  },
+  "docs/payout-recon/02-atomicity.md": {
+    "mtime": 1784132714.9675791,
+    "ast_hash": "103d65a7a0aaebcf040e840c2de0e13d",
+    "semantic_hash": ""
+  },
+  "docs/payout-recon/03-safety.md": {
+    "mtime": 1784132714.9676776,
+    "ast_hash": "b5f94b1c60a88abdc06e10260c5b7d66",
     "semantic_hash": ""
   }
 }
