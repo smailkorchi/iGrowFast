@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -11,228 +11,117 @@ import { UserAvatar } from '@/components/users/UserAvatar';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { eachDayOfInterval, startOfDay, endOfDay } from 'date-fns';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isAdminPullback,
-    isDelivered,
-    isRevenueOrder,
-    placementTimestamp,
-    pureRevenueForOrder,
-} from '@/lib/analyticsDefinitions';
+
+/**
+ * `sellers` section of admin_analytics_stats (D3). Server-side: the
+ * placement-windowed per-seller order counts (replace legs excluded),
+ * delivered/tracked/pullback counts, the full pureRevenue chain on
+ * paid+delivered orders, commission (seller_daily_earnings view Σ — the source
+ * of truth, never re-derived), the lifetime paid/pending payout ledger
+ * (period_state='open' for pending — carried months already live in the open
+ * ticket) and Mon–Sat attendance. Rows arrive sorted delivered desc.
+ *
+ * Two window anchors coexist by design: volume on placement, commission on the
+ * delivery-anchored view date.
+ *
+ * Client keeps only presentation: names/avatars/commission rates (support query
+ * below — the RPC rows carry ids), the unclamped success-rate arithmetic and
+ * the top-10 slice.
+ */
+export interface SellersSlice {
+    total_sellers: number;
+    active_sellers: number;
+    /** Σ commission over ALL roster sellers (computed before the top-10 slice). */
+    total_commission: number;
+    total_paid: number;
+    total_pending: number;
+    presence_total: number;
+    working_days: number;
+    attendance_rate: number;
+    sellers: Array<{
+        seller_id: string;
+        orders: number;
+        delivered: number;
+        delivered_paid: number;
+        tracked: number;
+        pullback: number;
+        revenue: number;
+        presences: number;
+        commission: number;
+    }>;
+}
 
 interface SellersSectionProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats?: SellersSlice | null;
 }
 
-export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) => {
-    const { deliveredPkgIds, paidOrderIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
+type SellerMeta = {
+    id: string;
+    name: string;
+    active: boolean | null;
+    commission_price: number | string | null;
+    commission_basis: string | null;
+    avatar_url: string | null;
+    avatar_config?: unknown;
+};
+
+export const SellersSection = ({ businessId, stats }: SellersSectionProps) => {
+    // Names/avatars/commission rates only — every aggregate rides the RPC section.
     const { data: sellers, isLoading } = useQuery({
         queryKey: ['analytics-sellers-v2', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, active, commission_price, commission_basis, products, role, avatar_url, avatar_config')
+                .select('id, name, active, commission_price, commission_basis, avatar_url, avatar_config')
                 .eq('DigiCom Business', businessId)
                 .eq('role', 'commercial');
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orders } = useQuery({
-        queryKey: ['analytics-orders-sellers-v3', businessId],
-        queryFn: async () => {
-            // Paginated so we never truncate at the 1000-row default cap.
-            const rows = await fetchAllRows(
-                'orders',
-                'id, seller_id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, replace, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate seller revenue/delivered counts. Commission already
-            // comes from the guarded seller_daily_earnings view.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
-    // Commission source of truth — seller_daily_earnings view. Date column matches
-    // seller_daily_earnings.date (= date_livraison fallback updated_at).
-    const { data: sellerEarnings } = useQuery({
-        queryKey: ['analytics-seller-daily-earnings-section', businessId],
-        queryFn: async () => {
-            return await fetchAllRows<{
-                seller_id: string;
-                date: string;
-                commission_earned: number | string | null;
-                total_earned: number | string | null;
-                delivered_count: number | null;
-            }>(
-                'seller_daily_earnings',
-                'seller_id, date, commission_earned, total_earned, delivered_count',
-                { filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }] },
-            );
-        },
-        enabled: !!businessId,
-    });
-
-    // Payouts table — only for lifetime "paid vs pending" summary; commission math
-    // now comes from the daily earnings view above.
-    const { data: sellerPayments } = useQuery({
-        queryKey: ['analytics-seller-payments', businessId],
-        queryFn: async () => {
-            if (!businessId) return [];
-            // cast: generated types predate the rolling-ledger `period_state` column.
-            const { data } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-                .from('seller_payments')
-                .select('id, seller_id, total_amount, paid_amount, status, period_state')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as { id: string; seller_id: string; total_amount: number | string; paid_amount: number | string; status: string; period_state: string }[];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: presences } = useQuery({
-        queryKey: ['analytics-presences', businessId],
-        queryFn: async () => {
-            if (!businessId) return [];
-            const { data } = await supabase.from('seller_presences').select('id, seller_id, date').eq('DigiCom Business', businessId);
-            return data || [];
+            return (data || []) as unknown as SellerMeta[];
         },
         enabled: !!businessId,
     });
 
     const metrics = useMemo(() => {
-        if (!sellers || !orders) return null;
-        const ordersTyped = orders as unknown as AnalyticsOrder[];
+        if (!sellers || !stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
+        const metaById = new Map(sellers.map((s) => [s.id, s]));
 
-        // Window is anchored to orders.date (placement) for volume metrics like "orders in range".
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-        const activeSellers = sellers.filter(s => s.active);
-
-        // Commission from the authoritative view — sum commission_earned per seller
-        // for rows whose (delivery) date falls in the window.
-        const commissionBySeller = new Map<string, number>();
-        (sellerEarnings || []).forEach(row => {
-            if (!row.seller_id || !row.date) return;
-            const d = new Date(row.date);
-            if (Number.isNaN(d.getTime()) || !inWindow(d, windowStart, windowEnd)) return;
-            commissionBySeller.set(row.seller_id, (commissionBySeller.get(row.seller_id) || 0) + Number(row.commission_earned || 0));
+        // Rows are already sorted delivered desc by the RPC.
+        // Success / delivery rate (Coliaty formula): delivered ÷ (tracked −
+        // admin-pullback). Unclamped — parity with the old client math.
+        const sellerPerformance = stats.sellers.map((row) => {
+            const meta = metaById.get(row.seller_id);
+            const deliveryDenom = row.tracked - row.pullback;
+            return {
+                name: meta?.name || 'Unknown seller',
+                active: meta?.active ?? null,
+                avatar_url: meta?.avatar_url ?? null,
+                avatar_config: meta?.avatar_config ?? null,
+                commission_price: Number(meta?.commission_price) || 0,
+                commission_basis: normalizeCommissionBasis(meta?.commission_basis),
+                totalOrders: row.orders,
+                delivered: row.delivered,
+                deliveredPaid: row.delivered_paid,
+                revenue: row.revenue,
+                successRate: deliveryDenom > 0 ? (row.delivered / deliveryDenom) * 100 : 0,
+                presences: row.presences,
+                commission: row.commission,
+            };
         });
 
-        // PAID (LIFETIME) = total cash actually disbursed across ALL payout rows
-        // (paid_amount, trigger-maintained from seller_payment_txns). Must NOT filter
-        // status==='paid' — that dropped PARTIAL payouts (e.g. a seller paid 4800 of
-        // 5240 was shown as 0). Matches the Salaries page "Total paid".
-        const totalPaidToSellers = (sellerPayments || [])
-            .reduce((s, sp) => s + Number(sp.paid_amount || 0), 0);
-        // PENDING PAYOUTS = the true outstanding balance. In the rolling ledger,
-        // unpaid months CARRY FORWARD into the OPEN month, so each seller's whole
-        // owe is captured by their open ticket's (total − paid). Summing every row
-        // would double-count the carried amounts (e.g. May 1530 already lives inside
-        // June's 710). Only count period_state='open' rows.
-        const totalPendingToSellers = (sellerPayments || [])
-            .filter((sp) => (sp as { period_state?: string }).period_state === 'open')
-            .reduce((s, sp) => s + Math.max(0, Number(sp.total_amount || 0) - Number(sp.paid_amount || 0)), 0);
-
-        const totalPresences = (presences || []).filter(p => {
-            if (!p.date) return false;
-            const d = new Date(p.date);
-            return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
-        }).length;
-        // Expected presences scales with the selected window.
-        // Morocco convention: 6-day working week (Mon-Sat). Sundays excluded.
-        // Previous behaviour hardcoded 26 days × active sellers regardless of
-        // window, which made "Today" read 0–4 % even with full attendance and
-        // pushed "YTD" / "All Time" over 100 %.
-        const clampedStart = dateFilter.from ? windowStart : null;
-        const clampedEnd = dateFilter.to ? windowEnd : null;
-        let workingDaysInWindow = 0;
-        if (clampedStart && clampedEnd && clampedEnd.getTime() >= clampedStart.getTime()) {
-            const days = eachDayOfInterval({ start: clampedStart, end: clampedEnd });
-            workingDaysInWindow = days.filter((d) => d.getDay() !== 0).length; // 0 = Sunday
-        } else {
-            // All-Time: take the span from the earliest presence to today.
-            const presenceDates = (presences || [])
-                .map((p) => (p.date ? new Date(p.date) : null))
-                .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
-            if (presenceDates.length > 0) {
-                const earliest = new Date(Math.min(...presenceDates.map((d) => d.getTime())));
-                const days = eachDayOfInterval({ start: startOfDay(earliest), end: endOfDay(new Date()) });
-                workingDaysInWindow = days.filter((d) => d.getDay() !== 0).length;
-            }
-        }
-        const expectedPresences = activeSellers.length * workingDaysInWindow;
-        const attendanceRate = expectedPresences > 0 ? (totalPresences / expectedPresences) * 100 : 0;
-
-        const sellerPerformance = sellers
-            .filter(s => !!s.id)
-            .map(seller => {
-                const sellerOrdersInRange = filtered.filter(o => o.seller_id === seller.id);
-                // Delivered count = from view (matches payouts). Revenue counted only on paid+delivered.
-                const revenueOrders = sellerOrdersInRange.filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
-                const deliveredAny = sellerOrdersInRange.filter(o => isDelivered(o, deliveredPkgIds)).length;
-                const deliveredPaid = revenueOrders.length;
-                const revenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
-                const sellerPresences = (presences || [])
-                    .filter(p => p.seller_id === seller.id && p.date && inWindow(new Date(p.date), windowStart, windowEnd))
-                    .length;
-                const commission = commissionBySeller.get(seller.id) || 0;
-                const basis = normalizeCommissionBasis((seller as { commission_basis?: string | null }).commission_basis);
-
-                // Success / delivery rate (Coliaty formula):
-                //   delivered ÷ (tracked − admin-pullback)
-                const tracked = sellerOrdersInRange.filter((o) => !!o.id && trackedOrderIds.has(o.id));
-                const pullback = tracked.filter((o) =>
-                    isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-                );
-                const deliveryDenom = tracked.length - pullback.length;
-                return {
-                    name: seller.name,
-                    active: seller.active,
-                    avatar_url: seller.avatar_url,
-                    avatar_config: (seller as any).avatar_config,
-                    commission_price: Number(seller.commission_price) || 0,
-                    commission_basis: basis,
-                    totalOrders: sellerOrdersInRange.length,
-                    delivered: deliveredAny,
-                    deliveredPaid,
-                    revenue,
-                    successRate: deliveryDenom > 0 ? (deliveredAny / deliveryDenom) * 100 : 0,
-                    presences: sellerPresences,
-                    commission,
-                };
-            })
-            .sort((a, b) => b.delivered - a.delivered);
-
-        const topPerformer = sellerPerformance[0];
-        const avgOrdersPerSeller = activeSellers.length > 0 ? filtered.length / activeSellers.length : 0;
-        const totalLiveCommission = sellerPerformance.reduce((s, sp) => s + sp.commission, 0);
-
         return {
-            totalSellers: sellers.length,
-            activeSellers: activeSellers.length,
-            totalPaidToSellers, totalPendingToSellers, totalLiveCommission, attendanceRate,
-            topPerformer, avgOrdersPerSeller,
+            totalSellers: stats.total_sellers,
+            activeSellers: stats.active_sellers,
+            totalPaidToSellers: stats.total_paid,
+            totalPendingToSellers: stats.total_pending,
+            totalLiveCommission: stats.total_commission,
+            attendanceRate: stats.attendance_rate,
+            topPerformer: sellerPerformance[0],
             sellerPerformance: sellerPerformance.slice(0, 10),
         };
-    }, [sellers, orders, sellerEarnings, sellerPayments, presences, dateFilter, deliveredPkgIds, paidOrderIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [sellers, stats]);
 
     return (
         <SectionWrapper
@@ -242,7 +131,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             icon={UserCheck}
             iconBg="bg-orange-50"
             iconColor="text-orange-600"
-            loading={isLoading}
+            loading={isLoading || !stats}
         >
             {metrics && (() => {
                 // Header is TEAM-ONLY — no single seller's numbers here (the top

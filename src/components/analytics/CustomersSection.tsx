@@ -1,6 +1,4 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -20,130 +18,72 @@ import {
     endOfMonth,
     endOfWeek,
     format,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
     subMonths,
 } from 'date-fns';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isRevenueOrder,
-    normalizePhone,
-    placementTimestamp,
-    pureRevenueForOrder,
-} from '@/lib/analyticsDefinitions';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
 
-const COLORS = ['#141413', '#d97757', '#8d8b84', '#6a9bcc', '#788c5d', '#c96356', '#b0aea5', '#2a2926'];
-
-interface CustomersSectionProps {
-    businessId: string;
-    dateFilter: DateFilter;
+/**
+ * `customers` section of admin_analytics_stats (D3). Pool = replace-excluded
+ * (a swap is not a new purchase), STRICT placement window. Customer key =
+ * `normalize_phone_for_customer` server-side (byte-identical to the old client
+ * `normalizePhone`); orders without a phone are skipped from every customer
+ * metric. "New" = no order before the window start — the server scans the FULL
+ * history for that, which is why this section could never be windowed naively.
+ * Revenue replicates the old LIVE collapse: the client select carried no
+ * order_items / raw_price / shipping_cost, so pureRevenueForOrder degenerated
+ * to greatest(0, price) on paid+delivered — replicated byte-exactly rather
+ * than silently "fixed" to the full chain. Cities count ALL windowed orders
+ * (including phone-less ones) with an 'Unknown city' bucket, top 8.
+ *
+ * Trend: the server emits one PRE-DEDUPED new/returning series per grain
+ * (trend / trend_week / trend_month) because distinct-customer counts are not
+ * additive across days — this component picks the series matching its
+ * granularity ladder and never sums day rows.
+ */
+export interface CustomersSlice {
+    total_customers: number;
+    /** Customers with more than one order INSIDE the window. */
+    repeat_customers: number;
+    repeat_rate: number;
+    new_customers: number;
+    returning_customers: number;
+    avg_orders_per_customer: number;
+    /** Avg LTV = Σ revenue ÷ customers. */
+    avg_customer_value: number;
+    total_customer_revenue: number;
+    top_cities: Array<{ city: string; count: number }>;
+    /**
+     * Pre-deduped new/returning series, ONE per client grain. A distinct-customer
+     * count is not additive, so the server owns the bucketing: within a bucket a
+     * customer counts once (`new` iff not seen before the window AND the bucket
+     * holds their first in-window day). `d` = the bucket's first day
+     * (yyyy-MM-dd; weeks are Monday-start, matching startOfWeek weekStartsOn:1).
+     */
+    trend: Array<{ d: string; new: number; returning: number }>;
+    trend_week: Array<{ d: string; new: number; returning: number }>;
+    trend_month: Array<{ d: string; new: number; returning: number }>;
 }
 
-export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionProps) => {
-    const { deliveredPkgIds, paidOrderIds } = useStatusCategories();
+interface CustomersSectionProps {
+    dateFilter: DateFilter;
+    stats?: CustomersSlice | null;
+}
 
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-customers', businessId],
-        queryFn: async () => {
-            const rows = await fetchAllRows(
-                'orders',
-                'id, phone, name, price, date, order_status_id, package_status_id, master_city_id, replace, master_cities(name)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exclude exchange swap/return legs (replace=true) — a swap is not a new
-            // purchase, so it must not inflate customer order counts / revenue / LTV.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
+export const CustomersSection = ({ dateFilter, stats }: CustomersSectionProps) => {
     const metrics = useMemo(() => {
-        if (!orders) return null;
-        const ordersTyped = orders as unknown as (AnalyticsOrder & { phone?: string | null; name?: string | null; master_cities?: { name?: string } | null })[];
+        if (!stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-
-        // Customer key = normalized phone (§11). Orders without a phone are skipped
-        // from customer metrics entirely (they can't be reliably deduplicated).
-        const keyFor = (o: typeof ordersTyped[number]) => normalizePhone(o.phone);
-
-        // Build the set of customers who EVER ordered before this window opened,
-        // for the "new customer" rule: no prior orders before the window start.
-        const customersSeenBefore = new Set<string>();
-        ordersTyped.forEach(o => {
-            const ts = placementTimestamp(o);
-            if (!ts || ts >= windowStart) return;
-            const k = keyFor(o);
-            if (k) customersSeenBefore.add(k);
-        });
-
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-
-        // `orders` tracks every placed order (intent signal — drives repeat
-        // rate and orders-per-customer). `revenue` only accrues on paid +
-        // delivered orders so Avg LTV / Revenue tiles reconcile with the
-        // P&L revenue contract. Previously every order contributed revenue,
-        // including cancelled / fake / pending ones, which inflated LTV.
-        const customerMap: Record<string, { orders: number; revenue: number }> = {};
-        filtered.forEach(o => {
-            const key = keyFor(o);
-            if (!key) return;
-            if (!customerMap[key]) customerMap[key] = { orders: 0, revenue: 0 };
-            customerMap[key].orders++;
-            if (isRevenueOrder(o, deliveredPkgIds, paidOrderIds)) {
-                customerMap[key].revenue += pureRevenueForOrder(o);
-            }
-        });
-
-        const customers = Object.values(customerMap);
-        const totalCustomers = customers.length;
-        const repeatCustomers = customers.filter(c => c.orders > 1).length;
-        const repeatRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0;
-        const avgOrdersPerCustomer = totalCustomers > 0 ? customers.reduce((s, c) => s + c.orders, 0) / totalCustomers : 0;
-        const avgCustomerValue = totalCustomers > 0 ? customers.reduce((s, c) => s + c.revenue, 0) / totalCustomers : 0;
-        const totalCustomerRevenue = customers.reduce((s, c) => s + c.revenue, 0);
-
-        // New in window = has window order AND wasn't seen before window start.
-        const newCustomersInWindow = Object.keys(customerMap).filter(k => !customersSeenBefore.has(k)).length;
-        const returningCustomersInWindow = totalCustomers - newCustomersInWindow;
-
-        // Geography — master_city canonical name (§13).
-        // Trim whitespace; orders with no resolvable city bucket under "Unknown city"
-        // so the chart never has a blank/empty label.
-        const regionCounts: Record<string, number> = {};
-        filtered.forEach(o => {
-            const raw = (o.master_cities?.name || '').trim();
-            const region = raw || 'Unknown city';
-            regionCounts[region] = (regionCounts[region] || 0) + 1;
-        });
-        const regionData = Object.entries(regionCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 8)
-            .map(([region, count]) => ({ region, count }));
+        const regionData = stats.top_cities.map(c => ({ region: c.city, count: c.count }));
 
         // ── Trend (adaptive: day / week / month) ──
         // Auto-pick granularity by window length and clamp each bucket's
         // [start, end] to the user-selected range. Anchor range to the
-        // earliest order timestamp on All-Time. Prior behaviour always used
-        // monthly buckets with a fixed 6-month fallback, so "Today" filters
-        // collapsed to a single monthly point.
-        const allTimestamps: number[] = [];
-        ordersTyped.forEach(o => {
-            const t = placementTimestamp(o)?.getTime();
-            if (t) allTimestamps.push(t);
-        });
-        const earliest = allTimestamps.length
-            ? new Date(Math.min(...allTimestamps))
+        // earliest day carrying customers on All-Time.
+        const earliest = stats.trend.length
+            ? parseISO(stats.trend.reduce((min, r) => (r.d < min ? r.d : min), stats.trend[0].d))
             : subMonths(new Date(), 6);
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
@@ -166,62 +106,43 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
             labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
         }
 
-        const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
-            let s: Date;
-            let e: Date;
-            if (granularity === 'monthly') {
-                s = startOfMonth(anchor);
-                e = endOfMonth(anchor);
-            } else if (granularity === 'weekly') {
-                s = startOfWeek(anchor, { weekStartsOn: 1 });
-                e = endOfWeek(anchor, { weekStartsOn: 1 });
-            } else {
-                s = startOfDay(anchor);
-                e = endOfDay(anchor);
-            }
-            if (s.getTime() < rangeStart.getTime()) s = rangeStart;
-            if (e.getTime() > rangeEnd.getTime()) e = rangeEnd;
-            return { start: s, end: e };
+
+        // New/returning trend: read the server's PRE-DEDUPED series for this
+        // grain — never sum day rows (distinct-customer counts are not additive:
+        // a customer active on k days in one bucket would be counted k times as
+        // `returning`). The bucket key is the bucket's first day, which is
+        // exactly what date_trunc('week'|'month') emits server-side.
+        const series =
+            granularity === 'monthly' ? stats.trend_month
+                : granularity === 'weekly' ? stats.trend_week
+                    : stats.trend;
+        const byBucket = new Map((series || []).map(r => [r.d, r]));
+        const bucketKey = (anchor: Date): string => {
+            if (granularity === 'monthly') return format(startOfMonth(anchor), 'yyyy-MM-dd');
+            if (granularity === 'weekly') return format(startOfWeek(anchor, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            return format(startOfDay(anchor), 'yyyy-MM-dd');
         };
-
-        // New/returning trend: walk buckets forward, tracking who was seen
-        // BEFORE this bucket (from `customersSeenBefore`) plus the cumulative
-        // "seen" set across prior buckets in the range. The walk-order is
-        // what matters — granularity is irrelevant to the classification.
-        const seenInPriorBuckets = new Set<string>(customersSeenBefore);
         const trendData = intervals.map((anchor) => {
-            const { start, end } = bucketBounds(anchor);
-            const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
-
-            let newCount = 0;
-            let returningCount = 0;
-            const bucketCustomers = new Set<string>();
-            bucketOrders.forEach(o => {
-                const key = keyFor(o);
-                if (!key || bucketCustomers.has(key)) return;
-                bucketCustomers.add(key);
-                if (seenInPriorBuckets.has(key)) {
-                    returningCount++;
-                } else {
-                    newCount++;
-                    seenInPriorBuckets.add(key);
-                }
-            });
-
+            const row = byBucket.get(bucketKey(anchor));
             return {
                 month: format(anchor, labelFormat),
-                new: newCount,
-                returning: returningCount,
+                new: row?.new ?? 0,
+                returning: row?.returning ?? 0,
             };
         });
 
         return {
-            totalCustomers, repeatCustomers, repeatRate,
-            avgOrdersPerCustomer, avgCustomerValue, totalCustomerRevenue,
-            newCustomersInWindow, returningCustomersInWindow,
+            totalCustomers: stats.total_customers,
+            repeatCustomers: stats.repeat_customers,
+            repeatRate: stats.repeat_rate,
+            avgOrdersPerCustomer: stats.avg_orders_per_customer,
+            avgCustomerValue: stats.avg_customer_value,
+            totalCustomerRevenue: stats.total_customer_revenue,
+            newCustomersInWindow: stats.new_customers,
+            returningCustomersInWindow: stats.returning_customers,
             regionData, trendData,
         };
-    }, [orders, dateFilter, deliveredPkgIds, paidOrderIds]);
+    }, [stats, dateFilter]);
 
     return (
         <SectionWrapper
@@ -230,7 +151,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
             description="Customers keyed by phone number. New = first-ever order in this window."
             icon={Users}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const rateTone: 'positive' | 'warning' | 'negative' =

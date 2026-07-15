@@ -1,27 +1,49 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isAdminPullback,
-    isDelivered,
-    isReturned,
-    placementTimestamp,
-} from '@/lib/analyticsDefinitions';
+import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bike } from 'lucide-react';
 import { UserAvatar } from '@/components/users/UserAvatar';
-import { startOfDay, endOfDay } from 'date-fns';
+
+/**
+ * `couriers` section of admin_analytics_stats (D3). Every aggregate is
+ * server-side: the courier-assigned order pool (placement-windowed in
+ * Casablanca, replace legs KEPT), tracked/pullback counts, delivered/returned
+ * counts and the lifetime pending-payout balance (Σ total_shipping_fees where
+ * status <> 'paid'). Rows arrive sorted delivered desc.
+ *
+ * Client keeps only presentation: courier names/avatars (support query below —
+ * the RPC rows carry ids), the unclamped rate arithmetic derived from the
+ * server's delivered/denom columns, and the best-rate sample gate.
+ */
+export interface CouriersSlice {
+    total_couriers: number;
+    active_couriers: number;
+    total_shipments: number;
+    /** Overall delivery-rate denominator = windowed tracked − admin pullbacks. */
+    overall_denom: number;
+    total_delivered: number;
+    overall_rate: number;
+    total_pending: number;
+    couriers: Array<{
+        courier_id: string;
+        total: number;
+        tracked: number;
+        pullback: number;
+        denom: number;
+        delivered: number;
+        returned: number;
+        pending: number;
+    }>;
+}
 
 interface CouriersSectionProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats?: CouriersSlice | null;
 }
 
 type CourierRow = {
@@ -32,25 +54,8 @@ type CourierRow = {
     active: boolean | null;
 };
 
-type OrderRow = {
-    id: string;
-    date: string | null;
-    courier_id: string | null;
-    order_status_id: string | null;
-    package_status_id: string | null;
-    package_statuses: { label?: string | null } | null;
-};
-
-type CourierPaymentNote = {
-    courier_id: string | null;
-    total_shipping_fees: number | null;
-    status: string | null;
-};
-
-export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps) => {
-    const { deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
-
+export const CouriersSection = ({ businessId, stats }: CouriersSectionProps) => {
+    // Names/avatars only — every aggregate rides the RPC section.
     const { data: couriers, isLoading: loadingCouriers } = useQuery({
         queryKey: ['analytics-couriers', businessId],
         queryFn: async () => {
@@ -64,123 +69,59 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
         enabled: !!businessId,
     });
 
-    const { data: orders, isLoading: loadingOrders } = useQuery({
-        queryKey: ['analytics-courier-orders-v2', businessId],
-        queryFn: async () => {
-            return (await fetchAllRows(
-                'orders',
-                'id, date, courier_id, order_status_id, package_status_id, package_statuses(label)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                    orFilter: 'courier_id.not.is.null',
-                },
-            )) as unknown as OrderRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: paymentNotes } = useQuery({
-        queryKey: ['analytics-courier-payment-notes', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('courier_payment_notes')
-                .select('courier_id, total_shipping_fees, status')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as CourierPaymentNote[];
-        },
-        enabled: !!businessId,
-    });
-
-    const isLoading = loadingCouriers || loadingOrders;
+    const isLoading = loadingCouriers || !stats;
 
     const metrics = useMemo(() => {
-        if (!couriers || !orders) return null;
+        if (!couriers || !stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
+        const metaById = new Map(couriers.map((c) => [c.id, c]));
 
-        const windowed = (orders as unknown as AnalyticsOrder[])
-            .filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-
-        // "Pending" is a current balance (not period-scoped): sum every
-        // unpaid courier_payment_note.total_shipping_fees, lifetime. All
-        // other metrics on this card are window-scoped by placement date.
-        // `paidByCourier` was also built here but never rendered — dropped.
-        const pendingByCourier = new Map<string, number>();
-        (paymentNotes || []).forEach((n) => {
-            if (!n.courier_id) return;
-            if (n.status !== 'paid') {
-                pendingByCourier.set(n.courier_id, (pendingByCourier.get(n.courier_id) || 0) + Number(n.total_shipping_fees || 0));
-            }
-        });
-
-        const perCourier = couriers.map((c) => {
-            const own = windowed.filter(o => o.courier_id === c.id);
-            const total = own.length;
-            // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-            const tracked = own.filter(o => !!o.id && trackedOrderIds.has(o.id));
-            const pullback = tracked.filter(o =>
-                isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-            );
-            const confirmed = tracked.length - pullback.length;
-            const delivered = own.filter(o => isDelivered(o, deliveredPkgIds)).length;
-            const returned = own.filter(o => isReturned(o, returnedPkgIds)).length;
-            const rate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
+        // Rows are already sorted delivered desc by the RPC.
+        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
+        // Unclamped — parity with the old client math (no least(100, …)).
+        const perCourier = stats.couriers.map((row) => {
+            const meta = metaById.get(row.courier_id);
             return {
-                ...c,
-                total,
-                confirmed,
-                delivered,
-                returned,
-                rate,
-                pendingPayment: pendingByCourier.get(c.id) || 0,
+                id: row.courier_id,
+                name: meta?.name || 'Unnamed',
+                avatar_url: meta?.avatar_url ?? null,
+                avatar_config: meta?.avatar_config ?? null,
+                active: meta?.active ?? null,
+                total: row.total,
+                confirmed: row.denom,
+                delivered: row.delivered,
+                returned: row.returned,
+                rate: row.denom > 0 ? (row.delivered / row.denom) * 100 : 0,
+                pendingPayment: row.pending,
             };
         });
 
-        const sorted = [...perCourier].sort((a, b) => b.delivered - a.delivered);
-
-        const totalCouriers = couriers.length;
-        const activeCouriers = couriers.filter((c) => c.active !== false).length;
-        const totalShipments = windowed.length;
-        // Overall delivery-rate denominator = windowed tracked orders minus admin pullbacks.
-        const windowTracked = windowed.filter(o => !!o.id && trackedOrderIds.has(o.id));
-        const windowPullback = windowTracked.filter(o =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const totalConfirmed = windowTracked.length - windowPullback.length;
-        const totalDelivered = windowed.filter(o => isDelivered(o, deliveredPkgIds)).length;
-        const overallRate = totalConfirmed > 0 ? (totalDelivered / totalConfirmed) * 100 : 0;
-        const totalPending = Array.from(pendingByCourier.values()).reduce((s, v) => s + v, 0);
-        const top = sorted[0];
+        const top = perCourier[0];
         // Gate "Best rate" by minimum shipment count so a courier with one
         // lucky delivery can't claim 100 % and outrank a high-volume courier.
         // Low-sample case falls back to the raw max with a flag in the tile.
         const BEST_RATE_MIN_SHIPMENTS = 3;
-        const qualifiers = sorted.filter((s) => s.total >= BEST_RATE_MIN_SHIPMENTS);
+        const qualifiers = perCourier.filter((s) => s.total >= BEST_RATE_MIN_SHIPMENTS);
         const bestRate = qualifiers.length > 0
             ? Math.max(...qualifiers.map((s) => s.rate), 0)
-            : Math.max(...sorted.map((s) => s.rate), 0);
-        const bestRateLowSample = qualifiers.length === 0 && sorted.length > 0;
+            : Math.max(...perCourier.map((s) => s.rate), 0);
+        const bestRateLowSample = qualifiers.length === 0 && perCourier.length > 0;
 
         return {
-            perCourier: sorted,
-            totalCouriers,
-            activeCouriers,
-            totalShipments,
-            totalConfirmed,
-            totalDelivered,
-            overallRate,
-            totalPending,
+            perCourier,
+            totalCouriers: stats.total_couriers,
+            activeCouriers: stats.active_couriers,
+            totalShipments: stats.total_shipments,
+            totalConfirmed: stats.overall_denom,
+            totalDelivered: stats.total_delivered,
+            overallRate: stats.overall_rate,
+            totalPending: stats.total_pending,
             top,
             bestRate,
             bestRateLowSample,
             bestRateMinShipments: BEST_RATE_MIN_SHIPMENTS,
         };
-    }, [couriers, orders, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [couriers, stats]);
 
     return (
         <SectionWrapper

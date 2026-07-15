@@ -1,17 +1,4 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isAdminPullback,
-    isDelivered,
-    isFailed,
-    isRateConfirmed,
-    placementTimestamp,
-} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -23,128 +10,85 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, eachDayOfInterval, subDays } from 'date-fns';
+import { format, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, eachDayOfInterval, parseISO } from 'date-fns';
 
-interface OrdersSectionProps {
-    businessId: string;
-    dateFilter: DateFilter;
+/**
+ * `orders` section of admin_analytics_stats (D3). Pool = replace-excluded
+ * (exchange legs are not organic orders), STRICT placement window, Casablanca
+ * days. `avg_order_value` is the mean of the raw `orders.price` (customer-paid
+ * total — deliberately NOT pureRevenue: this is a volume metric). Rates are
+ * UNCLAMPED, matching the old client (the dashboard KPI clamp does not apply
+ * on this page). `today_orders` / `week_orders` are window-INDEPENDENT chips
+ * computed server-side over the unwindowed pool. Cities with no master_cities
+ * name are skipped (no 'Unknown' bucket — deviates from Customers, as before).
+ * `trend` is day-bucketed; this section re-buckets it on its own 2-tier ladder
+ * (≤31d daily, else monthly — no weekly tier, unlike every other section).
+ */
+export interface OrdersSlice {
+    total: number;
+    /** isRateConfirmed: tracked OR (a pending status exists AND status set AND not pending). */
+    confirmed: number;
+    delivered: number;
+    /** Merged cancelled/fake/double/blacklisted bucket. */
+    failed: number;
+    confirm_rate: number;
+    /** Coliaty delivery denominator: tracked − admin-pullback. */
+    delivery_denom: number;
+    delivery_rate: number;
+    failed_rate: number;
+    avg_order_value: number;
+    today_orders: number;
+    week_orders: number;
+    top_cities: Array<{ city: string; count: number }>;
+    trend: Array<{ d: string; orders: number }>;
 }
 
-export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) => {
-    const {
-        cancelledIds,
-        pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
-        deliveredPkgIds,
-    } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
+interface OrdersSectionProps {
+    dateFilter: DateFilter;
+    stats?: OrdersSlice | null;
+}
 
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-full-v2', businessId],
-        queryFn: async () => {
-            const rows = await fetchAllRows(
-                'orders',
-                'id, price, date, order_status_id, package_status_id, master_city_id, source_name, shipping_cost, replace, master_cities(name), package_statuses(label), order_items(quantity, unit_price)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exclude exchange swap/return legs (replace=true) — not organic orders,
-            // so they must not inflate order volume / value / delivered counts.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
+export const OrdersSection = ({ dateFilter, stats }: OrdersSectionProps) => {
     const metrics = useMemo(() => {
-        if (!orders) return null;
-        const ordersTyped = orders as unknown as (AnalyticsOrder & { master_cities?: { name?: string } | null })[];
+        if (!stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
+        const ordersByDay = new Map(stats.trend.map(r => [r.d, r.orders]));
 
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-        const total = filtered.length;
-        // "Order value" = raw order total for volume metrics (not pure revenue — see §1).
-        const avgOrderValue = total > 0 ? filtered.reduce((s, o) => s + Number(o.price || 0), 0) / total : 0;
-
-        const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
-        // Failed = cancelled + fake + double + blacklisted merged bucket (§4).
-        const failedCount = filtered.filter(o => isFailed(o, cancelledIds)).length;
-
-        // Confirmation-rate metric. Numerator = orders NOT in pending set
-        // (new + postponed) OR with tracking. Denominator = total filtered.
-        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds)).length;
-
-        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
-        const pullback = tracked.filter(o =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const deliveryDenom = tracked.length - pullback.length;
-
-        const confirmRate = total > 0 ? (rateConfirmedCount / total) * 100 : 0;
-        const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
-        const failedRate = total > 0 ? (failedCount / total) * 100 : 0;
-
-        // "Today" and "This week" are absolute reference chips — always
-        // computed against ALL orders, never against the `filtered` window.
-        // If the user picks "Last month", they still want to see how many
-        // orders arrived today vs. in the past seven days for context.
+        // All-Time → anchor to the earliest day that actually carries orders
+        // (the old client anchored to the earliest placement instant of the
+        // filtered pool; day-resolution is the accepted D3 delta).
         const today = new Date();
-        const todayOrders = ordersTyped.filter(o => {
-            const ts = placementTimestamp(o);
-            return ts && format(ts, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
-        }).length;
-        const weekOrders = ordersTyped.filter(o => {
-            const ts = placementTimestamp(o);
-            return ts && isWithinInterval(ts, { start: subDays(today, 7), end: today });
-        }).length;
-
-        const rangeStart = dateFilter.from || (filtered.length > 0
-            ? new Date(Math.min(...filtered.map(o => placementTimestamp(o)?.getTime() ?? Date.now())))
-            : subMonths(today, 6));
+        const earliest = stats.trend.length
+            ? parseISO(stats.trend.reduce((min, r) => (r.d < min ? r.d : min), stats.trend[0].d))
+            : subMonths(today, 6);
+        const rangeStart = dateFilter.from || earliest;
         const rangeEnd = dateFilter.to || today;
+
+        // Sum a day-keyed map over a bucket's calendar days. Bucket bounds stay
+        // UNCLAMPED (as before): the map only holds in-window days, so a full
+        // calendar month can never pull an out-of-window day in.
+        const sumDays = (start: Date, end: Date) =>
+            eachDayOfInterval({ start, end }).reduce(
+                (s, d) => s + (ordersByDay.get(format(d, 'yyyy-MM-dd')) || 0),
+                0,
+            );
 
         const diffDays = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24));
         let trendData: { label: string; orders: number }[];
 
         if (diffDays <= 31) {
             const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
-            trendData = days.map(day => {
-                const dayStr = format(day, 'yyyy-MM-dd');
-                const dayOrders = filtered.filter(o => {
-                    const ts = placementTimestamp(o);
-                    return ts && format(ts, 'yyyy-MM-dd') === dayStr;
-                });
-                return { label: format(day, 'MMM d'), orders: dayOrders.length };
-            });
+            trendData = days.map(day => ({
+                label: format(day, 'MMM d'),
+                orders: ordersByDay.get(format(day, 'yyyy-MM-dd')) || 0,
+            }));
         } else {
             const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
-            trendData = months.map(month => {
-                const mStart = startOfMonth(month);
-                const mEnd = endOfMonth(month);
-                const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
-                return { label: format(month, 'MMM yy'), orders: monthOrders.length };
-            });
+            trendData = months.map(month => ({
+                label: format(month, 'MMM yy'),
+                orders: sumDays(startOfMonth(month), endOfMonth(month)),
+            }));
         }
-
-        // Geography — group by master_city canonical (§13).
-        const cityCounts: Record<string, number> = {};
-        filtered.forEach(o => {
-            const city = o.master_cities?.name;
-            if (!city) return;
-            cityCounts[city] = (cityCounts[city] || 0) + 1;
-        });
-        const topCities = Object.entries(cityCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([city, count]) => ({ city, count }));
 
         // Funnel = success path only: Total → Confirmed → Delivered. The
         // previous "New" stage (= total − touched) is zero for well-run
@@ -152,20 +96,28 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         // empty and broke scaling. "Total" as the pool reads naturally and
         // makes the drop-off visible. Failed stays as a parallel tile.
         const funnelData = [
-            { stage: 'Total orders', count: total },
-            { stage: 'Confirmed', count: rateConfirmedCount },
-            { stage: 'Delivered', count: deliveredCount },
+            { stage: 'Total orders', count: stats.total },
+            { stage: 'Confirmed', count: stats.confirmed },
+            { stage: 'Delivered', count: stats.delivered },
         ];
 
         return {
-            total,
+            total: stats.total,
             // Confirmed count = one-true-definition (yes was spoken).
-            confirmedCount: rateConfirmedCount,
-            deliveredCount, failedCount,
-            confirmRate, deliveryRate, failedRate, avgOrderValue,
-            todayOrders, weekOrders, trendData, topCities, funnelData,
+            confirmedCount: stats.confirmed,
+            deliveredCount: stats.delivered,
+            failedCount: stats.failed,
+            confirmRate: stats.confirm_rate,
+            deliveryRate: stats.delivery_rate,
+            failedRate: stats.failed_rate,
+            avgOrderValue: stats.avg_order_value,
+            todayOrders: stats.today_orders,
+            weekOrders: stats.week_orders,
+            topCities: stats.top_cities,
+            trendData,
+            funnelData,
         };
-    }, [orders, dateFilter, cancelledIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, deliveredPkgIds]);
+    }, [stats, dateFilter]);
 
     return (
         <SectionWrapper
@@ -174,7 +126,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
             description="Order volume by placement date. Confirmation includes orders with a tracking number."
             icon={ShoppingBag}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const deliveryTone: 'positive' | 'warning' | 'negative' =

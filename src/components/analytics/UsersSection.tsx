@@ -1,6 +1,4 @@
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,107 +24,47 @@ const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
     'owner': Headphones,
 };
 
-// Intentionally does NOT accept `dateFilter`. "Users & Team" is a
-// current-state / administrative view. Membership, active flags, and recent
-// activity are assessed against a fixed 30-day window regardless of the
-// selected analytics period.
-interface UsersSectionProps {
-    businessId: string;
+/**
+ * `users` section of admin_analytics_stats (D3). Window-INDEPENDENT by design:
+ * "Users & Team" is a current-state / administrative view, so the fn computes
+ * its fixed 30-day activity rule on now() internally and this section takes NO
+ * dateFilter — it just rides the one page payload. truly_active = the active
+ * flag AND (owner/admin/super admin exempt OR seller/courier on an order
+ * touched in the last 30 days OR author of a campaign entry in the last 30
+ * days). The orders activity scan deliberately omits `date_deleted` — the old
+ * client omitted it too and parity comes first (recon 03 §12).
+ */
+export interface UsersSlice {
+    total_users: number;
+    active_users: number;
+    inactive_users: number;
+    /** Sorted total desc, role asc; `role` is 'unknown' when unset. */
+    roles: Array<{ role: string; total: number; active: number }>;
 }
 
-export const UsersSection = ({ businessId }: UsersSectionProps) => {
-    const { data: users, isLoading } = useQuery({
-        queryKey: ['analytics-users', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('users')
-                .select('id, name, role, active, created_at, email')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
+interface UsersSectionProps {
+    stats?: UsersSlice | null;
+}
 
-    // Recent activity proxy — any order assigned as seller/courier in the last 30 days,
-    // or any campaign entry authored in the last 30 days. Used with users.active to mark
-    // a team member as truly active (flag AND recent activity, per §17).
-    const { data: recentActivity } = useQuery({
-        queryKey: ['analytics-users-recent-activity', businessId],
-        queryFn: async () => {
-            const since = new Date();
-            since.setDate(since.getDate() - 30);
-            const sinceIso = since.toISOString();
-            const [orderRes, entryRes] = await Promise.all([
-                fetchAllRows('orders', 'seller_id, courier_id, updated_at', {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'updated_at', op: 'gte', value: sinceIso },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                }),
-                (supabase as any)
-                    .from('campaign_daily_entries')
-                    .select('created_by, entry_date')
-                    .eq('DigiCom Business', businessId)
-                    .gte('entry_date', sinceIso.slice(0, 10)),
-            ]);
-            const active = new Set<string>();
-            (orderRes || []).forEach((r: { seller_id?: string | null; courier_id?: string | null }) => {
-                if (r.seller_id) active.add(r.seller_id);
-                if (r.courier_id) active.add(r.courier_id);
-            });
-            (entryRes.data || []).forEach((r: { created_by?: string | null }) => {
-                if (r.created_by) active.add(r.created_by);
-            });
-            return active;
-        },
-        enabled: !!businessId,
-    });
-
+export const UsersSection = ({ stats }: UsersSectionProps) => {
     const metrics = useMemo(() => {
-        if (!users) return null;
+        if (!stats) return null;
 
-        const recentlyActiveIds: Set<string> = recentActivity || new Set<string>();
-        const isTrulyActive = (u: { id: string; active?: boolean | null; role?: string | null }) => {
-            if (!u.active) return false;
-            // Owner/admin users aren't expected to produce order/campaign activity — accept the flag alone.
-            if (u.role === 'owner' || u.role === 'admin' || u.role === 'super admin') return true;
-            return recentlyActiveIds.has(u.id);
-        };
-
-        const totalUsers = users.length;
-        const activeUsers = users.filter(isTrulyActive).length;
-        const inactiveUsers = totalUsers - activeUsers;
-
-        const roleCounts: Record<string, { total: number; active: number }> = {};
-        users.forEach(u => {
-            const role = u.role || 'unknown';
-            if (!roleCounts[role]) roleCounts[role] = { total: 0, active: 0 };
-            roleCounts[role].total++;
-            if (isTrulyActive(u)) roleCounts[role].active++;
-        });
-
-        const roleDistribution = Object.entries(roleCounts)
-            .map(([role, data]) => ({
-                name: role,
-                value: data.total,
-                active: data.active,
-                inactive: data.total - data.active,
-                color: ROLE_COLORS[role] || '#6b6a63',
-            }))
-            .sort((a, b) => b.value - a.value);
-
-        const roleBarData = roleDistribution.map(r => ({
-            role: r.name,
+        const roleDistribution = stats.roles.map(r => ({
+            name: r.role,
+            value: r.total,
             active: r.active,
-            inactive: r.inactive,
+            inactive: r.total - r.active,
+            color: ROLE_COLORS[r.role] || '#6b6a63',
         }));
 
         return {
-            totalUsers, activeUsers, inactiveUsers,
-            roleDistribution, roleBarData,
+            totalUsers: stats.total_users,
+            activeUsers: stats.active_users,
+            inactiveUsers: stats.inactive_users,
+            roleDistribution,
         };
-    }, [users, recentActivity]);
+    }, [stats]);
 
     return (
         <SectionWrapper
@@ -135,7 +73,7 @@ export const UsersSection = ({ businessId }: UsersSectionProps) => {
             description="Current team state. Active = flagged active AND order / campaign activity in the last 30 days (not scoped to the analytics date filter). Owner / admin exempt."
             icon={Users}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const activeRate = metrics.totalUsers > 0 ? (metrics.activeUsers / metrics.totalUsers) * 100 : 0;

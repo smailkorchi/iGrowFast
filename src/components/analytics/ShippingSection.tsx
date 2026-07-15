@@ -1,18 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    AnalyticsOrder,
-    SHIPPING_STUCK_DAYS,
-    deliveryTimestamp,
-    inWindow,
-    isAdminPullback,
-    isDelivered,
-    isReturned,
-    placementTimestamp,
-} from '@/lib/analyticsDefinitions';
+import { supabase } from '@/lib/supabase';
+import { SHIPPING_STUCK_DAYS } from '@/lib/analyticsDefinitions';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
@@ -31,39 +20,57 @@ import {
     endOfMonth,
     endOfWeek,
     format,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
     subMonths,
 } from 'date-fns';
 
+/**
+ * `shipping` section of admin_analytics_stats (D3). Pool = STRICT placement
+ * window with NO replace exclusion (exchange legs are real parcels).
+ * "Shipped" = the tracked set (a tracking code in company_parcels or
+ * courier_parcels) — NOT the lifecycle statuses the dashboard pipeline uses;
+ * `orders.tracking_number` is never populated in production. delivered /
+ * returned are counted over the FULL filtered pool (not just the shipped
+ * subset), the delivery rate is UNCLAMPED, and `stuck_count` is measured
+ * against NOW (> 5 days since placement), not the window end. Fulfillers cover
+ * every ASSIGNED order (company_id wins over courier_id); only their ids come
+ * back — names/logos resolve client-side from the providers/couriers lookups
+ * below.
+ */
+export interface ShippingSlice {
+    /** Tracked (= shipped) orders in the window. */
+    total_shipments: number;
+    delivered: number;
+    returned: number;
+    /** Coliaty delivery denominator: shipped − admin-pullback. */
+    delivery_denom: number;
+    delivery_rate: number;
+    return_rate: number;
+    /** Σ shipping_cost over delivered orders. */
+    total_shipping_cost: number;
+    avg_delivery_days: number;
+    stuck_count: number;
+    fulfillers: Array<{
+        id: string;
+        kind: 'provider' | 'courier';
+        total: number;
+        delivered: number;
+        tracked: number;
+        pullback: number;
+    }>;
+    trend: Array<{ d: string; shipped: number; delivered: number; cost: number }>;
+}
+
 interface ShippingSectionProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats?: ShippingSlice | null;
 }
 
-export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps) => {
-    const { deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
-
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-shipping-v2', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'orders',
-                'id, date, updated_at, shipping_cost, company_id, courier_id, order_status_id, package_status_id, date_livraison, master_city_id, master_cities(name), package_statuses(label)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
+export const ShippingSection = ({ businessId, dateFilter, stats }: ShippingSectionProps) => {
     const { data: providers } = useQuery({
         queryKey: ['analytics-providers', businessId],
         queryFn: async () => {
@@ -88,58 +95,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
     });
 
     const metrics = useMemo(() => {
-        if (!orders) return null;
-        const ordersTyped = orders as unknown as AnalyticsOrder[];
-
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-
-        // "Shipped" = the parcel has a tracking code in company_parcels or
-        // courier_parcels. `orders.tracking_number` is never populated in
-        // production, so the old `isShipped(o)` helper always returned false
-        // and silently zeroed out every metric on this card. The real source
-        // is `trackedOrderIds` from `useTrackedOrders`.
-        const shippedOrders = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
-        const totalShipments = shippedOrders.length;
-
-        const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
-        const returnedCount = filtered.filter(o => isReturned(o, returnedPkgIds)).length;
-
-        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-        const pullback = shippedOrders.filter(o =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const deliveryDenom = shippedOrders.length - pullback.length;
-        const deliveryRate = deliveryDenom > 0 ? (deliveredCount / deliveryDenom) * 100 : 0;
-        const returnRate = totalShipments > 0 ? (returnedCount / totalShipments) * 100 : 0;
-
-        const totalShippingCost = filtered
-            .filter(o => isDelivered(o, deliveredPkgIds))
-            .reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
-
-        const deliveredWithDates = filtered
-            .filter(o => isDelivered(o, deliveredPkgIds))
-            .filter(o => o.date && deliveryTimestamp(o));
-        const avgDeliveryDays = deliveredWithDates.length > 0
-            ? deliveredWithDates.reduce((s, o) => {
-                const ship = deliveryTimestamp(o);
-                const place = placementTimestamp(o);
-                if (!ship || !place) return s;
-                return s + differenceInDays(ship, place);
-            }, 0) / deliveredWithDates.length
-            : 0;
-
-        // Stuck shipping — tracked (handed off) but not yet delivered or
-        // returned, and more than SHIPPING_STUCK_DAYS since placement.
-        const now = new Date();
-        const stuckCount = shippedOrders.filter(o => {
-            if (isDelivered(o, deliveredPkgIds) || isReturned(o, returnedPkgIds)) return false;
-            const place = placementTimestamp(o);
-            if (!place) return false;
-            return differenceInDays(now, place) > SHIPPING_STUCK_DAYS;
-        }).length;
+        if (!stats) return null;
 
         // Fulfiller lookup — providers AND in-house couriers share one map so the
         // same "By provider" list shows both with their proper names and avatars.
@@ -147,52 +103,30 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         (providers || []).forEach(p => fulfillerInfo.set(p.id, { name: p.name || 'Provider', logo_url: resolveProviderLogo(p), kind: 'provider' }));
         (couriers || []).forEach(c => fulfillerInfo.set(c.id, { name: c.name || 'Courier', logo_url: c.avatar_url, kind: 'courier' }));
 
-        // Use ALL orders in the window that have been handed off to a provider or courier,
-        // not just shipped (has tracking). Otherwise fulfillers with offline handoff never show.
-        const assignedOrders = filtered.filter(o => o.company_id || o.courier_id);
-        const providerCounts: Record<string, { total: number; delivered: number; tracked: number; pullback: number; name: string; logo_url: string | null; kind: 'provider' | 'courier' }> = {};
-        assignedOrders.forEach(o => {
-            const pid = o.company_id || o.courier_id;
-            if (!pid) return;
-            const info = fulfillerInfo.get(pid);
-            const name = info?.name || (o.courier_id ? 'Courier' : 'Provider');
-            if (!providerCounts[pid]) providerCounts[pid] = {
-                total: 0,
-                delivered: 0,
-                tracked: 0,
-                pullback: 0,
-                name,
+        // Server ranks by total desc; only names/logos are resolved here.
+        const providerData = stats.fulfillers.map(f => {
+            const info = fulfillerInfo.get(f.id);
+            const denom = f.tracked - f.pullback;
+            return {
+                total: f.total,
+                delivered: f.delivered,
+                tracked: f.tracked,
+                pullback: f.pullback,
+                name: info?.name || (f.kind === 'courier' ? 'Courier' : 'Provider'),
                 logo_url: info?.logo_url ?? null,
-                kind: info?.kind ?? (o.courier_id ? 'courier' : 'provider'),
+                kind: info?.kind ?? f.kind,
+                rate: denom > 0 ? (f.delivered / denom) * 100 : 0,
             };
-            providerCounts[pid].total++;
-            if (isDelivered(o, deliveredPkgIds)) providerCounts[pid].delivered++;
-            if (!!o.id && trackedOrderIds.has(o.id)) {
-                providerCounts[pid].tracked++;
-                if (isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds)) {
-                    providerCounts[pid].pullback++;
-                }
-            }
         });
-        const providerData = Object.values(providerCounts)
-            .sort((a, b) => b.total - a.total)
-            .map(p => {
-                const denom = p.tracked - p.pullback;
-                return { ...p, rate: denom > 0 ? (p.delivered / denom) * 100 : 0 };
-            });
 
         // ── Trend (adaptive: day / week / month) ──
         // Auto-pick granularity from window length AND clamp each bucket's
         // [start, end] to the user-selected range. Prior behaviour always
         // used monthly buckets sampled at full calendar bounds, so a "Today"
         // filter produced a single bucket summing the full month.
-        const allTimestamps: number[] = [];
-        ordersTyped.forEach(o => {
-            const t = placementTimestamp(o)?.getTime();
-            if (t) allTimestamps.push(t);
-        });
-        const earliest = allTimestamps.length
-            ? new Date(Math.min(...allTimestamps))
+        const byDay = new Map(stats.trend.map(r => [r.d, r]));
+        const earliest = stats.trend.length
+            ? parseISO(stats.trend.reduce((min, r) => (r.d < min ? r.d : min), stats.trend[0].d))
             : subMonths(new Date(), 6);
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
@@ -235,34 +169,33 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         const trendData = intervals.map((anchor) => {
             const { start, end } = bucketBounds(anchor);
-            const bucketOrders = shippedOrders.filter(o =>
-                inWindow(placementTimestamp(o), start, end),
-            );
-            const delivered = bucketOrders.filter(o => isDelivered(o, deliveredPkgIds));
+            const rows = eachDayOfInterval({ start, end })
+                .map(d => byDay.get(format(d, 'yyyy-MM-dd')))
+                .filter((r): r is ShippingSlice['trend'][number] => !!r);
             return {
                 month: format(anchor, labelFormat),
-                shipped: bucketOrders.length,
-                delivered: delivered.length,
-                cost: delivered.reduce((s, o) => s + Number(o.shipping_cost || 0), 0),
+                shipped: rows.reduce((s, r) => s + r.shipped, 0),
+                delivered: rows.reduce((s, r) => s + r.delivered, 0),
+                cost: rows.reduce((s, r) => s + r.cost, 0),
             };
         });
 
         return {
-            totalShipments,
+            totalShipments: stats.total_shipments,
             // "Confirmed" in this card reads as "handed to courier, net of
             // admin pullbacks" — same denominator as the delivery rate.
-            confirmedCount: deliveryDenom,
-            deliveredCount,
-            returnedCount,
-            deliveryRate,
-            returnRate,
-            totalShippingCost,
-            avgDeliveryDays,
-            stuckCount,
+            confirmedCount: stats.delivery_denom,
+            deliveredCount: stats.delivered,
+            returnedCount: stats.returned,
+            deliveryRate: stats.delivery_rate,
+            returnRate: stats.return_rate,
+            totalShippingCost: stats.total_shipping_cost,
+            avgDeliveryDays: stats.avg_delivery_days,
+            stuckCount: stats.stuck_count,
             providerData,
             trendData,
         };
-    }, [orders, providers, couriers, dateFilter, deliveredPkgIds, returnedPkgIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [stats, providers, couriers, dateFilter]);
 
     return (
         <SectionWrapper
@@ -271,7 +204,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             description="Delivery rate = delivered ÷ (shipped − admin pullbacks). Return rate = returned ÷ shipped. Stuck flagged after 5 days."
             icon={Truck}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const rateTone: 'positive' | 'warning' | 'negative' =

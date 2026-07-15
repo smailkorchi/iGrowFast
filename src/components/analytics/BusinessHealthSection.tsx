@@ -1,18 +1,4 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isAdminPullback,
-    isDelivered,
-    isRateConfirmed,
-    isRevenueOrder,
-    placementTimestamp,
-    pureRevenueForOrder,
-} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -30,115 +16,78 @@ import {
     endOfMonth,
     endOfWeek,
     format,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
     subMonths,
 } from 'date-fns';
 
-interface BusinessHealthSectionProps {
-    businessId: string;
-    dateFilter: DateFilter;
+/**
+ * `health` section of admin_analytics_stats (D3). Pool = STRICT placement
+ * window with exchange legs KEPT (rates count real parcels); revenue
+ * re-excludes them inline and is paid-gated AND placement-windowed — it
+ * deliberately deviates from the P&L's delivery anchor, exactly as the old
+ * client did. Rates are UNCLAMPED. `velocity_day_span` is the server-resolved
+ * divisor (explicit window → window days; All-Time → min..max placement span;
+ * min 1). `trend` is day-bucketed with raw components (not rates), so this
+ * section re-buckets to its 3-tier grain and derives the rates per bucket —
+ * a rate can never be averaged from day rates.
+ */
+export interface HealthSlice {
+    total: number;
+    confirmed: number;
+    delivered: number;
+    failed: number;
+    confirm_rate: number;
+    /** Coliaty delivery denominator: tracked − admin-pullback. */
+    delivery_denom: number;
+    delivery_rate: number;
+    /** Mean of max(0, confirmation_date − date) in hours; null when no row has both. */
+    avg_confirm_hours: number | null;
+    confirm_time_count: number;
+    total_revenue: number;
+    velocity_day_span: number;
+    /** Casablanca placement day bounds of the windowed pool; null on an empty pool. */
+    min_day: string | null;
+    max_day: string | null;
+    trend: Array<{
+        d: string;
+        total: number;
+        confirmed: number;
+        delivered: number;
+        /** Per-day Coliaty denominator (tracked − pullback). */
+        denom: number;
+        revenue: number;
+    }>;
 }
 
-export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealthSectionProps) => {
-    const { confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
+interface BusinessHealthSectionProps {
+    dateFilter: DateFilter;
+    stats?: HealthSlice | null;
+}
 
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-health-v2', businessId],
-        queryFn: async () => {
-            return await fetchAllRows(
-                'orders',
-                'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, replace, package_statuses(label), confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
+export const BusinessHealthSection = ({ dateFilter, stats }: BusinessHealthSectionProps) => {
     const metrics = useMemo(() => {
-        if (!orders) return null;
-        const ordersTyped = orders as unknown as (AnalyticsOrder & { confirmation_date?: string | null })[];
+        if (!stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
+        // Velocity = orders per day over the server-resolved span (explicit
+        // window → window days; All-Time → the data's own min..max span,
+        // because dividing by "years since epoch" would reach infinity).
+        const orderVelocity = stats.total / Math.max(1, stats.velocity_day_span);
 
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-
-        // Velocity = orders per day. Divide by the WINDOW length when the
-        // user picked an explicit window — otherwise a 30-day filter with
-        // orders clustered in the last 3 days would report 10× the real
-        // daily rate. All-Time falls back to the data span (min → max)
-        // because dividing by "years since Date(0)" would reach infinity.
-        const datesWithOrders = filtered
-            .map(o => placementTimestamp(o))
-            .filter((d): d is Date => !!d);
-        const hasExplicitWindow = !!dateFilter.from || !!dateFilter.to;
-        let daySpan = 1;
-        if (hasExplicitWindow) {
-            daySpan = Math.max(1, differenceInDays(windowEnd, windowStart) + 1);
-        } else if (datesWithOrders.length > 0) {
-            const minDate = new Date(Math.min(...datesWithOrders.map((d) => d.getTime())));
-            const maxDate = new Date(Math.max(...datesWithOrders.map((d) => d.getTime())));
-            daySpan = Math.max(1, differenceInDays(maxDate, minDate) + 1);
-        }
-        const orderVelocity = filtered.length / daySpan;
-
-        // ── Rates under the locked rules ────────────────────────────────
-        // Delivered = package category or label match. No "must be paid" private rule.
-        const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
-        // Confirmation-rate metric: numerator counts orders NOT in pending
-        // (new + postponed) OR with tracking; denominator = total filtered.
-        const rateConfirmedCount = filtered.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds)).length;
-        const rateTouchedCount = filtered.length;
-        const confirmRate = rateTouchedCount > 0 ? (rateConfirmedCount / rateTouchedCount) * 100 : 0;
-        // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-        const tracked = filtered.filter(o => !!o.id && trackedOrderIds.has(o.id));
-        const pullback = tracked.filter(o =>
-            isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-        );
-        const deliveryDenom = tracked.length - pullback.length;
-        const deliveryRate = deliveryDenom > 0 ? (delivered.length / deliveryDenom) * 100 : 0;
-
-        // Revenue (pure, paid+delivered) for trend only — not a health metric, but shown as context.
-        // Exclude exchange swap/return legs (replace=true): rates keep them (real
-        // parcels) but a swap is not a sale, so revenue must match the P&L.
-        const revenueOrders = filtered.filter(o => o.replace !== true && isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
-        const totalRevenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
-
-        const withConfDate = filtered.filter(o => o.date && o.confirmation_date);
-        const avgConfirmTime = withConfDate.length > 0
-            ? withConfDate.reduce((s, o) => {
-                const hrs = (new Date(o.confirmation_date!).getTime() - new Date(o.date!).getTime()) / (1000 * 60 * 60);
-                return s + Math.max(0, hrs);
-            }, 0) / withConfDate.length
-            : 0;
-
-        // Failed orders merged bucket (cancelled/fake/blacklisted/double).
-        const failedCount = filtered.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
+        const confirmRate = stats.confirm_rate;
+        const deliveryRate = stats.delivery_rate;
+        const totalRevenue = stats.total_revenue;
+        const avgConfirmTime = stats.avg_confirm_hours ?? 0;
+        const failedCount = stats.failed;
 
         // ── Trend (adaptive: day / week / month) ──
         // Auto-pick granularity from window length and clamp each bucket's
         // [start, end] to the user-selected range. Anchor range to the
-        // earliest order timestamp on All-Time instead of a fixed 6-month
-        // fallback. Prior behaviour always used monthly buckets sampled
-        // at raw calendar bounds — "Today" filter rendered one monthly
-        // bucket summing the whole month.
-        const allTimestamps: number[] = [];
-        ordersTyped.forEach(o => {
-            const t = placementTimestamp(o)?.getTime();
-            if (t) allTimestamps.push(t);
-        });
-        const earliest = allTimestamps.length
-            ? new Date(Math.min(...allTimestamps))
-            : subMonths(new Date(), 6);
+        // earliest order day on All-Time instead of a fixed 6-month fallback.
+        const byDay = new Map(stats.trend.map(r => [r.d, r]));
+        const earliest = stats.min_day ? parseISO(stats.min_day) : subMonths(new Date(), 6);
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
         const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
@@ -178,26 +127,25 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             return { start: s, end: e };
         };
 
+        // Rates are rebuilt from summed components per bucket — never averaged
+        // from the day-level rates.
         const trendData = intervals.map((anchor) => {
             const { start, end } = bucketBounds(anchor);
-            const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
-            const bTouched = bucketOrders; // denominator = bucket total
-            const bConfirmed = bucketOrders.filter(o => isRateConfirmed(o, pendingIds, trackedOrderIds));
-            const bDelivered = bucketOrders.filter(o => isDelivered(o, deliveredPkgIds));
-            const bTracked = bucketOrders.filter(o => !!o.id && trackedOrderIds.has(o.id));
-            const bPullback = bTracked.filter(o =>
-                isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-            );
-            const bDeliveryDenom = bTracked.length - bPullback.length;
-            const bRevenue = bucketOrders
-                .filter(o => o.replace !== true && isRevenueOrder(o, deliveredPkgIds, paidOrderIds))
-                .reduce((s, o) => s + pureRevenueForOrder(o), 0);
+            const rows = eachDayOfInterval({ start, end })
+                .map(d => byDay.get(format(d, 'yyyy-MM-dd')))
+                .filter((r): r is HealthSlice['trend'][number] => !!r);
+
+            const bTotal = rows.reduce((s, r) => s + r.total, 0);
+            const bConfirmed = rows.reduce((s, r) => s + r.confirmed, 0);
+            const bDelivered = rows.reduce((s, r) => s + r.delivered, 0);
+            const bDeliveryDenom = rows.reduce((s, r) => s + r.denom, 0);
+            const bRevenue = rows.reduce((s, r) => s + r.revenue, 0);
 
             return {
                 month: format(anchor, labelFormat),
                 revenue: bRevenue,
-                confirmRate: bTouched.length > 0 ? (bConfirmed.length / bTouched.length) * 100 : 0,
-                deliveryRate: bDeliveryDenom > 0 ? (bDelivered.length / bDeliveryDenom) * 100 : 0,
+                confirmRate: bTotal > 0 ? (bConfirmed / bTotal) * 100 : 0,
+                deliveryRate: bDeliveryDenom > 0 ? (bDelivered / bDeliveryDenom) * 100 : 0,
             };
         });
 
@@ -216,18 +164,18 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             confirmRate,
             deliveryRate,
             avgConfirmTime,
-            hasConfirmTimeData: withConfDate.length > 0,
+            hasConfirmTimeData: stats.confirm_time_count > 0,
             failedCount,
             revenueGrowth,
             growthBucketLabel,
             trendData,
-            totalOrders: filtered.length,
+            totalOrders: stats.total,
             // Confirmed count = one-true-definition (yes was spoken).
-            confirmedCount: rateConfirmedCount,
-            deliveredCount: delivered.length,
-            touchedCount: rateTouchedCount,
+            confirmedCount: stats.confirmed,
+            deliveredCount: stats.delivered,
+            touchedCount: stats.total,
         };
-    }, [orders, dateFilter, cancelledIds, deliveredPkgIds, paidOrderIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds]);
+    }, [stats, dateFilter]);
 
     return (
         <SectionWrapper
@@ -236,7 +184,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             description="Raw confirmation rate, delivery rate, and speed — no composite score"
             icon={Activity}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const deliveryTone: 'positive' | 'warning' | 'negative' =

@@ -1,12 +1,8 @@
 import { useMemo, ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import {
     Megaphone,
 } from 'lucide-react';
@@ -29,21 +25,12 @@ import {
     endOfMonth,
     endOfWeek,
     format,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
     subMonths,
 } from 'date-fns';
-import {
-    AnalyticsOrder,
-    adSpendInWindow,
-    deliveredRevenueForOrder,
-    inWindow,
-    isDelivered as isDeliveredHelper,
-    normalizeSource,
-    overlapFraction,
-    placementTimestamp,
-} from '@/lib/analyticsDefinitions';
 
 const getPlatformIcon = (platformName: string): ReactNode => {
     switch (platformName.toLowerCase()) {
@@ -70,336 +57,93 @@ const PLATFORM_COLORS: Record<string, string> = {
     'Reddit ads': '#FF4500', 'Bing ads': '#00809D', 'Native ads': '#6b6a63',
 };
 
+/**
+ * `ads` section of admin_analytics_stats (D3). Server-side: both spend sources
+ * (ads_history overlap-pro-rated to the window + campaign_daily_entries summed
+ * daily), the campaign counts, the cross-source deduped order/confirmed/
+ * delivered/revenue top line, the raw-string platform buckets and the
+ * day-bucketed spend/revenue trend.
+ *
+ * Replicated deviations (deliberate, parity-first): ROAS revenue counts
+ * DELIVERED orders paid or not, and the Ads revenue chain is the LIVE partial
+ * collapse (per-line unit_price × qty, then greatest(0, price − shipping_cost)
+ * — no delivery add-back), matching the old select's narrower column set;
+ * product ads with a NULL end_date reach the top-line spend but never
+ * attribution or the platform buckets (the client's `new Date(null)` epoch
+ * trap). Casablanca days replace the page's three old client timezone
+ * conventions.
+ *
+ * Client keeps only presentation: platform icons/colors, the ROAS/cost
+ * arithmetic, and the trend re-bucketing to the adaptive grain below.
+ */
+export interface AdsSlice {
+    spend_product_ads: number;
+    spend_global_ads: number;
+    product_campaign_count: number;
+    global_campaign_count: number;
+    total_orders: number;
+    total_confirmed: number;
+    total_delivered: number;
+    total_gross_revenue: number;
+    /** Sorted spend desc by the RPC. Platform key = the RAW method/platform string. */
+    platforms: Array<{
+        platform: string;
+        spend: number;
+        orders: number;
+        delivered: number;
+        revenue: number;
+        product_count: number;
+        global_count: number;
+    }>;
+    /** Casablanca day buckets, ascending. `d` = 'YYYY-MM-DD'. */
+    trend: Array<{ d: string; spend: number; revenue: number }>;
+}
+
 interface AdsSectionProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats?: AdsSlice | null;
 }
 
-// ── Product Ads (legacy per-product ads_history) ──────────────────
-type ProductAdRow = {
-    id: string;
-    product_id: string | null;
-    method: string;
-    amount: number | string;
-    start_date: string;
-    end_date: string;
-};
-
-// ── Global Ads (new: campaign_daily_entries from media-buyer campaigns) ──
-type CampaignRow = { id: string; platform: string; name: string };
-type GlobalAdEntry = {
-    id: string;
-    campaign_id: string | null;
-    platform: string;           // denormalized from campaign at insert time
-    entry_date: string;         // YYYY-MM-DD
-    spend: number | string;
-    leads: number;
-};
-
-type AdsOrderItem = { product_id: string };
-
-type AdsOrderForMatching = {
-    id: string;
-    date: string | null;
-    source_name: string | null;
-    price: number | null;
-    package_status_id: string | null;
-    order_status_id: string | null;
-    replace: boolean | null;
-    order_items: AdsOrderItem[] | null;
-};
-
-export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
-    const { deliveredPkgIds, pendingIds } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(businessId);
-
-    // ── Source 1: legacy per-product ads (ads_history) ─────────────
-    const { data: adsHistory, isLoading: loadingAds } = useQuery<ProductAdRow[]>({
-        queryKey: ['analytics-ads-full', businessId],
-        queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('ads_history')
-                .select('id, product_id, method, amount, start_date, end_date, products(name, image_url)')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as ProductAdRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    // ── Source 2: global ads (campaign_daily_entries) ──────────────
-    const { data: campaignEntries = [], isLoading: loadingEntries } = useQuery<GlobalAdEntry[]>({
-        queryKey: ['analytics-campaign-entries', businessId],
-        queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('campaign_daily_entries')
-                .select('id, campaign_id, platform, entry_date, spend, leads')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as GlobalAdEntry[];
-        },
-        enabled: !!businessId,
-    });
-
-    // Campaign lookup (name + platform) — for display only; entries carry their own platform.
-    const { data: campaignRows = [] } = useQuery<CampaignRow[]>({
-        queryKey: ['analytics-campaigns-lookup', businessId],
-        queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('campaigns')
-                .select('id, platform, name')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as CampaignRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: allOrders } = useQuery<AdsOrderForMatching[]>({
-        queryKey: ['analytics-orders-for-ads-v3', businessId],
-        queryFn: async () => {
-            const rows = (await fetchAllRows(
-                'orders',
-                'id, date, source_name, price, shipping_cost, package_status_id, order_status_id, replace, order_items(product_id, unit_price, quantity)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            )) as unknown as AdsOrderForMatching[];
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate per-ad attributed revenue / ROAS.
-            return rows.filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
-    const isLoading = loadingAds || loadingEntries;
-
+export const AdsSection = ({ dateFilter, stats }: AdsSectionProps) => {
     const metrics = useMemo(() => {
-        if (!adsHistory || !allOrders) return null;
+        if (!stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-
-        // ── Filter both sources — product ads use overlap math; campaign entries are daily rows.
-        //    Keep every ad whose [start, end] touches the window at all so per-ad attribution
-        //    works even when start_date is before the window.
-        const filteredProductAds = adsHistory.filter(a => {
-            const s = a.start_date ? new Date(a.start_date) : null;
-            const e = a.end_date ? new Date(a.end_date) : s;
-            return overlapFraction(s, e, windowStart, windowEnd) > 0;
-        });
-        const filteredEntries = campaignEntries.filter(e => {
-            if (!e.entry_date) return false;
-            const d = new Date(e.entry_date);
-            return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
-        });
-
-        // ── Spend totals — product ads pro-rated by overlap. ────────
-        const spendProductAds = filteredProductAds.reduce(
-            (s, a) => s + adSpendInWindow(a, windowStart, windowEnd),
-            0,
-        );
-        const spendGlobalAds = filteredEntries.reduce((s, e) => s + Number(e.spend || 0), 0);
-        const totalSpend = spendProductAds + spendGlobalAds;
-
-        // Count: product ads = row count; global ads = distinct campaign ids
-        const productCampaignCount = filteredProductAds.length;
-        const globalCampaignCount = new Set(
-            filteredEntries.map(e => e.campaign_id).filter((x): x is string => !!x)
-        ).size;
-        const campaignCount = productCampaignCount + globalCampaignCount;
-
-        const orders = allOrders as unknown as (AdsOrderForMatching & AnalyticsOrder)[];
-
-        // Shared classification helpers. Delivered uses label OR category
-        // (consistent with seller_daily_earnings). Confirmed = the one true
-        // definition: has a tracking code (company_parcels/courier_parcels)
-        // OR status is anything except `new`/`callback`.
-        const classify = (o: AnalyticsOrder & { id?: string }) => {
-            const isDelivered = isDeliveredHelper(o, deliveredPkgIds);
-            const hasTracking = !!o.id && trackedOrderIds.has(o.id);
-            // Confirmed = tracking OR status NOT in pending (new + postponed).
-            // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
-            const statusMapsReady = pendingIds.size > 0;
-            const isConfirmed =
-                hasTracking
-                || (statusMapsReady
-                    && !!o.order_status_id
-                    && !pendingIds.has(o.order_status_id));
-            return { isDelivered, isConfirmed };
-        };
-
-        // ── Attribution: match orders to each ad source ─────────────
-        // Shared dedupe set so an order that matches both a product ad and a global campaign
-        // only counts once toward totalOrders / totalConfirmed / totalDelivered / totalGrossRevenue.
-        const seenOrderIds = new Set<string>();
-        let totalOrders = 0;
-        let totalConfirmed = 0;
-        let totalDelivered = 0;
-        let totalGrossRevenue = 0;
-
-        const recordOrder = (o: AnalyticsOrder & { id: string }) => {
-            if (seenOrderIds.has(o.id)) return;
-            seenOrderIds.add(o.id);
-            totalOrders++;
-            const { isDelivered, isConfirmed } = classify(o);
-            if (isDelivered) {
-                totalDelivered++;
-                // ROAS uses delivered revenue (paid or not), product-only (shipping stripped).
-                totalGrossRevenue += deliveredRevenueForOrder(o);
-            }
-            if (isConfirmed) totalConfirmed++;
-        };
-
-        // ── Product-ad matcher: normalized source + in ad date range + order contains product_id ──
-        const matchProductAd = (o: AnalyticsOrder, src: string, start: Date, end: Date, productId: string | null): boolean => {
-            if (!src) return false;
-            if (normalizeSource(o.source_name) !== src) return false;
-            const odate = placementTimestamp(o);
-            if (!odate || odate < start || odate > end) return false;
-            if (productId) {
-                return !!o.order_items?.some(item => item.product_id === productId);
-            }
-            return true;
-        };
-
-        // ── Global-ad matcher: normalized source + same day as entry (no product filter) ──
-        const matchGlobalEntry = (o: AnalyticsOrder, src: string, entryDate: string): boolean => {
-            if (!src) return false;
-            if (normalizeSource(o.source_name) !== src) return false;
-            const odate = (o.date || '').slice(0, 10);
-            return odate === entryDate;
-        };
-
-        // ── Platform breakdown accumulator (combines both sources) ──
-        type PlatformBucket = {
-            spend: number;
-            orderIds: Set<string>;
-            delivered: number;
-            revenue: number;
-            productCount: number;
-            globalCount: number;
-        };
-        const platformBreakdown: Record<string, PlatformBucket> = {};
-        const bucket = (platform: string): PlatformBucket => {
-            if (!platformBreakdown[platform]) {
-                platformBreakdown[platform] = {
-                    spend: 0, orderIds: new Set(), delivered: 0, revenue: 0,
-                    productCount: 0, globalCount: 0,
-                };
-            }
-            return platformBreakdown[platform];
-        };
-
-        // Product ads → attribute orders + update buckets (spend pro-rated by window overlap).
-        //
-        // Attribution window = intersection of the ad's active range AND the
-        // user-selected date window. Previously the matcher used only the
-        // ad's [start_date, end_date], so a "Today" filter that pro-rated
-        // spend to 1/30 of the ad amount still summed revenue from every
-        // order placed during the full 30-day ad run → inflated ROAS.
-        filteredProductAds.forEach(ad => {
-            const platform = ad.method || 'Other';
-            const src = normalizeSource(ad.method);
-            const cStart = new Date(ad.start_date);
-            const cEnd = new Date(ad.end_date);
-            cEnd.setHours(23, 59, 59, 999);
-
-            const matchStart = cStart.getTime() > windowStart.getTime() ? cStart : windowStart;
-            const matchEnd = cEnd.getTime() < windowEnd.getTime() ? cEnd : windowEnd;
-            if (matchEnd.getTime() < matchStart.getTime()) return;
-
-            const b = bucket(platform);
-            b.spend += adSpendInWindow(ad, windowStart, windowEnd);
-            b.productCount++;
-
-            orders.forEach(o => {
-                if (!matchProductAd(o, src, matchStart, matchEnd, ad.product_id)) return;
-                recordOrder(o);
-                if (!b.orderIds.has(o.id)) {
-                    b.orderIds.add(o.id);
-                    const { isDelivered } = classify(o);
-                    if (isDelivered) {
-                        b.delivered++;
-                        b.revenue += deliveredRevenueForOrder(o);
-                    }
-                }
-            });
-        });
-
-        // Global ads (campaign entries) → same treatment
-        const campaignCountedIntoPlatform = new Set<string>();
-        filteredEntries.forEach(entry => {
-            const platform = entry.platform || 'Other';
-            const src = normalizeSource(entry.platform);
-            const b = bucket(platform);
-            b.spend += Number(entry.spend || 0);
-            if (entry.campaign_id && !campaignCountedIntoPlatform.has(entry.campaign_id)) {
-                campaignCountedIntoPlatform.add(entry.campaign_id);
-                b.globalCount++;
-            }
-
-            orders.forEach(o => {
-                if (!matchGlobalEntry(o, src, entry.entry_date)) return;
-                recordOrder(o);
-                if (!b.orderIds.has(o.id)) {
-                    b.orderIds.add(o.id);
-                    const { isDelivered } = classify(o);
-                    if (isDelivered) {
-                        b.delivered++;
-                        b.revenue += deliveredRevenueForOrder(o);
-                    }
-                }
-            });
-        });
+        const totalSpend = stats.spend_product_ads + stats.spend_global_ads;
+        const totalGrossRevenue = stats.total_gross_revenue;
+        const totalOrders = stats.total_orders;
+        const totalDelivered = stats.total_delivered;
+        const campaignCount = stats.product_campaign_count + stats.global_campaign_count;
 
         const roas = totalSpend > 0 ? totalGrossRevenue / totalSpend : 0;
         const costPerOrder = totalOrders > 0 ? totalSpend / totalOrders : 0;
         const costPerDelivered = totalDelivered > 0 ? totalSpend / totalDelivered : 0;
 
-        const platformData = Object.entries(platformBreakdown)
-            .map(([platform, data]) => ({
-                platform,
-                spend: data.spend,
-                orders: data.orderIds.size,
-                delivered: data.delivered,
-                revenue: data.revenue,
-                count: data.productCount + data.globalCount,
-                productCount: data.productCount,
-                globalCount: data.globalCount,
-                cpd: data.delivered > 0 ? data.spend / data.delivered : 0,
-                roas: data.spend > 0 ? data.revenue / data.spend : 0,
-                color: PLATFORM_COLORS[platform] || '#6b6a63',
-            }))
-            .sort((a, b) => b.spend - a.spend);
+        // Rows arrive sorted spend desc; only icon/colour lookups are client-side.
+        const platformData = stats.platforms.map((p) => ({
+            platform: p.platform,
+            spend: p.spend,
+            orders: p.orders,
+            delivered: p.delivered,
+            revenue: p.revenue,
+            productCount: p.product_count,
+            globalCount: p.global_count,
+            cpd: p.delivered > 0 ? p.spend / p.delivered : 0,
+            roas: p.spend > 0 ? p.revenue / p.spend : 0,
+            color: PLATFORM_COLORS[p.platform] || '#6b6a63',
+        }));
 
         // ── Trend (adaptive: day / week / month) ──
-        // Auto-pick granularity from window length AND clamp each bucket's
-        // [start, end] to the user-selected range. Prior behaviour always
-        // used monthly buckets and sampled full calendar months, so a "Today"
-        // filter produced a single monthly bucket summing the whole month.
-        // Anchor the trend to the earliest ad/order/entry timestamp when on
-        // All-Time instead of a fixed "last 6 months".
-        const allTimestamps: number[] = [];
-        (adsHistory || []).forEach(a => {
-            if (a.start_date) {
-                const t = new Date(a.start_date).getTime();
-                if (!Number.isNaN(t)) allTimestamps.push(t);
-            }
-        });
-        (campaignEntries || []).forEach(e => {
-            if (e.entry_date) {
-                const t = new Date(e.entry_date).getTime();
-                if (!Number.isNaN(t)) allTimestamps.push(t);
-            }
-        });
-        orders.forEach(o => {
-            const t = placementTimestamp(o)?.getTime();
-            if (t) allTimestamps.push(t);
-        });
-        const earliest = allTimestamps.length
-            ? new Date(Math.min(...allTimestamps))
+        // The RPC returns Casablanca day buckets; the grain choice and the
+        // bucket clamping stay client-side. Auto-pick granularity from window
+        // length AND clamp each bucket's [start, end] to the user-selected
+        // range, so a "Today" filter can't sample a whole calendar month.
+        // All-Time anchors to the earliest day carried by the trend array
+        // (NOTE: the client used to anchor to the earliest ad/entry/order
+        // placement — the RPC's trend only spans days with spend or delivered
+        // revenue, so an all-time chart can start later. Axis extent only.)
+        const earliest = stats.trend.length
+            ? startOfDay(parseISO(stats.trend[0].d))
             : subMonths(new Date(), 6);
 
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
@@ -441,61 +185,21 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             return { start: s, end: e };
         };
 
+        // Day keys are compared as 'YYYY-MM-DD' strings (ISO dates sort
+        // lexicographically) so the server's Casablanca day never gets
+        // re-interpreted through the browser's timezone.
         const trendData = intervals.map((anchor) => {
             const { start: bStart, end: bEnd } = bucketBounds(anchor);
+            const startKey = format(bStart, 'yyyy-MM-dd');
+            const endKey = format(bEnd, 'yyyy-MM-dd');
 
-            // Spend in bucket from both sources — product ads pro-rated by bucket overlap.
-            const bucketProductAds = (adsHistory || []).filter(a => {
-                const s = a.start_date ? new Date(a.start_date) : null;
-                const e = a.end_date ? new Date(a.end_date) : s;
-                return overlapFraction(s, e, bStart, bEnd) > 0;
-            });
-            const bucketEntries = (campaignEntries || []).filter(e => {
-                if (!e.entry_date) return false;
-                const d = new Date(e.entry_date);
-                return !Number.isNaN(d.getTime()) && inWindow(d, bStart, bEnd);
-            });
-            const bucketSpend =
-                bucketProductAds.reduce((s, a) => s + adSpendInWindow(a, bStart, bEnd), 0) +
-                bucketEntries.reduce((s, e) => s + Number(e.spend || 0), 0);
-
-            // Revenue in bucket — dedupe orders across ad rows. Attribution
-            // uses the intersection of the ad's range with the BUCKET bounds
-            // (same principle as the top-line fix: spend and revenue always
-            // scoped to the same period).
-            const bucketSeen = new Set<string>();
+            let bucketSpend = 0;
             let bucketRevenue = 0;
-
-            bucketProductAds.forEach(ad => {
-                const src = normalizeSource(ad.method);
-                const cStart = new Date(ad.start_date);
-                const cEnd = new Date(ad.end_date);
-                cEnd.setHours(23, 59, 59, 999);
-                const mStart = cStart.getTime() > bStart.getTime() ? cStart : bStart;
-                const mEnd = cEnd.getTime() < bEnd.getTime() ? cEnd : bEnd;
-                if (mEnd.getTime() < mStart.getTime()) return;
-
-                orders.forEach(o => {
-                    if (!matchProductAd(o, src, mStart, mEnd, ad.product_id)) return;
-                    if (bucketSeen.has(o.id)) return;
-                    const { isDelivered } = classify(o);
-                    if (!isDelivered) return;
-                    bucketSeen.add(o.id);
-                    bucketRevenue += deliveredRevenueForOrder(o);
-                });
-            });
-
-            bucketEntries.forEach(entry => {
-                const src = normalizeSource(entry.platform);
-                orders.forEach(o => {
-                    if (!matchGlobalEntry(o, src, entry.entry_date)) return;
-                    if (bucketSeen.has(o.id)) return;
-                    const { isDelivered } = classify(o);
-                    if (!isDelivered) return;
-                    bucketSeen.add(o.id);
-                    bucketRevenue += deliveredRevenueForOrder(o);
-                });
-            });
+            for (const row of stats.trend) {
+                if (row.d < startKey || row.d > endKey) continue;
+                bucketSpend += row.spend;
+                bucketRevenue += row.revenue;
+            }
 
             return {
                 month: format(anchor, labelFormat),
@@ -507,19 +211,18 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
 
         return {
             totalSpend,
-            spendProductAds,
-            spendGlobalAds,
-            totalOrders, totalConfirmed, totalDelivered,
+            spendProductAds: stats.spend_product_ads,
+            spendGlobalAds: stats.spend_global_ads,
+            totalOrders,
+            totalConfirmed: stats.total_confirmed,
+            totalDelivered,
             totalGrossRevenue, roas, costPerOrder, costPerDelivered,
             campaignCount,
-            productCampaignCount,
-            globalCampaignCount,
+            productCampaignCount: stats.product_campaign_count,
+            globalCampaignCount: stats.global_campaign_count,
             platformData, trendData,
         };
-    }, [adsHistory, campaignEntries, allOrders, dateFilter, deliveredPkgIds, pendingIds, trackedOrderIds]);
-
-    // Expose campaignRows to satisfy linter usage (campaign names could be reused later in the UI).
-    void campaignRows;
+    }, [stats, dateFilter]);
 
     return (
         <SectionWrapper
@@ -528,7 +231,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             description="Product ads + campaign ads. Spend pro-rated by window overlap. ROAS uses delivered revenue (paid or not)."
             icon={Megaphone}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const roasTone: 'positive' | 'warning' | 'negative' =

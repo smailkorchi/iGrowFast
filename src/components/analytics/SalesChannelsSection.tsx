@@ -1,15 +1,4 @@
 import { useMemo, ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import {
-    AnalyticsOrder,
-    inWindow,
-    isRevenueOrder,
-    normalizeSource,
-    placementTimestamp,
-    pureRevenueForOrder,
-} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -35,11 +24,32 @@ import {
     endOfMonth,
     endOfWeek,
     format,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
     subMonths,
 } from 'date-fns';
+
+/**
+ * `channels` section of admin_analytics_stats (D3). Pool = replace-excluded,
+ * STRICT placement window. The channel key is resolved server-side:
+ * `normalize_ad_source(source_name ?? sales_channels[source_id].name)` — the
+ * ONE SQL mirror of the client PLATFORM_SOURCE_MAP, so the map cannot drift in
+ * two places — with an empty raw source falling to 'direct' (a whitespace-only
+ * raw keeps its '' key, replicating the old client quirk). `converted` =
+ * paid+delivered and `revenue` = the FULL pureRevenue chain over those, as
+ * before. `trend` carries per-day counts for the server-ranked top-5 channels
+ * only (top-5 is window-dependent, so the server has to rank it); this section
+ * re-buckets to its grain. Icons/colors stay client-side lookups on the key.
+ */
+export interface ChannelsSlice {
+    /** == Σ channels[].orders (every order gets a key). */
+    total_orders: number;
+    /** Sorted orders desc, key asc. */
+    channels: Array<{ key: string; orders: number; converted: number; revenue: number }>;
+    trend: Array<{ d: string; key: string; orders: number }>;
+}
 
 const getChannelIcon = (name: string): ReactNode => {
     const n = name.toLowerCase();
@@ -76,98 +86,37 @@ const getChannelColor = (name: string): string => {
 };
 
 interface SalesChannelsSectionProps {
-    businessId: string;
     dateFilter: DateFilter;
+    stats?: ChannelsSlice | null;
 }
 
-export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSectionProps) => {
-    const { deliveredPkgIds, paidOrderIds } = useStatusCategories();
-
-    const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-channels-v2', businessId],
-        queryFn: async () => {
-            const rows = await fetchAllRows(
-                'orders',
-                'id, source_name, source_id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, replace, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate per-channel revenue/order counts.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: salesChannels } = useQuery({
-        queryKey: ['analytics-sales-channels', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('sales_channels').select('id, name, type').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
+export const SalesChannelsSection = ({ dateFilter, stats }: SalesChannelsSectionProps) => {
     const metrics = useMemo(() => {
-        if (!orders) return null;
-        const ordersTyped = orders as unknown as (AnalyticsOrder & { source_id?: string | null })[];
-
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-
-        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
-        const channelMap = new Map((salesChannels || []).map(c => [c.id, c.name]));
-
-        // Normalize source via PLATFORM_SOURCE_MAP (§12). "Facebook ads" / "facebook" / "FB"
-        // all collapse to a single canonical key. Orders with no source fall to 'direct'.
-        const channelKeyFor = (o: AnalyticsOrder & { source_id?: string | null }): string => {
-            const raw = o.source_name || (o.source_id ? channelMap.get(o.source_id) : '') || '';
-            const normalized = normalizeSource(raw);
-            if (normalized) return normalized;
-            return raw ? raw.trim().toLowerCase() : 'direct';
-        };
+        if (!stats) return null;
 
         // `converted` = orders that reached paid+delivered (matches the
-        // P&L revenue contract). The field was called `delivered` before
-        // even though it required paid too — rename to match reality.
-        const channelBreakdown: Record<string, { orders: number; revenue: number; converted: number }> = {};
-        filtered.forEach(o => {
-            const key = channelKeyFor(o);
-            if (!channelBreakdown[key]) channelBreakdown[key] = { orders: 0, revenue: 0, converted: 0 };
-            channelBreakdown[key].orders++;
-            if (isRevenueOrder(o, deliveredPkgIds, paidOrderIds)) {
-                channelBreakdown[key].converted++;
-                channelBreakdown[key].revenue += pureRevenueForOrder(o);
-            }
-        });
-
-        const channelData = Object.entries(channelBreakdown)
-            .map(([name, data]) => ({
-                name,
-                ...data,
-                conversionRate: data.orders > 0 ? (data.converted / data.orders) * 100 : 0,
-            }))
-            .sort((a, b) => b.orders - a.orders);
+        // P&L revenue contract). Server sorts orders desc, key asc.
+        const channelData = stats.channels.map(c => ({
+            name: c.key,
+            orders: c.orders,
+            converted: c.converted,
+            revenue: c.revenue,
+            conversionRate: c.orders > 0 ? (c.converted / c.orders) * 100 : 0,
+        }));
 
         const topChannel = channelData[0];
 
         // ── Trend (adaptive: day / week / month) ──
-        // Anchor the range to the earliest order timestamp on All-Time and
-        // clamp each bucket to the user's window. Prior behaviour always
-        // used monthly buckets with a fixed 6-month fallback, so "Today"
-        // filters produced a single unlabeled monthly point.
-        const allTimestamps: number[] = [];
-        ordersTyped.forEach(o => {
-            const t = placementTimestamp(o)?.getTime();
-            if (t) allTimestamps.push(t);
+        // Anchor the range to the earliest day carrying top-5 channel orders
+        // on All-Time and clamp each bucket to the user's window.
+        const byKeyDay = new Map<string, Map<string, number>>();
+        stats.trend.forEach(r => {
+            let m = byKeyDay.get(r.key);
+            if (!m) { m = new Map(); byKeyDay.set(r.key, m); }
+            m.set(r.d, (m.get(r.d) || 0) + r.orders);
         });
-        const earliest = allTimestamps.length
-            ? new Date(Math.min(...allTimestamps))
+        const earliest = stats.trend.length
+            ? parseISO(stats.trend.reduce((min, r) => (r.d < min ? r.d : min), stats.trend[0].d))
             : subMonths(new Date(), 6);
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
@@ -208,13 +157,16 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             return { start: s, end: e };
         };
 
+        // Same ranking the server used to pick the trend's top-5 (orders desc,
+        // key asc) — so every name here has a series in `trend`.
         const topNames = channelData.slice(0, 5).map(c => c.name);
         const trendData = intervals.map((anchor) => {
             const { start, end } = bucketBounds(anchor);
-            const bucketOrders = filtered.filter(o => inWindow(placementTimestamp(o), start, end));
+            const days = eachDayOfInterval({ start, end }).map(d => format(d, 'yyyy-MM-dd'));
             const result: Record<string, string | number> = { month: format(anchor, labelFormat) };
             topNames.forEach(name => {
-                result[name] = bucketOrders.filter(o => channelKeyFor(o) === name).length;
+                const m = byKeyDay.get(name);
+                result[name] = m ? days.reduce((s, d) => s + (m.get(d) || 0), 0) : 0;
             });
             return result;
         });
@@ -226,7 +178,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             trendData,
             channelNames: topNames,
         };
-    }, [orders, salesChannels, dateFilter, deliveredPkgIds, paidOrderIds]);
+    }, [stats, dateFilter]);
 
     return (
         <SectionWrapper
@@ -235,7 +187,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             description="Sources normalized via the platform map. Revenue counts only paid+delivered orders."
             icon={Radio}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const totalOrdersViaChannels = metrics.channelData.reduce((s, c) => s + c.orders, 0);

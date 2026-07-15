@@ -14,12 +14,13 @@ import { publishEcomBus, type EcomBusEvent } from '@/lib/ecomBus';
  * ecomBus for page-local consumers (SheetReview toast, WA chat-orders bridge);
  * the GLOBAL react-query invalidations live here:
  *
- *   order/parcel → ['orders-page'] + ['orders-kpis'] + ['dash-stats'] prefixes,
- *                  debounced 500ms
+ *   order/parcel → ['orders-page'] + ['orders-kpis'] + ['dash-stats'] +
+ *                  ['analytics-stats'] prefixes, debounced 500ms
  *                  (D1: covers the admin AND seller keyset-page/KPI query
  *                   variants; D2: ['dash-stats'] covers every role-dashboard
- *                   stats RPC query — all key families start with these
- *                   prefixes)
+ *                   stats RPC query; D3: ['analytics-stats'] covers the admin
+ *                   Analytics one-call payload — all key families start with
+ *                   these prefixes)
  *   stock        → the role's product/accessory dropdown keys, debounced 150ms
  *                  (snappy shortage-highlight flip, still coalesces bursts)
  *
@@ -64,6 +65,8 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
             queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             // D2: role-dashboard stats RPC queries (['dash-stats', role, biz, window]).
             queryClient.invalidateQueries({ queryKey: ['dash-stats'] });
+            // D3: the admin Analytics one-call payload (['analytics-stats', biz, window]).
+            queryClient.invalidateQueries({ queryKey: ['analytics-stats'] });
         };
         const debouncedOrders = () => {
             if (ordersTimer) clearTimeout(ordersTimer);

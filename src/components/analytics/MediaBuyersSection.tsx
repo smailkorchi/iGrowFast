@@ -1,402 +1,125 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import {
-    commissionAccruedForDeliveredOrder,
-    isDeliveredForCommission,
-    normalizeCommissionBasis,
-    type CommissionBasis,
-} from '@/lib/commercialCommission';
+import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Radar } from 'lucide-react';
 import { UserAvatar } from '@/components/users/UserAvatar';
-import { normalizeSource, pureRevenueForOrder } from '@/lib/analyticsDefinitions';
-import { differenceInCalendarDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+
+/**
+ * `mediabuyers` section of admin_analytics_stats (D3). Server-side: the
+ * (Casablanca placement day, normalized source) buckets over windowed
+ * replace-excluded orders — leads, delivered, revenue (full pureRevenue chain,
+ * delivered but NOT paid-gated), COGS, shipping and seller commission — the
+ * per-MB attribution (key = campaign_daily_entries.created_by; a bucket claimed
+ * by N roster MBs is split 1/N), spend, and MB cost (commission → rate ×
+ * attributed delivered; salaried → salary × window_days/30). Rows arrive sorted
+ * net_profit desc.
+ *
+ * Replicated deviations (deliberate, parity-first): MB COGS uses the CURRENT
+ * products.cost_price only — no product_unit_cost_snapshot — so this section's
+ * COGS will not reconcile with the P&L's snapshot-first COGS; the MB-cost model
+ * (roster payment_type) also differs from ProfitabilitySection's
+ * mediabuyer_payments × payout-month overlap. Both are pre-existing and were
+ * flagged for a separate unification decision.
+ *
+ * Client keeps only presentation: names/avatars (support query below — the RPC
+ * rows carry ids), the totals Σ over the already-shared per-MB rows (no double
+ * counting) and the ROAS arithmetic.
+ */
+export interface MediaBuyersSlice {
+    window_days: number;
+    mediabuyers: Array<{
+        mb_id: string;
+        spend: number;
+        /** Fractional — attribution shares split a bucket 1/N across claimants. */
+        orders: number;
+        delivered: number;
+        revenue: number;
+        cogs: number;
+        shipping: number;
+        seller_commission: number;
+        mb_cost: number;
+        net_profit: number;
+    }>;
+}
 
 interface MediaBuyersSectionProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats?: MediaBuyersSlice | null;
 }
 
-type MBRow = {
+type MBMeta = {
     id: string;
     name: string;
     avatar_url: string | null;
     avatar_config?: unknown;
     active: boolean | null;
-    commission_price: number | null;
-    payment_type: string | null;
-    salary_amount: number | null;
 };
 
-type EntryRow = {
-    entry_date: string;
-    spend: number | null;
-    leads: number | null;
-    platform: string;
-    created_by: string | null;
-};
-
-type MBOrderItem = {
-    product_id: string | null;
-    quantity: number | null;
-    unit_price: number | null;
-    total_price: number | null;
-    accessory_id: string | null;
-    accessory_quantity: number | null;
-    accessory_unit_price: number | null;
-};
-
-type MBOrderRow = {
-    id: string;
-    date: string | null;
-    source_name: string | null;
-    seller_id: string | null;
-    price: number | null;
-    raw_price: number | null;
-    shipping_cost: number | null;
-    include_delivery_in_total: boolean | null;
-    package_status_id: string | null;
-    replace: boolean | null;
-    package_statuses: { label?: string | null } | null;
-    order_items: MBOrderItem[] | null;
-};
-
-type SellerRow = {
-    id: string;
-    commission_price: number | null;
-    commission_basis: string | null;
-    products: unknown;
-};
-
-type ProductRow = { id: string; cost_price: number | null };
-type AccessoryRow = { id: string; cost_price: number | null };
-
-export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectionProps) => {
-    const { deliveredPkgIds } = useStatusCategories();
-
-    // For All-Time (no explicit filter), pass a very early date so the server
-    // query returns every entry. Earlier behaviour used a 30-day fallback,
-    // which truncated MB spend on All-Time while orders stayed unbounded,
-    // inflating ROAS.
-    const rangeStart = dateFilter.from || new Date('2020-01-01');
-    const rangeEnd = dateFilter.to || new Date();
-    const fromYmd = format(rangeStart, 'yyyy-MM-dd');
-    const toYmd = format(rangeEnd, 'yyyy-MM-dd');
-
-    const { data: mediaBuyers, isLoading: loadingMBs } = useQuery({
+export const MediaBuyersSection = ({ businessId, stats }: MediaBuyersSectionProps) => {
+    // Names/avatars only — every aggregate (including MB cost, which reads
+    // payment_type/commission_price/salary_amount) rides the RPC section.
+    const { data: mediaBuyers, isLoading } = useQuery({
         queryKey: ['analytics-mediabuyers', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, avatar_config, active, commission_price, payment_type, salary_amount')
+                .select('id, name, avatar_url, avatar_config, active')
                 .eq('role', 'mediabuyer')
                 .eq('DigiCom Business', businessId);
-            return (data || []) as unknown as MBRow[];
+            return (data || []) as unknown as MBMeta[];
         },
         enabled: !!businessId,
     });
-
-    const { data: entries, isLoading: loadingEntries } = useQuery({
-        queryKey: ['analytics-mb-entries', businessId, fromYmd, toYmd],
-        queryFn: async () => {
-            return await fetchAllRows<EntryRow>(
-                'campaign_daily_entries',
-                'entry_date, spend, leads, platform, created_by',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'entry_date', op: 'gte', value: fromYmd },
-                        { column: 'entry_date', op: 'lte', value: toYmd },
-                    ],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orders, isLoading: loadingOrders } = useQuery({
-        queryKey: ['analytics-mb-orders', businessId],
-        queryFn: async () => {
-            const rows = await fetchAllRows<MBOrderRow>(
-                'orders',
-                'id, date, source_name, seller_id, price, raw_price, shipping_cost, include_delivery_in_total, package_status_id, replace, package_statuses(label), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate MB delivered counts / attributed revenue / ROAS.
-            return rows.filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: sellers } = useQuery({
-        queryKey: ['analytics-mb-sellers', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('users')
-                .select('id, commission_price, commission_basis, products')
-                .eq('role', 'commercial')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as unknown as SellerRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: products } = useQuery({
-        queryKey: ['dashboard-products', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('products')
-                .select('id, cost_price')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as unknown as ProductRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: accessories } = useQuery({
-        queryKey: ['dashboard-accessories', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('accessories')
-                .select('id, cost_price')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as unknown as AccessoryRow[];
-        },
-        enabled: !!businessId,
-    });
-
-    const isLoading = loadingMBs || loadingEntries || loadingOrders;
 
     const metrics = useMemo(() => {
-        if (!mediaBuyers || !entries || !orders) return null;
+        if (!mediaBuyers || !stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-        const inWindow = (dateStr: string | null) => {
-            if (!dateStr) return false;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, { start: windowStart, end: windowEnd });
-        };
+        const metaById = new Map(mediaBuyers.map((m) => [m.id, m]));
 
-        // Window day count — used to pro-rate salary-MBs' monthly salary_amount
-        // into an attributable cost for the selected period. All-Time is capped
-        // at the span from the earliest entry/order date to today.
-        const windowDays = (() => {
-            if (dateFilter.from && dateFilter.to) {
-                return Math.max(1, differenceInCalendarDays(windowEnd, windowStart) + 1);
-            }
-            const ts: number[] = [];
-            entries.forEach((e) => {
-                if (e.entry_date) {
-                    const t = new Date(e.entry_date).getTime();
-                    if (!Number.isNaN(t)) ts.push(t);
-                }
-            });
-            orders.forEach((o) => {
-                if (o.date) {
-                    const t = new Date(o.date).getTime();
-                    if (!Number.isNaN(t)) ts.push(t);
-                }
-            });
-            if (ts.length === 0) return 30;
-            const earliest = new Date(Math.min(...ts));
-            return Math.max(1, differenceInCalendarDays(new Date(), earliest) + 1);
-        })();
-
-        const productCost = new Map<string, number>();
-        (products || []).forEach((p) => productCost.set(p.id, Number(p.cost_price || 0)));
-        const accessoryCost = new Map<string, number>();
-        (accessories || []).forEach((a) => accessoryCost.set(a.id, Number(a.cost_price || 0)));
-
-        const sellerById = new Map<string, SellerRow>();
-        (sellers || []).forEach((s) => sellerById.set(s.id, s));
-
-        const sellerCommissionForOrder = (o: MBOrderRow): number => {
-            if (!o.seller_id) return 0;
-            const seller = sellerById.get(o.seller_id);
-            if (!seller) return 0;
-            const basis: CommissionBasis = normalizeCommissionBasis(seller.commission_basis);
-            const commissionPrice = Number(seller.commission_price ?? 0) || 0;
-            if (commissionPrice <= 0) return 0;
-            const sellerProductIds: string[] = Array.isArray(seller.products)
-                ? (seller.products as unknown[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
-                : [];
-            return commissionAccruedForDeliveredOrder({
-                order: o,
-                basis,
-                commissionPrice,
-                sellerProductIds,
-            });
-        };
-
-        const orderCogs = (o: MBOrderRow): number => {
-            let cogs = 0;
-            for (const oi of o.order_items || []) {
-                if (oi.product_id) {
-                    const q = Number(oi.quantity) || 0;
-                    if (q > 0) cogs += (productCost.get(oi.product_id) || 0) * q;
-                }
-                if (oi.accessory_id) {
-                    const aq = Number(oi.accessory_quantity) || 0;
-                    if (aq > 0) {
-                        const snap = Number(oi.accessory_unit_price);
-                        const unit = Number.isFinite(snap) && snap > 0
-                            ? snap
-                            : (accessoryCost.get(oi.accessory_id) || 0);
-                        cogs += unit * aq;
-                    }
-                }
-            }
-            return cogs;
-        };
-
-        // Bucket delivered orders by (day, normalized-source). Sources are
-        // normalized on BOTH sides via `normalizeSource` so `orders.source_name`
-        // ("facebook", "facebook ads", "Facebook") and entries' platform
-        // ("Facebook ads", "facebook") collapse to the same key. Previously
-        // only the entry side normalized — asymmetric and silent zero-match
-        // for any mismatched casing / suffix.
-        type Bucket = {
-            leads: number;
-            delivered: number;
-            revenue: number;
-            cogs: number;
-            shipping: number;
-            sellerCommission: number;
-        };
-        const orderBucket = new Map<string, Bucket>();
-        orders.forEach((o) => {
-            if (!o.date || !o.source_name) return;
-            if (!inWindow(o.date)) return;
-            const d = format(new Date(o.date), 'yyyy-MM-dd');
-            const src = normalizeSource(o.source_name);
-            if (!src) return;
-            const key = `${d}|${src}`;
-            const b = orderBucket.get(key) || {
-                leads: 0,
-                delivered: 0,
-                revenue: 0,
-                cogs: 0,
-                shipping: 0,
-                sellerCommission: 0,
-            };
-            b.leads += 1;
-            if (isDeliveredForCommission(o, deliveredPkgIds)) {
-                b.delivered += 1;
-                b.revenue += pureRevenueForOrder(o as unknown as Parameters<typeof pureRevenueForOrder>[0]);
-                b.cogs += orderCogs(o);
-                b.shipping += Number(o.shipping_cost || 0);
-                b.sellerCommission += sellerCommissionForOrder(o);
-            }
-            orderBucket.set(key, b);
-        });
-
-        // Build per-MB seenKeys first, then count global claimants per bucket so
-        // each MB gets a proportional share (1/N) when multiple MBs ran the
-        // same (day, platform). Previously every MB got 100 % of the bucket,
-        // which double-counted revenue and spending across the team totals.
-        const mbKeys = new Map<string, Set<string>>();
-        const claimantCount = new Map<string, number>();
-        mediaBuyers.forEach((mb) => {
-            const own = entries.filter((e) => e.created_by === mb.id);
-            const keys = new Set<string>();
-            own.forEach((e) => {
-                const src = normalizeSource(e.platform);
-                if (!src || !e.entry_date) return;
-                keys.add(`${e.entry_date}|${src}`);
-            });
-            mbKeys.set(mb.id, keys);
-            keys.forEach((k) => {
-                claimantCount.set(k, (claimantCount.get(k) || 0) + 1);
-            });
-        });
-
-        const perMB = mediaBuyers.map((mb) => {
-            const own = entries.filter((e) => e.created_by === mb.id);
-            const spend = own.reduce((s, e) => s + Number(e.spend || 0), 0);
-            const seenKeys = mbKeys.get(mb.id) || new Set<string>();
-
-            let attributedOrders = 0;
-            let attributedDelivered = 0;
-            let revenue = 0;
-            let cogs = 0;
-            let shipping = 0;
-            let sellerCommission = 0;
-            seenKeys.forEach((k) => {
-                const b = orderBucket.get(k);
-                if (!b) return;
-                const share = 1 / (claimantCount.get(k) || 1);
-                attributedOrders += b.leads * share;
-                attributedDelivered += b.delivered * share;
-                revenue += b.revenue * share;
-                cogs += b.cogs * share;
-                shipping += b.shipping * share;
-                sellerCommission += b.sellerCommission * share;
-            });
-
-            // MB's own payout attributable to this period.
-            // Commission MBs: rate × attributed delivered.
-            // Salary MBs: monthly salary pro-rated by calendar-day window overlap
-            //   (window_days / 30 × salary_amount). Covers the "all-in cost"
-            //   promise in the card description.
-            let mbCost = 0;
-            if (mb.payment_type === 'commission') {
-                mbCost = attributedDelivered * Number(mb.commission_price || 0);
-            } else if (Number(mb.salary_amount || 0) > 0) {
-                mbCost = (Number(mb.salary_amount || 0) * windowDays) / 30;
-            }
-
-            const netProfit = revenue - cogs - shipping - sellerCommission - mbCost - spend;
-            const grossMargin = revenue - cogs - shipping - sellerCommission - mbCost;
-            const roas = spend > 0 ? revenue / spend : 0;
-            const costPerDelivered = attributedDelivered > 0 ? spend / attributedDelivered : 0;
-
+        // Rows are already sorted netProfit desc by the RPC and already carry
+        // their proportional share of each (day, platform) bucket.
+        const perMB = stats.mediabuyers.map((row) => {
+            const meta = metaById.get(row.mb_id);
             return {
-                ...mb,
-                spend,
-                attributedOrders,
-                attributedDelivered,
-                revenue,
-                cogs,
-                shipping,
-                sellerCommission,
-                mbCost,
-                grossMargin,
-                netProfit,
-                roas,
-                costPerDelivered,
+                id: row.mb_id,
+                name: meta?.name || 'Unnamed',
+                avatar_url: meta?.avatar_url ?? null,
+                avatar_config: meta?.avatar_config ?? null,
+                active: meta?.active ?? null,
+                spend: row.spend,
+                attributedOrders: row.orders,
+                attributedDelivered: row.delivered,
+                revenue: row.revenue,
+                cogs: row.cogs,
+                shipping: row.shipping,
+                sellerCommission: row.seller_commission,
+                mbCost: row.mb_cost,
+                netProfit: row.net_profit,
+                roas: row.spend > 0 ? row.revenue / row.spend : 0,
             };
         });
 
-        const sorted = [...perMB].sort((a, b) => b.netProfit - a.netProfit);
-        const activeMBs = mediaBuyers.filter((m) => m.active !== false).length;
-        const totalSpend = sorted.reduce((s, m) => s + m.spend, 0);
-        const totalRevenue = sorted.reduce((s, m) => s + m.revenue, 0);
-        const totalCogs = sorted.reduce((s, m) => s + m.cogs, 0);
-        const totalShipping = sorted.reduce((s, m) => s + m.shipping, 0);
-        const totalSellerCommission = sorted.reduce((s, m) => s + m.sellerCommission, 0);
-        const totalMbCost = sorted.reduce((s, m) => s + m.mbCost, 0);
-        const totalNetProfit = sorted.reduce((s, m) => s + m.netProfit, 0);
-        const totalDelivered = sorted.reduce((s, m) => s + m.attributedDelivered, 0);
-        const overallRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
-        const top = sorted[0];
+        // Totals are Σ over the post-share rows — no double counting.
+        const totalSpend = perMB.reduce((s, m) => s + m.spend, 0);
+        const totalRevenue = perMB.reduce((s, m) => s + m.revenue, 0);
+        const totalCogs = perMB.reduce((s, m) => s + m.cogs, 0);
+        const totalShipping = perMB.reduce((s, m) => s + m.shipping, 0);
+        const totalSellerCommission = perMB.reduce((s, m) => s + m.sellerCommission, 0);
+        const totalMbCost = perMB.reduce((s, m) => s + m.mbCost, 0);
+        const totalNetProfit = perMB.reduce((s, m) => s + m.netProfit, 0);
+        const totalDelivered = perMB.reduce((s, m) => s + m.attributedDelivered, 0);
 
         return {
-            perMB: sorted,
+            perMB,
+            // Roster-shaped facts: the RPC rows carry no active flag, and the
+            // array is roster-complete, so both counts come off the meta query.
             totalMBs: mediaBuyers.length,
-            activeMBs,
+            activeMBs: mediaBuyers.filter((m) => m.active !== false).length,
             totalSpend,
             totalRevenue,
             totalCogs,
@@ -405,10 +128,10 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             totalMbCost,
             totalNetProfit,
             totalDelivered,
-            overallRoas,
-            top,
+            overallRoas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
+            top: perMB[0],
         };
-    }, [mediaBuyers, entries, orders, sellers, products, accessories, dateFilter, deliveredPkgIds]);
+    }, [mediaBuyers, stats]);
 
     return (
         <SectionWrapper
@@ -417,7 +140,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             description="Attributed revenue, all-in costs, and net profit per media buyer"
             icon={Radar}
             iconColor="text-ant-mid"
-            loading={isLoading}
+            loading={isLoading || !stats}
         >
             {metrics && (() => {
                 const profitTone: 'positive' | 'warning' | 'negative' =

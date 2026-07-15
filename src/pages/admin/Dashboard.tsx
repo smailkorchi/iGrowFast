@@ -43,7 +43,7 @@ const Dashboard = () => {
     const fromKey = dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : null;
     const toKey = dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : null;
 
-    const { data: stats } = useQuery({
+    const { data: stats, isError, error, refetch, isFetching } = useQuery({
         queryKey: ['dash-stats', 'admin', businessId, fromKey, toKey],
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc('admin_dashboard_stats', {
@@ -58,10 +58,37 @@ const Dashboard = () => {
         staleTime: 60_000,
     });
 
+    // Widgets gate on `!stats`, which never resolves on a failed RPC — surface
+    // the failure with a retry instead of a permanent skeleton wall (D3 review).
+    const statsFailed = isError && !stats;
+
     if (!businessId) {
         return (
             <div className="ant-surface flex items-center justify-center h-[60vh]">
                 <p className="text-ant-mid text-sm">No business selected.</p>
+            </div>
+        );
+    }
+
+    if (statsFailed) {
+        return (
+            <div className="ant-surface flex items-center justify-center h-[60vh]">
+                <div className="text-center max-w-md px-6">
+                    <h2 className="font-display text-[20px] font-semibold text-ant-ink mb-1 tracking-tight">
+                        Tableau de bord indisponible
+                    </h2>
+                    <p className="font-serif-display text-[13px] text-ant-muted italic mb-4">
+                        {(error as Error)?.message || 'Le chargement des statistiques a échoué.'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        className="inline-flex items-center gap-2 rounded-xl border border-ant-line bg-ant-paper px-4 py-2 text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-60"
+                    >
+                        {isFetching ? 'Chargement…' : 'Réessayer'}
+                    </button>
+                </div>
             </div>
         );
     }

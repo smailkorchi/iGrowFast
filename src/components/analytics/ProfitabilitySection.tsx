@@ -1,23 +1,4 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import {
-    AnalyticsOrder,
-    cogsForOrder,
-    deliveryTimestamp,
-    inWindow,
-    isProvisional,
-    isRevenueOrder,
-    isReturned,
-    overlapFraction,
-    payoutMonthOverlap,
-    placementTimestamp,
-    pureRevenueForOrder,
-    returnFeeForOrder,
-    returnTimestamp,
-    shippingCostForDelivered,
-} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
 import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -37,6 +18,7 @@ import {
     endOfMonth,
     endOfWeek,
     format,
+    parseISO,
     startOfDay,
     startOfMonth,
     startOfWeek,
@@ -46,352 +28,106 @@ import {
 // Ranked cost tones (darkest = biggest expense). Uses the locked palette — no rainbow.
 const EXPENSE_COLORS = ['#141413', '#3f3e3a', '#6b6a63', '#8d8b84', '#b0aea5', '#d8d6cc'];
 
+/**
+ * `profitability` section of admin_analytics_stats (D3). The ENTIRE P&L is
+ * server-side now — revenue (full pureRevenue chain over paid+delivered orders),
+ * snapshot-first COGS, shipping, courier-first return fees, cash-basis expenses
+ * grouped by type, seller salaries (seller_daily_earnings Σ), media-buyer
+ * salaries (payout-month overlap), product ads (overlap pro-rated), campaign
+ * ads (daily entries), the provisional block and the day-bucketed trend. This
+ * also kills the last wrong-money 1000-cap bare selects on this page
+ * (seller_daily_earnings, campaign_daily_entries, mediabuyer_payments,
+ * ads_history, courier_fees).
+ *
+ * Per-metric window anchors are preserved verbatim (NOT unified): revenue/COGS/
+ * shipping on delivery (date_livraison ?? updated_at), returns on updated_at,
+ * expenses/global ads/seller salaries on their own day columns, product ads by
+ * range overlap, MB salaries by payout-month overlap, and the conversion
+ * denominator alone on placement.
+ *
+ * Client keeps only presentation: the expense-breakdown ordering, the
+ * rule-based insight tips and the trend re-bucketing to the adaptive grain.
+ */
+export interface ProfitabilitySlice {
+    /** Conversion denominator — the placement cohort. */
+    placed_count: number;
+    /** Conversion numerator — placed cohort ∩ paid+delivered (⊆ denominator). */
+    converted_count: number;
+    revenue_order_count: number;
+    total_revenue: number;
+    total_cogs: number;
+    total_shipping_cost: number;
+    total_return_fees: number;
+    total_expenses: number;
+    total_seller_salaries: number;
+    total_mediabuyer_salaries: number;
+    spend_product_ads: number;
+    spend_global_ads: number;
+    all_expenses: number;
+    net_profit: number;
+    profit_margin: number;
+    roi: number;
+    provisional_count: number;
+    provisional_revenue: number;
+    provisional_profit: number;
+    /** Sorted amount desc by the RPC. */
+    expense_by_type: Array<{ name: string; amount: number }>;
+    /** All-Time trend anchor: earliest placement-or-delivery day. 'YYYY-MM-DD'. */
+    earliest_day: string | null;
+    /** Casablanca day buckets, ascending. */
+    trend: Array<{
+        d: string;
+        revenue: number;
+        cogs: number;
+        shipping: number;
+        return_fees: number;
+        expenses: number;
+        product_ads: number;
+        global_ads: number;
+        seller_salaries: number;
+        mb_salaries: number;
+        provisional: number;
+    }>;
+}
+
 interface ProfitabilitySectionProps {
     businessId: string;
     dateFilter: DateFilter;
+    stats?: ProfitabilitySlice | null;
 }
 
-export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySectionProps) => {
-    const { deliveredPkgIds, returnedPkgIds, paidOrderIds, unpaidOrderIds } = useStatusCategories();
-
-    // Orders query — adds all fields needed for pure revenue, snapshot COGS,
-    // return-fee lookup, and delivered/returned classification.
-    const { data: orders, isLoading: ordersLoading } = useQuery({
-        queryKey: ['analytics-orders-profit', businessId],
-        queryFn: async () => {
-            const rows = await fetchAllRows(
-                'orders',
-                'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, courier_id, company_id, master_city_id, replace, order_statuses(code), package_statuses(label), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: businessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                },
-            );
-            // Exchange swap/return legs (replace=true) are physical parcels, not
-            // sales — drop them so revenue/profit/ROAS aren't inflated by an
-            // exchange. Carrier fee reconciliation (Payments) keeps them.
-            return (rows as Array<{ replace?: boolean | null }>).filter(o => o.replace !== true);
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: products } = useQuery({
-        queryKey: ['analytics-products', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('products').select('id, cost_price, name').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: accessories } = useQuery({
-        queryKey: ['analytics-accessories', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('accessories').select('id, cost_price').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: expenses } = useQuery({
-        queryKey: ['analytics-expenses', businessId],
-        queryFn: async () => {
-            // Paginate: recurring charges materialise one expenses row per
-            // occurrence (a daily charge = one row/day), so a business can
-            // exceed the 1000-row PostgREST cap. A bare select would silently
-            // truncate and undercount fixed costs in the P&L.
-            return await fetchAllRows<{
-                id: string;
-                amount: number | string | null;
-                date: string | null;
-                type_id: string | null;
-                expense_types: { name: string | null; recurrent: boolean | null } | null;
-            }>(
-                'expenses',
-                'id, amount, date, type_id, expense_types(name, recurrent)',
-                {
-                    orderBy: 'id',
-                    filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }],
-                },
-            );
-        },
-        enabled: !!businessId,
-    });
-
-    // Seller earnings (accrual) — daily rows matching server-side payout math.
-    const { data: sellerEarnings } = useQuery({
-        queryKey: ['analytics-seller-daily-earnings', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('seller_daily_earnings')
-                .select('seller_id, date, salary_earned, commission_earned, total_earned')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{
-                seller_id: string;
-                date: string;
-                salary_earned: number | string | null;
-                commission_earned: number | string | null;
-                total_earned: number | string | null;
-            }>;
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: mediabuyerPayments } = useQuery({
-        queryKey: ['analytics-mediabuyer-payments', businessId],
-        queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('mediabuyer_payments')
-                .select('id, total_amount, payout_month')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{ id: string; total_amount: number | string; payout_month: string }>;
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: adsHistory } = useQuery({
-        queryKey: ['analytics-ads-history', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('ads_history').select('id, amount, start_date, end_date').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: campaignEntries } = useQuery({
-        queryKey: ['analytics-campaign-entries-profit', businessId],
-        queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('campaign_daily_entries')
-                .select('entry_date, spend')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{ entry_date: string; spend: number | string }>;
-        },
-        enabled: !!businessId,
-    });
-
-    // Return fees — lookup table keyed by (courier_id|master_city_id) and (company_id|master_city_id).
-    const { data: courierFees } = useQuery({
-        queryKey: ['analytics-courier-fees', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('courier_fees')
-                .select('courier_id, master_city_id, return_fee')
-                .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{
-                courier_id: string;
-                master_city_id: string | null;
-                return_fee: number | string | null;
-            }>;
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: companyFees } = useQuery({
-        queryKey: ['analytics-company-fees', businessId],
-        queryFn: async () => {
-            // Paginated: company_fees can exceed 1000 rows per business (one
-            // business already has ~1,556) — a bare select truncated the
-            // return-fee lookup map and undercounted return fees in the P&L.
-            return (await fetchAllRows(
-                'company_fees',
-                'company_id, master_city_id, return_fee',
-                { filters: [{ column: 'DigiCom Business', op: 'eq', value: businessId }] },
-            )) as Array<{
-                company_id: string;
-                master_city_id: string | null;
-                return_fee: number | string | null;
-            }>;
-        },
-        enabled: !!businessId,
-    });
-
-    const isLoading = ordersLoading;
-
+export const ProfitabilitySection = ({ dateFilter, stats }: ProfitabilitySectionProps) => {
     const metrics = useMemo(() => {
-        if (!orders) return null;
-        // Supabase-generated row types don't know about newly added columns until
-        // types are regenerated. Cast once so the analytics helpers get a clean
-        // structural type instead of SelectQueryError wrappers.
-        const ordersTyped = orders as unknown as AnalyticsOrder[];
+        if (!stats) return null;
 
-        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
+        const totalAdSpend = stats.spend_product_ads + stats.spend_global_ads;
 
-        // Build lookups.
-        const productCost = new Map<string, number>();
-        (products || []).forEach(p => productCost.set(p.id, Number(p.cost_price || 0)));
-        const accessoryCost = new Map<string, number>();
-        (accessories || []).forEach(a => accessoryCost.set(a.id, Number(a.cost_price || 0)));
-
-        const returnFeeByCourierCity = new Map<string, number>();
-        (courierFees || []).forEach(r => {
-            const city = r.master_city_id;
-            if (r.courier_id && city) {
-                returnFeeByCourierCity.set(`${r.courier_id}|${city}`, Number(r.return_fee || 0));
-            }
-        });
-        const returnFeeByCompanyCity = new Map<string, number>();
-        (companyFees || []).forEach(r => {
-            const city = r.master_city_id;
-            if (r.company_id && city) {
-                returnFeeByCompanyCity.set(`${r.company_id}|${city}`, Number(r.return_fee || 0));
-            }
-        });
-
-        // ── Orders classification ───────────────────────────────────────
-        //
-        // TWO separate attribution rules so the P&L closes like a real monthly
-        // accounting period instead of a cohort snapshot:
-        //
-        //   • placedInWindow  — orders whose creation date is in the window.
-        //                       Used ONLY for the Conversion rate denominator.
-        //   • revenueOrders   — delivered + paid, anchored by delivery date
-        //                       (`date_livraison` fallback `updated_at`).
-        //   • provisionalOrders — delivered + unpaid, same delivery-date anchor.
-        //   • returnedOrders  — package category ∈ returned set, anchored by
-        //                       `updated_at` (when the status flipped).
-        //
-        // Rationale: revenue/COGS/shipping/return fees all accrue at delivery
-        // or return, never at placement. Expenses/ads/salaries stay on their
-        // own accrual dates (already handled below). Prior behaviour used
-        // placement date for everything on the order side, which silently
-        // omitted orders placed in month M−1 but delivered in month M.
-        const placedInWindow = ordersTyped.filter(o =>
-            inWindow(placementTimestamp(o), windowStart, windowEnd),
-        );
-
-        const revenueOrders = ordersTyped.filter(o =>
-            isRevenueOrder(o, deliveredPkgIds, paidOrderIds)
-            && inWindow(deliveryTimestamp(o), windowStart, windowEnd),
-        );
-        const provisionalOrders = ordersTyped.filter(o =>
-            isProvisional(o, deliveredPkgIds, unpaidOrderIds)
-            && inWindow(deliveryTimestamp(o), windowStart, windowEnd),
-        );
-        const returnedOrders = ordersTyped.filter(o =>
-            isReturned(o, returnedPkgIds)
-            && inWindow(returnTimestamp(o), windowStart, windowEnd),
-        );
-
-        // ── Pure revenue (product-only, shipping stripped) ──────────────
-        const totalRevenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
-
-        // ── COGS + shipping (only for revenue orders — returns contribute zero) ──
-        let totalCOGS = 0;
-        let totalShippingCost = 0;
-        revenueOrders.forEach(o => {
-            totalCOGS += cogsForOrder(o, productCost, accessoryCost);
-            totalShippingCost += shippingCostForDelivered(o);
-        });
-
-        // ── Return fees (only for returned orders in the window) ────────
-        const totalReturnFees = returnedOrders.reduce(
-            (s, o) => s + returnFeeForOrder(o, returnFeeByCourierCity, returnFeeByCompanyCity),
-            0,
-        );
-
-        // ── Owner expenses — strict cash basis ──────────────────────────────
-        // Expense counts on the day its `date` falls in the window. Previously
-        // the `recurrent` flag triggered a monthly pro-rate (Σ amount × 1/30
-        // per day), but `expense_types` has no period metadata (daily / weekly
-        // / monthly / yearly) — the "monthly" assumption was hardcoded and
-        // inflated sub-monthly windows with phantom spend. Removing the guess
-        // gives the user the same math as non-recurrent: "what I posted in
-        // this window" = what they see. Data-driven pro-rating is still used
-        // for ads (real start/end) and media-buyer payouts (explicit payout_month).
-        let totalExpenses = 0;
-        const expenseByType = new Map<string, number>();
-        (expenses || []).forEach(e => {
-            const raw = Number(e.amount || 0);
-            if (raw <= 0) return;
-            const eDate = e.date ? new Date(e.date) : null;
-            if (!eDate || Number.isNaN(eDate.getTime())) return;
-            if (!inWindow(eDate, windowStart, windowEnd)) return;
-            totalExpenses += raw;
-            const eType = (e.expense_types as unknown as { name?: string | null; recurrent?: boolean | null } | null);
-            const name = (eType?.name?.trim()) || 'Uncategorized';
-            expenseByType.set(name, (expenseByType.get(name) || 0) + raw);
-        });
-
-        // ── Salaries (accrual) ───────────────────────────────────────────
-        // Sellers: seller_daily_earnings.date in window (daily granularity).
-        const totalSellerSalaries = (sellerEarnings || [])
-            .filter(r => {
-                if (!r.date) return false;
-                const d = new Date(r.date);
-                return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
-            })
-            .reduce((s, r) => s + Number(r.total_earned || 0), 0);
-
-        // MBs: pro-rate payout_month by window overlap.
-        const totalMediabuyerSalaries = (mediabuyerPayments || []).reduce((s, mp) => {
-            const frac = payoutMonthOverlap(mp.payout_month, windowStart, windowEnd);
-            return frac > 0 ? s + Number(mp.total_amount || 0) * frac : s;
-        }, 0);
-
-        const totalSalaries = totalSellerSalaries + totalMediabuyerSalaries;
-
-        // ── Ad spend ─────────────────────────────────────────────────────
-        let spendProductAds = 0;
-        (adsHistory || []).forEach(a => {
-            const s = a.start_date ? new Date(a.start_date) : null;
-            const e = a.end_date ? new Date(a.end_date) : s;
-            const frac = overlapFraction(s, e, windowStart, windowEnd);
-            if (frac > 0) spendProductAds += Number(a.amount || 0) * frac;
-        });
-
-        const spendGlobalAds = (campaignEntries || [])
-            .filter(ce => {
-                if (!ce.entry_date) return false;
-                const d = new Date(ce.entry_date);
-                return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
-            })
-            .reduce((s, ce) => s + Number(ce.spend || 0), 0);
-
-        const totalAdSpend = spendProductAds + spendGlobalAds;
-
-        // ── Totals ───────────────────────────────────────────────────────
-        const allExpenses =
-            totalCOGS + totalShippingCost + totalReturnFees + totalExpenses + totalSalaries + totalAdSpend;
-        const netProfit = totalRevenue - allExpenses;
-        const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-        const roi = allExpenses > 0 ? (netProfit / allExpenses) * 100 : 0;
-
+        // Seven fixed cost lines + one row per expense type, biggest first.
         const expenseBreakdown = [
-            { name: 'Product COGS', value: totalCOGS },
-            { name: 'Shipping', value: totalShippingCost },
-            { name: 'Return fees', value: totalReturnFees },
-            { name: 'Product ads', value: spendProductAds },
-            { name: 'Campaign ads', value: spendGlobalAds },
-            { name: 'Seller salaries', value: totalSellerSalaries },
-            { name: 'Media buyer salaries', value: totalMediabuyerSalaries },
-            ...Array.from(expenseByType.entries()).map(([name, value]) => ({ name, value })),
+            { name: 'Product COGS', value: stats.total_cogs },
+            { name: 'Shipping', value: stats.total_shipping_cost },
+            { name: 'Return fees', value: stats.total_return_fees },
+            { name: 'Product ads', value: stats.spend_product_ads },
+            { name: 'Campaign ads', value: stats.spend_global_ads },
+            { name: 'Seller salaries', value: stats.total_seller_salaries },
+            { name: 'Media buyer salaries', value: stats.total_mediabuyer_salaries },
+            ...stats.expense_by_type.map((e) => ({ name: e.name, value: e.amount })),
         ]
             .filter(e => e.value > 0)
             .sort((a, b) => b.value - a.value);
 
         // ── Trend ────────────────────────────────────────────────────────
-        // Auto-pick granularity (day / week / month) from the window length
-        // and clamp every bucket to the user's selected window. The old code
-        // always used monthly buckets, so a "Today" filter rendered a single
-        // bucket covering the entire month — the tooltip showed 8k MAD of
-        // monthly expenses while the top-line tile correctly showed today's
-        // 57 MAD. Clamping + adaptive granularity keeps the chart and the
-        // tiles on the same numbers.
-        const allOrderTimestamps: number[] = [];
-        ordersTyped.forEach(o => {
-            const p = placementTimestamp(o)?.getTime();
-            if (p) allOrderTimestamps.push(p);
-            const d = deliveryTimestamp(o)?.getTime();
-            if (d) allOrderTimestamps.push(d);
-        });
-        const earliest = allOrderTimestamps.length
-            ? new Date(Math.min(...allOrderTimestamps))
+        // The RPC returns Casablanca day buckets with every P&L component
+        // pre-split per day (product ads spread amount/total_days over their
+        // range, MB salaries amount/days-in-month over the payout month — the
+        // exact 1-day equivalent of the old overlap fractions). Granularity
+        // and bucket clamping stay client-side: auto-pick from the window
+        // length and clamp each bucket to the user's range, so a "Today"
+        // filter can't render a bucket covering the whole month.
+        const earliest = stats.earliest_day
+            ? startOfDay(parseISO(stats.earliest_day))
             : subMonths(new Date(), 6);
+
         const rangeStart = dateFilter.from ? startOfDay(dateFilter.from) : startOfDay(earliest);
         const rangeEnd = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
         const rangeDays = Math.max(0, differenceInDays(rangeEnd, rangeStart));
@@ -413,8 +149,6 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             labelFormat = rangeDays <= 14 ? 'EEE d' : 'MMM d';
         }
 
-        // Clamp each bucket's [start, end] to the user's window so edge
-        // buckets don't pull in out-of-scope rows.
         const bucketBounds = (anchor: Date): { start: Date; end: Date } => {
             let s: Date;
             let e: Date;
@@ -433,144 +167,61 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             return { start: s, end: e };
         };
 
+        // Day keys are compared as 'YYYY-MM-DD' strings (ISO dates sort
+        // lexicographically) so the server's Casablanca day never gets
+        // re-interpreted through the browser's timezone.
         const trendData = intervals.map((anchor) => {
-            const { start, end } = bucketBounds(anchor);
-            const label = format(anchor, labelFormat);
+            const { start: bStart, end: bEnd } = bucketBounds(anchor);
+            const startKey = format(bStart, 'yyyy-MM-dd');
+            const endKey = format(bEnd, 'yyyy-MM-dd');
 
-            // Revenue/COGS/shipping scoped by delivery date inside bucket.
-            const revenueInBucket = revenueOrders.filter((o) =>
-                inWindow(deliveryTimestamp(o), start, end),
-            );
-            // Return fees scoped by return event inside bucket.
-            const returnedInBucket = returnedOrders.filter((o) =>
-                inWindow(returnTimestamp(o), start, end),
-            );
-
-            const bRevenue = revenueInBucket.reduce((s, o) => s + pureRevenueForOrder(o), 0);
-            const bCogs = revenueInBucket.reduce(
-                (s, o) => s + cogsForOrder(o, productCost, accessoryCost),
-                0,
-            );
-            const bShipping = revenueInBucket.reduce(
-                (s, o) => s + shippingCostForDelivered(o),
-                0,
-            );
-            const bReturnFees = returnedInBucket.reduce(
-                (s, o) => s + returnFeeForOrder(o, returnFeeByCourierCity, returnFeeByCompanyCity),
-                0,
-            );
-
-            // Cash-basis: expense counts in the bucket it was posted.
-            const bOther = (expenses || []).reduce((sum, e) => {
-                const raw = Number(e.amount || 0);
-                if (raw <= 0) return sum;
-                const eDate = e.date ? new Date(e.date) : null;
-                if (!eDate || Number.isNaN(eDate.getTime())) return sum;
-                return inWindow(eDate, start, end) ? sum + raw : sum;
-            }, 0);
-
-            const bProductAds = (adsHistory || []).reduce((sum, a) => {
-                const aS = a.start_date ? new Date(a.start_date) : null;
-                const aE = a.end_date ? new Date(a.end_date) : aS;
-                const frac = overlapFraction(aS, aE, start, end);
-                return frac > 0 ? sum + Number(a.amount || 0) * frac : sum;
-            }, 0);
-
-            const bGlobalAds = (campaignEntries || [])
-                .filter((ce) => {
-                    if (!ce.entry_date) return false;
-                    const d = new Date(ce.entry_date);
-                    return !Number.isNaN(d.getTime()) && inWindow(d, start, end);
-                })
-                .reduce((s, ce) => s + Number(ce.spend || 0), 0);
-
-            const bSellerSalaries = (sellerEarnings || [])
-                .filter((r) => {
-                    if (!r.date) return false;
-                    const d = new Date(r.date);
-                    return !Number.isNaN(d.getTime()) && inWindow(d, start, end);
-                })
-                .reduce((sum, r) => sum + Number(r.total_earned || 0), 0);
-
-            const bMBSalaries = (mediabuyerPayments || []).reduce((sum, mp) => {
-                const frac = payoutMonthOverlap(mp.payout_month, start, end);
-                return frac > 0 ? sum + Number(mp.total_amount || 0) * frac : sum;
-            }, 0);
-
-            const bucketExpenses =
-                bCogs + bShipping + bReturnFees + bOther +
-                bProductAds + bGlobalAds + bSellerSalaries + bMBSalaries;
+            let revenue = 0;
+            let expenses = 0;
+            let provisional = 0;
+            for (const row of stats.trend) {
+                if (row.d < startKey || row.d > endKey) continue;
+                revenue += row.revenue;
+                expenses += row.cogs + row.shipping + row.return_fees + row.expenses
+                    + row.product_ads + row.global_ads + row.seller_salaries + row.mb_salaries;
+                provisional += row.provisional;
+            }
 
             return {
-                month: label,
-                revenue: bRevenue,
-                expenses: bucketExpenses,
-                profit: bRevenue - bucketExpenses,
-                provisional: 0,
-                _start: start,
-                _end: end,
+                month: format(anchor, labelFormat),
+                revenue,
+                expenses,
+                profit: revenue - expenses,
+                provisional,
             };
         });
 
-        // Build provisional per-order amounts (delivered-unpaid: pure revenue − COGS − shipping).
-        const provisionByOrderId = new Map<string, number>();
-        provisionalOrders.forEach(o => {
-            const pure = pureRevenueForOrder(o);
-            const cogs = cogsForOrder(o, productCost, accessoryCost);
-            const ship = shippingCostForDelivered(o);
-            provisionByOrderId.set(o.id, pure - cogs - ship);
-        });
-
-        trendData.forEach((row) => {
-            row.provisional = provisionalOrders
-                .filter((o) => inWindow(deliveryTimestamp(o), row._start, row._end))
-                .reduce((s, o) => s + (provisionByOrderId.get(o.id) ?? 0), 0);
-        });
-
-        const provisionalRevenue = provisionalOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
-        const provisionalProfit = Array.from(provisionByOrderId.values()).reduce((s, v) => s + v, 0);
-
-        // Conversion rate is a cohort metric: of orders PLACED in the window,
-        // how many have so far become paid+delivered? Numerator is drawn from
-        // `placedInWindow` (not from the delivery-bucketed `revenueOrders`)
-        // so numerator ⊆ denominator and the ratio can't exceed 100 %.
-        const convertedFromPlacedCohort = placedInWindow.filter(o =>
-            isRevenueOrder(o, deliveredPkgIds, paidOrderIds),
-        ).length;
-
         return {
-            totalRevenue,
-            allExpenses,
-            netProfit,
-            profitMargin,
-            roi,
-            totalCOGS,
-            totalShippingCost,
-            totalReturnFees,
+            totalRevenue: stats.total_revenue,
+            allExpenses: stats.all_expenses,
+            netProfit: stats.net_profit,
+            profitMargin: stats.profit_margin,
+            roi: stats.roi,
+            totalCOGS: stats.total_cogs,
+            totalShippingCost: stats.total_shipping_cost,
+            totalReturnFees: stats.total_return_fees,
             totalAdSpend,
-            totalSalaries,
-            totalExpenses,
-            spendProductAds,
-            spendGlobalAds,
-            totalSellerSalaries,
-            totalMediabuyerSalaries,
+            totalExpenses: stats.total_expenses,
+            spendProductAds: stats.spend_product_ads,
+            spendGlobalAds: stats.spend_global_ads,
+            totalSellerSalaries: stats.total_seller_salaries,
+            totalMediabuyerSalaries: stats.total_mediabuyer_salaries,
             expenseBreakdown,
             trendData,
-            revenueOrderCount: revenueOrders.length,
+            revenueOrderCount: stats.revenue_order_count,
             // Conversion denominator + numerator are both drawn from the
             // placement cohort so the ratio is bounded 0..100 %.
-            totalOrderCount: placedInWindow.length,
-            convertedFromPlacedCohort,
-            returnedOrderCount: returnedOrders.length,
-            provisionalProfit,
-            provisionalRevenue,
-            provisionOrderCount: provisionalOrders.length,
+            totalOrderCount: stats.placed_count,
+            convertedFromPlacedCohort: stats.converted_count,
+            provisionalProfit: stats.provisional_profit,
+            provisionalRevenue: stats.provisional_revenue,
+            provisionOrderCount: stats.provisional_count,
         };
-    }, [
-        orders, products, accessories, expenses, sellerEarnings, mediabuyerPayments,
-        adsHistory, campaignEntries, courierFees, companyFees,
-        dateFilter, deliveredPkgIds, returnedPkgIds, paidOrderIds, unpaidOrderIds,
-    ]);
+    }, [stats, dateFilter]);
 
     const insights = useMemo(() => {
         if (!metrics) return [];
@@ -630,7 +281,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             icon={DollarSign}
             iconBg="bg-ant-green/10"
             iconColor="text-ant-green"
-            loading={isLoading}
+            loading={!stats}
         >
             {metrics && (() => {
                 const isProfit = metrics.netProfit >= 0;
