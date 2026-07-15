@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import {
@@ -29,7 +29,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { UserAvatar } from '@/components/users/UserAvatar';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -40,7 +39,6 @@ import {
 } from '@/components/ui/dialog';
 import { useSellerLiveOwed, type SellerLiveOwed } from '@/hooks/useSellerLiveOwed';
 import { useSellerLedger, type SellerLedger, type LedgerTicket } from '@/hooks/useSellerLedger';
-import { useMediaBuyerEarnings, type MediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
 type Role = 'seller' | 'mediabuyer';
@@ -141,7 +139,6 @@ const SellerPayoutsList: React.FC = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | PayoutStatus>('all');
-    const [selected, setSelected] = useState<string[]>([]);
     const [page, setPage] = useState(1);
     const PER_PAGE = 10;
     // Partial-payment dialogs — the "Record payment" composer + the history list.
@@ -175,9 +172,6 @@ const SellerPayoutsList: React.FC = () => {
     }, [recordOpen, historyOpen, queryClient]);
 
     const monthKey = format(new Date(), 'yyyy-MM') + '-01';
-    const invalidateAll = () =>
-        ['seller-payouts', 'seller-payment-txns', 'seller-live-owed-users', 'seller-live-owed-orders', 'seller-live-owed-payments']
-            .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
 
     // Canonical payout row a payment attaches to for a seller:
     // current-month row -> else first existing row -> else none (insert at pay time).
@@ -189,37 +183,6 @@ const SellerPayoutsList: React.FC = () => {
             .reduce((s, r) => s + r.total_amount, 0);
         return { canonical, otherRowsTotal };
     };
-
-    // Pay a seller's full LIVE remaining: top up (or insert) the canonical row so
-    // its total_amount covers live accrued, then insert one txn for the remaining.
-    // Order is load-bearing — only the txn insert fires the balance trigger.
-    const settleMutation = useMutation({
-        mutationFn: async (sellerIds: string[]) => {
-            let inserted = 0;
-            for (const sid of sellerIds) {
-                const o = liveOwed.byId(sid);
-                if (!o || o.remaining <= 0.005) continue;
-                // pay_seller records the disbursement against the rolling open ticket
-                // (handles carry/FIFO + balance atomically). No direct row writes.
-                const { error } = await (supabase as any).rpc('pay_seller', {
-                    p_seller_id: sid,
-                    p_business_id: activeBusinessId,
-                    p_amount: o.remaining,
-                    p_paid_at: new Date().toISOString(),
-                    p_note: 'Settled in full from Salaries bulk action',
-                });
-                if (error) throw error;
-                inserted++;
-            }
-            return { inserted };
-        },
-        onSuccess: (res) => {
-            invalidateAll();
-            toast({ title: 'Settled', description: `${res.inserted} seller(s) paid in full.` });
-            setSelected([]);
-        },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
-    });
 
 
     // Sellers with real activity. One DISPLAY row per (seller, month) ticket — like
@@ -610,7 +573,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | PayoutStatus>('all');
-    const [selected, setSelected] = useState<string[]>([]);
     const [page, setPage] = useState(1);
     const PER_PAGE = 10;
     const [recordOpen, setRecordOpen] = useState(false);
@@ -677,39 +639,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
     // the snapshot's last-known values. Never blanks, always refreshes.
     const mbMoney = activeRowLive ?? activeRow;
 
-    // Same partial-aware bulk action as seller list: insert a txn covering
-    // the remaining balance for each selected non-paid row.
-    const settleMutation = useMutation({
-        mutationFn: async (ids: string[]) => {
-            const rows = payouts.filter((p) => ids.includes(p.id));
-            const { data: { user } } = await supabase.auth.getUser();
-            const inserts = rows
-                .map((p) => {
-                    const remaining = Math.max(0, Number(p.total_amount || 0) - Number(p.paid_amount || 0));
-                    return { p, remaining };
-                })
-                .filter(({ remaining }) => remaining > 0)
-                .map(({ p, remaining }) => ({
-                    mediabuyer_payment_id: p.id,
-                    amount: remaining,
-                    paid_at: new Date().toISOString(),
-                    note: 'Settled in full from Salaries bulk action',
-                    created_by: user?.id || null,
-                    'DigiCom Business': activeBusinessId,
-                }));
-            if (!inserts.length) return { inserted: 0 };
-            const { error } = await (supabase as any).from('mediabuyer_payment_txns').insert(inserts);
-            if (error) throw error;
-            return { inserted: inserts.length };
-        },
-        onSuccess: (res) => {
-            queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
-            queryClient.invalidateQueries({ queryKey: ['mediabuyer-payment-txns'] });
-            toast({ title: 'Settled', description: `${res.inserted} payout(s) marked as fully paid.` });
-            setSelected([]);
-        },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
-    });
 
 
     const filtered = useMemo(() => {
@@ -1066,444 +995,6 @@ const MediaBuyerPayoutsList: React.FC = () => {
                 onPick={(b) => { setBreakdownMbId(b.mediabuyer_id); setGlobalOpen(false); setBreakdownOpen(true); }}
             />
         </div>
-    );
-};
-
-// ═════════════════════════ Bulk Generate Dialog ═════════════════════════
-type GenStep = 'select' | 'review' | 'amount';
-
-const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) => void; initialRole: Role }> = ({ open, onOpenChange, initialRole }) => {
-    const { toast } = useToast();
-    const queryClient = useQueryClient();
-    const activeBusinessId = localStorage.getItem('activeBusinessId');
-    // The modal is LOCKED to the tab it was opened from — no in-modal role switch.
-    const role = initialRole;
-    const isSeller = role === 'seller';
-    // Media-buyer payouts are always generated for the CURRENT month (no picker —
-    // sellers have none either; both pay/generate "now").
-    const monthKey = useMemo(() => format(new Date(), 'yyyy-MM'), []);
-    const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const [step, setStep] = useState<GenStep>('select');
-    // Editable per-seller amounts (seller step 3 only). Media-buyer payouts are
-    // generated at their full computed earning, never an arbitrary amount.
-    const [amounts, setAmounts] = useState<Record<string, string>>({});
-
-    const mbEarnings = useMediaBuyerEarnings(monthKey);
-    // Sellers are paid against the rolling ledger — owe + the breakdown all come
-    // from the open ticket. Media buyers stay month-based.
-    const ledger = useSellerLedger();
-    const owers = useMemo(
-        () => [...ledger.owing].sort((a, b) => b.owe - a.owe || a.name.localeCompare(b.name)),
-        [ledger.owing],
-    );
-    const oweFor = (sellerId: string) => Math.max(0, ledger.byId(sellerId)?.owe ?? 0);
-    const mbOwers = useMemo(
-        () => (mbEarnings.rows as MediaBuyerEarnings[]).filter((r) => r.remaining_amount > 0.005),
-        [mbEarnings.rows],
-    );
-
-    React.useEffect(() => {
-        if (open) {
-            setSelectedIds([]);
-            setStep('select');
-            setAmounts({});
-        }
-    }, [open, initialRole]);
-
-    const activeLoading = isSeller ? ledger.isLoading : mbEarnings.isLoading;
-    const activeRows = isSeller ? owers : mbOwers;
-
-    // Default selection: everyone who owes / has a remainder to generate.
-    // Keyed off the *id set* (a stable string), NOT the array refs — owers churns
-    // a new reference every render (ledger.owing is unmemoized), which would
-    // otherwise re-fire this effect on every render and reset the wizard step.
-    // Does NOT touch `step`; the open-reset effect owns step initialisation.
-    const sellerOwerKey = owers.map((r) => r.seller_id).join(',');
-    const mbOwerKey = mbOwers.map((r) => r.mediabuyer_id).join(',');
-    React.useEffect(() => {
-        if (!open || activeLoading) return;
-        if (isSeller) setSelectedIds(owers.map((r) => r.seller_id));
-        else setSelectedIds(mbOwers.map((r) => r.mediabuyer_id));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, activeLoading, isSeller, sellerOwerKey, mbOwerKey]);
-
-    const seedAmounts = () => {
-        const next: Record<string, string> = {};
-        selectedIds.forEach((id) => { next[id] = oweFor(id).toFixed(2); });
-        setAmounts(next);
-    };
-    const amountFor = (id: string) => {
-        const raw = amounts[id];
-        const v = raw === undefined ? oweFor(id) : parseFloat(raw);
-        if (!isFinite(v) || v < 0) return 0;
-        return Math.min(v, oweFor(id));
-    };
-
-    const selectedSellers = useMemo(() => owers.filter((r) => selectedIds.includes(r.seller_id)), [owers, selectedIds]);
-    const selectedMb = useMemo(() => mbOwers.filter((r) => selectedIds.includes(r.mediabuyer_id)), [mbOwers, selectedIds]);
-
-    const totals = useMemo(() => {
-        if (isSeller) {
-            const amount = step === 'amount'
-                ? selectedSellers.reduce((a, r) => a + amountFor(r.seller_id), 0)
-                : selectedSellers.reduce((a, r) => a + r.owe, 0);
-            return { users: selectedSellers.length, delivered: selectedSellers.reduce((a, r) => a + (r.open?.delivered_orders ?? 0), 0), amount };
-        }
-        return {
-            users: selectedMb.length,
-            delivered: selectedMb.reduce((a, r) => a + r.delivered_orders, 0),
-            amount: selectedMb.reduce((a, r) => a + r.remaining_amount, 0),
-        };
-    }, [isSeller, step, selectedSellers, selectedMb, amounts]);
-
-    const generateMutation = useMutation({
-        mutationFn: async () => {
-            if (!activeBusinessId) throw new Error('No active business');
-            if (selectedIds.length === 0) throw new Error('Select at least one collaborator');
-
-            if (isSeller) {
-                const targets = selectedSellers
-                    .map((r) => ({ id: r.seller_id, amt: amountFor(r.seller_id) }))
-                    .filter((t) => t.amt > 0.005);
-                if (targets.length === 0) throw new Error('Nothing to pay on the selected sellers');
-                for (const t of targets) {
-                    const { error } = await (supabase as any).rpc('pay_seller', {
-                        p_seller_id: t.id,
-                        p_business_id: activeBusinessId,
-                        p_amount: t.amt,
-                        p_paid_at: new Date().toISOString(),
-                        p_note: 'Paid from Salaries generate flow',
-                    });
-                    if (error) throw error;
-                }
-                return { role: 'seller' as const, count: targets.length };
-            } else {
-                const payload = selectedMb
-                    .filter((r) => r.remaining_amount > 0)
-                    .map((r) => ({
-                        mediabuyer_id: r.mediabuyer_id,
-                        'DigiCom Business': activeBusinessId,
-                        payout_month: monthKey,
-                        payment_type: r.payment_type || 'commission',
-                        salary_earned: r.salary_earned,
-                        commission_earned: r.commission_earned,
-                        total_amount: r.remaining_amount,
-                        delivered_orders: r.delivered_orders,
-                        total_spend: r.total_spend,
-                        campaigns_count: r.campaigns_count,
-                        bank_snapshot: { name: r.bank_name, rib: r.bank_rib, holder: r.bank_account_holder, cin: r.cin_number },
-                        status: 'pending',
-                    }));
-                if (payload.length === 0) throw new Error('All selected rows have 0 remainder');
-                const { error } = await (supabase as any)
-                    .from('mediabuyer_payments')
-                    .upsert(payload, { onConflict: 'mediabuyer_id,payout_month,DigiCom Business' });
-                if (error) throw error;
-                return { role: 'mediabuyer' as const, count: payload.length };
-            }
-        },
-        onSuccess: ({ role: r, count }) => {
-            if (r === 'seller') {
-                ['seller-payouts', 'seller-payment-txns', 'seller-ledger-tickets', 'seller-ledger-users', 'seller-live-owed-users', 'seller-live-owed-daily', 'seller-live-owed-payments']
-                    .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
-                toast({ title: 'Sellers paid', description: `${count} seller${count !== 1 ? 's' : ''} paid.` });
-            } else {
-                queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
-                // D5: 'mb-earnings-prior' died with the hook's client payroll
-                // recomputation — the RPC key is the live one now.
-                queryClient.invalidateQueries({ queryKey: ['mb-roster-earnings'] });
-                toast({ title: 'Payouts generated', description: `${count} payout${count !== 1 ? 's' : ''} created as pending.` });
-            }
-            onOpenChange(false);
-        },
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
-    });
-
-    const toggleRow = (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-    const toggleAll = () => {
-        const ids = isSeller ? owers.map((r) => r.seller_id) : mbOwers.map((r) => r.mediabuyer_id);
-        if (ids.length === 0) return;
-        if (selectedIds.length === ids.length) setSelectedIds([]);
-        else setSelectedIds(ids);
-    };
-
-    const steps: { key: GenStep; label: string }[] = [
-        { key: 'select', label: 'Select' },
-        { key: 'review', label: 'Breakdown' },
-        { key: 'amount', label: isSeller ? 'Amounts' : 'Confirm' },
-    ];
-    const goNext = () => {
-        if (step === 'select') { setStep('review'); return; }
-        if (step === 'review') { if (isSeller) seedAmounts(); setStep('amount'); return; }
-    };
-    const goBack = () => {
-        if (step === 'amount') { setStep('review'); return; }
-        if (step === 'review') { setStep('select'); return; }
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
-                <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
-                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                        Payroll · {isSeller ? 'Sellers' : 'Media buyers'}
-                    </div>
-                    <DialogTitle className="font-display text-[22px] leading-tight tracking-tight text-ant-ink">Generate payouts</DialogTitle>
-                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                        {isSeller
-                            ? 'Select who owes, review the breakdown, then pay their outstanding balance.'
-                            : 'Pick a month, review each earning, then generate the pending payouts.'}
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="px-6 py-4 flex items-center gap-3 border-b border-ant-line flex-wrap">
-                    {/* Stepper (both roles) */}
-                    <div className="inline-flex items-center gap-1.5">
-                        {steps.map((s, i) => {
-                            const idx = steps.findIndex((x) => x.key === step);
-                            const done = i < idx;
-                            const active = i === idx;
-                            return (
-                                <React.Fragment key={s.key}>
-                                    {i > 0 && <span className={cn('h-px w-5', i <= idx ? 'bg-ant-ink' : 'bg-ant-line')} />}
-                                    <span className={cn(
-                                        'inline-flex items-center gap-1.5 rounded-full px-2.5 h-7 text-[10px] font-semibold transition',
-                                        active ? 'bg-ant-ink text-white' : done ? 'bg-ant-ink/10 text-ant-ink' : 'bg-ant-light text-ant-mid',
-                                    )}>
-                                        <span className={cn('h-4 w-4 rounded-full inline-flex items-center justify-center text-[9px] tabular-nums',
-                                            active ? 'bg-white/20 text-white' : done ? 'bg-ant-ink text-white' : 'bg-ant-paper text-ant-mid border border-ant-line')}>
-                                            {done ? <Check className="w-2.5 h-2.5" /> : i + 1}
-                                        </span>
-                                        {s.label}
-                                    </span>
-                                </React.Fragment>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto ant-scroll px-6 py-4 space-y-3">
-                    {activeLoading ? (
-                        <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-ant-mid" /></div>
-                    ) : activeRows.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-12 text-center">
-                            <p className="font-serif italic text-[13px] text-ant-mid">
-                                {isSeller ? 'No seller currently owes anything.' : 'No media buyer has anything to generate for this month.'}
-                            </p>
-                        </div>
-                    ) : (
-                        <>
-                            {/* STEP 1 — select */}
-                            {step === 'select' && (
-                                <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead>
-                                                <tr className="border-b border-ant-line bg-ant-light/50">
-                                                    <th className="px-4 py-3 w-10">
-                                                        <Checkbox checked={selectedIds.length > 0 && selectedIds.length === activeRows.length} onCheckedChange={toggleAll} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" />
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{isSeller ? 'Seller' : 'Media buyer'}</th>
-                                                    {!isSeller && <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Type</th>}
-                                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{isSeller ? 'Units' : 'Delivered'}</th>
-                                                    {!isSeller && <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Already paid</th>}
-                                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{isSeller ? 'Owes' : 'To pay'}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {isSeller
-                                                    ? owers.map((r) => {
-                                                          const sel = selectedIds.includes(r.seller_id);
-                                                          return (
-                                                              <tr key={r.seller_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5')}>
-                                                                  <td className="px-4 py-3"><Checkbox checked={sel} onCheckedChange={() => toggleRow(r.seller_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" /></td>
-                                                                  <td className="px-4 py-3">
-                                                                      <div className="flex items-center gap-2.5 min-w-0">
-                                                                          <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
-                                                                          <div className="min-w-0">
-                                                                              <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
-                                                                              <p className="text-[11px] text-ant-mid truncate">{r.email} · {fmtCur(r.commissionPrice)} MAD/{r.commissionBasis === 'per_unit' ? 'unit' : 'order'}</p>
-                                                                          </div>
-                                                                      </div>
-                                                                  </td>
-                                                                  <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.open?.delivered_orders ?? 0)}</td>
-                                                                  <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-orange tabular-nums" title={fmtCurFull(r.owe)}>{fmtCur(r.owe)}<span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span></td>
-                                                              </tr>
-                                                          );
-                                                      })
-                                                    : mbOwers.map((r) => {
-                                                          const sel = selectedIds.includes(r.mediabuyer_id);
-                                                          const isCommission = r.payment_type === 'commission';
-                                                          return (
-                                                              <tr key={r.mediabuyer_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5')}>
-                                                                  <td className="px-4 py-3"><Checkbox checked={sel} onCheckedChange={() => toggleRow(r.mediabuyer_id)} className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink" /></td>
-                                                                  <td className="px-4 py-3">
-                                                                      <div className="flex items-center gap-2.5 min-w-0">
-                                                                          <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
-                                                                          <div className="min-w-0"><p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid truncate">{r.email}</p></div>
-                                                                      </div>
-                                                                  </td>
-                                                                  <td className="px-4 py-3">
-                                                                      <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' : 'bg-ant-green/10 border-ant-green/25 text-ant-green')}>
-                                                                          <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />{r.payment_type || 'n/a'}
-                                                                      </span>
-                                                                  </td>
-                                                                  <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.delivered_orders)}</td>
-                                                                  <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums" title={fmtCurFull(r.prior_paid_amount)}>{r.prior_paid_amount > 0 ? fmtCur(r.prior_paid_amount) : '—'}</td>
-                                                                  <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-orange tabular-nums" title={fmtCurFull(r.remaining_amount)}>{fmtCur(r.remaining_amount)}<span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span></td>
-                                                              </tr>
-                                                          );
-                                                      })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* STEP 2 — breakdown */}
-                            {step === 'review' && (
-                                <div className="space-y-2.5">
-                                    {(isSeller ? selectedSellers.length === 0 : selectedMb.length === 0) ? (
-                                        <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-10 text-center">
-                                            <p className="font-serif italic text-[13px] text-ant-mid">Select at least one {isSeller ? 'seller' : 'media buyer'} to review.</p>
-                                        </div>
-                                    ) : isSeller ? selectedSellers.map((r) => {
-                                        const o = r.open;
-                                        const carried = o?.carried_in ?? 0, earned = o?.month_earned ?? 0, paid = o?.paid_amount ?? 0, units = o?.delivered_orders ?? 0;
-                                        return (
-                                            <div key={r.seller_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4">
-                                                <div className="flex items-center gap-2.5 mb-3">
-                                                    <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
-                                                    <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
-                                                </div>
-                                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 text-[12px] tabular-nums">
-                                                    {carried !== 0 && (<><span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Reporté</span><span className="font-display font-semibold text-ant-ink">{fmtCur(carried)}</span></span><span className="text-ant-mid font-semibold">+</span></>)}
-                                                    <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Ce mois · {fmtNum(units)} u.</span><span className="font-display font-semibold text-ant-ink">{fmtCur(earned)}</span></span>
-                                                    {paid > 0.005 && (<><span className="text-ant-mid font-semibold">−</span><span className="inline-flex flex-col rounded-lg border border-ant-green/25 bg-ant-green/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-green font-semibold">Déjà versé</span><span className="font-display font-semibold text-ant-green">{fmtCur(paid)}</span></span></>)}
-                                                    <span className="text-ant-mid font-semibold">=</span>
-                                                    <span className="inline-flex flex-col rounded-lg border border-ant-orange/25 bg-ant-orange/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-orange font-semibold">Doit</span><span className="font-display font-semibold text-ant-orange">{fmtCur(r.owe)} MAD</span></span>
-                                                </div>
-                                            </div>
-                                        );
-                                    }) : selectedMb.map((r) => {
-                                        const isCommission = r.payment_type === 'commission';
-                                        return (
-                                            <div key={r.mediabuyer_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4">
-                                                <div className="flex items-center gap-2.5 mb-3">
-                                                    <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-8 w-8 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
-                                                    <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p>
-                                                    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isCommission ? 'bg-ant-orange/10 text-ant-orange' : 'bg-ant-green/10 text-ant-green')}>{r.payment_type}</span>
-                                                </div>
-                                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 text-[12px] tabular-nums">
-                                                    {isCommission ? (
-                                                        <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">{fmtNum(r.delivered_orders)} livrées × {fmtCur(r.commission_price)}</span><span className="font-display font-semibold text-ant-ink">{fmtCur(r.commission_earned)}</span></span>
-                                                    ) : (
-                                                        <span className="inline-flex flex-col rounded-lg border border-ant-line bg-ant-light px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">Salaire fixe</span><span className="font-display font-semibold text-ant-ink">{fmtCur(r.salary_earned)}</span></span>
-                                                    )}
-                                                    {r.prior_paid_amount > 0.005 && (<><span className="text-ant-mid font-semibold">−</span><span className="inline-flex flex-col rounded-lg border border-ant-green/25 bg-ant-green/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-green font-semibold">Déjà payé</span><span className="font-display font-semibold text-ant-green">{fmtCur(r.prior_paid_amount)}</span></span></>)}
-                                                    <span className="text-ant-mid font-semibold">=</span>
-                                                    <span className="inline-flex flex-col rounded-lg border border-ant-orange/25 bg-ant-orange/10 px-3 py-1.5"><span className="text-[9px] uppercase tracking-[0.14em] text-ant-orange font-semibold">À générer</span><span className="font-display font-semibold text-ant-orange">{fmtCur(r.remaining_amount)} MAD</span></span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            {/* STEP 3 — amounts (seller editable) / confirm (media buyer) */}
-                            {step === 'amount' && (
-                                <div className="space-y-2.5">
-                                    {isSeller ? selectedSellers.map((r) => {
-                                        const owe = r.owe;
-                                        const val = amounts[r.seller_id] ?? owe.toFixed(2);
-                                        const over = parseFloat(val) > owe + 0.005;
-                                        return (
-                                            <div key={r.seller_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4 flex items-center gap-3">
-                                                <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-9 w-9 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
-                                                <div className="flex-1 min-w-0"><p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid tabular-nums">Doit <span className="font-semibold text-ant-orange">{fmtCur(owe)} MAD</span></p></div>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <button type="button" onClick={() => setAmounts((p) => ({ ...p, [r.seller_id]: owe.toFixed(2) }))} className="h-9 px-2.5 rounded-lg border border-ant-line bg-ant-paper text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer" title="Full balance">Max</button>
-                                                    <div className="relative">
-                                                        <Input type="number" min={0} max={owe} step="0.01" value={val} onChange={(e) => setAmounts((p) => ({ ...p, [r.seller_id]: e.target.value }))} className={cn('h-9 w-32 pr-11 text-right rounded-lg border-ant-line bg-ant-paper text-[13px] font-semibold text-ant-ink tabular-nums focus-visible:ring-1 focus-visible:ring-ant-orange/40', over && 'border-ant-rose text-ant-rose')} />
-                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-ant-mid pointer-events-none">MAD</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    }) : selectedMb.map((r) => (
-                                        <div key={r.mediabuyer_id} className="rounded-2xl border border-ant-line bg-ant-paper p-4 flex items-center gap-3">
-                                            <UserAvatar url={r.avatar_url} config={(r as any).avatar_config} name={r.name} className="h-9 w-9 shrink-0 rounded-xl border border-ant-line text-[10px] font-display font-semibold" />
-                                            <div className="flex-1 min-w-0"><p className="font-display text-[13px] font-semibold text-ant-ink truncate">{r.name}</p><p className="text-[11px] text-ant-mid capitalize">{r.payment_type} · {format(new Date(monthKey + '-01'), 'MMM yyyy')}</p></div>
-                                            <div className="text-right shrink-0"><p className="text-[9px] uppercase tracking-[0.14em] text-ant-mid font-semibold">À générer</p><p className="font-display text-[15px] font-semibold text-ant-orange tabular-nums">{fmtCur(r.remaining_amount)} MAD</p></div>
-                                        </div>
-                                    ))}
-                                    <p className="font-serif italic text-[11px] text-ant-mid px-1">
-                                        {isSeller
-                                            ? 'Amounts default to the full balance. Lower an amount to record a partial payment — the rest rolls into next month.'
-                                            : 'Payouts are generated as pending at the full computed earning, then marked paid from the list.'}
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Info box */}
-                            <div className="rounded-2xl border border-ant-line bg-ant-light/40 p-4 flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-lg bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center shrink-0"><Info className="w-3.5 h-3.5 text-ant-orange" /></div>
-                                <div className="space-y-1 text-[12px] text-ant-ink leading-relaxed">
-                                    <p>
-                                        <span className="font-semibold">{isSeller ? 'Sellers' : 'Media buyers'}:</span>{' '}
-                                        {isSeller
-                                            ? 'Owe = carried-over balance + this month’s commission (units × price) − what was already paid this month.'
-                                            : 'Salary type → full monthly salary. Commission type → delivered orders × commission price, minus prior payouts for the same month.'}
-                                    </p>
-                                    <p className="font-serif italic text-[11px] text-ant-mid">
-                                        {isSeller
-                                            ? 'No month to pick — sellers are always paid their current outstanding balance.'
-                                            : 'Generated payouts are created as pending and must be marked paid from the list.'}
-                                    </p>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Ink summary + footer actions */}
-                <DialogFooter className="p-0 border-t border-ant-line">
-                    <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-4 bg-ant-ink text-white">
-                        <div className="grid grid-cols-3 gap-6">
-                            <div>
-                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-white" />Selected</p>
-                                <p className="font-display text-[20px] font-semibold text-white mt-0.5 tabular-nums">{totals.users}</p>
-                            </div>
-                            <div>
-                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-ant-green" />{isSeller ? 'Units' : 'Delivered'}</p>
-                                <p className="font-display text-[20px] font-semibold text-ant-green mt-0.5 tabular-nums">{fmtNum(totals.delivered)}</p>
-                            </div>
-                            <div>
-                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />{isSeller && step === 'amount' ? 'To pay' : 'Total'}</p>
-                                <p className="font-display text-[20px] font-semibold text-ant-orange mt-0.5 tabular-nums" title={fmtCurFull(totals.amount)}>{fmtCur(totals.amount)}<span className="text-[11px] text-white/55 font-normal ml-1">MAD</span></p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-5 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer">Cancel</Button>
-                            {step !== 'select' && (
-                                <Button variant="ghost" onClick={goBack} className="h-10 px-4 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer gap-1.5"><ChevronLeft className="w-3.5 h-3.5" /> Back</Button>
-                            )}
-                            {step !== 'amount' ? (
-                                <Button onClick={goNext} disabled={totals.users === 0} className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer disabled:opacity-40">
-                                    {step === 'select' ? 'Review breakdown' : (isSeller ? 'Set amounts' : 'Confirm')} <ChevronRight className="w-3.5 h-3.5" />
-                                </Button>
-                            ) : (
-                                <Button onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending || totals.users === 0 || totals.amount < 0.005} className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer disabled:opacity-40">
-                                    {generateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                                    {isSeller ? `Pay ${totals.users} seller${totals.users !== 1 ? 's' : ''}` : `Generate ${totals.users} payout${totals.users !== 1 ? 's' : ''}`}
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     );
 };
 
