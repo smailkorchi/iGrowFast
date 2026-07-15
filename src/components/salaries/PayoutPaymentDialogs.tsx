@@ -260,10 +260,25 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             });
             if (error) throw error;
         },
-        onSuccess: () => {
+        // Refresh the ledger on EVERY outcome, not only success.
+        //
+        // supabase-js does NOT throw on a transport failure — it resolves with an
+        // `error`. So a dropped connection AFTER pay_seller has already COMMITted
+        // arrives here indistinguishable from a clean server rejection. This dialog
+        // stays open on error with `amount` still filled and `remaining` still
+        // holding its pre-submit value, so a second click re-sent the same amount
+        // and recorded a SECOND disbursement — and pay_seller writes p_amount
+        // verbatim, so nothing downstream catches it.
+        //
+        // Invalidating here forces `remaining` to re-read from the DB before the
+        // operator can click again: if the payment did land, the dialog shows the
+        // true remaining (0 after a settle-in-full) instead of inviting a duplicate.
+        onSettled: () => {
             queryInvalidationKeys(kind).forEach((key) => {
                 queryClient.invalidateQueries({ queryKey: [key] });
             });
+        },
+        onSuccess: () => {
             toast({
                 title: 'Payment recorded',
                 description: `${fmtCur(numericAmount, currency)} paid to ${collaboratorName}.`,
@@ -297,8 +312,18 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 });
             }
         },
+        // The client CANNOT know whether a failed request was written: a server
+        // rejection and a lost-response-after-commit are indistinguishable here.
+        // So the copy claims NOTHING about what happened — asserting "nothing was
+        // paid" would invite the duplicate this whole change exists to prevent.
+        // It also does not point at the balance: that figure lives on step 0 and
+        // the operator is on step 1 when this fires. Send them somewhere real.
         onError: (err: any) =>
-            toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+            toast({
+                title: 'Paiement non confirmé',
+                description: `${err.message}. Le paiement a peut-être été enregistré — vérifiez l'historique des versements avant de réessayer.`,
+                variant: 'destructive',
+            }),
     });
 
     return (

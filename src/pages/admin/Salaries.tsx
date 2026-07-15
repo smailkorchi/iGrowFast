@@ -615,6 +615,19 @@ const MediaBuyerPayoutsList: React.FC = () => {
     const PER_PAGE = 10;
     const [recordOpen, setRecordOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
+    // The seller half's shape, in full — it is a deliberate HYBRID and copying
+    // only half of it is a trap:
+    //   • a STABLE snapshot owns the mount guard + the static identity fields,
+    //     so the dialog cannot vanish under the operator when a refetch is
+    //     empty or in flight;
+    //   • the LIVE query supplies ONLY the money figures, so invalidating
+    //     ['mb-payouts'] actually moves `remaining`.
+    // A frozen object alone makes the balance un-refreshable (after a payment
+    // whose response was lost, the dialog would keep showing the pre-payment
+    // balance and invite a duplicate — pay_mediabuyer records the amount
+    // verbatim). A derived-only value alone unmounts the dialog mid-payment.
+    // Both roles are needed. See the seller equivalents: activeSeller (:150,
+    // guard :518) + sellerOpen (:288, figures :524-531).
     const [activeRow, setActiveRow] = useState<MBPayout | null>(null);
     // Breakdown ("eye") dialogs. Per-row eye = that single month's detail.
     // Buyer-wide (all months) view is reached from the Overview click-through.
@@ -634,17 +647,35 @@ const MediaBuyerPayoutsList: React.FC = () => {
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) {
-                const { data: d2 } = await (supabase as any)
+                const { data: d2, error: e2 } = await (supabase as any)
                     .from('mediabuyer_payments')
                     .select('*, mediabuyer:users(name, email, avatar_url, avatar_config)')
                     .eq('DigiCom Business', activeBusinessId)
                     .order('created_at', { ascending: false });
+                // THROW when the fallback also fails — never launder a failure into
+                // an empty success. Returning [] told react-query "the business has
+                // no payouts", replacing good cached data with nothing: the table
+                // emptied and any open dialog lost its row. Throwing keeps the last
+                // good data and lets retry/refetch-on-reconnect heal it.
+                if (e2) throw e2;
                 return (d2 || []) as MBPayout[];
             }
             return (data || []) as MBPayout[];
         },
         enabled: !!activeBusinessId,
     });
+
+    // The live twin of `activeRow`, re-read from the query every render. Only
+    // the MONEY figures ride this (see the dialog props below); the mount guard
+    // stays on the snapshot. `?? null` degrades to the snapshot's own values
+    // rather than blanking the dialog — the same null-tolerance the seller half
+    // gets from `sellerOpen?.carried_in ?? null`.
+    const activeRowLive = activeRow ? (payouts.find((p) => p.id === activeRow.id) ?? null) : null;
+    // The money source for the open dialog: LIVE row when the query has it (so an
+    // onSettled refetch moves "Reste à payer" and `paidAmount` — the figure that
+    // makes remaining = total − paid collapse to 0 after a payment lands), else
+    // the snapshot's last-known values. Never blanks, always refreshes.
+    const mbMoney = activeRowLive ?? activeRow;
 
     // Same partial-aware bulk action as seller list: insert a txn covering
     // the remaining balance for each selected non-paid row.
@@ -975,11 +1006,11 @@ const MediaBuyerPayoutsList: React.FC = () => {
                         mbLiveId={activeRow.mediabuyer_id}
                         ticketId={activeRow.id}
                         ledgerMonth={activeRow.payout_month}
-                        carriedIn={Number(activeRow.carried_in || 0)}
-                        monthEarned={Number(activeRow.month_earned || 0)}
-                        delivered={Number(activeRow.delivered_orders || 0)}
-                        totalAmount={Number(activeRow.total_amount || 0)}
-                        paidAmount={Number(activeRow.paid_amount || 0)}
+                        carriedIn={Number(mbMoney.carried_in || 0)}
+                        monthEarned={Number(mbMoney.month_earned || 0)}
+                        delivered={Number(mbMoney.delivered_orders || 0)}
+                        totalAmount={Number(mbMoney.total_amount || 0)}
+                        paidAmount={Number(mbMoney.paid_amount || 0)}
                         collaboratorName={activeRow.mediabuyer?.name || 'Media buyer'}
                         collaboratorEmail={activeRow.mediabuyer?.email}
                         collaboratorAvatarUrl={activeRow.mediabuyer?.avatar_url}
