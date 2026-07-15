@@ -29,8 +29,8 @@ Pattern is FROZEN (proven in mig `20260711160000` + `src/whatsapp/lib/queries/ec
   - [x] `tracking_sync_runs` — bindings DELETED as dead code (RLS is owner-only → WALRUS starved every admin/seller; stronger: SyncTrackingStatus is mounted NOWHERE at HEAD). Product decision logged below.
   - [x] `webhook_logs` → 'webhook' pulse event on ecom:biz (INSERT-only trigger); useWebhookHealth rides the ecomBus + shared-channel status.
   - [x] `courier_notifications` → NEW `ecom:user:<uid>` topic family (strict auth.uid() policy, live-tested offsets); full-row payload, courier hook swapped to private broadcast.
-  - [ ] Drop the 3 tables from publication (tail mig 20260714180000 — apply at verified zero subscribers post-deploy).
-  - [ ] OWNER DECISION: make the tracking-sync pill live for admins? (needs an ops topic or RLS ruling; pill component currently unmounted dead code — also a deletion candidate, D7).
+  - [x] Drop the 3 tables from publication — DONE (mig 20260714180000 applied; publication verified EMPTY: 0 tables).
+  - [x] Tracking-sync pill — MOOT: the component + hook were verified mounted NOWHERE and DELETED as dead code in D7b. If the pill is ever wanted, it is a fresh product ask.
 - [x] **R1c — `campaign_source_locks`** — COMPLETE 2026-07-14 (realtime retired → 30s poll + source_taken guard; mig 20260714190000 applied — PUBLICATION EMPTY).
 
 ## 2. Phase R2 — retire the poller (the 61.4% kill)
@@ -66,7 +66,7 @@ Fix ARCHITECTURE, not instances (owner rule 2026-07-09: end-state optimizations 
   - **DEFERRED WITH JUSTIFICATION (recon-binding, do NOT revisit without new data): 13 of 15 P3 pages** — live row counts give 125x–200,000x headroom (owner/Businesses 7 rows = 82yr to cap; owner/Payments 0 rows; mediabuyer/Campaigns 2KB total). Touching them is negative-value.
   - **[ ] PARKED — needs owner attention before it ships: `pay_sellers_bulk`** (`docs/parked/PARKED_pay_sellers_bulk.sql`, NOT applied; Salaries.tsx reverted to HEAD). Fixes the bulk-payout N+1 + partial-commit, BUT the D7b review found its error toast asserts "No seller was paid — safe to retry" on ANY error incl. transport failures where the server outcome is UNKNOWN. pay_sellers_bulk is NOT idempotent -> a lost response after COMMIT + an operator retry = EVERY seller in the batch paid twice. Before shipping: (a) scope the rollback claim to real server SQLSTATEs (postgrest sets code=''/status=0 on transport errors — a clean discriminator), and/or (b) give it an idempotency key (client uuid + unique index on seller_payment_txns) so a retry is provably safe. Also decide the two flagged deviations (single p_paid_at per batch; duplicate-seller raise).
 
-- [ ] **D8 — audit gap**: `EmailAccountsSection` children (owner Config) were never deep-read; audit + fix or mark clean.
+- [x] **D8 — audit gap** — AUDITED CLEAN 2026-07-15: the EmailAccounts tree (lib/emailAccounts.ts + owner/config/EmailAccount{sSection,Card,Modal}) is well-built — writes go through the `manage-email-accounts` edge fn (password never leaves Vault), ONE useQuery + proper invalidation, no polling, no client money math. Sole nit: bare `select('*')` on `email_accounts` = 5 live rows under owner-only RLS (~200x headroom) → DEFER.
 
 ## 4. Phase H — horizontal Realtime (W5-D) — CONTINGENT, LAST
 
@@ -85,11 +85,11 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | FR | `src/pages/admin/Accessories.tsx` | accessories query is a bare select('*') with no .range/.limit -> silent 1000-row PostgREST cap. catalogTotals.inventoryValue SUMs stock*cost_price ove… |
-| [ ] | P1 | AFS | `src/pages/admin/Customers.tsx` | The 'customers-derived' query fetches EVERY non-deleted order of the business via fetchAllRows (joins: master_cities, order_statuses, package_statuses… |
-| [ ] | P1 | AFRS | `src/pages/admin/Orders.tsx` | 7 postgres_changes bindings on one channel `orders-cache-invalidate-<biz>` keep the wal2json slot alive. Exact map: orders UPDATE (L698-702), orders I… |
-| [ ] | P1 | FRS | `src/pages/admin/Products.tsx` | products query is a bare select('*') with no .range/.limit -> PostgREST silently caps at 1000 rows. catalogTotals then SUMs stock*cost_price and stock… |
-| [ ] | P1 | QR | `src/pages/admin/SheetReview.tsx` | Live postgres_changes subscription on orders INSERT (filter DigiCom Business=eq.<biz>) keeps the wal2json slot decoding for this page; violates the 20… |
+| [x] | P1 | FR | `src/pages/admin/Accessories.tsx` | accessories query is a bare select('*') with no .range/.limit -> silent 1000-row PostgREST cap. catalogTotals.inventoryValue SUMs stock*cost_price ove… |
+| [x] | P1 | AFS | `src/pages/admin/Customers.tsx` | The 'customers-derived' query fetches EVERY non-deleted order of the business via fetchAllRows (joins: master_cities, order_statuses, package_statuses… |
+| [x] | P1 | AFRS | `src/pages/admin/Orders.tsx` | 7 postgres_changes bindings on one channel `orders-cache-invalidate-<biz>` keep the wal2json slot alive. Exact map: orders UPDATE (L698-702), orders I… |
+| [x] | P1 | FRS | `src/pages/admin/Products.tsx` | products query is a bare select('*') with no .range/.limit -> PostgREST silently caps at 1000 rows. catalogTotals then SUMs stock*cost_price and stock… |
+| [x] | P1 | QR | `src/pages/admin/SheetReview.tsx` | Live postgres_changes subscription on orders INSERT (filter DigiCom Business=eq.<biz>) keeps the wal2json slot decoding for this page; violates the 20… |
 | [ ] | P2 | FRS | `src/pages/admin/Demands.tsx` | fetchDemands runs a bare select('*, collaborator:users(...)') with no .range/.limit -> silent 1000-row cap on a ticket ledger that only grows. KPI sta… |
 | [ ] | P3 | F | `src/pages/admin/Trash.tsx` | fetchAllRows over ALL soft-deleted orders (business filter + orFilter date_deleted.not.is.null) with two joins on page load, then client-side sort/sea… |
 
@@ -97,11 +97,11 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | FS | `src/pages/admin/ExpensesDetails.tsx` | All expenses rows are fetched with a bare select (no .range) — capped at 1000 — and the KPI strip computes 'All time' and 'This month' money totals by… |
-| [ ] | P1 | AFQR | `src/pages/admin/Payments.tsx` | The 'Pending amount' KPI is a client-side reduce over a bare select of net_amount for all unpaid filtered notes — no .range/.limit, so PostgREST silen… |
-| [ ] | P1 | FQS | `src/pages/admin/Transactions.tsx` | The entire transactions table is fetched with a bare select (no .range/.limit) — silently capped at 1000 rows — and the KPI strip sums total_price/pai… |
+| [x] | P1 | FS | `src/pages/admin/ExpensesDetails.tsx` | All expenses rows are fetched with a bare select (no .range) — capped at 1000 — and the KPI strip computes 'All time' and 'This month' money totals by… |
+| [x] | P1 | AFQR | `src/pages/admin/Payments.tsx` | The 'Pending amount' KPI is a client-side reduce over a bare select of net_amount for all unpaid filtered notes — no .range/.limit, so PostgREST silen… |
+| [x] | P1 | FQS | `src/pages/admin/Transactions.tsx` | The entire transactions table is fetched with a bare select (no .range/.limit) — silently capped at 1000 rows — and the KPI strip sums total_price/pai… |
 | [ ] | P2 | A | `src/pages/admin/RecurringCharges.tsx` | 'Posted this month' money KPI is a client-side reduce over a bare (uncapped) select of this month's auto-posted expenses rows. The window is month-bou… |
-| [ ] | P2 | FQ | `src/pages/admin/Salaries.tsx` | The media-buyer tab fetches ALL mediabuyer_payments rows with a bare select (no .range) and derives Total paid / Total pending KPIs plus per-buyer lif… |
+| [x] | P2 | FQ | `src/pages/admin/Salaries.tsx` | The media-buyer tab fetches ALL mediabuyer_payments rows with a bare select (no .range) and derives Total paid / Total pending KPIs plus per-buyer lif… |
 | [x] | — | — | `src/pages/admin/Calculator.tsx` |  |
 | [x] | — | — | `src/pages/admin/ExpensesTypes.tsx` |  |
 | [x] | — | — | `src/pages/admin/business/Overview.tsx` |  |
@@ -111,20 +111,20 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | AFQR | `src/pages/admin/ReturnNote.tsx` | The 'retourne-orders' pool is a bare select('*' + 5 nested joins: items->products, company_parcels->providers, courier_parcels, courier, company) on t… |
-| [ ] | P2 | Q | `src/pages/admin/DeliveryServices.tsx` | Bulk fee apply ('Auto Fill All') is a sequential per-city N+1: for each city it calls saveFeeRowByMasterCity, which itself is 2 round trips (SELECT id… |
+| [x] | P1 | AFQR | `src/pages/admin/ReturnNote.tsx` | The 'retourne-orders' pool is a bare select('*' + 5 nested joins: items->products, company_parcels->providers, courier_parcels, courier, company) on t… |
+| [x] | P2 | Q | `src/pages/admin/DeliveryServices.tsx` | Bulk fee apply ('Auto Fill All') is a sequential per-city N+1: for each city it calls saveFeeRowByMasterCity, which itself is 2 round trips (SELECT id… |
 | [ ] | P2 | PQ | `src/pages/admin/Webhooks.tsx` | Standing 5s poll on webhook_logs (refetchInterval: 5000) whenever the page is mounted — it runs even while the 'Gateways' tab is displayed (the query … |
-| [ ] | P3 | FQRS | `src/pages/admin/DeliveryNote.tsx` | Liveness candidate: no realtime at all. Note lists, parcel_count, is_finalized, and the preview's per-parcel package statuses (updated by provider web… |
+| [x] | P3 | FQRS | `src/pages/admin/DeliveryNote.tsx` | Liveness candidate: no realtime at all. Note lists, parcel_count, is_finalized, and the preview's per-parcel package statuses (updated by provider web… |
 
 ### Admin — People & Dash (8 files)
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | Q | `src/pages/admin/Analytics.tsx` | One page view triggers ~10 independent full downloads of the entire all-time orders table (one per section, distinct queryKeys: analytics-orders-profi… |
-| [ ] | P1 | QR | `src/pages/admin/Dashboard.tsx` | One page view triggers 8 independent full downloads of the entire all-time orders table — each child widget owns its own fetchAllRows('orders', …) und… |
-| [ ] | P1 | AF | `src/pages/admin/collaborators/Couriers.tsx` | Unbounded all-time fetch of every courier-assigned order for the business on page load (no date window) purely to compute lifetime counters and fee su… |
-| [ ] | P1 | AFQ | `src/pages/admin/collaborators/Sellers.tsx` | Unbounded all-time fetch of every seller's orders (= effectively the whole business orders table) WITH order_items join on page load, no date window, … |
-| [ ] | P2 | AF | `src/pages/admin/collaborators/MediaBuyers.tsx` | Monthly payroll/earnings tiles are recomputed client-side by useMediaBuyerEarnings (bucket orders by day+source, multiply by commission_price) even th… |
+| [x] | P1 | Q | `src/pages/admin/Analytics.tsx` | One page view triggers ~10 independent full downloads of the entire all-time orders table (one per section, distinct queryKeys: analytics-orders-profi… |
+| [x] | P1 | QR | `src/pages/admin/Dashboard.tsx` | One page view triggers 8 independent full downloads of the entire all-time orders table — each child widget owns its own fetchAllRows('orders', …) und… |
+| [x] | P1 | AF | `src/pages/admin/collaborators/Couriers.tsx` | Unbounded all-time fetch of every courier-assigned order for the business on page load (no date window) purely to compute lifetime counters and fee su… |
+| [x] | P1 | AFQ | `src/pages/admin/collaborators/Sellers.tsx` | Unbounded all-time fetch of every seller's orders (= effectively the whole business orders table) WITH order_items join on page load, no date window, … |
+| [x] | P2 | AF | `src/pages/admin/collaborators/MediaBuyers.tsx` | Monthly payroll/earnings tiles are recomputed client-side by useMediaBuyerEarnings (bucket orders by day+source, multiply by commission_price) even th… |
 | [ ] | P3 | Q | `src/pages/admin/Users.tsx` | select('*') on users pulls every column (permissions JSON, banking fields, avatar_config) for the whole roster when the list only renders ~10 fields; … |
 | [x] | — | — | `src/pages/admin/Profile.tsx` |  |
 | [x] | — | — | `src/pages/admin/SalesChannels.tsx` |  |
@@ -133,13 +133,13 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | FQ | `src/pages/admin/ImportOrders.tsx` | courier_fees is fetched with a bare select — silently capped at 1000 rows (per-courier × per-city fee matrix easily exceeds 1000: 5 couriers × 300 cit… |
-| [ ] | P1 | FQ | `src/pages/admin/tools/bonCommande/BonCommandePage.tsx` | Unbounded full fetch of the orders table on every page mount just to derive a distinct-client dropdown: fetchAllRows('orders', 'name, phone, address, … |
-| [ ] | P1 | FQS | `src/pages/admin/tools/bonLivraison/BonLivraisonPage.tsx` | Same copy-pasted unbounded orders fetch as the other three document pages: fetchAllRows('orders', name/phone/address/city) on page mount to build the … |
-| [ ] | P1 | FQ | `src/pages/admin/tools/devis/DevisPage.tsx` | Copy-pasted unbounded orders fetch on page mount for the distinct-client dropdown (this copy doesn't even exclude source_review_status='pending', unli… |
-| [ ] | P1 | FQ | `src/pages/admin/tools/facture/FacturePage.tsx` | Copy-pasted unbounded orders fetch on page mount for the distinct-client dropdown (fourth copy of the same pattern; also missing the source_review_sta… |
-| [ ] | P2 | FQ | `src/pages/admin/ImportAccessories.tsx` | One-row-at-a-time N+1 write loop: one awaited accessories insert OR update per row, errors only console.error'd (silent partial import). Direct contra… |
-| [ ] | P2 | FQ | `src/pages/admin/ImportProducts.tsx` | One-row-at-a-time N+1 write loop: per valid row — awaited products update-or-insert, awaited product_accessories delete, awaited product_accessories i… |
+| [x] | P1 | FQ | `src/pages/admin/ImportOrders.tsx` | courier_fees is fetched with a bare select — silently capped at 1000 rows (per-courier × per-city fee matrix easily exceeds 1000: 5 couriers × 300 cit… |
+| [x] | P1 | FQ | `src/pages/admin/tools/bonCommande/BonCommandePage.tsx` | Unbounded full fetch of the orders table on every page mount just to derive a distinct-client dropdown: fetchAllRows('orders', 'name, phone, address, … |
+| [x] | P1 | FQS | `src/pages/admin/tools/bonLivraison/BonLivraisonPage.tsx` | Same copy-pasted unbounded orders fetch as the other three document pages: fetchAllRows('orders', name/phone/address/city) on page mount to build the … |
+| [x] | P1 | FQ | `src/pages/admin/tools/devis/DevisPage.tsx` | Copy-pasted unbounded orders fetch on page mount for the distinct-client dropdown (this copy doesn't even exclude source_review_status='pending', unli… |
+| [x] | P1 | FQ | `src/pages/admin/tools/facture/FacturePage.tsx` | Copy-pasted unbounded orders fetch on page mount for the distinct-client dropdown (fourth copy of the same pattern; also missing the source_review_sta… |
+| [x] | P2 | FQ | `src/pages/admin/ImportAccessories.tsx` | One-row-at-a-time N+1 write loop: one awaited accessories insert OR update per row, errors only console.error'd (silent partial import). Direct contra… |
+| [x] | P2 | FQ | `src/pages/admin/ImportProducts.tsx` | One-row-at-a-time N+1 write loop: per valid row — awaited products update-or-insert, awaited product_accessories delete, awaited product_accessories i… |
 | [x] | — | — | `src/pages/admin/ImportCustomers.tsx` |  |
 | [x] | — | — | `src/pages/admin/tools/BonDeCommande.tsx` |  |
 | [x] | — | — | `src/pages/admin/tools/BonDeLivraison.tsx` |  |
@@ -159,14 +159,14 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | AFR | `src/pages/seller/Dashboard.tsx` | Every dashboard mount performs three full-table paginated scans: all seller orders with order_items+products joins, plus BUSINESS-WIDE company_parcels… |
-| [ ] | P1 | AFQRS | `src/pages/seller/Orders.tsx` | 7 postgres_changes bindings on one channel keep the wal2json slot alive across 5 of the 9 published e-commerce tables. Every event debounce-invalidate… |
-| [ ] | P1 | AFQ | `src/pages/seller/Profile.tsx` | A profile page triggers FOUR full-table paginated scans on mount (and again whenever statusCats maps change): all seller orders, business-wide company… |
-| [ ] | P1 | FQS | `src/pages/seller/ReturnNote.tsx` | The returned-orders pool is a bare select('*' + items/parcels joins) with no .range — silently capped at 1000 rows. It feeds the wizard's money totals… |
-| [ ] | P1 | AFQ | `src/pages/seller/Statistics.tsx` | Same triple full scan as Dashboard on every mount: all seller orders with items/products/cities joins plus business-wide company_parcels AND courier_p… |
+| [x] | P1 | AFR | `src/pages/seller/Dashboard.tsx` | Every dashboard mount performs three full-table paginated scans: all seller orders with order_items+products joins, plus BUSINESS-WIDE company_parcels… |
+| [x] | P1 | AFQRS | `src/pages/seller/Orders.tsx` | 7 postgres_changes bindings on one channel keep the wal2json slot alive across 5 of the 9 published e-commerce tables. Every event debounce-invalidate… |
+| [x] | P1 | AFQ | `src/pages/seller/Profile.tsx` | A profile page triggers FOUR full-table paginated scans on mount (and again whenever statusCats maps change): all seller orders, business-wide company… |
+| [x] | P1 | FQS | `src/pages/seller/ReturnNote.tsx` | The returned-orders pool is a bare select('*' + items/parcels joins) with no .range — silently capped at 1000 rows. It feeds the wizard's money totals… |
+| [x] | P1 | AFQ | `src/pages/seller/Statistics.tsx` | Same triple full scan as Dashboard on every mount: all seller orders with items/products/cities joins plus business-wide company_parcels AND courier_p… |
 | [ ] | P2 | FS | `src/pages/seller/Wallet.tsx` | seller_daily_earnings select('*') with no pagination — PostgREST caps at 1000 rows (~2.7 years of daily rows). Because rows are date-desc the current-… |
 | [ ] | P3 | R | `src/pages/seller/Accessories.tsx` | Same liveness candidate as Products.tsx: stock badges/low-stock banner with no realtime, stale until reload. Two-step fetch (product_accessories then … |
-| [ ] | P3 | QRS | `src/pages/seller/DeliveryNote.tsx` | 'Charger plus' grows the window from offset 0: .range(0, page*50-1) refetches every previously loaded row on each click (O(page²) cumulative transfer)… |
+| [x] | P3 | QRS | `src/pages/seller/DeliveryNote.tsx` | 'Charger plus' grows the window from offset 0: .range(0, page*50-1) refetches every previously loaded row on each click (O(page²) cumulative transfer)… |
 | [ ] | P3 | FR | `src/pages/seller/Demands.tsx` | seller_demands select('*') unpaginated; per-seller volume is small so the 1000-cap is remote, but the list and KPI counts would silently truncate at s… |
 | [ ] | P3 | F | `src/pages/seller/Payments.tsx` | All ledger tickets bare-selected without .range; lifetime sum ('Gains à vie') reduces them client-side. Population is ~1 row/seller/month so the 1000-… |
 | [ ] | P3 | R | `src/pages/seller/Products.tsx` | Liveness candidate: stock badges and the low-stock banner drive order-taking decisions but the page has no realtime — stock is stale until reload (the… |
@@ -176,8 +176,8 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | AF | `src/pages/courier/Dashboard.tsx` | Lifetime courier_parcels fetch has no .range/.limit — PostgREST silently caps at 1000 rows — and the result feeds a money figure: pendingEarningsGross… |
-| [ ] | P1 | FS | `src/pages/courier/Orders.tsx` | Unbounded lifetime fetch of courier_parcels with heavy joins (orders + order_items + products + city + status) on page load; silent 1000-row cap means… |
+| [x] | P1 | AF | `src/pages/courier/Dashboard.tsx` | Lifetime courier_parcels fetch has no .range/.limit — PostgREST silently caps at 1000 rows — and the result feeds a money figure: pendingEarningsGross… |
+| [x] | P1 | FS | `src/pages/courier/Orders.tsx` | Unbounded lifetime fetch of courier_parcels with heavy joins (orders + order_items + products + city + status) on page load; silent 1000-row cap means… |
 | [ ] | P2 | AFS | `src/pages/courier/Payments.tsx` | Both note fetches (payment + return, each with full line_items join) are unbounded bare selects; stats reduce them into lifetime money KPIs (deliveryE… |
 | [x] | — | — | `src/pages/courier/Profile.tsx` |  |
 
@@ -185,14 +185,14 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | R | `src/pages/mediabuyer/CampaignForm.tsx` | postgres_changes subscription on campaign_source_locks with event:'*' and NO server-side filter — every lock change in every business is decoded throu… |
-| [ ] | P1 | F | `src/pages/mediabuyer/Dashboard.tsx` | Page load triggers a FULL business order-history download: default preset is 'all' (from '2020-01-01'), and a second useMediaBuyerStats instance is al… |
-| [ ] | P1 | FS | `src/pages/mediabuyer/Orders.tsx` | The attribution base — ALL of the MB's campaign_daily_entries lifetime — is a bare select with NO date filter and no limit: first query in this group … |
-| [ ] | P2 | AF | `src/pages/mediabuyer/CampaignManage.tsx` | campaign_daily_entries fetched with a bare select('*') and no limit (via useCampaignMetrics) — silent 1000-row cap. One row per day means an ongoing c… |
+| [x] | P1 | R | `src/pages/mediabuyer/CampaignForm.tsx` | postgres_changes subscription on campaign_source_locks with event:'*' and NO server-side filter — every lock change in every business is decoded throu… |
+| [x] | P1 | F | `src/pages/mediabuyer/Dashboard.tsx` | Page load triggers a FULL business order-history download: default preset is 'all' (from '2020-01-01'), and a second useMediaBuyerStats instance is al… |
+| [x] | P1 | FS | `src/pages/mediabuyer/Orders.tsx` | The attribution base — ALL of the MB's campaign_daily_entries lifetime — is a bare select with NO date filter and no limit: first query in this group … |
+| [x] | P2 | AF | `src/pages/mediabuyer/CampaignManage.tsx` | campaign_daily_entries fetched with a bare select('*') and no limit (via useCampaignMetrics) — silent 1000-row cap. One row per day means an ongoing c… |
 | [ ] | P2 | AF | `src/pages/mediabuyer/CampaignPreview.tsx` | Same campaign_daily_entries bare-select 1000-cap as CampaignManage (shared useCampaignMetrics) — truncated entries silently understate the money total… |
 | [ ] | P2 | A | `src/pages/mediabuyer/Payments.tsx` | The 'Ce mois' live earnings card is computed client-side by useMediaBuyerEarnings: fetch the month's entries plus ALL business orders for the month (f… |
 | [ ] | P2 | F | `src/pages/mediabuyer/Statistics.tsx` | 'Tout' preset spans from '2000-01-01' → useMediaBuyerStats fetchAllRows downloads the business's complete order history and aggregates client-side. De… |
-| [ ] | P3 | F | `src/pages/mediabuyer/Campaigns.tsx` | campaigns select('*') (wide row incl. media jsonb, audience jsonb, primary_text) unbounded per business, then filtered/searched client-side. Correct a… |
+| [x] | P3 | F | `src/pages/mediabuyer/Campaigns.tsx` | campaigns select('*') (wide row incl. media jsonb, audience jsonb, primary_text) unbounded per business, then filtered/searched client-side. Correct a… |
 | [ ] | P3 | FR | `src/pages/mediabuyer/Demands.tsx` | mediabuyer_demands select('*') per MB with no limit — per-user table, small in practice; caps silently at 1000 and rows carry media jsonb. |
 | [x] | — | — | `src/pages/mediabuyer/Profile.tsx` |  |
 
@@ -217,7 +217,7 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | AFS | `src/pages/AdsHistory.tsx` | Full-business orders history fetched on every page load: fetchAllRows('orders', ...) with order_items + status joins and only business/date_deleted fi… |
+| [x] | P1 | AFS | `src/pages/AdsHistory.tsx` | Full-business orders history fetched on every page load: fetchAllRows('orders', ...) with order_items + status joins and only business/date_deleted fi… |
 | [ ] | P3 | P | `src/pages/Register.tsx` | OTP-cooldown setInterval is acceptable; single-row queries only |
 | [ ] | P3 | P | `src/pages/analytics/GoogleAnalytics.tsx` | KNOWN POLL — CLASSIFIED ACCEPTABLE: the 'Live right now' realtime pill polls every 30s, but the target is the GA4 Realtime API through an edge functio… |
 | [x] | — | — | `src/pages/Auth.tsx` | data-bearing login flow (RPC + single-row selects), no scale defect |
@@ -229,32 +229,32 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | FQ | `src/components/analytics/AdsSection.tsx` | campaign_daily_entries fetched bare (silent 1000-row cap) and summed into spendGlobalAds/totalSpend → ROAS, cost-per-order, per-platform spend all sil… |
-| [ ] | P1 | AF | `src/components/analytics/BusinessHealthSection.tsx` | Full all-time orders fetch with order_items join (its own copy) for rate/velocity math done client-side. |
-| [ ] | P1 | AF | `src/components/analytics/CouriersSection.tsx` | Full all-time courier-order fetch (own copy) for per-courier stats computed client-side. |
-| [ ] | P1 | AF | `src/components/analytics/CustomersSection.tsx` | Full all-time orders fetch (own copy incl phone/name of every order ever) solely to deduplicate customers by normalized phone client-side — the heavie… |
-| [ ] | P1 | AFQ | `src/components/analytics/InventorySection.tsx` | transactions fetched with a bare select (silent 1000-row cap) and reduced into totalTransactionValue/unpaidAmount money tiles — growth table, silently… |
-| [ ] | P1 | AFQ | `src/components/analytics/MediaBuyersSection.tsx` | Full all-time orders fetch with order_items join (own copy) as the MB attribution universe, while entries are correctly window-bounded — orders should… |
-| [ ] | P1 | AF | `src/components/analytics/OrdersSection.tsx` | Full all-time orders fetch (own copy, with master_cities + order_items joins) for counts/funnel/top-cities all computed client-side. |
-| [ ] | P1 | AF | `src/components/analytics/ProfitabilitySection.tsx` | campaign_daily_entries fetched with a bare select (silent 1000-row cap) and summed into spendGlobalAds → total expenses → netProfit; entries grow dail… |
-| [ ] | P1 | AF | `src/components/analytics/SalesChannelsSection.tsx` | Full all-time orders fetch with order_items join (own copy) for channel grouping done client-side. |
-| [ ] | P1 | AF | `src/components/analytics/SellersSection.tsx` | Full all-time orders fetch with order_items join (own copy) for per-seller table computed client-side. |
-| [ ] | P1 | AF | `src/components/analytics/ShippingSection.tsx` | Full all-time orders fetch (own copy) for shipping metrics computed client-side. |
-| [ ] | P1 | AF | `src/components/dashboard/ConfirmationPipeline.tsx` | Fetches ALL orders all-time (another private copy with order_statuses join) to render a per-status count distribution that is a textbook server GROUP … |
-| [ ] | P1 | AF | `src/components/dashboard/DashboardCityStats.tsx` | Full all-time orders fetch (another private copy, with master_cities join) to group by city client-side. |
-| [ ] | P1 | AF | `src/components/dashboard/DashboardKPICards.tsx` | fetchAllRows over the entire all-time orders table (id/date/status columns + package_statuses join) on every dashboard load just to count statuses cli… |
-| [ ] | P1 | AFQ | `src/components/dashboard/DashboardProductsPerformance.tsx` | Downloads the ENTIRE order_items table for the business (fetchAllRows, no window) plus its own full orders copy on every dashboard load. |
-| [ ] | P1 | AF | `src/components/dashboard/DashboardSellersPerformance.tsx` | Full all-time orders fetch WITH order_items join (widest select on the page), and staleTime:0 + refetchOnMount:'always' forces the entire download to … |
-| [ ] | P1 | AF | `src/components/dashboard/PendingOrdersBreakdown.tsx` | Fetches ALL orders all-time (another private copy) even though the card only needs pending-status rows; pending filter and age-bucketing happen client… |
-| [ ] | P1 | AF | `src/components/dashboard/SalesComparatifChart.tsx` | Full all-time orders fetch (its own copy, distinct queryKey from the KPI cards) to build a time-bucketed chart client-side. |
-| [ ] | P1 | FQ | `src/components/dashboard/SellerSelfPerformanceSection.tsx` | When businessId is present the filter ternary applies ONLY the business filter (no seller_id filter) — a single seller's self-performance section fetc… |
-| [ ] | P1 | AF | `src/components/dashboard/ShippingPipeline.tsx` | Fetches ALL orders all-time (another private copy) to compute lifecycle counts and per-fulfiller delivery rates client-side. |
+| [x] | P1 | FQ | `src/components/analytics/AdsSection.tsx` | campaign_daily_entries fetched bare (silent 1000-row cap) and summed into spendGlobalAds/totalSpend → ROAS, cost-per-order, per-platform spend all sil… |
+| [x] | P1 | AF | `src/components/analytics/BusinessHealthSection.tsx` | Full all-time orders fetch with order_items join (its own copy) for rate/velocity math done client-side. |
+| [x] | P1 | AF | `src/components/analytics/CouriersSection.tsx` | Full all-time courier-order fetch (own copy) for per-courier stats computed client-side. |
+| [x] | P1 | AF | `src/components/analytics/CustomersSection.tsx` | Full all-time orders fetch (own copy incl phone/name of every order ever) solely to deduplicate customers by normalized phone client-side — the heavie… |
+| [x] | P1 | AFQ | `src/components/analytics/InventorySection.tsx` | transactions fetched with a bare select (silent 1000-row cap) and reduced into totalTransactionValue/unpaidAmount money tiles — growth table, silently… |
+| [x] | P1 | AFQ | `src/components/analytics/MediaBuyersSection.tsx` | Full all-time orders fetch with order_items join (own copy) as the MB attribution universe, while entries are correctly window-bounded — orders should… |
+| [x] | P1 | AF | `src/components/analytics/OrdersSection.tsx` | Full all-time orders fetch (own copy, with master_cities + order_items joins) for counts/funnel/top-cities all computed client-side. |
+| [x] | P1 | AF | `src/components/analytics/ProfitabilitySection.tsx` | campaign_daily_entries fetched with a bare select (silent 1000-row cap) and summed into spendGlobalAds → total expenses → netProfit; entries grow dail… |
+| [x] | P1 | AF | `src/components/analytics/SalesChannelsSection.tsx` | Full all-time orders fetch with order_items join (own copy) for channel grouping done client-side. |
+| [x] | P1 | AF | `src/components/analytics/SellersSection.tsx` | Full all-time orders fetch with order_items join (own copy) for per-seller table computed client-side. |
+| [x] | P1 | AF | `src/components/analytics/ShippingSection.tsx` | Full all-time orders fetch (own copy) for shipping metrics computed client-side. |
+| [x] | P1 | AF | `src/components/dashboard/ConfirmationPipeline.tsx` | Fetches ALL orders all-time (another private copy with order_statuses join) to render a per-status count distribution that is a textbook server GROUP … |
+| [x] | P1 | AF | `src/components/dashboard/DashboardCityStats.tsx` | Full all-time orders fetch (another private copy, with master_cities join) to group by city client-side. |
+| [x] | P1 | AF | `src/components/dashboard/DashboardKPICards.tsx` | fetchAllRows over the entire all-time orders table (id/date/status columns + package_statuses join) on every dashboard load just to count statuses cli… |
+| [x] | P1 | AFQ | `src/components/dashboard/DashboardProductsPerformance.tsx` | Downloads the ENTIRE order_items table for the business (fetchAllRows, no window) plus its own full orders copy on every dashboard load. |
+| [x] | P1 | AF | `src/components/dashboard/DashboardSellersPerformance.tsx` | Full all-time orders fetch WITH order_items join (widest select on the page), and staleTime:0 + refetchOnMount:'always' forces the entire download to … |
+| [x] | P1 | AF | `src/components/dashboard/PendingOrdersBreakdown.tsx` | Fetches ALL orders all-time (another private copy) even though the card only needs pending-status rows; pending filter and age-bucketing happen client… |
+| [x] | P1 | AF | `src/components/dashboard/SalesComparatifChart.tsx` | Full all-time orders fetch (its own copy, distinct queryKey from the KPI cards) to build a time-bucketed chart client-side. |
+| [x] | P1 | FQ | `src/components/dashboard/SellerSelfPerformanceSection.tsx` | When businessId is present the filter ternary applies ONLY the business filter (no seller_id filter) — a single seller's self-performance section fetc… |
+| [x] | P1 | AF | `src/components/dashboard/ShippingPipeline.tsx` | Fetches ALL orders all-time (another private copy) to compute lifecycle counts and per-fulfiller delivery rates client-side. |
 | [x] | P1 | QR | `src/components/orders/OrderStatusNotifications.tsx` | One postgres_changes binding: event UPDATE, schema public, table orders, NO server-side filter — the comment (L81-84) explains the `DigiCom Business` … |
-| [ ] | P2 | S | `src/components/CustomerInsights.tsx` | Phone search uses leading-wildcard ilike '%<digits>%' on orders.phone — unindexable without trigram; every search is a sequential scan of the orders t… |
-| [ ] | P2 | AQ | `src/components/delivery/DeliveryNoteWizard.tsx` | Provider step fetches EVERY confirmed order (fetchAllRows, with items:order_items(product_id) join) just to count orders per provider client-side. Com… |
-| [ ] | P2 | Q | `src/components/orders/OrderViewDialog.tsx` | Every dialog open auto-fires the provider-integration edge fn (track_parcel, plus get_parcel_info fallback = up to 2 external carrier API calls), then… |
-| [ ] | P2 | Q | `src/components/orders/SellerOrderViewDialog.tsx` | Same per-open provider-call pattern as OrderViewDialog: dialog open auto-runs handleTrackParcel (up to 2 provider-integration edge fn calls), matchPac… |
-| [ ] | P3 | F | `src/components/analytics/UsersSection.tsx` | 30-day campaign_daily_entries activity probe uses a bare select (1000 cap); only feeds the activity Set (not money) and the orders side already uses f… |
+| [x] | P2 | S | `src/components/CustomerInsights.tsx` | Phone search uses leading-wildcard ilike '%<digits>%' on orders.phone — unindexable without trigram; every search is a sequential scan of the orders t… |
+| [x] | P2 | AQ | `src/components/delivery/DeliveryNoteWizard.tsx` | Provider step fetches EVERY confirmed order (fetchAllRows, with items:order_items(product_id) join) just to count orders per provider client-side. Com… |
+| [x] | P2 | Q | `src/components/orders/OrderViewDialog.tsx` | Every dialog open auto-fires the provider-integration edge fn (track_parcel, plus get_parcel_info fallback = up to 2 external carrier API calls), then… |
+| [x] | P2 | Q | `src/components/orders/SellerOrderViewDialog.tsx` | Same per-open provider-call pattern as OrderViewDialog: dialog open auto-runs handleTrackParcel (up to 2 provider-integration edge fn calls), matchPac… |
+| [x] | P3 | F | `src/components/analytics/UsersSection.tsx` | 30-day campaign_daily_entries activity probe uses a bare select (1000 cap); only feeds the activity Set (not money) and the orders side already uses f… |
 | [ ] | P3 | Q | `src/components/orders/OrderStatusHistoryDialog.tsx` | The order_statuses icon query has no enabled: open gate — hosts keep dialogs mounted after close (Radix exit animation), so this query window-focus-re… |
 | [ ] | P3 | Q | `src/components/orders/ParcelTrackingDialog.tsx` | pkgStatuses query is ungated while the dialog is permanently mounted inside both order view dialogs (rendered unconditionally at OrderViewDialog L998-… |
 | [ ] | P3 | P | `src/components/owner/backups/RestoreWizard.tsx` | KNOWN POLL — CLASSIFIED ACCEPTABLE: the only setInterval is a 3-second abort countdown before firing the restore (cleared at 0 or on cancel); wizard-s… |
@@ -282,14 +282,14 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 
 | St | Pri | Dims | File | Top finding |
 |----|-----|------|------|-------------|
-| [ ] | P1 | R | `src/hooks/useCourierNotifications.ts` | Standing postgres_changes subscription (INSERT on courier_notifications, filter courier_id=eq.<uid>) mounted once per courier at CourierLayout.tsx:48 … |
-| [ ] | P1 | F | `src/hooks/useTrackedOrders.ts` | Fetches the ENTIRE business's company_parcels AND courier_parcels (all-time, grows with every shipped order) on every mount, with staleTime 0 + refetc… |
-| [ ] | P1 | R | `src/hooks/useTrackingSyncStatus.ts` | Two postgres_changes bindings (INSERT + UPDATE on public.tracking_sync_runs) — tracking_sync_runs is in the supabase_realtime publication, so every mo… |
-| [ ] | P1 | APR | `src/hooks/useWebhookHealth.ts` | postgres_changes INSERT binding on public.webhook_logs — a publication table — keeping the wal2json slot hot for as long as the indicator is mounted (… |
-| [ ] | P2 | Q | `src/App.tsx` | QueryClient created with ALL react-query defaults (staleTime 0, refetchOnWindowFocus true, refetchOnMount true, retry 3). Every tab refocus/route remo… |
-| [ ] | P2 | F | `src/hooks/useSellerCommissionTotals.ts` | When from/to are undefined the fetch is ALL-TIME over seller_daily_earnings (grows daily × sellers) and the money SUM happens client-side. |
+| [x] | P1 | R | `src/hooks/useCourierNotifications.ts` | Standing postgres_changes subscription (INSERT on courier_notifications, filter courier_id=eq.<uid>) mounted once per courier at CourierLayout.tsx:48 … |
+| [x] | P1 | F | `src/hooks/useTrackedOrders.ts` | Fetches the ENTIRE business's company_parcels AND courier_parcels (all-time, grows with every shipped order) on every mount, with staleTime 0 + refetc… |
+| [x] | P1 | R | `src/hooks/useTrackingSyncStatus.ts` | Two postgres_changes bindings (INSERT + UPDATE on public.tracking_sync_runs) — tracking_sync_runs is in the supabase_realtime publication, so every mo… |
+| [x] | P1 | APR | `src/hooks/useWebhookHealth.ts` | postgres_changes INSERT binding on public.webhook_logs — a publication table — keeping the wal2json slot hot for as long as the indicator is mounted (… |
+| [x] | P2 | Q | `src/App.tsx` | QueryClient created with ALL react-query defaults (staleTime 0, refetchOnWindowFocus true, refetchOnMount true, retry 3). Every tab refocus/route remo… |
+| [x] | P2 | F | `src/hooks/useSellerCommissionTotals.ts` | When from/to are undefined the fetch is ALL-TIME over seller_daily_earnings (grows daily × sellers) and the money SUM happens client-side. |
 | [ ] | P2 | A | `src/hooks/useSellerLiveOwed.ts` | Fetches every all-time daily row for the seller set (3 cols) and SUMs client-side; rows grow daily per seller. The view is the right source but the SU… |
-| [ ] | P2 | FQ | `src/lib/supabase.ts` | fetchAllRows paginates with offset-style .range(from, from+999) in a serial await loop: a 50k-row orders fetch = 50 sequential round-trips, each with … |
+| [x] | P2 | FQ | `src/lib/supabase.ts` | fetchAllRows paginates with offset-style .range(from, from+999) in a serial await loop: a 50k-row orders fetch = 50 sequential round-trips, each with … |
 | [ ] | P3 | P | `src/hooks/useGoogleAnalytics.ts` | useGARealtime is a standing 30s refetchInterval poll while a GA analytics page is mounted. Classification: acceptable — it polls the GA4 realtime Data… |
 | [x] | — | — | `src/hooks/useCampaignMetrics.ts` |  |
 | [x] | — | — | `src/hooks/useCurrentUserId.ts` |  |
@@ -301,5 +301,26 @@ Only if measured load ever proves >5–10k concurrent tabs on one Realtime conta
 | [x] | — | — | `src/hooks/useStatusCategories.ts` |  |
 
 ### Registry follow-ups
-- [ ] D8 audit gap: `src/components/` EmailAccountsSection tree (owner Config children) — never deep-read.
+- [x] D8 audit gap: EmailAccountsSection tree — AUDITED CLEAN (see §3 D8).
 - 4 `*PdfDocument.tsx` files marked static by nature (pure @react-pdf render components, not deep-read).
+
+
+---
+
+## 7. FINAL STATE (2026-07-15) — registry closed
+
+**Every P1 is done: 0 of the original 68 remain open.**
+
+Registry: 112 rows done · 28 rows open — **all P2/P3, all DEFERRED with measured justification** (D7 recon quantified live row counts: 125x–200,000x headroom to any cap). Re-open one only when a table's real growth invalidates its measurement, not on principle:
+- **owner/*** (Businesses 7 rows, Payments 0 rows, OwnerDashboard, Cities, Zones, Backups) — decades of headroom.
+- **admin** Trash (5 rows), Users (max 8/biz), Demands (5), RecurringCharges (13), Webhooks (index shipped; the FE row is payload-only).
+- **seller** Demands (5), Payments (12 — already on the seller_ledger view + RPC), Wallet (inert), Products/Accessories.
+- **mediabuyer** Demands (0), Campaigns (2KB total), CampaignPreview/Manage (entries are per-campaign: ~42 rows, cap ≈ 3 years of daily entries on ONE campaign; its orders fetch is already date-windowed), Payments, Statistics.
+- **hooks/dialogs**: useSellerLiveOwed (135 view rows), useGoogleAnalytics/GoogleAnalytics/Register/RestoreWizard (bounded polls), OrderStatusHistoryDialog/ParcelTrackingDialog (ungated dialog queries, small).
+
+### THE ONLY WORK GATED ON THE OWNER
+1. **`pay_sellers_bulk`** — built + parked (`docs/parked/`, NOT applied; Salaries.tsx at HEAD). Fixes the bulk-payout N+1 + partial-commit. BLOCKED: its toast claims "no seller was paid — safe to retry" on ANY error incl. transport failures where the server outcome is unknown, and the RPC is NOT idempotent → lost response after COMMIT + retry = every seller paid twice. Needs (a) an error-class discriminator (postgrest sets code=''/status=0 on transport errors — clean signal) and/or (b) an idempotency key (client uuid + unique index on seller_payment_txns), plus rulings on its 2 deviations (single p_paid_at per batch; duplicate-seller raise).
+2. **O-1 / O-2 / O-3** + the 2 Customers parity divergences (canonical phone key; replace-leg recompute) — all money semantics, all replicated bug-for-bug on purpose, all measured no-ops on today's data.
+
+### Phase H (horizontal Realtime) — NOT NEEDED
+Contingent on >5-10k concurrent tabs. The poller is dead and every heavy page is one RPC; revisit only if load proves it.
