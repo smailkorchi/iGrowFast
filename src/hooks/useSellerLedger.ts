@@ -103,7 +103,19 @@ export function useSellerLedger() {
     const out = new Map<string, SellerLedger>();
     for (const s of sellers) {
       const rows = byS.get(s.id) || [];
-      const open = rows.find((r) => r.period_state === 'open') || null;
+      // NEWEST open ticket. `rows` is payout_month-ASCENDING (fetchAllRows defaults to
+      // ascending), so a bare .find() took the OLDEST — disagreeing with the statement PDF,
+      // which already picks the newest (sendPayoutStatement.ts: period_state=open, payout_month
+      // DESC, limit 1). Normally there is exactly one open ticket per seller and the two agree,
+      // but close_seller_month CONTINUEs past an all-zero ticket (earned=0 AND carried_in=0 AND
+      // paid=0), leaving that month open forever for a seller who earned nothing. If such a
+      // seller later earns, the close cron opens a SECOND ticket while the stale zero one stays
+      // open — and picking the oldest would bind the whole page to the zero: `owe` reads 0, the
+      // Pay button disappears (isSettleable needs remaining > 0.005), and the ticket holding the
+      // real money is dropped from the roster, since it is neither `open` nor in `closed`.
+      const open = rows
+        .filter((r) => r.period_state === 'open')
+        .sort((a, b) => b.payout_month.localeCompare(a.payout_month))[0] || null;
       const closed = rows
         .filter((r) => r.period_state === 'closed')
         .sort((a, b) => b.payout_month.localeCompare(a.payout_month));
