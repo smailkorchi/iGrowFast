@@ -60,7 +60,8 @@ Fix ARCHITECTURE, not instances (owner rule 2026-07-09: end-state optimizations 
 - [ ] **O-2 MB commission branch**: mb_roster_earnings follows the AUTHORITY (payment_type='salary' => 0 commission, else delivered x price); the client used (payment_type==='commission' => else 0). Differ only when payment_type is neither — no live row. Decide the canonical rule.
 - [ ] **O-3 mb_month_earned delivered=0-for-salary**: display zero no payroll consumer reads; D5 ships delivered_orders as the RAW count for podium/rank parity.
 
-- [ ] **D6 — tools/document pages**: 4 copy-pasted unbounded orders fetches for a client dropdown → one shared server-side distinct-client search (typeahead RPC); registers → keyset + server KPI.
+- [x] **D6 — tools/document pages** — ALREADY COMPLETE (absorbed by D4 wave 1, verified 2026-07-15): all 4 pages call `distinct_clients` (killing the 4 copy-pasted unbounded orders downloads) + `register_totals` (killing the 1000-capped money KPIs); register lists are fetchAllRows (no silent cap). REMAINING (logged to D7, low value): register `select('*')` still drags snapshot_json per row (the card reads client name from it — needs a JSON-path select or a projected column); ClientSearchSelect true-typeahead (wizards); BonLivraison order picker 400-cap.
+
 - [ ] **D7 — remaining Q/S cleanups** per registry (N+1s, `select *` trims, client-side search → RPCs, offset→keyset), including `useTrackedOrders` full parcels fetch and `Customers.tsx` derive-from-all-orders.
 - [ ] **D8 — audit gap**: `EmailAccountsSection` children (owner Config) were never deep-read; audit + fix or mark clean.
 
