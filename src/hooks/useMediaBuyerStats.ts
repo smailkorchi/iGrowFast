@@ -175,8 +175,17 @@ export function useMediaBuyerStats(range: StatsDateRange) {
 
     // 4. Derive the money/ratio fields from the raw server counts.
     const { totals, daily, perPlatform, perCampaign, currency } = useMemo(() => {
+        // O-2: salary => 0, EVERYTHING ELSE => commission. This is the DB's rule,
+        // not a choice made here: pay_mediabuyer and close_mediabuyer_month both
+        // write `coalesce(v_pt,'commission')` and branch on
+        // `case when v_pt='salary' then 0 else v_earned end`, so a NULL
+        // payment_type IS commission to the authority that moves the money. The
+        // old `=== 'commission' ? price : 0` silently paid a NULL buyer 0 here
+        // while the ledger accrued them a full commission. users_payment_type_check
+        // allows exactly {NULL, 'commission', 'salary'}, so NULL is the only
+        // divergent case — no live row has it today.
         const commissionPrice =
-            mediabuyer?.payment_type === 'commission' ? Number(mediabuyer.commission_price || 0) : 0;
+            mediabuyer?.payment_type === 'salary' ? 0 : Number(mediabuyer?.commission_price || 0);
 
         const dailyRows: DailyPoint[] = (stats?.daily ?? []).map((d) => {
             const delivered = Number(d.delivered || 0);

@@ -178,8 +178,13 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
 
     // Build per-day metrics
     const { daily, totals } = useMemo(() => {
+        // O-2: salary => 0, EVERYTHING ELSE => commission — matching the DB
+        // authority (pay_mediabuyer / close_mediabuyer_month write
+        // `coalesce(v_pt,'commission')` and branch on `v_pt='salary'`), and
+        // matching useMediaBuyerStats.ts. The old `=== 'commission' ? price : 0`
+        // treated a NULL payment_type as salary, contradicting the ledger.
         const commissionPrice =
-            mediabuyer?.payment_type === 'commission' ? Number(mediabuyer.commission_price || 0) : 0;
+            mediabuyer?.payment_type === 'salary' ? 0 : Number(mediabuyer?.commission_price || 0);
 
         // Index orders by YYYY-MM-DD in business timezone.
         // "Confirmed" = order_status NOT in pendingIds (new + postponed). Empty-set guard:
