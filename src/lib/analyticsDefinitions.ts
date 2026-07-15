@@ -15,6 +15,33 @@
  * - Returned orders contribute zero COGS (stock is restored server-side).
  * - Per-order ad share = spend ÷ delivered-order-count (equal split).
  * - Commission date anchor = delivery date (date_livraison, fallback updated_at).
+ *
+ * ---------------------------------------------------------------------------
+ * RUNTIME-DEAD EXPORTS — RETAINED DELIBERATELY (D7, 2026-07-15). DO NOT DELETE.
+ * ---------------------------------------------------------------------------
+ * The D2/D3/D5 waves moved this math server-side. The exports listed below now
+ * have ZERO runtime callers, but they are the **parity reference implementation**
+ * that `admin_analytics_stats` / `seller_roster_stats` / `mb_roster_earnings`
+ * were ported FROM. They are the only readable spec for that SQL, and D-wave
+ * convention is "parity is the bar" — deleting them would destroy the ability to
+ * diff the RPCs against their source. They cost ~0 bytes at runtime (Vite
+ * tree-shakes them out of every bundle).
+ *
+ * Retire them only together with the SQL they document.
+ *
+ * Runtime-dead (25), verified zero external references on 2026-07-15:
+ *   PENDING_STALE_DAYS, ACTIVE_USER_WINDOW_DAYS, PAID_ORDER_CAT, UNPAID_ORDER_CAT,
+ *   SEMANTIC_TONES, AnalyticsOrder, isRevenueOrder, hasTrackingCode,
+ *   isInDeliveryDenominator, isRateTouched, isReturned, isProvisional,
+ *   deliveredRevenueForOrder, cogsForOrder, shippingCostForDelivered,
+ *   returnFeeForOrder, deliveryTimestamp, placementTimestamp, returnTimestamp,
+ *   overlapFraction, adSpendInWindow, payoutMonthOverlap, normalizeSource,
+ *   ChartGrain, pickChartGrain.
+ *
+ * STILL LIVE — ordinary runtime code, not covered by the note above (13):
+ *   isAdminPullback, pureRevenueForOrder, SHIPPING_STUCK_DAYS,
+ *   LOW_STOCK_THRESHOLD, normalizePhone, isDelivered, isPaid, isConfirmed,
+ *   isRateConfirmed, isFailed, inWindow, AnalyticsOrderItem, PLATFORM_SOURCE_MAP.
  */
 
 import {

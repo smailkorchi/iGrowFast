@@ -1,5 +1,26 @@
 import { endOfDay, isWithinInterval, startOfDay } from "date-fns";
 
+/**
+ * ---------------------------------------------------------------------------
+ * RUNTIME-DEAD EXPORTS — RETAINED DELIBERATELY (D7, 2026-07-15). DO NOT DELETE.
+ * ---------------------------------------------------------------------------
+ * The D5 wave moved this math server-side. The exports listed below now have
+ * ZERO runtime callers, but they are the **parity reference implementation**
+ * that `seller_roster_stats` / `mb_roster_earnings` were ported FROM — the only
+ * readable spec for that SQL. D-wave convention is "parity is the bar", so they
+ * stay until the SQL they document is retired. Vite tree-shakes them out of
+ * every bundle, so the runtime cost is ~0.
+ *
+ * Runtime-dead (7), verified zero external references on 2026-07-15:
+ *   assignmentTimestampForMetrics, confirmationTimestampForMetrics,
+ *   sumAssignedProductUnits, deliveryTimestampForMetrics, isDeliveredOnLocalDay,
+ *   commissionAccruedForDeliveredOrder, totalAccruedForCommission.
+ *
+ * STILL LIVE — ordinary runtime code, not covered by the note above (5):
+ *   CommissionBasis, isDeliveredForCommission, normalizeCommissionBasis,
+ *   isConfirmed, computeUnpaidCommission.
+ */
+
 export type CommissionBasis = "per_order" | "per_unit";
 
 /**

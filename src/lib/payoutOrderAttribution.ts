@@ -46,7 +46,14 @@ export interface PaymentSlice {
   coveredTotal: number;
 }
 
-/** Sort orders FIFO: delivery date ascending (nulls last), then order_id for stability. */
+/**
+ * Sort orders FIFO: delivery date ascending (nulls last), then order_id for stability.
+ *
+ * RUNTIME-DEAD, RETAINED DELIBERATELY (D7, 2026-07-15) — zero external callers.
+ * This is the parity reference for the FIFO ordering the payout RPCs implement
+ * server-side; it is the readable spec for that SQL. Tree-shaken at build time.
+ * Do not delete while the SQL it documents is live.
+ */
 export function sortOrdersFifo<T extends AttribOrderInput>(orders: T[]): T[] {
   return [...orders].sort((a, b) => {
     const da = a.delivered_at ? Date.parse(a.delivered_at) : Number.POSITIVE_INFINITY;

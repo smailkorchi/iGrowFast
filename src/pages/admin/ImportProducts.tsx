@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Download,
     Upload,
@@ -54,6 +54,25 @@ interface MappedProduct {
     status: 'valid' | 'invalid';
     errors: string[];
     existing_product_id: string | null;
+}
+
+/**
+ * D7 (recon 03 §3.3): a row the DB rejected at write time.
+ *
+ * NOT the same thing as `MappedProduct.status === 'invalid'`, which is the
+ * client-side pre-validation of the spreadsheet. These rows passed that, were sent,
+ * and came back with an error — the class that used to be `console.error`-only while
+ * the toast still said "Import finished — Processed N product rows".
+ *
+ * `op` distinguishes a product that never landed ('insert'/'update') from one that
+ * DID land but whose accessory links did not ('accessories'). That difference
+ * matters to the operator: the second is a half-written product, not a skipped one.
+ */
+interface ImportFailure {
+    code: string;
+    name: string;
+    op: 'insert' | 'update' | 'accessories';
+    reason: string;
 }
 
 function parseMoney(raw: unknown): number {
@@ -145,18 +164,26 @@ const ImportProducts = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
+    /**
+     * D7 (recon 03 §3.3): rows the DB refused. Survives the post-import `setData([])`
+     * on purpose — the preview is cleared but the operator must still be able to see
+     * WHICH rows did not land.
+     */
+    const [failures, setFailures] = useState<ImportFailure[]>([]);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: products } = useQuery({
         queryKey: ['products-import-codes', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, code')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+            // D7 (recon 03 §3.3, "also latent"): this list resolves existing_product_id.
+            // A bare select is capped by PGRST_DB_MAX_ROWS (1000): past 1000 products an
+            // existing product would resolve to "not found" and the import would INSERT
+            // A DUPLICATE PRODUCT instead of updating it. 162 rows live — cap insurance,
+            // not a live bug, but the failure mode is silent and duplicates money rows.
+            return await fetchAllRows<{ id: string; code: string }>('products', 'id, code', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
         },
     });
 
@@ -164,21 +191,31 @@ const ImportProducts = () => {
         queryKey: ['accessories-import-resolve', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('accessories')
-                .select('id, code')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+            // Same cap-insurance rationale as `products` above; 12 rows live. A miss
+            // here silently drops an accessory link rather than duplicating a row.
+            return await fetchAllRows<{ id: string; code: string }>('accessories', 'id, code', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
         },
     });
 
+    // D7 (recon 03 §3.3) — the defect this fixes: every per-row failure was
+    // `console.error`-only and the mutation NEVER rejected, so onSuccess fired
+    // unconditionally and told the user "Import finished — Processed N product rows"
+    // even when all N rows had failed. Silent partial import on a catalog +
+    // cost_price (money) table.
+    //
+    // PARITY, deliberate: the per-row best-effort loop and its `continue` semantics
+    // STAY (recon: "Do not switch to a transaction — the current semantics are
+    // explicitly best-effort-per-row and changing that is a behavior change, not a
+    // bug fix"). What changes is only that failures are collected and reported.
     const uploadMutation = useMutation({
         mutationFn: async (rows: MappedProduct[]) => {
             if (!activeBusinessId) throw new Error('No active business');
             const valid = rows.filter((r) => r.status === 'valid');
             const total = valid.length;
             let completed = 0;
+            const failed: ImportFailure[] = [];
 
             for (const r of valid) {
                 const trimmedImage = r.image_url.trim();
@@ -213,6 +250,7 @@ const ImportProducts = () => {
                         .eq('id', r.existing_product_id);
                     if (error) {
                         console.error('Product update failed', r.code, error);
+                        failed.push({ code: r.code, name: r.name, op: 'update', reason: error.message });
                         completed++;
                         setUploadProgress(total ? Math.round((completed / total) * 100) : 0);
                         continue;
@@ -226,6 +264,12 @@ const ImportProducts = () => {
                         .single();
                     if (error || !inserted) {
                         console.error('Product insert failed', r.code, error);
+                        failed.push({
+                            code: r.code,
+                            name: r.name,
+                            op: 'insert',
+                            reason: error?.message ?? 'Insert returned no row',
+                        });
                         completed++;
                         setUploadProgress(total ? Math.round((completed / total) * 100) : 0);
                         continue;
@@ -233,11 +277,30 @@ const ImportProducts = () => {
                     productId = inserted.id;
                 }
 
-                await supabase
+                // The product itself landed. From here a failure means a HALF-WRITTEN
+                // product (row saved, accessory links wrong) — reported as op:'accessories'
+                // so the operator can tell it apart from a product that never saved.
+                //
+                // This delete's error was previously not checked AT ALL (not even
+                // console.error'd). Reporting it changes no control flow — the insert
+                // below still runs exactly as before — but a failed delete followed by a
+                // successful insert leaves STALE links behind, which the operator could
+                // not previously see. Flagged: whether a failed delete should skip the
+                // insert is a semantics question for the owner, deliberately not changed.
+                const { error: paDelError } = await supabase
                     .from('product_accessories')
                     .delete()
                     .eq('product_id', productId)
                     .eq('DigiCom Business', activeBusinessId);
+                if (paDelError) {
+                    console.error('product_accessories delete', productId, paDelError);
+                    failed.push({
+                        code: r.code,
+                        name: r.name,
+                        op: 'accessories',
+                        reason: `Anciens liens non supprimés: ${paDelError.message}`,
+                    });
+                }
 
                 if (r.resolved_accessory_ids.length > 0) {
                     const inserts = r.resolved_accessory_ids.map((accessory_id) => ({
@@ -247,18 +310,38 @@ const ImportProducts = () => {
                         'DigiCom Business': activeBusinessId,
                     }));
                     const { error: paError } = await supabase.from('product_accessories').insert(inserts);
-                    if (paError) console.error('product_accessories insert', productId, paError);
+                    if (paError) {
+                        console.error('product_accessories insert', productId, paError);
+                        failed.push({
+                            code: r.code,
+                            name: r.name,
+                            op: 'accessories',
+                            reason: paError.message,
+                        });
+                    }
                 }
 
                 completed++;
                 setUploadProgress(total ? Math.round((completed / total) * 100) : 0);
             }
+            // `succeeded` counts rows whose PRODUCT landed — a row that saved but whose
+            // accessory links failed is counted as succeeded AND appears in `failed`, so
+            // the two can legitimately overlap. That is why the toast reports them as
+            // separate facts and never as `total - failed.length`.
+            const productFailures = failed.filter((f) => f.op !== 'accessories').length;
+            return { succeeded: total - productFailures, failed, total };
         },
-        onSuccess: () => {
-            toast({
-                title: 'Import finished',
-                description: `Processed ${data.filter((d) => d.status === 'valid').length} product rows.`,
-            });
+        onSuccess: ({ succeeded, failed, total }) => {
+            setFailures(failed);
+            if (failed.length === 0) {
+                toast({ title: 'Import finished', description: `${succeeded} product row(s) imported.` });
+            } else {
+                toast({
+                    title: succeeded === 0 ? 'Import failed — no product was written' : 'Import partially failed',
+                    description: `${succeeded} of ${total} product row(s) imported, ${failed.length} issue(s). See "Lignes rejetées" below for the reason on each.`,
+                    variant: 'destructive',
+                });
+            }
             queryClient.invalidateQueries({ queryKey: ['products'] });
             queryClient.invalidateQueries({ queryKey: ['products-import-codes'] });
             queryClient.invalidateQueries({ queryKey: ['product-accessories'] });
@@ -281,6 +364,8 @@ const ImportProducts = () => {
             setFile(selectedFile);
             setIsParsing(true);
             setData([]);
+            // A new file starts a new import — the previous run's rejects are stale.
+            setFailures([]);
 
             const reader = new FileReader();
             reader.onload = () => {
@@ -636,6 +721,68 @@ const ImportProducts = () => {
                         </div>
                     </section>
                 </div>
+
+                {/*
+                  * D7 (recon 03 §3.3): the rows the DB refused. Before this, they existed
+                  * only in the browser console while the toast reported success — so a
+                  * fully-failed import looked identical to a clean one. Rendered after the
+                  * import (the preview is cleared, this is not) and dismissible.
+                  */}
+                {failures.length > 0 && (
+                    <section className="rounded-2xl border border-ant-rose/30 bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-rose" />
+                        <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-ant-line">
+                            <div className="space-y-1">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                                    <AlertCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    Lignes rejetées
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-display text-[16px] font-semibold text-ant-ink tabular-nums">{failures.length}</span>
+                                    <span className="font-serif italic text-[12px] text-ant-mid">
+                                        {failures.length > 1 ? 'problèmes détectés' : 'problème détecté'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setFailures([])}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line text-[11px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition-colors"
+                            >
+                                <X className="w-3 h-3" strokeWidth={2} />
+                                Masquer
+                            </button>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Code</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Nom</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Opération</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Raison</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {failures.map((f, i) => (
+                                        <TableRow key={`${f.code}-${f.op}-${i}`}>
+                                            <TableCell className="font-mono text-[11px] font-semibold text-ant-ink">{f.code}</TableCell>
+                                            <TableCell className="text-[11px] text-ant-ink">{f.name}</TableCell>
+                                            <TableCell className="text-[11px] text-ant-mid">
+                                                {f.op === 'insert'
+                                                    ? 'Création'
+                                                    : f.op === 'update'
+                                                      ? 'Mise à jour'
+                                                      : 'Accessoires (produit enregistré)'}
+                                            </TableCell>
+                                            <TableCell className="text-[11px] text-ant-rose">{f.reason}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </section>
+                )}
 
                 {data.length > 0 && (
                     <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">

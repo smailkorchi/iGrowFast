@@ -965,14 +965,14 @@
     "semantic_hash": "35b8d75246ee5775589be4a69c1f03de"
   },
   "src/App.tsx": {
-    "mtime": 1783452721.7002778,
-    "ast_hash": "cdbff19830a3a680a61e9ead5eaffae3",
-    "semantic_hash": "cdbff19830a3a680a61e9ead5eaffae3"
+    "mtime": 1784086323.918779,
+    "ast_hash": "abf77bf7ee1aed8e576caf6274934a4b",
+    "semantic_hash": ""
   },
   "src/components/CustomerInsights.tsx": {
-    "mtime": 1782617580.147596,
-    "ast_hash": "b8420106a4223da5411ff682a04fe031",
-    "semantic_hash": "b8420106a4223da5411ff682a04fe031"
+    "mtime": 1784087520.174088,
+    "ast_hash": "6695f4e2cd1641e58f40c4ddae51963c",
+    "semantic_hash": ""
   },
   "src/components/NavLink.tsx": {
     "mtime": 1769786427.0,
@@ -1240,9 +1240,9 @@
     "semantic_hash": ""
   },
   "src/components/layout/SellerSidebar.tsx": {
-    "mtime": 1783452721.7014756,
-    "ast_hash": "916129718cc546d8d7810032ae0bd943",
-    "semantic_hash": "916129718cc546d8d7810032ae0bd943"
+    "mtime": 1784086325.8904529,
+    "ast_hash": "3ada22993ff240cb99913eebdfddabdd",
+    "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
     "mtime": 1783475155.15306,
@@ -1958,11 +1958,6 @@
     "mtime": 1783988329.1210675,
     "ast_hash": "b765af4b56fda5ab379571fc5467f22c",
     "semantic_hash": ""
-  },
-  "src/hooks/useTrackedOrders.ts": {
-    "mtime": 1782617580.1548765,
-    "ast_hash": "e83cd1eac46c45f74ae7160e7f2a3e06",
-    "semantic_hash": "e83cd1eac46c45f74ae7160e7f2a3e06"
   },
   "src/hooks/useTrackingSyncStatus.ts": {
     "mtime": 1784004944.9704456,
@@ -5325,8 +5320,8 @@
     "semantic_hash": ""
   },
   "docs/MASTER_TODO.md": {
-    "mtime": 1784080460.3694088,
-    "ast_hash": "31f182a78d9f3d465ceadeb1ea5f7758",
+    "mtime": 1784085589.2622714,
+    "ast_hash": "afbfb7fa882a9824aa2064b9ddc675da",
     "semantic_hash": ""
   },
   "supabase/migrations/20260714160000_ecom_biz_r1a_publication_drop.sql": {
@@ -5462,6 +5457,21 @@
   "docs/d5-recon/03-design.md": {
     "mtime": 1784081577.9324968,
     "ast_hash": "3544cc0b0352d9c9cfacdaf3226e642b",
+    "semantic_hash": ""
+  },
+  "docs/d7-recon/01-levers.md": {
+    "mtime": 1784086283.5778224,
+    "ast_hash": "2079dcd11bfdc75e55173fab01dfbe47",
+    "semantic_hash": ""
+  },
+  "docs/d7-recon/02-pages.md": {
+    "mtime": 1784086283.5779357,
+    "ast_hash": "c9347b69a213df53ad6a996989b98353",
+    "semantic_hash": ""
+  },
+  "docs/d7-recon/03-tail-deadcode.md": {
+    "mtime": 1784086283.578053,
+    "ast_hash": "1b7f1570468e5eb3efd15134ecf451af",
     "semantic_hash": ""
   }
 }

@@ -29,4 +29,14 @@ export const shiftYmd = (ymd: string, days: number): string => {
 export const todayBusinessYmd = (): string => toBusinessDate(new Date().toISOString());
 
 // Returns the YYYY-MM-DD key for a Date in the business timezone.
+//
+// RUNTIME-DEAD, RETAINED DELIBERATELY (D7, 2026-07-15) — zero callers (external
+// or internal). Kept as the parity reference for the Casablanca day-bucketing
+// the D2/D3 RPCs perform server-side. Tree-shaken at build time. Do not delete
+// while the SQL it documents is live.
+//
+// NOTE: `BUSINESS_TZ` above is sometimes listed alongside this symbol as a "dead
+// export" — it is NOT dead. It has no *external* consumers, but it is
+// load-bearing internally (the Intl formatter at the top of this file reads it).
+// Only its `export` keyword is redundant; removing the constant breaks this file.
 export const dateToBusinessYmd = (d: Date): string => toBusinessDate(d.toISOString());

@@ -1916,38 +1916,72 @@ function FeesModal({ isOpen, onClose, courier, mode = 'delivery' }: any) {
         }
     });
 
-    const handleBulkApply = async () => {
+    // D7 (recon 03 §3.1): was a `for (city of cities)` loop over saveFeeRowByMasterCity
+    // = 2 sequential round-trips per city × up to 448 cities = 896 RTTs (~90-180 s of
+    // frozen button). Worse than slow: it aborted mid-loop on the first error, leaving
+    // an arbitrary COMMITTED PREFIX of the fee rows, while the optimistic setFees()
+    // above it had already painted all 448 cities at the new price. A money table
+    // showing writes that never landed.
+    //
+    // Now ONE atomic RPC. Three honesty rules follow from that and are load-bearing:
+    //   1. local fee state is painted only AFTER the write lands (no optimistic lie);
+    //   2. the toast reports the RPC's OWN counts, not `cities.length`;
+    //   3. on failure NOTHING was written — the error says exactly that, because
+    //      delivery_fees_bulk_apply is all-or-nothing.
+    const bulkApply = useMutation({
+        mutationFn: async (vars: { priceText: string; rows: { master_city_id: string; fee: number }[] }) => {
+            if (!activeBusinessId) throw new Error('No active business');
+            const { data, error } = await (supabase as any).rpc('delivery_fees_bulk_apply', {
+                p_business: activeBusinessId,
+                p_entity_kind: 'courier',
+                p_entity_id: courier.id,
+                p_fee_column: feeColumn,
+                p_rows: vars.rows,
+            });
+            if (error) throw error;
+            return data as { applied: number; skipped: number; inserted: number; updated: number };
+        },
+        onSuccess: (res, vars) => {
+            // Paint only what the server actually accepted.
+            setFees((prev) => {
+                const next = { ...prev };
+                for (const r of vars.rows) next[r.master_city_id] = vars.priceText;
+                return next;
+            });
+            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId, feeColumn] });
+            toast({
+                title: 'Fees updated',
+                description: `${res.applied} ${res.applied === 1 ? 'city' : 'cities'} set to ${vars.priceText} MAD (${res.inserted} new, ${res.updated} changed).`,
+            });
+        },
+        onError: (err: any) => {
+            toast({
+                title: 'Bulk update failed',
+                description: `${err?.message ?? 'Unknown error'} — no city was changed.`,
+                variant: 'destructive',
+            });
+        },
+    });
+
+    const handleBulkApply = () => {
         if (!bulkPrice || !cities) return;
 
         const numericPrice = parseFloat(bulkPrice);
-        if (isNaN(numericPrice)) {
+        // isFinite, not !isNaN — deliberately stricter than the code this replaces.
+        // parseFloat('Infinity') passes an isNaN guard, and JSON.stringify(Infinity)
+        // is `null`, which the RPC's coalesce(fee, 0) would turn into a silent 0 on
+        // EVERY city. The old per-row path would have sent null and errored; this
+        // path would have written zeros to a money table. Not a semantics change —
+        // a non-finite price was never writable either way.
+        if (!isFinite(numericPrice)) {
             toast({ title: "Invalid Price", description: "Please enter a valid number", variant: "destructive" });
             return;
         }
 
-        const newFees = { ...fees };
-        for (const city of cities) {
-            newFees[city.id] = bulkPrice;
-        }
-        setFees(newFees);
-
-        try {
-            for (const city of cities) {
-                await saveFeeRowByMasterCity(
-                    COURIER_FEES_TABLE,
-                    'courier_id',
-                    courier.id,
-                    city.id,
-                    activeBusinessId,
-                    numericPrice,
-                    feeColumn
-                );
-            }
-            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId, feeColumn] });
-            toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
-        } catch {
-            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
-        }
+        bulkApply.mutate({
+            priceText: bulkPrice,
+            rows: cities.map((city: any) => ({ master_city_id: city.id, fee: numericPrice })),
+        });
     };
 
     const title = mode === 'return' ? 'City Return Fees' : 'City Delivery Fees';
@@ -1979,8 +2013,19 @@ function FeesModal({ isOpen, onClose, courier, mode = 'delivery' }: any) {
                                 className="h-12 pl-10 rounded-xl border-none bg-white font-bold text-ant-ink shadow-sm"
                             />
                         </div>
-                        <Button onClick={handleBulkApply} className="h-12 px-6 rounded-xl bg-ant-ink text-white font-bold shadow-lg hover:bg-ant-ink/90">
-                            Auto Fill All
+                        <Button
+                            onClick={handleBulkApply}
+                            disabled={bulkApply.isPending}
+                            className="h-12 px-6 rounded-xl bg-ant-ink text-white font-bold shadow-lg hover:bg-ant-ink/90 disabled:opacity-60"
+                        >
+                            {bulkApply.isPending ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Applying...
+                                </>
+                            ) : (
+                                'Auto Fill All'
+                            )}
                         </Button>
                     </div>
                 </DialogHeader>
@@ -2804,38 +2849,68 @@ function CompanyFeesModal({ isOpen, onClose, company, mode = 'delivery' }: any) 
         }
     });
 
-    const handleBulkApply = async () => {
+    // D7 (recon 03 §3.1) — company twin of the courier dialog's bulk apply. Same
+    // defect (up to 436 cities × 2 RTTs, committed prefix on failure, optimistic UI
+    // lying about a money table), same atomic-RPC fix, same three honesty rules.
+    //
+    // PARITY, deliberately preserved: this applies to `cities` — the FULL city list —
+    // NOT `filteredCities`. The company dialog has a city search box, and "Auto Fill
+    // All" has always ignored it. Scoping the bulk write to the search results would
+    // be a silent semantics change to a money table, so the search stays a
+    // display-only filter here exactly as before.
+    const bulkApply = useMutation({
+        mutationFn: async (vars: { priceText: string; rows: { master_city_id: string; fee: number }[] }) => {
+            if (!activeBusinessId) throw new Error('No active business');
+            const { data, error } = await (supabase as any).rpc('delivery_fees_bulk_apply', {
+                p_business: activeBusinessId,
+                p_entity_kind: 'company',
+                p_entity_id: company.id,
+                p_fee_column: feeColumn,
+                p_rows: vars.rows,
+            });
+            if (error) throw error;
+            return data as { applied: number; skipped: number; inserted: number; updated: number };
+        },
+        onSuccess: (res, vars) => {
+            setFees((prev) => {
+                const next = { ...prev };
+                for (const r of vars.rows) next[r.master_city_id] = vars.priceText;
+                return next;
+            });
+            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId, feeColumn] });
+            toast({
+                title: 'Fees updated',
+                description: `${res.applied} ${res.applied === 1 ? 'city' : 'cities'} set to ${vars.priceText} MAD (${res.inserted} new, ${res.updated} changed).`,
+            });
+        },
+        onError: (err: any) => {
+            toast({
+                title: 'Bulk update failed',
+                description: `${err?.message ?? 'Unknown error'} — no city was changed.`,
+                variant: 'destructive',
+            });
+        },
+    });
+
+    const handleBulkApply = () => {
         if (!bulkPrice || !cities) return;
 
         const numericPrice = parseFloat(bulkPrice);
-        if (isNaN(numericPrice)) {
+        // isFinite, not !isNaN — deliberately stricter than the code this replaces.
+        // parseFloat('Infinity') passes an isNaN guard, and JSON.stringify(Infinity)
+        // is `null`, which the RPC's coalesce(fee, 0) would turn into a silent 0 on
+        // EVERY city. The old per-row path would have sent null and errored; this
+        // path would have written zeros to a money table. Not a semantics change —
+        // a non-finite price was never writable either way.
+        if (!isFinite(numericPrice)) {
             toast({ title: "Invalid Price", description: "Please enter a valid number", variant: "destructive" });
             return;
         }
 
-        const newFees = { ...fees };
-        for (const city of cities) {
-            newFees[city.id] = bulkPrice;
-        }
-        setFees(newFees);
-
-        try {
-            for (const city of cities) {
-                await saveFeeRowByMasterCity(
-                    COMPANY_FEES_TABLE,
-                    'company_id',
-                    company.id,
-                    city.id,
-                    activeBusinessId,
-                    numericPrice,
-                    feeColumn
-                );
-            }
-            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId, feeColumn] });
-            toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
-        } catch {
-            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
-        }
+        bulkApply.mutate({
+            priceText: bulkPrice,
+            rows: cities.map((city: any) => ({ master_city_id: city.id, fee: numericPrice })),
+        });
     };
 
     const filteredCities = useMemo(() => {
@@ -2890,9 +2965,14 @@ function CompanyFeesModal({ isOpen, onClose, company, mode = 'delivery' }: any) 
                         <Button
                             type="button"
                             onClick={handleBulkApply}
-                            className="h-10 px-2.5 sm:px-3 shrink-0 rounded-xl bg-ant-ink text-white text-[11px] sm:text-xs font-bold shadow-md hover:bg-ant-ink/90 whitespace-nowrap"
+                            disabled={bulkApply.isPending}
+                            className="h-10 px-2.5 sm:px-3 shrink-0 rounded-xl bg-ant-ink text-white text-[11px] sm:text-xs font-bold shadow-md hover:bg-ant-ink/90 whitespace-nowrap disabled:opacity-60"
                         >
-                            Auto Fill All
+                            {bulkApply.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                                'Auto Fill All'
+                            )}
                         </Button>
                     </div>
                 </DialogHeader>

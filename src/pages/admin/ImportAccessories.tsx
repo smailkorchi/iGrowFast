@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Download,
     Upload,
@@ -49,6 +49,21 @@ interface MappedAccessory {
     status: 'valid' | 'invalid';
     errors: string[];
     existing_id: string | null;
+}
+
+/**
+ * D7 (recon 03 §3.3): a row the DB rejected at write time.
+ *
+ * NOT the same thing as `MappedAccessory.status === 'invalid'`, which is the
+ * client-side pre-validation of the spreadsheet. These rows passed that, were sent,
+ * and came back with an error — the class that used to be `console.error`-only while
+ * the toast still said "Import finished".
+ */
+interface ImportFailure {
+    code: string;
+    name: string;
+    op: 'insert' | 'update';
+    reason: string;
 }
 
 function normalizeHeaderKey(key: string): string {
@@ -114,27 +129,48 @@ const ImportAccessories = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
+    /**
+     * D7 (recon 03 §3.3): rows the DB refused. Survives the post-import `setData([])`
+     * on purpose — the preview is cleared but the operator must still be able to see
+     * WHICH rows did not land.
+     */
+    const [failures, setFailures] = useState<ImportFailure[]>([]);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: accessories } = useQuery({
         queryKey: ['accessories', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('accessories')
-                .select('id, code')
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
+            // D7 (recon 03 §3.3, "also latent"): this list drives existing-code
+            // resolution. A bare select is capped by PGRST_DB_MAX_ROWS (1000), so past
+            // 1000 accessories an existing row would resolve to "not found" and the
+            // import would INSERT A DUPLICATE instead of updating it. 12 rows live —
+            // this is cap insurance, not a live bug. fetchAllRows pages correctly and
+            // no longer depends on the box env matching its PAGE_SIZE.
+            return await fetchAllRows<{ id: string; code: string }>('accessories', 'id, code', {
+                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
+            });
         },
     });
 
+    // D7 (recon 03 §3.3) — the defect this fixes: every per-row failure was
+    // `console.error`-only and the mutation NEVER rejected, so onSuccess fired
+    // unconditionally and told the user "Import finished — Processed N accessory
+    // rows" even when all N rows had failed. Silent partial import on a catalog +
+    // cost_price (money) table.
+    //
+    // PARITY, deliberate: the per-row best-effort loop STAYS (recon: "Do not switch
+    // to a transaction — the current semantics are explicitly best-effort-per-row and
+    // changing that is a behavior change, not a bug fix"). Failures no longer vanish:
+    // they are collected, counted, and rendered. Writes are NOT batched — see the
+    // note on the return statement.
     const uploadMutation = useMutation({
         mutationFn: async (rows: MappedAccessory[]) => {
             if (!activeBusinessId) throw new Error('No active business');
             const valid = rows.filter((r) => r.status === 'valid');
             const total = valid.length;
             let completed = 0;
+            const failed: ImportFailure[] = [];
 
             for (const r of valid) {
                 const trimmedImage = r.image_url.trim();
@@ -161,21 +197,41 @@ const ImportAccessories = () => {
                         .from('accessories')
                         .update(updatePayload)
                         .eq('id', r.existing_id);
-                    if (error) console.error('Accessory update failed', r.code, error);
+                    if (error) {
+                        console.error('Accessory update failed', r.code, error);
+                        failed.push({ code: r.code, name: r.name, op: 'update', reason: error.message });
+                    }
                 } else {
                     const { error } = await supabase.from('accessories').insert(payload);
-                    if (error) console.error('Accessory insert failed', r.code, error);
+                    if (error) {
+                        console.error('Accessory insert failed', r.code, error);
+                        failed.push({ code: r.code, name: r.name, op: 'insert', reason: error.message });
+                    }
                 }
 
                 completed++;
                 setUploadProgress(total ? Math.round((completed / total) * 100) : 0);
             }
+            // NOT batched into a chunked upsert. It would collapse 1 RTT/row into a
+            // handful of statements, but a single bad row would then fail its WHOLE
+            // chunk — trading per-row best-effort for all-or-nothing-per-chunk and
+            // destroying the per-row attribution this fix exists to provide. The recon
+            // files batching as "a separate, optional perf step"; it needs an owner
+            // ruling on the semantics, so it is deliberately NOT done here. 12 rows
+            // live, ~1 RTT each — the honesty was the defect, not the latency.
+            return { succeeded: total - failed.length, failed };
         },
-        onSuccess: () => {
-            toast({
-                title: 'Import finished',
-                description: `Processed ${data.filter((d) => d.status === 'valid').length} accessory rows.`,
-            });
+        onSuccess: ({ succeeded, failed }) => {
+            setFailures(failed);
+            if (failed.length === 0) {
+                toast({ title: 'Import finished', description: `${succeeded} accessory row(s) imported.` });
+            } else {
+                toast({
+                    title: succeeded === 0 ? 'Import failed — nothing was written' : 'Import partially failed',
+                    description: `${succeeded} imported, ${failed.length} rejected. See "Lignes rejetées" below for the reason on each.`,
+                    variant: 'destructive',
+                });
+            }
             queryClient.invalidateQueries({ queryKey: ['accessories'] });
             setData([]);
             setFile(null);
@@ -195,6 +251,8 @@ const ImportAccessories = () => {
             setFile(selectedFile);
             setIsParsing(true);
             setData([]);
+            // A new file starts a new import — the previous run's rejects are stale.
+            setFailures([]);
 
             const reader = new FileReader();
             reader.onload = () => {
@@ -488,6 +546,62 @@ const ImportAccessories = () => {
                         </div>
                     </section>
                 </div>
+
+                {/*
+                  * D7 (recon 03 §3.3): the rows the DB refused. Before this, they existed
+                  * only in the browser console while the toast reported success — so a
+                  * fully-failed import looked identical to a clean one. Rendered after the
+                  * import (the preview is cleared, this is not) and dismissible.
+                  */}
+                {failures.length > 0 && (
+                    <section className="rounded-2xl border border-ant-rose/30 bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-rose" />
+                        <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-ant-line">
+                            <div className="space-y-1">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                                    <AlertCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    Lignes rejetées
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-display text-[16px] font-semibold text-ant-ink tabular-nums">{failures.length}</span>
+                                    <span className="font-serif italic text-[12px] text-ant-mid">
+                                        {failures.length > 1 ? 'lignes non importées' : 'ligne non importée'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setFailures([])}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line text-[11px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition-colors"
+                            >
+                                <X className="w-3 h-3" strokeWidth={2} />
+                                Masquer
+                            </button>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Code</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Nom</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Opération</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em]">Raison</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {failures.map((f, i) => (
+                                        <TableRow key={`${f.code}-${i}`}>
+                                            <TableCell className="font-mono text-[11px] font-semibold text-ant-ink">{f.code}</TableCell>
+                                            <TableCell className="text-[11px] text-ant-ink">{f.name}</TableCell>
+                                            <TableCell className="text-[11px] text-ant-mid">{f.op === 'insert' ? 'Création' : 'Mise à jour'}</TableCell>
+                                            <TableCell className="text-[11px] text-ant-rose">{f.reason}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </section>
+                )}
 
                 {data.length > 0 && (
                     <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">

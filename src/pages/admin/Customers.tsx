@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { useToast } from '@/hooks/use-toast';
 import {
     Search,
@@ -60,6 +59,51 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 
+/**
+ * D7b (docs/d7-recon/02-pages.md §1) — the last unbounded full-order-table
+ * download in the app is gone.
+ *
+ * BEFORE: `useQuery(['customers-derived'])` fetchAllRows()'d EVERY non-deleted,
+ * non-pending order of the business (2 104 rows + 3 embeds, measured) on every
+ * page mount to render 12 rows, then did the phone grouping, the filtering, the
+ * search, the sort, the pagination and the KPI strip in a client-side Map.
+ *
+ * AFTER: three RPCs from mig 20260715040000 —
+ *   customers_list_page  ONE keyset page (D1 cursor-stack precedent:
+ *                        src/pages/admin/Orders.tsx:729-798)
+ *   customers_kpis       the KPI strip (UNFILTERED — see below)
+ *   customer_orders      the drill-down dialog's order list + chart, gated on
+ *                        dialog open
+ * All three are SECURITY INVOKER + admin-gated; the aggregates, the tier, the
+ * interaction score and the last-status pill are now computed server-side.
+ *
+ * `handleExport` is untouched: it already paged the real `customers` table at
+ * 1000/batch and was never part of the defect.
+ *
+ * CALLER TRAPS carried over from the migration header — read before editing:
+ *   * `phone` and `phone_normalized` are DIFFERENT strings. `phone` is the raw
+ *     digit display value; `phone_normalized` is the canonical key and the ONLY
+ *     valid p_phone_normalized for customer_orders. Passing `phone` silently
+ *     returns an EMPTY drill-down, not an error.
+ *   * `next_cursor` is JSON null (not an absent key) on the last page — falsy in
+ *     JS, so `if (next)` is the correct guard.
+ *
+ * RENDERED-SURFACE DEVIATIONS (both forced by the keyset, both flagged in the
+ * migration header):
+ *   * Numbered pagination (page N / totalPages) cannot survive a keyset cursor —
+ *     Prev/Next only, exactly as D1 did to admin/Orders. The "Total customers"
+ *     KPI still carries the real total (customers_kpis.total).
+ *   * The "Showing X of Y customers" hint is DROPPED. X was `filteredData.length`
+ *     — a FILTERED total. No RPC returns one (customers_kpis is deliberately
+ *     unfiltered, see below), and printing page_count there would read "Showing
+ *     12 of 1719" on every page — a false statement, not a preserved surface.
+ *
+ * The KPI strip is UNFILTERED on purpose: the old `stats` (:386-395) reduced over
+ * `customers` — the raw derived array — NOT over `filteredData`. Search and the
+ * status filters never moved those three counters, and customers_kpis(p_business)
+ * takes no filter params so they cannot start moving silently.
+ */
+
 /** Group label derived from the master semantic flags (replaces the old free-text category). */
 function orderStatusGroup(s: { is_new: boolean; is_paid: boolean; is_unpaid: boolean; is_confirmed: boolean; is_cancelled: boolean; is_callback: boolean; is_return: boolean; is_postponed: boolean; is_relaunch: boolean }) {
     if (s.is_new) return 'Nouveau';
@@ -84,16 +128,16 @@ function pkgStatusGroup(s: { is_delivered: boolean; is_returned: boolean; is_shi
     return 'Autre';
 }
 
-// --- Types ---
+// --- Types (the `customers_list_page` / `customer_orders` row shapes) ---
 
-interface Order {
+/** One row of `customer_orders(p_business, p_phone_normalized).orders`. */
+interface CustomerOrder {
     id: string;
     date: string;
     price: number;
     shipping_cost: number;
     order_status_id: string;
     package_status_id: string | null;
-    package_statuses?: { label?: string | null } | null;
     status: {
         label: string;
         color: string;
@@ -101,19 +145,46 @@ interface Order {
     city_name: string;
 }
 
-interface Customer {
-    id: string;
-    name: string;
+/**
+ * One row of `customers_list_page(...).rows`.
+ * `customer_id` is nullable by design: the row set is driven by the ORDERS
+ * aggregate LEFT JOINed to `customers`, so a trigger miss degrades to
+ * name/city 'Unknown' instead of dropping the customer from the list.
+ */
+interface CustomerRow {
+    customer_id: string | null;
+    phone_normalized: string;
     phone: string;
+    name: string;
     city: string;
     totalOrders: number;
     totalSpent: number;
-    lastOrderDate: string;
-    firstOrderDate: string;
-    orders: Order[];
-    avgOrderValue: number;
+    avgOrderValue: number | null;
+    lastOrderDate: string | null;
+    firstOrderDate: string | null;
+    /** 'New' is never emitted — it was the old Map-insert default, overwritten
+     *  before any render (dead tier, flagged in the migration, not reproduced). */
     status: 'High Value' | 'Mid Value' | 'Low Value' | 'New';
     interactionScore: number;
+    lastStatus: { label: string | null; color: string | null } | null;
+}
+
+interface CustomersPage {
+    rows: CustomerRow[];
+    page_count: number;
+    next_cursor: CustomerCursor | null;
+}
+
+interface CustomerCursor {
+    ts: string | null;
+    num: number | null;
+    key: string;
+}
+
+interface CustomerKpis {
+    total: number;
+    revenue: number;
+    avgValue: number;
 }
 
 const PAGE_SIZE = 12;
@@ -152,11 +223,20 @@ const CustomerKpi: React.FC<{
     );
 };
 
-const valueTierPill = (status: Customer['status']) => {
+const valueTierPill = (status: CustomerRow['status']) => {
     if (status === 'High Value') return { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' };
     if (status === 'Mid Value') return { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' };
     if (status === 'New') return { bg: 'bg-ant-ink/5', border: 'border-ant-line', text: 'text-ant-ink', dot: 'bg-ant-ink' };
     return { bg: 'bg-ant-light', border: 'border-ant-line', text: 'text-ant-mid', dot: 'bg-ant-mid' };
+};
+
+/** The list renders `lastOrderDate` through date-fns. It is nullable in the RPC
+ *  contract (coalesced from '-infinity'), so never hand `new Date(null)` to
+ *  format() — that throws RangeError and takes the whole table down. */
+const safeDay = (iso: string | null | undefined) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '—' : format(d, 'MMM d, yyyy');
 };
 
 const CSV_HEADER = [
@@ -186,8 +266,14 @@ const Customers = () => {
     const { toast } = useToast();
     const [isExporting, setIsExporting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    // Hold the SELECTION KEY, not a snapshot of the row: the dialog's header +
+    // KPI tiles must not freeze at click time while the drill-down table below
+    // them refetches live (a realtime bump or a refetch would leave the tiles
+    // claiming "3 orders / 1 115 MAD" above a 4-row table). `lastSelectedRef`
+    // keeps the last known row so the dialog can still render its closing
+    // animation after the key leaves the current page.
+    const [selectedKey, setSelectedKey] = useState<string | null>(null);
+    const lastSelectedRef = useRef<CustomerRow | null>(null);
     const [sortBy, setSortBy] = useState<'recency' | 'value' | 'frequency'>('recency');
     const [orderStatusFilterIds, setOrderStatusFilterIds] = useState<string[]>([]);
     const [packageStatusFilterIds, setPackageStatusFilterIds] = useState<string[]>([]);
@@ -223,176 +309,149 @@ const Customers = () => {
         setPackageStatusFilterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     };
 
+    // The search box drives an RPC now, so it is debounced (D1 precedent,
+    // admin/Orders.tsx:666-675) — otherwise every keystroke is a round-trip.
+    // NOT trimmed: the old filter was `name.toLowerCase().includes(searchQuery
+    // .toLowerCase())`, which does not trim, so " a" must keep matching names
+    // containing " a". The RPC does `like_escape(nullif(p_search, ''))`, so ''
+    // means "no filter" exactly as `includes('') === true` did.
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     useEffect(() => {
-        setCurrentPage(1);
-    }, [searchQuery, sortBy, orderStatusFilterIds, packageStatusFilterIds]);
+        const t = setTimeout(() => setDebouncedSearch(searchQuery), 350);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
 
-    const { data: customers, isLoading } = useQuery({
-        queryKey: ['customers-derived', activeBusinessId, statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size],
+    // Filter/sort state → RPC params, 1:1. Empty arrays travel as null: the RPC
+    // treats null as "no filter", mirroring the old `.length === 0` checks.
+    const listParams = useMemo(() => ({
+        p_business: activeBusinessId,
+        p_search: debouncedSearch || null,
+        p_sort: sortBy,
+        p_status_ids: orderStatusFilterIds.length > 0 ? orderStatusFilterIds : null,
+        p_package_ids: packageStatusFilterIds.length > 0 ? packageStatusFilterIds : null,
+    }), [activeBusinessId, debouncedSearch, sortBy, orderStatusFilterIds, packageStatusFilterIds]);
+
+    // Keyset cursor STACK — Prev pops, Next pushes the page's next_cursor.
+    // The page number is implicit (stack depth + 1). D1 precedent.
+    const [cursorStack, setCursorStack] = useState<CustomerCursor[]>([]);
+    const cursor = cursorStack.length > 0 ? cursorStack[cursorStack.length - 1] : null;
+    const page = cursorStack.length + 1;
+
+    // Snap back to page 1 whenever the filter/sort/search surface mutates —
+    // otherwise a cursor minted under the old params strands the user on a page
+    // that no longer exists (and a cursor from another sort is incoherent).
+    const paramsKey = useMemo(() => JSON.stringify(listParams), [listParams]);
+    useEffect(() => {
+        setCursorStack((prev) => (prev.length > 0 ? [] : prev));
+    }, [paramsKey]);
+
+    const {
+        data: pageData,
+        isPending: listPending,
+        isFetching: listFetching,
+        isError: listIsError,
+        error: listError,
+        refetch: refetchList,
+    } = useQuery<CustomersPage>({
+        queryKey: ['customers-page', activeBusinessId, listParams, cursor],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            // Paginated so we never truncate at the 1000-row default cap.
-            const orders = await fetchAllRows(
-                'orders',
-                `
-                    id,
-                    name,
-                    phone,
-                    address,
-                    price,
-                    shipping_cost,
-                    date,
-                    created_at,
-                    order_status_id,
-                    package_status_id,
-                    replace,
-                    city:master_cities(name),
-                    status:order_statuses(label, color),
-                    package_statuses(label)
-                `,
-                {
-                    filters: [
-                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
-                }
-            );
-
-            const customerMap = new Map<string, Customer>();
-
-            // Exclude exchange swap/return legs (replace=true) — a swap is not a
-            // customer purchase, so it must not inflate per-customer spent/order counts.
-            orders?.filter((o: any) => o.replace !== true).forEach((order: any) => {
-                const phone = order.phone?.replace(/[^0-9]/g, '');
-                if (!phone) return;
-
-                const orderPrice = Number(order.price) || 0;
-                const orderDate = order.date || order.created_at;
-
-                const cityName = (order.city as any)?.name || 'Unknown';
-                const statusLabel = order.status?.label || 'Unknown';
-                const statusColor = order.status?.color || '#D97706';
-
-                const orderObj: Order = {
-                    id: order.id,
-                    date: orderDate,
-                    price: orderPrice,
-                    shipping_cost: Number(order.shipping_cost) || 0,
-                    order_status_id: order.order_status_id || '',
-                    package_status_id: order.package_status_id || null,
-                    package_statuses: (order as any).package_statuses ?? null,
-                    status: { label: statusLabel, color: statusColor },
-                    city_name: cityName,
-                };
-
-                if (customerMap.has(phone)) {
-                    const cust = customerMap.get(phone)!;
-                    cust.orders.push(orderObj);
-                    cust.totalOrders += 1;
-                    cust.totalSpent += orderPrice;
-                    cust.name = order.name || cust.name;
-                    cust.city = cityName !== 'Unknown' ? cityName : cust.city;
-                } else {
-                    customerMap.set(phone, {
-                        id: phone,
-                        name: order.name || 'Unknown',
-                        phone: phone,
-                        city: cityName,
-                        totalOrders: 1,
-                        totalSpent: orderPrice,
-                        lastOrderDate: orderDate,
-                        firstOrderDate: orderDate,
-                        orders: [orderObj],
-                        avgOrderValue: 0,
-                        status: 'New',
-                        interactionScore: 0,
-                    });
-                }
+            const { data, error } = await (supabase as any).rpc('customers_list_page', {
+                ...listParams,
+                p_cursor_ts: cursor?.ts ?? null,
+                p_cursor_num: cursor?.num ?? null,
+                p_cursor_key: cursor?.key ?? null,
+                p_limit: PAGE_SIZE,
             });
-
-            const processedCustomers = Array.from(customerMap.values()).map((cust) => {
-                cust.orders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                cust.lastOrderDate = cust.orders[0].date;
-                cust.firstOrderDate = cust.orders[cust.orders.length - 1].date;
-                cust.avgOrderValue = cust.totalSpent / cust.totalOrders;
-
-                if (cust.totalSpent > 1000) cust.status = 'High Value';
-                else if (cust.totalSpent > 500) cust.status = 'Mid Value';
-                else cust.status = 'Low Value';
-
-                const successfulOrders = cust.orders.filter(
-                    (o) =>
-                        statusCats.confirmedIds.has(o.order_status_id) &&
-                        isDeliveredForCommission(o, statusCats.deliveredPkgIds)
-                ).length;
-                cust.interactionScore = successfulOrders * 10 + cust.totalOrders * 2;
-
-                return cust;
-            });
-
-            return processedCustomers;
+            if (error) throw error;
+            return data as CustomersPage;
         },
+        enabled: !!activeBusinessId,
+        staleTime: 60 * 1000,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
+        // keepPreviousData: the current page stays visible while the next loads.
+        placeholderData: (prev) => prev,
     });
 
-    const filteredData = useMemo(() => {
-        if (!customers) return [];
+    const {
+        data: kpis,
+        isPending: kpisPending,
+        isError: kpisIsError,
+        refetch: refetchKpis,
+    } = useQuery<CustomerKpis>({
+        queryKey: ['customers-kpis', activeBusinessId],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('customers_kpis', {
+                p_business: activeBusinessId,
+            });
+            if (error) throw error;
+            return data as CustomerKpis;
+        },
+        enabled: !!activeBusinessId,
+        staleTime: 60 * 1000,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
+        placeholderData: (prev) => prev,
+    });
 
-        const pkgList = statusCats.packageStatuses;
-        const orderSel = new Set(orderStatusFilterIds);
-        const pkgSel = new Set(packageStatusFilterIds);
+    const rows = useMemo(() => (pageData?.rows ?? []), [pageData]);
 
-        const orderMatchesFilter = (o: Order) => orderStatusFilterIds.length === 0 || orderSel.has(o.order_status_id);
+    // Resolve the selected row LIVE from the current page so the dialog's money
+    // tiles move with the drill-down table instead of freezing at click time.
+    const selectedCustomer = useMemo(() => {
+        if (!selectedKey) return null;
+        const live = rows.find((r: CustomerRow) => r.phone_normalized === selectedKey);
+        if (live) lastSelectedRef.current = live;
+        return live ?? lastSelectedRef.current;
+    }, [rows, selectedKey]);
+    const setSelectedCustomer = (c: CustomerRow | null) => {
+        if (c) lastSelectedRef.current = c;
+        setSelectedKey(c?.phone_normalized ?? null);
+    };
 
-        const packageMatchesFilter = (o: Order) => {
-            if (packageStatusFilterIds.length === 0) return true;
-            if (o.package_status_id && pkgSel.has(o.package_status_id)) return true;
-            const label = (o.package_statuses?.label || '').trim();
-            if (!label) return false;
-            return pkgList.some((ps) => pkgSel.has(ps.id) && ps.label === label);
-        };
+    // Treat the pre-auth window (no activeBusinessId yet → query disabled →
+    // isPending stays true) as loading, so we never flash an empty state before
+    // the query has even run.
+    const listLoading = listPending || !activeBusinessId;
+    const kpisLoading = kpisPending || !activeBusinessId;
 
-        let res = customers.filter((c) => {
-            const passesOrder = orderStatusFilterIds.length === 0 || c.orders.some(orderMatchesFilter);
-            const passesPkg = packageStatusFilterIds.length === 0 || c.orders.some(packageMatchesFilter);
-            return passesOrder && passesPkg;
-        });
+    // A failed RPC must NOT leave the page as a permanent skeleton: every block
+    // below gates on `isPending`, which never resolves on error. Surface the
+    // failure with a retry instead (D5 standing rule 3 / D3 review).
+    const loadFailed = (listIsError && !pageData) || (kpisIsError && !kpis);
 
-        res = res.filter(
-            (c) =>
-                c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                c.phone.includes(searchQuery) ||
-                c.city.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
-        if (sortBy === 'recency') {
-            res.sort((a, b) => new Date(b.lastOrderDate).getTime() - new Date(a.lastOrderDate).getTime());
-        } else if (sortBy === 'value') {
-            res.sort((a, b) => b.totalSpent - a.totalSpent);
-        } else if (sortBy === 'frequency') {
-            res.sort((a, b) => b.totalOrders - a.totalOrders);
+    // If the current cursor page went empty under us (the filtered set shrank),
+    // snap back to page 1 — a keyset cursor cannot clamp to a "last page" the
+    // way the old client-side slice did.
+    useEffect(() => {
+        if (!listFetching && pageData && pageData.page_count === 0 && cursorStack.length > 0) {
+            setCursorStack([]);
         }
+    }, [listFetching, pageData, cursorStack.length]);
 
-        return res;
-    }, [customers, searchQuery, sortBy, orderStatusFilterIds, packageStatusFilterIds, statusCats.packageStatuses]);
+    // Drill-down. Gated on the dialog actually being open — the Dialog stays
+    // mounted, so an ungated query would fire for every row ever selected.
+    // NOTE the trap: p_phone_normalized takes `phone_normalized`, NOT `phone`.
+    const {
+        data: detail,
+        isPending: detailPending,
+        isError: detailIsError,
+        refetch: refetchDetail,
+    } = useQuery<{ orders: CustomerOrder[] }>({
+        queryKey: ['customer-orders', activeBusinessId, selectedCustomer?.phone_normalized],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('customer_orders', {
+                p_business: activeBusinessId,
+                p_phone_normalized: selectedCustomer!.phone_normalized,
+            });
+            if (error) throw error;
+            return data as { orders: CustomerOrder[] };
+        },
+        enabled: !!activeBusinessId && !!selectedCustomer?.phone_normalized,
+        staleTime: 60 * 1000,
+    });
 
-    const paginatedCustomers = useMemo(() => {
-        const start = (currentPage - 1) * PAGE_SIZE;
-        return filteredData.slice(start, start + PAGE_SIZE);
-    }, [filteredData, currentPage]);
-
-    const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-
-    const stats = useMemo(() => {
-        if (!customers) return { total: 0, revenue: 0, avgValue: 0 };
-        const total = customers.length;
-        const revenue = customers.reduce((acc, c) => acc + c.totalSpent, 0);
-        return {
-            total,
-            revenue,
-            avgValue: total ? revenue / total : 0,
-        };
-    }, [customers]);
+    const detailOrders = detail?.orders ?? [];
 
     const handleExport = async () => {
         if (!activeBusinessId) {
@@ -464,13 +523,38 @@ const Customers = () => {
     };
 
     const chartData = useMemo(() => {
-        if (!selectedCustomer) return [];
-        return [...selectedCustomer.orders].reverse().map((o) => ({
+        // customer_orders returns date DESC; the chart reads left-to-right in
+        // time, so reverse — identical to the old `[...orders].reverse()`.
+        return [...detailOrders].reverse().map((o) => ({
             date: format(new Date(o.date), 'MMM dd'),
             amount: o.price,
             fullDate: o.date,
         }));
-    }, [selectedCustomer]);
+    }, [detailOrders]);
+
+    if (loadFailed) {
+        return (
+            <div className="ant-surface flex items-center justify-center h-[60vh]">
+                <div className="text-center max-w-md px-6">
+                    <UsersIcon className="w-12 h-12 text-ant-mid mx-auto mb-4" strokeWidth={1.5} />
+                    <h2 className="font-display text-[22px] font-semibold text-ant-ink mb-1 tracking-tight">
+                        Clients indisponibles
+                    </h2>
+                    <p className="font-serif italic text-[13px] text-ant-mid mb-4">
+                        {(listError as Error)?.message || 'Le chargement du répertoire clients a échoué.'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => { refetchList(); refetchKpis(); }}
+                        disabled={listFetching}
+                        className="inline-flex items-center gap-2 rounded-xl border border-ant-line bg-ant-paper px-4 py-2 text-[12px] font-semibold text-ant-ink hover:bg-ant-light disabled:opacity-60 cursor-pointer"
+                    >
+                        {listFetching ? 'Chargement…' : 'Réessayer'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="ant-surface min-h-screen">
@@ -500,8 +584,8 @@ const Customers = () => {
                     </Button>
                 </header>
 
-                {/* KPI strip */}
-                {isLoading ? (
+                {/* KPI strip — customers_kpis, business-wide and UNFILTERED (parity) */}
+                {kpisLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                         {Array.from({ length: 3 }).map((_, i) => (
                             <div key={i} className="bg-ant-paper p-4 animate-pulse h-[100px]" />
@@ -509,9 +593,9 @@ const Customers = () => {
                     </div>
                 ) : (
                     <section className="grid grid-cols-1 md:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
-                        <CustomerKpi label="Total customers" value={stats.total.toLocaleString()} suffix="profiles" accent="ink" icon={UsersIcon} />
-                        <CustomerKpi label="Lifetime value" value={Math.round(stats.revenue).toLocaleString()} suffix="MAD" accent="green" icon={TrendingUp} />
-                        <CustomerKpi label="Avg. customer value" value={Math.round(stats.avgValue).toLocaleString()} suffix="MAD" accent="orange" icon={Coins} />
+                        <CustomerKpi label="Total customers" value={(kpis?.total ?? 0).toLocaleString()} suffix="profiles" accent="ink" icon={UsersIcon} />
+                        <CustomerKpi label="Lifetime value" value={Math.round(kpis?.revenue ?? 0).toLocaleString()} suffix="MAD" accent="green" icon={TrendingUp} />
+                        <CustomerKpi label="Avg. customer value" value={Math.round(kpis?.avgValue ?? 0).toLocaleString()} suffix="MAD" accent="orange" icon={Coins} />
                     </section>
                 )}
 
@@ -710,31 +794,34 @@ const Customers = () => {
                             </Select>
                         </div>
                     </div>
-                    {customers && filteredData.length !== customers.length && (
-                        <p className="font-serif italic text-[11px] text-ant-mid px-1">
-                            Showing <span className="not-italic font-semibold text-ant-ink tabular-nums">{filteredData.length}</span> of{' '}
-                            <span className="tabular-nums">{customers.length}</span> customers
-                        </p>
-                    )}
                 </div>
 
-                {/* Customer Table */}
-                {isLoading ? (
+                {/* Customer Table.
+                    The `rows.length === 0 && kpisLoading` arm is load-bearing: the
+                    empty state below picks its copy off `kpis.total`, so rendering it
+                    before the KPI query resolves would read `undefined` as 0 and
+                    claim "No customer history yet" for a business that merely has an
+                    active filter (standing rule 3 — never render a cold query's
+                    default as fact). Both queries fire together, so this only ever
+                    costs the few ms of skew, and ONLY on an empty page. */}
+                {listLoading || (rows.length === 0 && kpisLoading) ? (
                     <div className="space-y-2">
                         {[1, 2, 3, 4, 5].map((i) => (
                             <div key={i} className="h-14 rounded-2xl bg-ant-light animate-pulse" />
                         ))}
                     </div>
-                ) : paginatedCustomers.length === 0 ? (
+                ) : rows.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
                         <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
                             <UsersIcon className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
                         </div>
                         <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
-                            {customers?.length ? 'No customers match these filters' : 'No customer history yet'}
+                            {/* kpis.total is the UNFILTERED customer count — exactly what the
+                                old `customers?.length` was, so this split is unchanged. */}
+                            {kpis?.total ? 'No customers match these filters' : 'No customer history yet'}
                         </h3>
                         <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
-                            {customers?.length
+                            {kpis?.total
                                 ? 'Relax the filters to bring the ledger back into view.'
                                 : 'Each order you record will build a profile here — the ledger grows with every sale.'}
                         </p>
@@ -755,11 +842,13 @@ const Customers = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginatedCustomers.map((customer) => {
+                                    {rows.map((customer) => {
                                         const tier = valueTierPill(customer.status);
                                         return (
                                             <tr
-                                                key={customer.id}
+                                                // phone_normalized, not customer_id: the latter is
+                                                // nullable (agg-driven LEFT JOIN) and would collide.
+                                                key={customer.phone_normalized}
                                                 className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0 cursor-pointer"
                                                 onClick={() => setSelectedCustomer(customer)}
                                             >
@@ -787,22 +876,22 @@ const Customers = () => {
                                                 <td className="px-4 py-3 text-right font-display text-[14px] font-semibold text-ant-ink tabular-nums">
                                                     {customer.totalSpent.toLocaleString()} <span className="text-[11px] text-ant-mid font-normal">DH</span>
                                                 </td>
-                                                <td className="px-4 py-3 text-[11px] text-ant-mid tabular-nums">{format(new Date(customer.lastOrderDate), 'MMM d, yyyy')}</td>
+                                                <td className="px-4 py-3 text-[11px] text-ant-mid tabular-nums">{safeDay(customer.lastOrderDate)}</td>
                                                 <td className="px-4 py-3">
-                                                    {customer.orders[0]?.status?.label && (
+                                                    {customer.lastStatus?.label && (
                                                         <span
                                                             className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
                                                             style={{
-                                                                backgroundColor: `${customer.orders[0].status.color}12`,
-                                                                borderColor: `${customer.orders[0].status.color}40`,
-                                                                color: customer.orders[0].status.color,
+                                                                backgroundColor: `${customer.lastStatus.color}12`,
+                                                                borderColor: `${customer.lastStatus.color}40`,
+                                                                color: customer.lastStatus.color ?? undefined,
                                                             }}
                                                         >
                                                             <span
                                                                 className="h-1.5 w-1.5 rounded-full"
-                                                                style={{ backgroundColor: customer.orders[0].status.color }}
+                                                                style={{ backgroundColor: customer.lastStatus.color ?? undefined }}
                                                             />
-                                                            {customer.orders[0].status.label}
+                                                            {customer.lastStatus.label}
                                                         </span>
                                                     )}
                                                 </td>
@@ -820,27 +909,32 @@ const Customers = () => {
                     </div>
                 )}
 
-                {/* Pagination */}
-                {totalPages > 1 && (
+                {/* Pagination — keyset Prev/Next cursor stack (D1). A keyset has no
+                    "page N of M": totalPages is unknowable without a filtered count,
+                    so the page number stands alone and Next is driven by next_cursor. */}
+                {(cursorStack.length > 0 || !!pageData?.next_cursor) && (
                     <div className="flex items-center justify-center gap-2">
                         <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer"
+                            onClick={() => setCursorStack((prev) => prev.slice(0, -1))}
+                            disabled={cursorStack.length === 0 || listFetching}
+                            className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-3.5 h-3.5" />
                         </Button>
                         <span className="text-[12px] font-semibold text-ant-ink px-3 tabular-nums">
-                            {currentPage} <span className="text-ant-mid">/ {totalPages}</span>
+                            <span className="text-ant-mid font-normal">Page </span>{page}
                         </span>
                         <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                            className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer"
+                            onClick={() => {
+                                const next = pageData?.next_cursor;
+                                if (next) setCursorStack((prev) => [...prev, next]);
+                            }}
+                            disabled={!pageData?.next_cursor || listFetching}
+                            className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-3.5 h-3.5" />
                         </Button>
@@ -885,11 +979,11 @@ const Customers = () => {
                                 </div>
 
                                 <div className="p-6 space-y-5">
-                                    {/* KPI strip */}
+                                    {/* KPI strip — straight off the list row, no second round-trip */}
                                     <section className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                                         <CustomerKpi label="Lifetime value" value={selectedCustomer.totalSpent.toLocaleString()} suffix="DH" accent="green" icon={TrendingUp} />
                                         <CustomerKpi label="Total orders" value={String(selectedCustomer.totalOrders)} suffix="orders" accent="ink" icon={ShoppingBag} />
-                                        <CustomerKpi label="Avg. order" value={Math.round(selectedCustomer.avgOrderValue).toLocaleString()} suffix="DH" accent="orange" icon={Coins} />
+                                        <CustomerKpi label="Avg. order" value={Math.round(selectedCustomer.avgOrderValue ?? 0).toLocaleString()} suffix="DH" accent="orange" icon={Coins} />
                                         <CustomerKpi label="Loyalty score" value={String(selectedCustomer.interactionScore)} suffix="pts" accent="rose" icon={Activity} />
                                     </section>
 
@@ -902,32 +996,38 @@ const Customers = () => {
                                                 Order history
                                             </div>
                                             <div className="h-[200px]">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                                                        <defs>
-                                                            <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor="#D97706" stopOpacity={0.3} />
-                                                                <stop offset="95%" stopColor="#D97706" stopOpacity={0} />
-                                                            </linearGradient>
-                                                        </defs>
-                                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#8B8680', fontSize: 10 }} dy={6} />
-                                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8B8680', fontSize: 10 }} tickFormatter={(v) => `${v}`} />
-                                                        <CartesianGrid vertical={false} stroke="#E6E1D6" strokeDasharray="3 3" />
-                                                        <Tooltip
-                                                            contentStyle={{
-                                                                borderRadius: '12px',
-                                                                border: '1px solid #E6E1D6',
-                                                                background: '#FAF9F4',
-                                                                fontSize: '12px',
-                                                                padding: '8px 12px',
-                                                                boxShadow: '0 16px 48px -20px rgba(20,20,19,0.2)',
-                                                            }}
-                                                            cursor={{ stroke: '#D97706', strokeWidth: 1 }}
-                                                            formatter={(v: any) => [`${v} DH`, 'Amount']}
-                                                        />
-                                                        <Area type="monotone" dataKey="amount" stroke="#D97706" strokeWidth={1.75} fillOpacity={1} fill="url(#colorAmount)" activeDot={{ r: 4, strokeWidth: 0, fill: '#D97706' }} />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
+                                                {/* Never paint an empty chart as fact while the
+                                                    drill-down is still in flight (standing rule 3). */}
+                                                {detailPending ? (
+                                                    <div className="h-full w-full rounded-xl bg-ant-light animate-pulse" />
+                                                ) : (
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                                                            <defs>
+                                                                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="5%" stopColor="#D97706" stopOpacity={0.3} />
+                                                                    <stop offset="95%" stopColor="#D97706" stopOpacity={0} />
+                                                                </linearGradient>
+                                                            </defs>
+                                                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#8B8680', fontSize: 10 }} dy={6} />
+                                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8B8680', fontSize: 10 }} tickFormatter={(v) => `${v}`} />
+                                                            <CartesianGrid vertical={false} stroke="#E6E1D6" strokeDasharray="3 3" />
+                                                            <Tooltip
+                                                                contentStyle={{
+                                                                    borderRadius: '12px',
+                                                                    border: '1px solid #E6E1D6',
+                                                                    background: '#FAF9F4',
+                                                                    fontSize: '12px',
+                                                                    padding: '8px 12px',
+                                                                    boxShadow: '0 16px 48px -20px rgba(20,20,19,0.2)',
+                                                                }}
+                                                                cursor={{ stroke: '#D97706', strokeWidth: 1 }}
+                                                                formatter={(v: any) => [`${v} DH`, 'Amount']}
+                                                            />
+                                                            <Area type="monotone" dataKey="amount" stroke="#D97706" strokeWidth={1.75} fillOpacity={1} fill="url(#colorAmount)" activeDot={{ r: 4, strokeWidth: 0, fill: '#D97706' }} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -939,46 +1039,71 @@ const Customers = () => {
                                                 <ShoppingBag className="w-3 h-3" />
                                                 Order history
                                             </div>
+                                            {/* totalOrders (from the row), NOT detailOrders.length:
+                                                same pool, same number, but known immediately — so the
+                                                header never reads "0 orders" while the RPC is in
+                                                flight. */}
                                             <span className="text-[11px] font-semibold text-ant-mid tabular-nums">
-                                                {selectedCustomer.orders.length} {selectedCustomer.orders.length === 1 ? 'order' : 'orders'}
+                                                {selectedCustomer.totalOrders} {selectedCustomer.totalOrders === 1 ? 'order' : 'orders'}
                                             </span>
                                         </div>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full">
-                                                <thead>
-                                                    <tr className="border-b border-ant-line bg-ant-light/50">
-                                                        <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Date</th>
-                                                        <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Status</th>
-                                                        <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">City</th>
-                                                        <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Amount</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {selectedCustomer.orders.map((order) => (
-                                                        <tr key={order.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0">
-                                                            <td className="px-4 py-3 text-[11px] text-ant-mid tabular-nums">{format(new Date(order.date), 'MMM d, yyyy')}</td>
-                                                            <td className="px-4 py-3">
-                                                                <span
-                                                                    className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                                                                    style={{
-                                                                        backgroundColor: `${order.status.color}12`,
-                                                                        borderColor: `${order.status.color}40`,
-                                                                        color: order.status.color,
-                                                                    }}
-                                                                >
-                                                                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: order.status.color }} />
-                                                                    {order.status.label}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-[12px] text-ant-ink">{order.city_name}</td>
-                                                            <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums">
-                                                                {order.price.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">DH</span>
-                                                            </td>
+                                        {detailIsError && !detail ? (
+                                            <div className="px-5 py-10 text-center">
+                                                <p className="font-serif italic text-[13px] text-ant-mid mb-3">
+                                                    L'historique des commandes n'a pas pu être chargé.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => refetchDetail()}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-ant-line bg-ant-paper px-4 py-2 text-[12px] font-semibold text-ant-ink hover:bg-ant-light cursor-pointer"
+                                                >
+                                                    Réessayer
+                                                </button>
+                                            </div>
+                                        ) : detailPending ? (
+                                            <div className="p-4 space-y-2">
+                                                {[1, 2, 3].map((i) => (
+                                                    <div key={i} className="h-10 rounded-xl bg-ant-light animate-pulse" />
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full">
+                                                    <thead>
+                                                        <tr className="border-b border-ant-line bg-ant-light/50">
+                                                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Date</th>
+                                                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Status</th>
+                                                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">City</th>
+                                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Amount</th>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                    </thead>
+                                                    <tbody>
+                                                        {detailOrders.map((order) => (
+                                                            <tr key={order.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0">
+                                                                <td className="px-4 py-3 text-[11px] text-ant-mid tabular-nums">{safeDay(order.date)}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <span
+                                                                        className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                                                                        style={{
+                                                                            backgroundColor: `${order.status.color}12`,
+                                                                            borderColor: `${order.status.color}40`,
+                                                                            color: order.status.color,
+                                                                        }}
+                                                                    >
+                                                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: order.status.color }} />
+                                                                        {order.status.label}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-[12px] text-ant-ink">{order.city_name}</td>
+                                                                <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums">
+                                                                    {order.price.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">DH</span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

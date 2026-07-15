@@ -15,15 +15,17 @@ import { publishEcomBus, type EcomBusEvent } from '@/lib/ecomBus';
  * the GLOBAL react-query invalidations live here:
  *
  *   order/parcel → ['orders-page'] + ['orders-kpis'] + ['dash-stats'] +
- *                  ['analytics-stats'] + the D5 leaderboard prefixes,
- *                  debounced 500ms
+ *                  ['analytics-stats'] + the D5 leaderboard prefixes + the D7
+ *                  customers prefixes, debounced 500ms
  *                  (D1: covers the admin AND seller keyset-page/KPI query
  *                   variants; D2: ['dash-stats'] covers every role-dashboard
  *                   stats RPC query; D3: ['analytics-stats'] covers the admin
  *                   Analytics one-call payload; D5: ['couriers-roster-stats'],
  *                   ['sellers-roster-stats'], ['mb-roster-earnings'] cover the
- *                   collaborator leaderboards — all key families start with
- *                   these prefixes)
+ *                   collaborator leaderboards; D7: ['customers-page'],
+ *                   ['customers-kpis'], ['customer-orders'] cover the admin
+ *                   Customers keyset list, its KPI strip and its drill-down —
+ *                   all key families start with these prefixes)
  *   stock        → the role's product/accessory dropdown keys, debounced 150ms
  *                  (snappy shortage-highlight flip, still coalesces bursts)
  *
@@ -77,6 +79,14 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
             queryClient.invalidateQueries({ queryKey: ['couriers-roster-stats'] });
             queryClient.invalidateQueries({ queryKey: ['sellers-roster-stats'] });
             queryClient.invalidateQueries({ queryKey: ['mb-roster-earnings'] });
+            // D7: admin/Customers — every row, the KPI strip and the drill-down
+            // are order-derived aggregates (['customers-page', biz, params,
+            // cursor], ['customers-kpis', biz], ['customer-orders', biz, phone]).
+            // Before D7 the page derived them from a client-side copy of the
+            // order table, so a new order only landed on a remount.
+            queryClient.invalidateQueries({ queryKey: ['customers-page'] });
+            queryClient.invalidateQueries({ queryKey: ['customers-kpis'] });
+            queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
         };
         const debouncedOrders = () => {
             if (ordersTimer) clearTimeout(ordersTimer);
