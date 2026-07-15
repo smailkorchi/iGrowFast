@@ -325,18 +325,34 @@ Registry: 112 rows done · 28 rows open — **all P2/P3, all DEFERRED with measu
 - [ ] **P-2 (note) the MB half renders every ticket**, so it cannot hide money the way the seller roster could — each open row gets its own Pay button, and `pay_mediabuyer` still targets the calendar month. Same rollover divergence, no unpayable state. No live stale MB ticket (the one open MB ticket is the current month). Left as designed.
 - [x] **P-3 DELETED 2026-07-15 — the bulk payout UI was DEAD CODE** — `BulkGenerateDialog` is never rendered; both `settleMutation` declarations are never invoked (`noUnusedLocals: false` hid it). ~200 lines of unreachable payout logic = a trap for whoever wires it next. `docs/parked/PARKED_pay_sellers_bulk.sql` targeted this dead path. DONE: 509 lines removed (BulkGenerateDialog + GenStep + both settleMutation declarations + their orphaned `selected` states + 3 orphaned imports + a now-dead invalidateAll), and docs/parked/PARKED_pay_sellers_bulk.sql deleted. Reviewed: nothing reachable was removed (there were never any checkboxes — the `selected` states' only consumers were the dead mutations); tsc -b --force + vite build clean. NOTE the earlier tracker line 'Salaries.tsx reverted to HEAD' referred to the PARKED bulk work being backed out; the file has since been cut down deliberately.
 
-### O-4 (FOUND 2026-07-15 while verifying the guard) — the open ticket goes STALE between payments
-**PRE-EXISTING, not introduced by any wave, and NOT caused by the overpay guard.** `refresh_open_seller_ticket` is called from exactly two places: inside `pay_seller`, and `close_seller_month`. Nothing else — no trigger on `seller_daily_earnings`/`orders`, no cron. So an open ticket's `month_earned` is a snapshot from the last payment (or the 1st of the month) and drifts as the seller keeps earning.
+### O-4 — RETRACTED 2026-07-15. I WAS WRONG. A refresh cron already exists.
+**The previous O-4 claimed "no trigger, no cron" refreshes the open ticket. That is FALSE.** `cron.job` **9** (`20 * * * *`) runs
+`SELECT public.refresh_open_seller_ticket(seller_id, "DigiCom Business") FROM public.seller_payments WHERE period_state='open';`
+and job **14** does the same for media buyers. Both succeed hourly (4 rows / 0.08s, 1 row / 0.02s). I never verified the "who refreshes it" query — it errored with exit 3 and I let it go, then asserted the conclusion anyway. Second time this session I mistook designed behaviour for a defect (the first was `close_seller_month`'s all-zero `CONTINUE`).
 
-**LIVE right now:** `ghita` stores `month_earned=2930` while `seller_daily_earnings` says **2940**. The ticket says remaining **252**; the truth is **262**. Every other seller: 0 drift.
+**The corrected fact: payout tickets refresh HOURLY at :20. Max display staleness = 60 minutes.** Not "never".
 
-**What the operator sees:** `PayoutPaymentDialogs.tsx:163` computes the cap as `hasLedger ? ci + me : sellerAccruedTotal`, and `Salaries.tsx:490-491` passes `carriedIn`/`monthEarned` from the TICKET ⇒ `hasLedger` is always true, so the LIVE `sellerAccruedTotal` (passed at `:502`) is **never used for the cap**. The dialog pre-fills "pay the remaining balance" = **252**, understating by 10.
+**Numbers ARE correct and DO agree.** Verified at 20:22 Casablanca (cron ran 20:20), ghita, every surface simultaneously:
+| source | value |
+|---|---|
+| `seller_daily_earnings` (live view) | 2960 earned |
+| `seller_payments.month_earned` (ticket) | 2960 |
+| `seller_ledger.remaining` | **282** |
+| `seller_roster_stats.total_unpaid` | **282** |
+| `seller_roster_stats.live_commission` | **282** |
+| lifetime `12840 − 12558` | **282** |
 
-**Why it is NOT a money-loss bug:** the shortfall stays on the ticket and rolls forward via `carried_out` → next month's `carried_in`. The payment itself re-syncs the ticket (`pay_seller` refreshes BEFORE inserting), so after paying 252 the row immediately reads `remaining 10` and status `partial`, not `paid` — the operator can settle the rest. Self-correcting.
+**The ONLY real gap = the intra-hour window.** Two money families with different cadences:
+- **LIVE (instant):** `admin_dashboard_stats`, `seller_dashboard_stats`, `admin_analytics_stats` read `seller_daily_earnings` directly.
+- **TICKET (hourly):** `seller_ledger` → the Salaries ledger table + the pay dialog's prefill (`PayoutPaymentDialogs.tsx:163`, `hasLedger ? ci + me : ...`).
 
-**Why the guard cannot make it worse:** the guard measures the **post-refresh** remaining (262), which is always ≥ the number the UI offers (252). So it can never reject a payment the UI proposes. Verified empirically: 252 ACCEPTED, 252.004 ACCEPTED (dust tolerance), 5000 REJECTED 23514. All in rolled-back txns; `remaining_after_tests=252` confirms nothing persisted.
+So within the ≤60 min after a sale, the dashboard can show a number the pay dialog has not caught up to. **Measured live earlier this session: ticket 2930 vs live 2940 (a real 10 MAD on-screen disagreement), then 2940 → 2960 as ghita kept selling.** Money is never wrong at payment time — `pay_seller` refreshes BEFORE recording and the guard measures the refreshed figure — it is a *display* lag only.
 
-**The reachable edge (NOT biting today):** a seller with `carried_in = 0` who earns mid-month has a ticket reading `total=0, paid=0 ⇒ remaining 0`, so `isSettleable` (`Salaries.tsx:243`, ticket-based) is false and **the Pay button never appears** until the month closes. Today nobody is in that state: only `ghita` has live July earnings and her `carried_in=980` keeps the button alive. Whether mid-month payment for a zero-carry seller SHOULD be possible is a **money-semantics/design question — owner's call**, not mine to guess. Options if wanted: (a) drive the cap from `sellerAccruedTotal` (already passed, one-line), (b) refresh open tickets on a cron, (c) leave as designed (pay after close).
+**Admin vs seller dashboard are consistent with each other** (both LIVE-derived). The divergence is dashboard-vs-Salaries, not admin-vs-seller.
+
+**If "live everywhere, no lag" is the requirement, the fix is a cadence change — and cron 9 as written does NOT scale to it.** It is a per-row function call (`SELECT fn(...) FROM seller_payments WHERE period_state='open'`), so it is O(open tickets) function invocations, each running its own SUM. Fine at 4 sellers (0.08s); running that every minute at 1000 sellers is 1000 calls/min. **The scalable form is ONE set-based UPDATE** joining the aggregated view — a single statement regardless of seller count — and only then is a 1–2 min cadence safe. Do NOT simply re-schedule the existing cron to `* * * * *`.
+
+**REJECTED fix (do not ship):** driving the pay dialog cap from `sellerAccruedTotal` (the live figure already passed at `Salaries.tsx:502` but ignored because `hasLedger` is always true). It works for all 3 real sellers but breaks `sma` (test business `c88e9cd0`): lifetime accrued **0** vs lifetime paid **2100** ⇒ `Math.max(0, -2100) = 0` ⇒ sma flips from payable (ticket says 2100) to unpayable. The ticket is the durable record; `seller_daily_earnings` is derived and CAN lose history (sma has 300 orders and 0 view rows). The view↔ticket invariant holds for real sellers today but is **not guaranteed by the schema** — trusting the view over the ticket is a landmine.
 
 ### THE ONLY WORK GATED ON THE OWNER
 1. **`pay_sellers_bulk` — VERDICT: DO NOT APPLY. Recon-killed, superseded.** Four blockers: (B1) false retry-safety; (B2) **deadlock class vs `close_seller_month`** (N advisory locks held to COMMIT vs its unordered N-lock txn — today's per-seller loop makes this structurally impossible); (B3) its admin gate ignores `p_business`; (B4) **it fixes no money bug** while making the only failure that happens WORSE (a lost response double-pays all N instead of at most 1). And the perf case is empty: **21 txns / 4 sellers / ~15 months; a multi-seller bulk settle has NEVER occurred** — and it targeted dead code (P-3). Atomicity is also the WRONG semantic: no constraint, trigger or ticket spans two sellers, so payouts have no cross-seller invariant to protect. Delete it with the dead UI.
