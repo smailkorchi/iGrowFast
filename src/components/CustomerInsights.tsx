@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { isAdminPullback } from '@/lib/analyticsDefinitions';
 import {
@@ -55,7 +55,6 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
 
     // Debounce phone search — normalize digits only, skip below 6 chars.
     useEffect(() => {
@@ -136,6 +135,43 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
 
         return () => clearTimeout(timer);
     }, [phone, activeBusinessId]);
+
+    // Tracked set = orders with a non-blank tracking_code in either parcel
+    // table — the delivery-rate denominator (Coliaty formula). D7: this used to
+    // ride useTrackedOrders, which downloaded EVERY parcel row of the business
+    // (staleTime 0 + refetchOnMount 'always') to answer it for ONE customer.
+    // Scoped to this customer's own order ids instead: same predicate, same Set
+    // semantics, ~99% less payload. Kong caps request URLs at 8k, so a customer
+    // with an implausibly long history falls back to the unscoped fetch rather
+    // than 414-ing.
+    const orderIds = useMemo(() => orders.map((o) => o.id).sort(), [orders]);
+    const ID_LIST_MAX = 150;
+    const { data: trackedRows } = useQuery({
+        queryKey: ['ci-tracked', activeBusinessId, orderIds.join(',')],
+        queryFn: async () => {
+            const scoped = orderIds.length <= ID_LIST_MAX;
+            const base = (col: string) => [
+                { column: 'DigiCom Business', op: 'eq' as const, value: activeBusinessId },
+                ...(scoped ? [{ column: col, op: 'in' as const, value: orderIds }] : []),
+            ];
+            const [company, courier] = await Promise.all([
+                fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                    'company_parcels', 'order_id, tracking_code', { filters: base('order_id') },
+                ),
+                fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
+                    'courier_parcels', 'order_id, tracking_code', { filters: base('order_id') },
+                ),
+            ]);
+            return [...company, ...courier];
+        },
+        enabled: !!activeBusinessId && orderIds.length > 0,
+        staleTime: 30 * 1000,
+    });
+    const trackedOrderIds = useMemo(() => new Set(
+        (trackedRows ?? [])
+            .filter((p) => p.order_id && String(p.tracking_code ?? '').trim().length > 0)
+            .map((p) => p.order_id as string),
+    ), [trackedRows]);
 
     // Rolled-up KPIs for the intelligence strip.
     //
@@ -224,10 +260,19 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         };
     }, [stats]);
 
-    const deliveryTone =
-        stats.deliveryRate >= 60 ? 'text-ant-green' : stats.deliveryRate >= 30 ? 'text-ant-orange' : 'text-ant-rose';
-    const deliveryBar =
-        stats.deliveryRate >= 60 ? 'bg-ant-green' : stats.deliveryRate >= 30 ? 'bg-ant-orange' : 'bg-ant-rose';
+    // The parcel query is per-customer (cold on every preview) and resolves
+    // AFTER the orders fetch it depends on, so the strip's first paint has no
+    // tracked set yet. Without this gate the rate derives 0 → the WORST tone,
+    // i.e. a red "0%" flashing on every preview before snapping to truth — on
+    // the tile admins use to judge an order. The deleted hook exposed `isReady`
+    // for exactly this; the rate stays unknown until the rows land.
+    const trackedReady = orderIds.length === 0 || trackedRows !== undefined;
+    const deliveryTone = !trackedReady
+        ? 'text-ant-mid'
+        : stats.deliveryRate >= 60 ? 'text-ant-green' : stats.deliveryRate >= 30 ? 'text-ant-orange' : 'text-ant-rose';
+    const deliveryBar = !trackedReady
+        ? 'bg-ant-line'
+        : stats.deliveryRate >= 60 ? 'bg-ant-green' : stats.deliveryRate >= 30 ? 'bg-ant-orange' : 'bg-ant-rose';
 
     const cleaned = phone?.replace(/[^0-9+]/g, '') || '';
     if (cleaned.length < 6) return null;
@@ -300,13 +345,13 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                                 Delivery rate
                             </span>
                             <span className={cn('font-display text-[15px] font-semibold tabular-nums tracking-[-0.01em]', deliveryTone)}>
-                                {stats.deliveryRate}%
+                                {trackedReady ? `${stats.deliveryRate}%` : '—'}
                             </span>
                         </div>
                         <div className="w-full h-1.5 bg-ant-line rounded-full overflow-hidden">
                             <div
                                 className={cn('h-full rounded-full transition-all duration-700 ease-out', deliveryBar)}
-                                style={{ width: `${stats.deliveryRate}%` }}
+                                style={{ width: trackedReady ? `${stats.deliveryRate}%` : '0%' }}
                             />
                         </div>
                     </div>

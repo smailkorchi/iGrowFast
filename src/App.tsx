@@ -177,7 +177,29 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    // retry 3 (the library default) burns 4 round-trips + ~7s of exponential
+    // backoff on every DETERMINISTIC failure — an RLS 42501 (the admin-gated
+    // stats RPCs), a PostgREST 400, a raised RPC guard. None of those get
+    // better by retrying. Matches waQueryClient's policy.
+    // staleTime is deliberately left at the library default (0): the heavy
+    // pages all set their own 60s inline, while the un-swept pages have no
+    // realtime and rely on focus-refetch to stay correct (see docs/d7-recon).
+    queries: { retry: 1 },
+    mutations: { retry: 0 },
+  },
+});
+
+// The SPA never unmounts on logout (sign-out is a client-side navigate, there
+// is no reload anywhere) and this client is a module singleton — so without
+// this, signing in as another user renders the PREVIOUS user's cached rows
+// stale-while-revalidating, and any query key that does not carry the business
+// id (profiles, 'plans', 'zones', 'master-cities', 'businesses', …) can keep
+// serving them. Purge everything on sign-out. Mirrors waQueryClient.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") queryClient.clear();
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

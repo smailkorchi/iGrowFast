@@ -88,6 +88,9 @@ const SellerSidebar = () => {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        // Drop the business scope like the admin sidebar does — otherwise it
+        // survives into the next account's session on this device.
+        localStorage.removeItem('activeBusinessId');
         navigate('/auth');
     };
 
