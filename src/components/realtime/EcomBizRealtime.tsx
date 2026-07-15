@@ -15,11 +15,14 @@ import { publishEcomBus, type EcomBusEvent } from '@/lib/ecomBus';
  * the GLOBAL react-query invalidations live here:
  *
  *   order/parcel → ['orders-page'] + ['orders-kpis'] + ['dash-stats'] +
- *                  ['analytics-stats'] prefixes, debounced 500ms
+ *                  ['analytics-stats'] + the D5 leaderboard prefixes,
+ *                  debounced 500ms
  *                  (D1: covers the admin AND seller keyset-page/KPI query
  *                   variants; D2: ['dash-stats'] covers every role-dashboard
  *                   stats RPC query; D3: ['analytics-stats'] covers the admin
- *                   Analytics one-call payload — all key families start with
+ *                   Analytics one-call payload; D5: ['couriers-roster-stats'],
+ *                   ['sellers-roster-stats'], ['mb-roster-earnings'] cover the
+ *                   collaborator leaderboards — all key families start with
  *                   these prefixes)
  *   stock        → the role's product/accessory dropdown keys, debounced 150ms
  *                  (snappy shortage-highlight flip, still coalesces bursts)
@@ -67,6 +70,13 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
             queryClient.invalidateQueries({ queryKey: ['dash-stats'] });
             // D3: the admin Analytics one-call payload (['analytics-stats', biz, window]).
             queryClient.invalidateQueries({ queryKey: ['analytics-stats'] });
+            // D5: the collaborator leaderboards, whose aggregates are order- and
+            // parcel-derived (['couriers-roster-stats', biz], ['sellers-roster-stats',
+            // biz], ['mb-roster-earnings', biz, month, mb]). Before D5 these pages
+            // were stale until a remount or a window focus.
+            queryClient.invalidateQueries({ queryKey: ['couriers-roster-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['sellers-roster-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['mb-roster-earnings'] });
         };
         const debouncedOrders = () => {
             if (ordersTimer) clearTimeout(ordersTimer);

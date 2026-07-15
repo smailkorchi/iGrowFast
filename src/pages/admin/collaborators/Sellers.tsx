@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { supabase, fetchAllRows } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import {
     Users as UsersIcon,
     MapPin,
@@ -28,10 +29,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { format, parseISO, differenceInDays } from 'date-fns';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { useTrackedOrders } from '@/hooks/useTrackedOrders';
-import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 
@@ -93,6 +91,87 @@ interface EnrichedSeller extends SellerProfile {
     kpis: SellerKPIs;
 }
 
+/**
+ * Payload of the server-side lifetime roster aggregate (`seller_roster_stats`
+ * RPC, migration 20260715030000). Keys mirror the migration's jsonb builders
+ * verbatim — that migration is the source of truth for this shape.
+ *
+ * It replaces this page's entire former data layer: the 9-dep `useEffect`
+ * fetch-everything, 5 unbounded lifetime downloads (orders + 4 embedded joins
+ * incl. order_items, seller_daily_earnings '*', seller_presences '*', and —
+ * transitively via useTrackedOrders — company_parcels + courier_parcels), the
+ * bare `seller_payments` select (D5-BUG-3: the 1000-cap wrong-money source
+ * feeding liveCommission/totalPaid/totalUnpaid), and the O(sellers × rows)
+ * client partition loops.
+ *
+ * Parity notes carried by the server (see the migration header for the full
+ * register + the owner rulings each one needs):
+ *   - `total_revenue` = Σ RAW o.price over delivered — NOT pureRevenueForOrder,
+ *     not paid-gated (D5-DEV-S1).
+ *   - `confirmed` = rate_confirmed, NOT the status chain's discarded
+ *     `confirmed++` counter — matches what this page has always rendered.
+ *   - `delivery_rate` ships UNCLAMPED (D5-DEV-S3); the roster card still clamps
+ *     only the progress-bar width via min(100, rate).
+ *   - `total_unpaid` = the OPEN month's remaining only (rolling-ledger carry).
+ */
+type SellerStatRow = {
+    seller_id: string;
+    total_orders: number | string;
+    pending: number | string;
+    confirmed: number | string;
+    delivered: number | string;
+    cancelled: number | string;
+    fake: number | string;
+    shipped: number | string;
+    tracked: number | string;
+    pullback: number | string;
+    delivery_denom: number | string;
+    confirm_rate: number | string;
+    delivery_rate: number | string;
+    cancellation_rate: number | string;
+    live_commission: number | string;
+    total_revenue: number | string;
+    total_earnings: number | string;
+    total_commission_earned: number | string;
+    total_paid: number | string;
+    total_unpaid: number | string;
+    days_present: number | string;
+    last_active: string | null;
+    top_city: string | null;
+    product_ids: string[] | null;
+    monthly_payments: {
+        month: string;
+        total_amount: number | string;
+        paid_amount: number | string;
+        delivered_orders: number | string;
+        status: string;
+        period_state: string;
+    }[] | null;
+};
+
+type SellerRosterStats = {
+    globals: {
+        total_sellers: number | string;
+        total_delivered: number | string;
+        total_revenue: number | string;
+        total_paid: number | string;
+        // Shipped as two sums so the client divides → pooled-ratio parity for
+        // avgDeliveryRate (Σdelivered ÷ ΣdeliveryDenom × 100 — a POOLED RATIO,
+        // never a mean of per-seller rates).
+        delivered_sum: number | string;
+        denom_sum: number | string;
+    };
+    sellers: SellerStatRow[];
+};
+
+const num = (v: unknown): number => Number(v ?? 0) || 0;
+
+// users.products is a jsonb array of ids. Kept client-side (the `products`
+// select is bounded by the roster) — the RPC also ships `product_ids`, but
+// deriving it here preserves the page's exact former semantics (typeof filter).
+const getSellerProducts = (s: { products?: unknown }): string[] =>
+    Array.isArray(s.products) ? (s.products as unknown[]).filter((p): p is string => typeof p === 'string') : [];
+
 const KPI_ACCENTS = {
     ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
     orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
@@ -152,283 +231,171 @@ const deliveryTier = (rate: number) => {
 
 const Sellers = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
-    const {
-        confirmedIds,
-        cancelledIds,
-        deliveredPkgIds,
-        pendingIds,
-        adminPullbackOrderIds,
-        adminPullbackPackageIds,
-        isOrderCategory,
-        isOrderInCategories,
-    } = useStatusCategories();
-    const { trackedOrderIds } = useTrackedOrders(activeBusinessId);
-    const [sellers, setSellers] = useState<EnrichedSeller[]>([]);
-    const [loading, setLoading] = useState(true);
     const [selectedSeller, setSelectedSeller] = useState<EnrichedSeller | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'delivered' | 'revenue' | 'rate' | 'commission'>('delivered');
-    const [globalStats, setGlobalStats] = useState({
-        totalSellers: 0,
-        totalDelivered: 0,
-        totalRevenue: 0,
-        totalPaid: 0,
-        avgDeliveryRate: 0,
-    });
 
-    useEffect(() => {
-        fetchSellers();
-    }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, adminPullbackOrderIds, adminPullbackPackageIds, trackedOrderIds, isOrderCategory, isOrderInCategories]);
-
-    const fetchSellers = async () => {
-        setLoading(true);
-        try {
-            const { data: sellersData, error: sellersErr } = await supabase
+    // ---------- DATA LAYER (server-side aggregate; Couriers.tsx seam) ----------
+    // The roster itself — bounded by the commercial headcount.
+    const {
+        data: roster = [],
+        isLoading: loadingRoster,
+        isError: rosterIsError,
+        refetch: refetchRoster,
+        isFetching: fetchingRoster,
+    } = useQuery<SellerProfile[]>({
+        queryKey: ['sellers-roster', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
                 .from('users')
                 .select('id, name, email, avatar_url, avatar_config, products, commission_price, commission_basis, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
                 .eq('role', 'commercial')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: true });
+            if (error) throw error;
+            return (data || []) as SellerProfile[];
+        },
+        enabled: !!activeBusinessId,
+    });
 
-            if (sellersErr) throw sellersErr;
-            if (!sellersData || sellersData.length === 0) {
-                setSellers([]);
-                setLoading(false);
-                return;
-            }
+    // Server-side lifetime per-seller aggregate. One RPC replaces the whole
+    // former cascade (see the SellerRosterStats doc comment).
+    const {
+        data: stats,
+        isLoading: loadingStats,
+        isError: statsIsError,
+        error: statsError,
+        refetch: refetchStats,
+        isFetching: fetchingStats,
+    } = useQuery<SellerRosterStats | null>({
+        queryKey: ['sellers-roster-stats', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return null;
+            const { data, error } = await (supabase as any)
+                .rpc('seller_roster_stats', { p_business: activeBusinessId });
+            if (error) throw error;
+            return (data || null) as SellerRosterStats | null;
+        },
+        enabled: !!activeBusinessId,
+    });
 
-            const sellerIds = sellersData.map((s) => s.id);
+    // Attributed-product names for the detail modal. Kept client-side per the
+    // D5 contract — bounded by the roster's `users.products` ids.
+    const allProductIds = useMemo(
+        () => [...new Set(roster.flatMap((s) => getSellerProducts(s)))],
+        [roster],
+    );
+    const { data: productsMap = {} } = useQuery<Record<string, { name: string; image: string | null }>>({
+        queryKey: ['sellers-products', activeBusinessId, allProductIds.slice().sort().join(',')],
+        queryFn: async () => {
+            if (allProductIds.length === 0) return {};
+            const { data, error } = await (supabase as any)
+                .from('products')
+                .select('id, name, image_url')
+                .eq('active', true)
+                .in('id', allProductIds);
+            if (error) throw error;
+            const m: Record<string, { name: string; image: string | null }> = {};
+            (data || []).forEach((p: any) => {
+                const nameObj = p.name as any;
+                const displayName = typeof nameObj === 'string' ? nameObj : (nameObj?.en || nameObj?.fr || 'Unknown');
+                m[p.id] = { name: displayName, image: p.image_url };
+            });
+            return m;
+        },
+        enabled: allProductIds.length > 0,
+    });
 
-            // Paginated (fetchAllRows) so we never truncate at PostgREST's 1000-row
-            // default — that cap was undercounting high-volume sellers' delivered,
-            // revenue and live-commission figures.
-            const ordersRaw = await fetchAllRows<any>(
-                'orders',
-                'id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, replace, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)',
-                {
-                    filters: [
-                        { column: 'seller_id', op: 'in', value: sellerIds },
-                        { column: 'date_deleted', op: 'is', value: null },
-                        { column: 'source_review_status', op: 'neq', value: 'pending' },
-                    ],
+    // ---------- Overlay: server rows → roster rows, joined by id ----------
+    // Every money/rate figure below is now computed in the DB over the FULL
+    // history. The only client math left is presentational: avgDailyDelivered
+    // (a ratio of two server counts), productNames, and the browser-local
+    // isOnline / daysActive (D5-DEV-S6 — deliberately kept client-side).
+    const sellers: EnrichedSeller[] = useMemo(() => {
+        const byId = new Map((stats?.sellers ?? []).map((r) => [r.seller_id, r]));
+        return roster.map((seller) => {
+            const r = byId.get(seller.id);
+            const sellerProductIds = getSellerProducts(seller);
+            const deliveredOrders = num(r?.delivered);
+            const daysPresent = num(r?.days_present);
+
+            return {
+                ...seller,
+                commission_price: num(seller.commission_price),
+                products: sellerProductIds,
+                kpis: {
+                    totalOrders: num(r?.total_orders),
+                    pendingOrders: num(r?.pending),
+                    // Confirmed count = one-true-definition (yes was spoken):
+                    // the server ships rate_confirmed under `confirmed`.
+                    confirmedOrders: num(r?.confirmed),
+                    deliveredOrders,
+                    cancelledOrders: num(r?.cancelled),
+                    fakeOrders: num(r?.fake),
+                    shippedOrders: num(r?.shipped),
+                    confirmRate: num(r?.confirm_rate),
+                    deliveryRate: num(r?.delivery_rate),
+                    deliveryDenom: num(r?.delivery_denom),
+                    cancellationRate: num(r?.cancellation_rate),
+                    liveCommission: num(r?.live_commission),
+                    totalRevenue: num(r?.total_revenue),
+                    totalEarnings: num(r?.total_earnings),
+                    totalCommissionEarned: num(r?.total_commission_earned),
+                    totalPaid: num(r?.total_paid),
+                    totalUnpaid: num(r?.total_unpaid),
+                    daysPresent,
+                    avgDailyDelivered: daysPresent > 0 ? deliveredOrders / daysPresent : 0,
+                    productNames: sellerProductIds
+                        .map((pid: string) => productsMap[pid])
+                        .filter((x): x is { name: string; image: string | null } => !!x),
+                    lastActive: r?.last_active ?? null,
+                    topCity: r?.top_city ?? null,
+                    monthlyPayments: (r?.monthly_payments ?? []).map((p) => ({
+                        month: p.month,
+                        total_amount: num(p.total_amount),
+                        paid_amount: num(p.paid_amount),
+                        delivered_orders: num(p.delivered_orders),
+                        status: p.status,
+                        period_state: p.period_state,
+                    })),
                 },
-            );
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate per-seller delivered / revenue / live unpaid commission
-            // on the leaderboard. Commission totals still read seller_daily_earnings.
-            const orders = ordersRaw.filter((o: any) => o.replace !== true);
+            } as EnrichedSeller;
+        });
+    }, [roster, stats, productsMap]);
 
-            const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
-                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
-            });
+    // avgDeliveryRate is a POOLED RATIO (Σdelivered ÷ ΣdeliveryDenom × 100),
+    // not a mean of per-seller rates — hence the two sums shipped separately.
+    const globalStats = useMemo(() => {
+        const g = stats?.globals;
+        const deliveredSum = num(g?.delivered_sum);
+        const denomSum = num(g?.denom_sum);
+        return {
+            // Count the RENDERED roster, not the RPC's own users read: the two
+            // halves refetch independently (EcomBizRealtime bumps the stats key
+            // on order/parcel events, never the users key), so a seller created
+            // mid-session would otherwise make the pill/KPI disagree with the
+            // grid. HEAD counted the enriched list for the same reason.
+            totalSellers: sellers.length,
+            totalDelivered: num(g?.total_delivered),
+            totalRevenue: num(g?.total_revenue),
+            totalPaid: num(g?.total_paid),
+            avgDeliveryRate: denomSum > 0 ? (deliveredSum / denomSum) * 100 : 0,
+        };
+    }, [stats]);
 
-            const presences = await fetchAllRows<any>('seller_presences', '*', {
-                filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
-            });
-
-            const { data: paymentsData } = await supabase
-                .from('seller_payments')
-                .select('*')
-                .eq('DigiCom Business', activeBusinessId)
-                .order('payout_month', { ascending: false });
-
-            const payments = paymentsData || [];
-
-            const getSellerProducts = (s: any): string[] =>
-                Array.isArray(s.products) ? (s.products as unknown[]).filter((p): p is string => typeof p === 'string') : [];
-
-            const allProductIds = [...new Set(sellersData.flatMap((s: any) => getSellerProducts(s)))];
-            const productsMap: Record<string, { name: string; image: string | null }> = {};
-            if (allProductIds.length > 0) {
-                const { data: prodData } = await supabase
-                    .from('products')
-                    .select('id, name, image_url')
-                    .eq('active', true)
-                    .in('id', allProductIds as string[]);
-
-                (prodData || []).forEach((p) => {
-                    const nameObj = p.name as any;
-                    const displayName = typeof nameObj === 'string' ? nameObj : (nameObj?.en || nameObj?.fr || 'Unknown');
-                    productsMap[p.id] = { name: displayName, image: p.image_url };
-                });
-            }
-
-            const enriched: EnrichedSeller[] = sellersData.map((seller: any) => {
-                const sellerOrders = orders.filter((o) => o.seller_id === seller.id);
-                const sellerEarnings = earnings.filter((e) => e.seller_id === seller.id);
-                const sellerPresences = presences.filter((p) => p.seller_id === seller.id);
-                const sellerPayments = payments.filter((p) => p.seller_id === seller.id);
-
-                const total = sellerOrders.length;
-
-                let delivered = 0,
-                    shipped = 0,
-                    confirmed = 0,
-                    pending = 0,
-                    cancelled = 0,
-                    fake = 0;
-
-                sellerOrders.forEach((o) => {
-                    const sid = o.order_status_id;
-                    const isDeliveredPkg = isDeliveredForCommission(o, deliveredPkgIds);
-
-                    if (isDeliveredPkg) {
-                        delivered++;
-                    } else if (isOrderCategory(sid, 'processed')) {
-                        shipped++;
-                    } else if (confirmedIds.has(o.order_status_id)) {
-                        confirmed++;
-                    } else if (isOrderCategory(sid, 'cancelled')) {
-                        cancelled++;
-                    } else if (isOrderInCategories(sid, ['fake', 'double'])) {
-                        fake++;
-                    } else if (pendingIds.has(o.order_status_id)) {
-                        pending++;
-                    } else {
-                        pending++;
-                    }
-                });
-
-                // Confirmation rate: numerator = orders NOT in pending (new +
-                // postponed) OR with tracking. Denominator = total seller orders.
-                // Empty-set guard: see analyticsDefinitions.isRateConfirmed.
-                const statusMapsReady = pendingIds.size > 0;
-                const rateConfirmedCount = sellerOrders.filter((o: any) => {
-                    const hasTracking = !!o.id && trackedOrderIds.has(o.id);
-                    if (hasTracking) return true;
-                    if (!statusMapsReady) return false;
-                    return !!o.order_status_id && !pendingIds.has(o.order_status_id);
-                }).length;
-                const confirmRate = sellerOrders.length > 0 ? (rateConfirmedCount / sellerOrders.length) * 100 : 0;
-                // Delivery rate (Coliaty formula): delivered ÷ (tracked − admin-pullback).
-                const sellerTracked = sellerOrders.filter((o: any) => !!o.id && trackedOrderIds.has(o.id));
-                const sellerPullback = sellerTracked.filter((o: any) =>
-                    isAdminPullback(o, true, adminPullbackOrderIds, adminPullbackPackageIds),
-                );
-                const sellerDeliveryDenom = sellerTracked.length - sellerPullback.length;
-                const deliveryRate = sellerDeliveryDenom > 0 ? (delivered / sellerDeliveryDenom) * 100 : 0;
-                const cancellationRate = total > 0 ? ((cancelled + fake) / total) * 100 : 0;
-
-                // Partial-payout-aware: aggregate `paid_amount` across every
-                // payout row (full + partial + pending). Pending rows return 0,
-                // partials return their running sum, full-paid rows return
-                // total_amount. The trigger keeps `paid_amount` in lockstep
-                // with `seller_payment_txns`, so this is the single source of
-                // truth for "how much cash has actually been disbursed".
-                const alreadyPaidAmount = sellerPayments
-                    .reduce((sum, p: any) => sum + (Number(p.paid_amount) || 0), 0);
-
-                const isDeliveredOrder = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
-                const basis = normalizeCommissionBasis(seller.commission_basis);
-                const sellerProductIds = getSellerProducts(seller);
-                const { unpaidCommission: liveCommission } = computeUnpaidCommission({
-                    basis,
-                    commissionPrice: Number(seller.commission_price) || 0,
-                    orders: sellerOrders,
-                    isDelivered: isDeliveredOrder,
-                    sellerProductIds,
-                    paidAmount: alreadyPaidAmount,
-                });
-
-                const totalRevenue = sellerOrders
-                    .filter((o) => isDeliveredForCommission(o, deliveredPkgIds))
-                    .reduce((sum, o) => sum + (Number(o.price) || 0), 0);
-
-                const totalCommissionEarned = sellerEarnings.reduce((sum, e) => sum + (Number(e.commission_earned) || 0), 0);
-                const totalEarnings = sellerEarnings.reduce((sum, e) => sum + (Number(e.total_earned) || 0), 0);
-
-                // Totals respect partials AND the rolling-ledger carry: paid = sum of
-                // every disbursement; unpaid = the OPEN month's remaining ONLY. Closed
-                // months' unpaid already rolled forward into the open ticket, so summing
-                // every row would double-count it (e.g. May 1530 already inside Jun 710).
-                const totalPaid = sellerPayments.reduce(
-                    (sum, p: any) => sum + (Number(p.paid_amount) || 0),
-                    0,
-                );
-                const totalUnpaid = sellerPayments.reduce(
-                    (sum, p: any) => sum + (p.period_state === 'open'
-                        ? Math.max(0, (Number(p.total_amount) || 0) - (Number(p.paid_amount) || 0))
-                        : 0),
-                    0,
-                );
-
-                const daysPresent = sellerPresences.length;
-                const avgDailyDelivered = daysPresent > 0 ? delivered / daysPresent : 0;
-
-                const productNames = sellerProductIds
-                    .map((pid: string) => productsMap[pid])
-                    .filter((x): x is { name: string; image: string | null } => !!x);
-
-                const sortedPresences = [...sellerPresences].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                const lastActive = sortedPresences[0]?.date || null;
-
-                const cityMap: Record<string, number> = {};
-                sellerOrders
-                    .filter((o) => isDeliveredForCommission(o, deliveredPkgIds))
-                    .forEach((o) => {
-                        const cityName = (o.city as any)?.name || 'Unknown';
-                        cityMap[cityName] = (cityMap[cityName] || 0) + 1;
-                    });
-                const topCity = Object.entries(cityMap).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-
-                const monthlyPayments = sellerPayments.map((p) => ({
-                    month: p.payout_month,
-                    total_amount: Number(p.total_amount) || 0,
-                    paid_amount: Number((p as any).paid_amount) || 0,
-                    delivered_orders: p.delivered_orders || 0,
-                    status: p.status || 'pending',
-                    period_state: (p as any).period_state || 'closed',
-                }));
-
-                return {
-                    ...seller,
-                    commission_price: Number(seller.commission_price) || 0,
-                    products: sellerProductIds,
-                    kpis: {
-                        totalOrders: total,
-                        pendingOrders: pending,
-                        // Confirmed count = one-true-definition (yes was spoken).
-                        confirmedOrders: rateConfirmedCount,
-                        deliveredOrders: delivered,
-                        cancelledOrders: cancelled,
-                        fakeOrders: fake,
-                        shippedOrders: shipped,
-                        confirmRate,
-                        deliveryRate,
-                        deliveryDenom: sellerDeliveryDenom,
-                        cancellationRate,
-                        liveCommission,
-                        totalRevenue,
-                        totalEarnings,
-                        totalCommissionEarned,
-                        totalPaid,
-                        totalUnpaid,
-                        daysPresent,
-                        avgDailyDelivered,
-                        productNames,
-                        lastActive,
-                        topCity,
-                        monthlyPayments,
-                    },
-                } as EnrichedSeller;
-            });
-
-            setSellers(enriched);
-
-            const gTotalDelivered = enriched.reduce((s, e) => s + e.kpis.deliveredOrders, 0);
-            const gTotalDeliveryDenom = enriched.reduce((s, e) => s + e.kpis.deliveryDenom, 0);
-            setGlobalStats({
-                totalSellers: enriched.length,
-                totalDelivered: gTotalDelivered,
-                totalRevenue: enriched.reduce((s, e) => s + e.kpis.totalRevenue, 0),
-                totalPaid: enriched.reduce((s, e) => s + e.kpis.totalPaid, 0),
-                avgDeliveryRate: gTotalDeliveryDenom > 0 ? (gTotalDelivered / gTotalDeliveryDenom) * 100 : 0,
-            });
-        } catch (error) {
-            console.error('Error fetching sellers:', error);
-        } finally {
-            setLoading(false);
-        }
+    // Disabled queries stay `isPending` forever, so gate on the business id —
+    // without it the page would sit on a permanent skeleton wall instead of
+    // rendering the empty state.
+    const loading = !!activeBusinessId && (loadingRoster || loadingStats);
+    // The whole page (KPI strip, podium, roster) is stats-driven: a failed RPC
+    // would render an all-zero leaderboard, which reads as real data. Surface
+    // the failure with a retry instead (D3 review standing rule 3).
+    const loadFailed = (statsIsError && !stats) || (rosterIsError && roster.length === 0);
+    const retrying = fetchingStats || fetchingRoster;
+    const retry = () => {
+        void refetchStats();
+        void refetchRoster();
     };
 
     // ========== Derived lists: podium + filtered/sorted ==========
@@ -946,6 +913,33 @@ const Sellers = () => {
     };
 
     // ========== RENDER ==========
+    if (loadFailed) {
+        return (
+            <div className="ant-surface min-h-screen flex items-center justify-center px-4">
+                <div className="text-center max-w-md">
+                    <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-rose/10 border border-ant-rose/25 flex items-center justify-center mb-4">
+                        <Store className="w-5 h-5 text-ant-rose" strokeWidth={1.75} />
+                    </div>
+                    <h2 className="font-display text-[20px] text-ant-ink tracking-tight">
+                        The leaderboard could not load
+                    </h2>
+                    <p className="font-serif italic text-[13px] text-ant-mid mt-2">
+                        {(statsError as Error)?.message || 'Fetching the seller roster statistics failed.'}
+                    </p>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={retry}
+                        disabled={retrying}
+                        className="mt-4 rounded-full border-ant-line bg-ant-paper h-9 px-4 text-[12px] font-semibold text-ant-ink hover:bg-ant-light cursor-pointer"
+                    >
+                        {retrying ? 'Retrying…' : 'Retry'}
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <>
             <div className="ant-surface min-h-screen">

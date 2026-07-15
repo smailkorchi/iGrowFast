@@ -1,42 +1,47 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase, fetchAllRows } from '@/lib/supabase';
-import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { getPlatformSource } from '@/lib/campaignConstants';
-import { toBusinessDate, shiftYmd } from '@/lib/dateBuckets';
+import { supabase } from '@/lib/supabase';
 
 // ═══════════════════════════════════════════════════════════════════════
-// Media buyer monthly earnings — bulk computation for admin payout flow.
+// Media buyer monthly earnings — server-side (D5 ④ `mb_roster_earnings`).
 // ═══════════════════════════════════════════════════════════════════════
-// Computes, for a given YYYY-MM month and the active business, the earnings
-// of EVERY media buyer in the business. Used by the Salaries page to build
-// the bulk payout preview table.
+// Returns, for a given YYYY-MM month and the active business, the earnings of
+// every media buyer in the business (or only the caller's own row when
+// `selfMbId` is passed). Consumed by:
 //
-// Rules (mirrors useCampaignMetrics / useMediaBuyerStats attribution logic):
+//   src/pages/admin/collaborators/MediaBuyers.tsx  (admin, roster)
+//   src/pages/admin/Salaries.tsx                   (admin, bulk payout preview)
+//   src/pages/mediabuyer/Payments.tsx              (MB, SELF — passes selfMbId)
 //
-//  • payment_type === 'salary':
-//       commission_earned  = 0
-//       salary_earned      = users.salary_amount
-//       total_amount       = salary_amount  (always full, regardless of activity)
-//       delivered_orders   = 0
-//       total_spend        = 0
-//       campaigns_count    = 0
+// ── D5: the payroll math moved to the DB ───────────────────────────────
+// This hook used to be a SECOND, DRIFTING implementation of the payroll
+// formula: a 3-deep query waterfall (users → mbIds → campaign_daily_entries →
+// sourceList → orders, + priorPayments in parallel; none with a staleTime, so
+// the whole chain re-ran serially on every mount AND every window focus) whose
+// result also backed the Salaries bulk-payout generator. `mb_month_earned` —
+// the cron/ledger payout AUTHORITY — computed the same figures a different
+// way. `mb_roster_earnings` is that authority's body made set-returning, so
+// the drift is retired: one formula for the ledger and the leaderboard.
 //
-//  • payment_type === 'commission':
-//       For each (entry_date, source) pair where the media buyer had at
-//       least one campaign_daily_entries row in the month, count the
-//       orders that match that day+source once. Sum delivered orders
-//       across all such buckets.
-//       commission_earned  = delivered_orders × users.commission_price
-//       salary_earned      = 0
-//       total_amount       = commission_earned
-//       total_spend        = Σ entries.spend
-//       campaigns_count    = distinct campaign_ids (NULL/orphaned counted as one synthetic bucket per platform)
+// The RPC's gate is self-or-admin (`admin OR p_mb = auth.uid()`), which is why
+// the MB-self path MUST pass `selfMbId` — see the enablement note below.
 //
-//  • Also sums previously-paid amounts for the same (mediabuyer_id, month)
-//    so the admin preview can show "already paid" vs "pending" split.
+// ── What is still client-side, and why ─────────────────────────────────
+// The RPC projects NO user PII (no name/email/avatar/phone/bank_*/cin/address)
+// — that is what keeps peers' banking and salary out of a self-caller's
+// payload BY CONSTRUCTION. The `users` query below supplies those columns and
+// is joined to the RPC's money rows by id, client-side: the same seam
+// `Couriers.tsx` already uses for `courier_roster_stats`.
 //
-// All data is business-scoped via the active business id.
+// ── Replicated client bugs (owner ruling pending — do NOT "fix" here) ──
+// `prior_paid_amount` / `remaining_amount` / `existing_payout` are computed in
+// the RPC bug-for-bug with the client this replaced (D5-BUG-1 + D5-BUG-2):
+// the month predicate uses the raw 'YYYY-MM' string against a payout_month
+// column that stores 'YYYY-MM-01' (⇒ matches 0 rows, always ⇒
+// prior_paid_amount ≡ 0, existing_payout ≡ null, remaining_amount ≡
+// total_amount), and it sums `total_amount` rather than `paid_amount`.
+// Rationale, correct semantics and the double-pay blast radius are documented
+// in supabase/migrations/20260715030000_d5_leaderboards.sql (header, ④).
 // ═══════════════════════════════════════════════════════════════════════
 
 export type MediaBuyerEarnings = {
@@ -56,7 +61,7 @@ export type MediaBuyerEarnings = {
     address: string | null;
     created_at: string | null;
     currency: string;
-    // Computed for this month
+    // Computed for this month (server-side)
     delivered_orders: number;
     total_spend: number;
     campaigns_count: number;
@@ -65,6 +70,10 @@ export type MediaBuyerEarnings = {
     total_amount: number; // what SHOULD be paid this month
     prior_paid_amount: number; // already paid for this month
     remaining_amount: number; // total_amount - prior_paid_amount (floor 0)
+    // Lifetime campaigns the buyer OWNS (created_by) — folds the roster page's
+    // own `campaigns` tally query. Deliberately NOT the month-scoped
+    // campaigns_count, which is 0 in a month with no spend rows.
+    owned_campaign_count: number;
     // Payout row if one already exists for (mediabuyer_id, month)
     existing_payout: {
         id: string;
@@ -73,6 +82,19 @@ export type MediaBuyerEarnings = {
         paid_amount: number;
         paid_at: string | null;
     } | null;
+};
+
+/** Lifetime payout rows, business-wide (narrowed to the MB on the self path). */
+export type MediaBuyerPayout = {
+    id: string;
+    mediabuyer_id: string;
+    payout_month: string;
+    total_amount: number;
+    paid_amount: number;
+    delivered_orders: number;
+    status: 'pending' | 'partial' | 'paid';
+    paid_at: string | null;
+    created_at: string;
 };
 
 type MBUser = {
@@ -95,53 +117,66 @@ type MBUser = {
     active: boolean | null;
 };
 
-type Entry = {
-    id: string;
-    campaign_id: string | null;
-    created_by: string | null;
-    entry_date: string;
-    platform: string;
-    spend: number | string;
-    leads: number;
-};
-
-type OrderRow = {
-    id: string;
-    date: string;
-    source_name: string | null;
-    package_status_id: string | null;
-    replace: boolean | null;
-};
-
-type PaymentRow = {
-    id: string;
+/** Money row of the server-side aggregate (mb_roster_earnings RPC). */
+type RosterEarningRow = {
     mediabuyer_id: string;
-    payout_month: string;
+    delivered_orders: number | string;
+    total_spend: number | string;
+    campaigns_count: number | string;
+    salary_earned: number | string;
+    commission_earned: number | string;
+    total_amount: number | string;
+    prior_paid_amount: number | string;
+    remaining_amount: number | string;
+    owned_campaign_count: number | string;
+    existing_payout: {
+        id: string;
+        status: 'pending' | 'partial' | 'paid';
+        total_amount: number | string;
+        paid_amount: number | string;
+        paid_at: string | null;
+    } | null;
+};
+
+type RosterPayoutRow = Omit<MediaBuyerPayout, 'total_amount' | 'paid_amount' | 'delivered_orders'> & {
     total_amount: number | string;
     paid_amount: number | string;
-    status: 'pending' | 'partial' | 'paid';
-    paid_at: string | null;
+    delivered_orders: number | string;
 };
 
-const monthBounds = (month: string): { from: string; to: string } => {
-    const [y, m] = month.split('-').map(Number);
-    const last = new Date(y, m, 0).getDate();
-    return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
+type RosterPayload = {
+    mediabuyers: RosterEarningRow[];
+    payouts: RosterPayoutRow[];
 };
 
-// `selfMbId` narrows the fetch to a single media buyer's own row. The MB
-// Dashboard/Payments surfaces only ever display the current user's own
-// earnings (they `.find(r => r.mediabuyer_id === currentUserId)`), so passing
-// the caller's id keeps peers' banking/salary/PII columns out of the client's
-// projection (need-to-know). Admin pages omit it and get every media buyer.
+const EMPTY_PAYLOAD: RosterPayload = { mediabuyers: [], payouts: [] };
+
+// `selfMbId` narrows BOTH the fetch and the RPC to a single media buyer's own
+// row. The MB Dashboard/Payments surfaces only ever display the current user's
+// own earnings (they `.find(r => r.mediabuyer_id === currentUserId)`), so
+// passing the caller's id keeps peers' banking/salary/PII columns out of the
+// client's projection (need-to-know) — and it is what satisfies the RPC's
+// self-or-admin gate for a non-admin caller. Admin pages omit `opts` entirely
+// and get every media buyer.
 export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string | null }) {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const selfMbId = opts?.selfMbId ?? null;
-    const { deliveredPkgIds } = useStatusCategories();
-    const { from, to } = useMemo(() => monthBounds(month), [month]);
+    // Passing `opts` at all = "I am a self-scoped caller". Such a caller is not
+    // necessarily an admin, so firing with p_mb = null would trip the RPC's
+    // self-or-admin gate (42501) during the tick before its own id resolves.
+    // Hold the queries instead and keep reporting `isLoading`.
+    const selfScoped = opts !== undefined;
+    const selfPending = selfScoped && !selfMbId;
+    const ready = !!activeBusinessId && !selfPending;
 
-    // 1. Media buyers in business (self only when selfMbId is set).
-    const { data: mediabuyers = [], isLoading: loadingMBs } = useQuery<MBUser[]>({
+    // 1. Media buyers in business (self only when selfMbId is set) — PII the
+    //    RPC deliberately does not project.
+    const {
+        data: mediabuyers = [],
+        isLoading: loadingMBs,
+        isError: errorMBs,
+        refetch: refetchMBs,
+    } = useQuery<MBUser[]>({
         queryKey: ['mb-earnings-users', activeBusinessId, selfMbId ?? 'all'],
         queryFn: async () => {
             if (!activeBusinessId) return [];
@@ -155,148 +190,43 @@ export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string 
             if (error) throw error;
             return (data || []) as MBUser[];
         },
-        enabled: !!activeBusinessId,
+        enabled: ready,
     });
 
-    // 2. All entries in this month for those media buyers.
-    const mbIds = useMemo(() => mediabuyers.map((u) => u.id), [mediabuyers]);
-    const { data: entries = [], isLoading: loadingEntries } = useQuery<Entry[]>({
-        queryKey: ['mb-earnings-entries', activeBusinessId, month, mbIds.sort().join(',')],
+    // 2. The month's payroll + the lifetime payout list, in ONE call. Replaces
+    //    the 4-query waterfall (users → entries → orders → priorPayments) and
+    //    folds the roster page's own lifetime `mediabuyer_payments` select.
+    const {
+        data: payload = EMPTY_PAYLOAD,
+        isLoading: loadingRoster,
+        isError: errorRoster,
+        refetch: refetchRoster,
+    } = useQuery<RosterPayload>({
+        queryKey: ['mb-roster-earnings', activeBusinessId, month, selfMbId ?? 'all'],
         queryFn: async () => {
-            if (!activeBusinessId || mbIds.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('campaign_daily_entries')
-                .select('id, campaign_id, created_by, entry_date, platform, spend, leads')
-                .eq('DigiCom Business', activeBusinessId)
-                .in('created_by', mbIds)
-                .gte('entry_date', from)
-                .lte('entry_date', to);
-            if (error) throw error;
-            return (data || []) as Entry[];
-        },
-        enabled: !!activeBusinessId && mbIds.length > 0,
-    });
-
-    // 3. Distinct sources present in entries.
-    const distinctSources = useMemo(() => {
-        const set = new Set<string>();
-        for (const e of entries) {
-            const s = getPlatformSource(e.platform);
-            if (s) set.add(s);
-        }
-        return set;
-    }, [entries]);
-    const sourceList = useMemo(() => Array.from(distinctSources), [distinctSources]);
-
-    // 4. Orders in the month scoped to business + sources. Filtered client-side (ilike).
-    // orders.date is timestamptz; entries use business-local day strings. Widen the
-    // server-side window by 1 day on each end to capture orders near midnight that
-    // would otherwise be mis-bucketed after the business-TZ conversion below.
-    const { data: orders = [], isLoading: loadingOrders } = useQuery<OrderRow[]>({
-        queryKey: ['mb-earnings-orders', activeBusinessId, month, sourceList.join(',')],
-        queryFn: async () => {
-            if (!activeBusinessId || sourceList.length === 0) return [];
-            // Paginated so we never truncate at the 1000-row default cap.
-            const data = await fetchAllRows<OrderRow>('orders', 'id, date, source_name, package_status_id, replace', {
-                filters: [
-                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
-                    { column: 'date', op: 'gte', value: shiftYmd(from, -1) },
-                    { column: 'date', op: 'lte', value: `${shiftYmd(to, 1)}T23:59:59.999Z` },
-                    { column: 'date_deleted', op: 'is', value: null },
-                    { column: 'source_review_status', op: 'neq', value: 'pending' },
-                ],
+            if (!activeBusinessId) return EMPTY_PAYLOAD;
+            const { data, error } = await (supabase as any).rpc('mb_roster_earnings', {
+                p_business: activeBusinessId,
+                p_month: month,
+                p_mb: selfMbId,
             });
-            const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
-            // Exclude exchange swap/return legs (replace=true) — not sales, so they
-            // must not inflate MB delivered → commission in the bulk payout preview.
-            // Matches the server-side mb_month_earned guard (swap_only=false).
-            return data.filter((o) =>
-                o.replace !== true && (o.source_name ? srcLower.has(o.source_name.toLowerCase()) : false)
-            );
-        },
-        enabled: !!activeBusinessId && sourceList.length > 0,
-    });
-
-    // 5. Existing mediabuyer_payments for this month (all MBs in business).
-    const { data: priorPayments = [], isLoading: loadingPayments } = useQuery<PaymentRow[]>({
-        queryKey: ['mb-earnings-prior', activeBusinessId, month],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('mediabuyer_payments')
-                .select('id, mediabuyer_id, payout_month, total_amount, paid_amount, status, paid_at')
-                .eq('DigiCom Business', activeBusinessId)
-                .eq('payout_month', month);
             if (error) throw error;
-            return (data || []) as PaymentRow[];
+            return (data || EMPTY_PAYLOAD) as RosterPayload;
         },
-        enabled: !!activeBusinessId,
+        enabled: ready,
     });
 
-    // 6. Compute per-mediabuyer earnings.
+    // 3. Join the money rows onto the roster by id. Driving from `users` (not
+    //    from the RPC array) preserves the row set AND the order this hook has
+    //    always returned; a buyer with no rows overlays as zeros, exactly like
+    //    the old client-side compute produced for an empty entry bucket.
     const rows = useMemo<MediaBuyerEarnings[]>(() => {
-        // Bucket orders by (date, source_lower) — once.
-        const deliveredBy = new Map<string, number>();
-        const key = (d: string, s: string) => `${d}|${s}`;
-        for (const o of orders) {
-            if (!o.date || !o.source_name || !o.package_status_id) continue;
-            if (!deliveredPkgIds.has(o.package_status_id)) continue;
-            const d = toBusinessDate(o.date);
-            const s = o.source_name.toLowerCase();
-            const k = key(d, s);
-            deliveredBy.set(k, (deliveredBy.get(k) || 0) + 1);
-        }
-
-        // Bucket entries by mediabuyer_id.
-        const entriesByMB = new Map<string, Entry[]>();
-        for (const e of entries) {
-            if (!e.created_by) continue;
-            const arr = entriesByMB.get(e.created_by) || [];
-            arr.push(e);
-            entriesByMB.set(e.created_by, arr);
-        }
-
-        // Bucket prior payments by mediabuyer_id.
-        const paymentsByMB = new Map<string, PaymentRow[]>();
-        for (const p of priorPayments) {
-            const arr = paymentsByMB.get(p.mediabuyer_id) || [];
-            arr.push(p);
-            paymentsByMB.set(p.mediabuyer_id, arr);
-        }
+        const byId = new Map<string, RosterEarningRow>();
+        for (const r of payload.mediabuyers ?? []) byId.set(r.mediabuyer_id, r);
 
         return mediabuyers.map<MediaBuyerEarnings>((u) => {
-            const mbEntries = entriesByMB.get(u.id) || [];
-            const mbPayments = paymentsByMB.get(u.id) || [];
-
-            // Spend totals + day/source dedupe for delivered count + campaign counting.
-            let totalSpend = 0;
-            const daySourceSet = new Set<string>();
-            const campaignSet = new Set<string>();
-            for (const e of mbEntries) {
-                totalSpend += Number(e.spend || 0);
-                const src = getPlatformSource(e.platform);
-                if (src) daySourceSet.add(key(e.entry_date, src));
-                campaignSet.add(e.campaign_id || `__orphan__${e.platform}`);
-            }
-
-            let delivered = 0;
-            daySourceSet.forEach((k) => {
-                delivered += deliveredBy.get(k) || 0;
-            });
-
-            const commissionPrice = Number(u.commission_price || 0);
-            const salaryAmount = Number(u.salary_amount || 0);
-            const isSalary = u.payment_type === 'salary';
-            const isCommission = u.payment_type === 'commission';
-
-            const salary_earned = isSalary ? salaryAmount : 0;
-            const commission_earned = isCommission ? delivered * commissionPrice : 0;
-            const total_amount = salary_earned + commission_earned;
-
-            const prior_paid_amount = mbPayments.reduce((a, p) => a + Number(p.total_amount || 0), 0);
-            const remaining_amount = Math.max(0, total_amount - prior_paid_amount);
-            const existing = mbPayments[0] || null;
-
+            const s = byId.get(u.id);
+            const existing = s?.existing_payout ?? null;
             return {
                 mediabuyer_id: u.id,
                 name: u.name,
@@ -305,8 +235,8 @@ export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string 
                 avatar_config: u.avatar_config ?? null,
                 phone: u.phone,
                 payment_type: u.payment_type,
-                commission_price: commissionPrice,
-                salary_amount: salaryAmount,
+                commission_price: Number(u.commission_price || 0),
+                salary_amount: Number(u.salary_amount || 0),
                 bank_name: u.bank_name,
                 bank_account_holder: u.bank_account_holder,
                 bank_rib: u.bank_rib,
@@ -314,14 +244,15 @@ export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string 
                 address: u.address ?? null,
                 created_at: u.created_at ?? null,
                 currency: 'MAD',
-                delivered_orders: delivered,
-                total_spend: totalSpend,
-                campaigns_count: campaignSet.size,
-                salary_earned,
-                commission_earned,
-                total_amount,
-                prior_paid_amount,
-                remaining_amount,
+                delivered_orders: Number(s?.delivered_orders || 0),
+                total_spend: Number(s?.total_spend || 0),
+                campaigns_count: Number(s?.campaigns_count || 0),
+                salary_earned: Number(s?.salary_earned || 0),
+                commission_earned: Number(s?.commission_earned || 0),
+                total_amount: Number(s?.total_amount || 0),
+                prior_paid_amount: Number(s?.prior_paid_amount || 0),
+                remaining_amount: Number(s?.remaining_amount || 0),
+                owned_campaign_count: Number(s?.owned_campaign_count || 0),
                 existing_payout: existing
                     ? {
                           id: existing.id,
@@ -333,10 +264,28 @@ export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string 
                     : null,
             };
         });
-    }, [mediabuyers, entries, orders, priorPayments, deliveredPkgIds]);
+    }, [mediabuyers, payload]);
+
+    // Lifetime payouts (business-wide for admins, own-only on the self path).
+    const payouts = useMemo<MediaBuyerPayout[]>(
+        () =>
+            (payload.payouts ?? []).map((p) => ({
+                ...p,
+                total_amount: Number(p.total_amount || 0),
+                paid_amount: Number(p.paid_amount || 0),
+                delivered_orders: Number(p.delivered_orders || 0),
+            })),
+        [payload],
+    );
 
     return {
         rows,
-        isLoading: loadingMBs || loadingEntries || loadingOrders || loadingPayments,
+        payouts,
+        isLoading: selfPending || loadingMBs || loadingRoster,
+        isError: errorMBs || errorRoster,
+        refetch: () => {
+            refetchMBs();
+            refetchRoster();
+        },
     };
 }

@@ -23,6 +23,8 @@ import {
     ShieldCheck,
     UserCheck,
     DollarSign,
+    AlertTriangle,
+    RefreshCw,
     type LucideIcon,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -95,6 +97,18 @@ type ReturnNote = {
     created_at: string;
 };
 
+type ZoneRow = {
+    city: string;
+    delivery: number | string;
+};
+
+/** Lazy per-courier modal payload (courier_notes_detail RPC). */
+type NotesDetail = {
+    payment_notes: PaymentNote[];
+    return_notes: ReturnNote[];
+    zones: ZoneRow[];
+};
+
 type CourierStat = {
     totalOrders: number;
     inTransit: number;
@@ -106,6 +120,8 @@ type CourierStat = {
     notesCount: number;
     zones: number;
 };
+
+const EMPTY_DETAIL: NotesDetail = { payment_notes: [], return_notes: [], zones: [] };
 
 const KPI_ACCENTS = {
     ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
@@ -209,7 +225,14 @@ const Couriers = () => {
 
     // Server-side per-courier aggregate — replaces the client-side reduce over a
     // full dump of every courier order (wrong money once past the 1000-row cap).
-    const { data: rosterStats = [] } = useQuery<RosterStatRow[]>({
+    // D5 ①: now admin-gated (42501 for anyone else). This route is admin-only,
+    // so the gate regresses no caller — but a 42501 must SHOW, not silently
+    // zero every KPI, hence isError/refetch below (standing rule 3).
+    const {
+        data: rosterStats = [],
+        isError: rosterError,
+        refetch: refetchRoster,
+    } = useQuery<RosterStatRow[]>({
         queryKey: ['couriers-roster-stats', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
@@ -235,57 +258,29 @@ const Couriers = () => {
         enabled: !!activeBusinessId && courierIds.length > 0,
     });
 
-    // City names for the zones-and-fees list inside the modal.
-    const cityIds = useMemo(() => [...new Set(courierFees.map((f) => f.master_city_id))], [courierFees]);
-    const { data: cities = [] } = useQuery<{ id: string; name: string }[]>({
-        queryKey: ['couriers-cities', cityIds.slice().sort().join(',')],
+    // D5 ②: the detail modal's two note tables + its zones-and-fees list, in one
+    // gated call, for the OPENED courier only. Replaces two business-wide bare
+    // selects (every courier's payment + return notes, downloaded on page load
+    // and filtered client-side — latent 1000-cap) and the master_cities lookup.
+    // Gated on modal open — the kept-mounted trap, precedent
+    // [[chat-orders-history]]. The query lives HERE, not inside
+    // CourierDetailModal: that component is redeclared on every render (shell
+    // contract — cards/modals close over setSelected), so a hook inside it
+    // would remount and refetch on each parent render.
+    // `detailPending` gates the zone/notes counts + empty-state copy: the
+    // EMPTY_DETAIL default means "not known yet", NOT "none". Rendering it as
+    // fact showed "Zones & fees · 0 · No zone fees configured." next to a
+    // correct "Zones covered: N cities" tile in the same modal (D5 review).
+    const { data: notesDetail = EMPTY_DETAIL, isPending: detailPending } = useQuery<NotesDetail>({
+        queryKey: ['courier-notes-detail', activeBusinessId, selected?.id],
         queryFn: async () => {
-            if (cityIds.length === 0) return [];
+            if (!activeBusinessId || !selected?.id) return EMPTY_DETAIL;
             const { data, error } = await (supabase as any)
-                .from('master_cities')
-                .select('id, name')
-                .in('id', cityIds);
+                .rpc('courier_notes_detail', { p_business: activeBusinessId, p_courier: selected.id });
             if (error) throw error;
-            return (data || []) as { id: string; name: string }[];
+            return (data || EMPTY_DETAIL) as NotesDetail;
         },
-        enabled: cityIds.length > 0,
-    });
-    const cityNameMap = useMemo(() => {
-        const m = new Map<string, string>();
-        for (const c of cities) m.set(c.id, c.name);
-        return m;
-    }, [cities]);
-
-    const { data: paymentNotes = [] } = useQuery<PaymentNote[]>({
-        queryKey: ['couriers-payment-notes', activeBusinessId, courierIds.slice().sort().join(',')],
-        queryFn: async () => {
-            if (!activeBusinessId || courierIds.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_payment_notes')
-                .select('id, courier_id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, paid_at, created_at')
-                .eq('DigiCom Business', activeBusinessId)
-                .in('courier_id', courierIds)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return (data || []) as PaymentNote[];
-        },
-        enabled: !!activeBusinessId && courierIds.length > 0,
-    });
-
-    const { data: returnNotes = [] } = useQuery<ReturnNote[]>({
-        queryKey: ['couriers-return-notes', activeBusinessId, courierIds.slice().sort().join(',')],
-        queryFn: async () => {
-            if (!activeBusinessId || courierIds.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_return_notes')
-                .select('id, courier_id, reference, status, total_amount, total_shipping_fees, net_amount, order_count, received_at, created_at')
-                .eq('DigiCom Business', activeBusinessId)
-                .in('courier_id', courierIds)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return (data || []) as ReturnNote[];
-        },
-        enabled: !!activeBusinessId && courierIds.length > 0,
+        enabled: !!activeBusinessId && !!selected?.id,
     });
 
     // Per-courier zones covered (distinct cities with a configured fee).
@@ -546,8 +541,9 @@ const Couriers = () => {
     // ========== DETAIL MODAL ==========
     const CourierDetailModal = ({ courier, onClose }: { courier: Courier; onClose: () => void }) => {
         const s = stats.get(courier.id);
-        const notes = paymentNotes.filter((n) => n.courier_id === courier.id);
-        const courierReturnNotes = returnNotes.filter((n) => n.courier_id === courier.id);
+        // Already scoped to this courier by the modal-gated detail query above.
+        const notes = notesDetail.payment_notes;
+        const courierReturnNotes = notesDetail.return_notes;
         const totalFees = s?.totalShippingFees || 0;
         const paidFees = s?.totalPaid || 0;
         const pendingFees = s?.totalUnpaid || 0;
@@ -569,14 +565,11 @@ const Couriers = () => {
         ].filter((d) => d.count > 0);
         const totalForBar = statusDistribution.reduce((acc, d) => acc + d.count, 0);
 
-        // Zones & fees for this courier.
-        const zoneRows = courierFees
-            .filter((f) => f.courier_id === courier.id)
-            .map((f) => ({
-                city: cityNameMap.get(f.master_city_id) || 'Unknown',
-                delivery: Number(f.fee || 0),
-            }))
-            .sort((a, b) => a.city.localeCompare(b.city));
+        // Zones & fees for this courier — city name resolved and sorted server-side.
+        const zoneRows = notesDetail.zones.map((z) => ({
+            city: z.city,
+            delivery: Number(z.delivery || 0),
+        }));
 
         return (
             <div
@@ -759,10 +752,15 @@ const Couriers = () => {
                                         Zones &amp; fees
                                     </div>
                                     <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
-                                        {zoneRows.length}
+                                        {detailPending ? '—' : zoneRows.length}
                                     </span>
                                 </div>
-                                {zoneRows.length === 0 ? (
+                                {detailPending ? (
+                                    <div className="py-4 space-y-2">
+                                        <div className="h-8 rounded-lg bg-ant-line animate-pulse" />
+                                        <div className="h-8 rounded-lg bg-ant-line animate-pulse" />
+                                    </div>
+                                ) : zoneRows.length === 0 ? (
                                     <p className="font-serif italic text-[12px] text-ant-mid py-4 text-center">No zone fees configured.</p>
                                 ) : (
                                     <div className="ant-scroll max-h-[220px] overflow-y-auto pr-1 -mr-1 space-y-1">
@@ -1025,7 +1023,24 @@ const Couriers = () => {
                             </div>
                         </div>
 
-                        {loadingCouriers ? (
+                        {rosterError ? (
+                            <div className="rounded-2xl border border-dashed border-ant-rose/40 bg-ant-paper px-8 py-16 text-center">
+                                <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-rose/10 border border-ant-rose/25 flex items-center justify-center mb-4">
+                                    <AlertTriangle className="w-5 h-5 text-ant-rose" strokeWidth={1.75} />
+                                </div>
+                                <h3 className="font-display text-[18px] text-ant-ink tracking-tight">Fleet stats could not be loaded</h3>
+                                <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                                    Parcels, fees and unpaid notes never arrived — every figure above is missing, not zero.
+                                </p>
+                                <Button
+                                    onClick={() => refetchRoster()}
+                                    className="mt-5 h-9 rounded-full bg-ant-ink text-white hover:bg-ant-ink/90 text-[12px] font-semibold cursor-pointer"
+                                >
+                                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                                    Try again
+                                </Button>
+                            </div>
+                        ) : loadingCouriers ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {Array.from({ length: 6 }).map((_, i) => (
                                     <div key={i} className="h-56 rounded-2xl bg-ant-light animate-pulse" />

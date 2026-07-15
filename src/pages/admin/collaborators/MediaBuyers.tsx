@@ -25,6 +25,8 @@ import {
     BarChart3,
     UserCheck,
     DollarSign,
+    AlertTriangle,
+    RefreshCw,
     type LucideIcon,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -36,18 +38,6 @@ import { useMediaBuyerEarnings, type MediaBuyerEarnings } from '@/hooks/useMedia
 import { getPlatformIcon } from '@/lib/campaignConstants';
 
 // ============ TYPES ============
-
-type PayoutRow = {
-    id: string;
-    mediabuyer_id: string;
-    payout_month: string;
-    total_amount: number | string;
-    paid_amount: number | string;
-    delivered_orders: number;
-    status: 'pending' | 'partial' | 'paid';
-    paid_at: string | null;
-    created_at: string;
-};
 
 type CampaignRow = {
     id: string;
@@ -153,38 +143,37 @@ const rateLabel = (r: MediaBuyerEarnings) =>
 const MediaBuyers = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const currentMonth = useMemo(() => format(new Date(), 'yyyy-MM'), []);
-    const { rows: earnings, isLoading } = useMediaBuyerEarnings(currentMonth);
+    // D5 ④: one gated RPC (`mb_roster_earnings`) behind the hook — the month's
+    // payroll for the whole roster AND the lifetime payout list. The page's own
+    // `mediabuyer_payments` lifetime select is folded into it; the roster's
+    // campaign tally arrives as `owned_campaign_count`.
+    const { rows: earnings, payouts: allPayouts, isLoading, isError, refetch } = useMediaBuyerEarnings(currentMonth);
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<'delivered' | 'spend' | 'payroll' | 'unpaid'>('delivered');
 
-    const { data: allPayouts = [] } = useQuery<PayoutRow[]>({
-        queryKey: ['mb-all-payouts', activeBusinessId],
+    // Campaign LIST for the detail modal only (the roster card's tally comes
+    // from the RPC). Scoped to the opened buyer and gated on modal open — the
+    // kept-mounted trap, precedent [[chat-orders-history]]: the query lives in
+    // the page (the modal component is redeclared every render and would
+    // refetch on each remount), keyed on the selection and disabled until then.
+    // `campaignsPending` gates the count + empty-state copy: this query is
+    // modal-gated (lazy), so its `[]` default is "not known yet", NOT "none".
+    // Rendering it as fact flashed "0 campaigns / No campaigns yet." on every
+    // open, contradicting the card the admin just clicked (D5 review).
+    const { data: mbCampaigns = [], isPending: campaignsPending } = useQuery<CampaignRow[]>({
+        queryKey: ['mb-campaigns', activeBusinessId, selectedId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('mediabuyer_payments')
-                .select('id, mediabuyer_id, payout_month, total_amount, paid_amount, delivered_orders, status, paid_at, created_at')
-                .eq('DigiCom Business', activeBusinessId)
-                .order('payout_month', { ascending: false });
-            if (error) throw error;
-            return (data || []) as PayoutRow[];
-        },
-        enabled: !!activeBusinessId,
-    });
-
-    const { data: allCampaigns = [] } = useQuery<CampaignRow[]>({
-        queryKey: ['mb-all-campaigns', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
+            if (!activeBusinessId || !selectedId) return [];
             const { data, error } = await (supabase as any)
                 .from('campaigns')
                 .select('id, created_by, name, platform, status')
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('DigiCom Business', activeBusinessId)
+                .eq('created_by', selectedId);
             if (error) throw error;
             return (data || []) as CampaignRow[];
         },
-        enabled: !!activeBusinessId,
+        enabled: !!activeBusinessId && !!selectedId,
     });
 
     // Primary metric = delivered orders this month → drives default sort, podium & rank.
@@ -222,18 +211,6 @@ const MediaBuyers = () => {
         sorted.forEach((r, i) => map.set(r.mediabuyer_id, i + 1));
         return map;
     }, [earnings]);
-
-    // Campaign tally on the roster = campaigns the buyer OWNS (created_by), matching
-    // the modal's campaign list. NOT the month-scoped entry count from
-    // useMediaBuyerEarnings — that is 0 in a month with no spend rows and contradicts
-    // the campaigns actually listed under the buyer.
-    const ownedCampaignCount = useMemo(() => {
-        const m = new Map<string, number>();
-        for (const c of allCampaigns) {
-            if (c.created_by) m.set(c.created_by, (m.get(c.created_by) || 0) + 1);
-        }
-        return m;
-    }, [allCampaigns]);
 
     const totals = useMemo(() => {
         return earnings.reduce(
@@ -376,7 +353,7 @@ const MediaBuyers = () => {
                         </span>
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
                             <Hash className="w-2.5 h-2.5 text-ant-mid" />
-                            {ownedCampaignCount.get(buyer.mediabuyer_id) || 0} campaigns
+                            {buyer.owned_campaign_count} campaigns
                         </span>
                     </div>
 
@@ -440,7 +417,8 @@ const MediaBuyers = () => {
         const daysActive = buyer.created_at ? differenceInDays(new Date(), new Date(buyer.created_at)) + 1 : null;
         const cpd = buyer.delivered_orders > 0 ? buyer.total_spend / buyer.delivered_orders : 0;
 
-        const campaigns = allCampaigns.filter((c) => c.created_by === buyer.mediabuyer_id);
+        // Already scoped to this buyer by the modal-gated query above.
+        const campaigns = mbCampaigns;
         const payouts = allPayouts.filter((p) => p.mediabuyer_id === buyer.mediabuyer_id);
         const lastPaid = payouts.find((p) => p.paid_at)?.paid_at || null;
 
@@ -495,7 +473,7 @@ const MediaBuyers = () => {
                         {/* Contract config */}
                         <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                             <MbKpi label="Payment" value={rateLabel(buyer)} accent="orange" icon={Coins} />
-                            <MbKpi label="Campaigns" value={campaigns.length} suffix="created" accent="ink" icon={Megaphone} />
+                            <MbKpi label="Campaigns" value={campaignsPending ? '—' : campaigns.length} suffix="created" accent="ink" icon={Megaphone} />
                             <MbKpi label="Delivered" value={fmtNum(buyer.delivered_orders)} suffix="orders" accent="green" icon={PackageCheck} />
                             <MbKpi label="Days since join" value={daysActive ?? '—'} suffix={daysActive != null ? 'days' : undefined} accent="ink" icon={UserCheck} />
                         </section>
@@ -585,7 +563,7 @@ const MediaBuyers = () => {
                                     { label: 'Payment type', value: pp.label },
                                     { label: 'Member since', value: buyer.created_at ? format(parseISO(buyer.created_at), 'MMM d, yyyy') : 'N/A' },
                                     { label: 'Last paid', value: lastPaid ? format(parseISO(lastPaid), 'MMM d, yyyy') : 'Never' },
-                                    { label: 'Campaigns', value: String(campaigns.length) },
+                                    { label: 'Campaigns', value: campaignsPending ? '—' : String(campaigns.length) },
                                 ].map((r) => (
                                     <div key={r.label} className="flex items-center justify-between py-2 border-b border-ant-line last:border-0">
                                         <span className="text-[11px] text-ant-mid">{r.label}</span>
@@ -601,10 +579,15 @@ const MediaBuyers = () => {
                                         Campaigns
                                     </div>
                                     <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
-                                        {campaigns.length}
+                                        {campaignsPending ? '—' : campaigns.length}
                                     </span>
                                 </div>
-                                {campaigns.length === 0 ? (
+                                {campaignsPending ? (
+                                    <div className="py-4 space-y-2">
+                                        <div className="h-8 rounded-lg bg-ant-line animate-pulse" />
+                                        <div className="h-8 rounded-lg bg-ant-line animate-pulse" />
+                                    </div>
+                                ) : campaigns.length === 0 ? (
                                     <p className="font-serif italic text-[12px] text-ant-mid py-4 text-center">No campaigns yet.</p>
                                 ) : (
                                     <div className="ant-scroll max-h-[220px] overflow-y-auto pr-1 -mr-1 space-y-1">
@@ -846,7 +829,24 @@ const MediaBuyers = () => {
                             </div>
                         </div>
 
-                        {isLoading ? (
+                        {isError ? (
+                            <div className="rounded-2xl border border-dashed border-ant-rose/40 bg-ant-paper px-8 py-16 text-center">
+                                <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-rose/10 border border-ant-rose/25 flex items-center justify-center mb-4">
+                                    <AlertTriangle className="w-5 h-5 text-ant-rose" strokeWidth={1.75} />
+                                </div>
+                                <h3 className="font-display text-[18px] text-ant-ink tracking-tight">Payroll could not be loaded</h3>
+                                <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                                    The month's spend and commission never arrived — every figure above is missing, not zero.
+                                </p>
+                                <Button
+                                    onClick={() => refetch()}
+                                    className="mt-5 h-9 rounded-full bg-ant-ink text-white hover:bg-ant-ink/90 text-[12px] font-semibold cursor-pointer"
+                                >
+                                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                                    Try again
+                                </Button>
+                            </div>
+                        ) : isLoading ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {Array.from({ length: 6 }).map((_, i) => (
                                     <div key={i} className="h-60 rounded-2xl bg-ant-light animate-pulse" />

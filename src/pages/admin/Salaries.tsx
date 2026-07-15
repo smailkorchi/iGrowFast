@@ -1178,7 +1178,9 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                 toast({ title: 'Sellers paid', description: `${count} seller${count !== 1 ? 's' : ''} paid.` });
             } else {
                 queryClient.invalidateQueries({ queryKey: ['mb-payouts'] });
-                queryClient.invalidateQueries({ queryKey: ['mb-earnings-prior'] });
+                // D5: 'mb-earnings-prior' died with the hook's client payroll
+                // recomputation — the RPC key is the live one now.
+                queryClient.invalidateQueries({ queryKey: ['mb-roster-earnings'] });
                 toast({ title: 'Payouts generated', description: `${count} payout${count !== 1 ? 's' : ''} created as pending.` });
             }
             onOpenChange(false);

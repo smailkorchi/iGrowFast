@@ -79,7 +79,10 @@ const queryInvalidationKeys = (k: PayoutKind) =>
               'seller-live-owed-orders',
               'seller-live-owed-payments',
           ]
-        : ['mb-payouts', 'mb-payouts-stats', 'mediabuyer-payment-txns', 'mediabuyer-ledger', 'mb-earnings-prior'];
+        // D5: the hook's client-side payroll queries (incl. 'mb-earnings-prior')
+        // were replaced by the mb_roster_earnings RPC — invalidate its key so a
+        // payout still refreshes the earnings card.
+        : ['mb-payouts', 'mb-payouts-stats', 'mediabuyer-payment-txns', 'mediabuyer-ledger', 'mb-roster-earnings'];
 
 // ── Record Payment Dialog ────────────────────────────────────────────────────
 interface RecordPaymentDialogProps {

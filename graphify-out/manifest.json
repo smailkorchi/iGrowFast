@@ -1540,9 +1540,9 @@
     "semantic_hash": "3c33d87163410ffc73e1f07e7b920e20"
   },
   "src/components/salaries/PayoutPaymentDialogs.tsx": {
-    "mtime": 1782617580.1546795,
-    "ast_hash": "5e854e627dcb36d8bf92dcac850ffb2c",
-    "semantic_hash": "5e854e627dcb36d8bf92dcac850ffb2c"
+    "mtime": 1784083620.663056,
+    "ast_hash": "9df33e9d05493972f6d929e7350d89b1",
+    "semantic_hash": ""
   },
   "src/components/salaries/SellerLedgerDialogs.tsx": {
     "mtime": 1782083601.2444289,
@@ -1920,9 +1920,9 @@
     "semantic_hash": "651e5181b78ecbb6a465183315752bc3"
   },
   "src/hooks/useMediaBuyerEarnings.ts": {
-    "mtime": 1783055483.9409537,
-    "ast_hash": "536e477a7f602b63c01c0d105ece4d04",
-    "semantic_hash": "536e477a7f602b63c01c0d105ece4d04"
+    "mtime": 1784083333.1841593,
+    "ast_hash": "90543fbb779d9a3b549e26aea37839df",
+    "semantic_hash": ""
   },
   "src/hooks/useMediaBuyerStats.ts": {
     "mtime": 1784069561.5308747,
@@ -2375,9 +2375,9 @@
     "semantic_hash": ""
   },
   "src/pages/admin/Salaries.tsx": {
-    "mtime": 1782617580.1595948,
-    "ast_hash": "b362646115806037a71528b99fd8d696",
-    "semantic_hash": "b362646115806037a71528b99fd8d696"
+    "mtime": 1784083622.6054401,
+    "ast_hash": "411d0c8a590ebb666ed30cbe1824edf6",
+    "semantic_hash": ""
   },
   "src/pages/admin/SalesChannels.tsx": {
     "mtime": 1781627526.5677845,
@@ -2420,19 +2420,19 @@
     "semantic_hash": "399fe25b88a01fe915bb6ed699e2058e"
   },
   "src/pages/admin/collaborators/Couriers.tsx": {
-    "mtime": 1784043567.842465,
-    "ast_hash": "a6652045cc4be2b0fba7ca3ac30fab1e",
+    "mtime": 1784085156.089986,
+    "ast_hash": "873be81f9c3d99dde84f3ba7e18b83e3",
     "semantic_hash": ""
   },
   "src/pages/admin/collaborators/MediaBuyers.tsx": {
-    "mtime": 1782617580.1613612,
-    "ast_hash": "a102f5d013de174ea49852c2da2f71b7",
-    "semantic_hash": "a102f5d013de174ea49852c2da2f71b7"
+    "mtime": 1784085152.5956876,
+    "ast_hash": "d82b79397c2ee7eefbad12525856ab2d",
+    "semantic_hash": ""
   },
   "src/pages/admin/collaborators/Sellers.tsx": {
-    "mtime": 1782749678.7654977,
-    "ast_hash": "37e6b1dcb2e562e0c71a328ec98b96b2",
-    "semantic_hash": "37e6b1dcb2e562e0c71a328ec98b96b2"
+    "mtime": 1784085133.9610167,
+    "ast_hash": "fe8eddf85485d843f78a5bedd664d661",
+    "semantic_hash": ""
   },
   "src/pages/admin/tools/BonDeCommande.tsx": {
     "mtime": 1774615727.0,
@@ -5310,8 +5310,8 @@
     "semantic_hash": ""
   },
   "src/components/realtime/EcomBizRealtime.tsx": {
-    "mtime": 1784077751.2513254,
-    "ast_hash": "82c442e84f077fd2dce5376caa2ab376",
+    "mtime": 1784083369.623829,
+    "ast_hash": "b37737ad633428414d58678176342121",
     "semantic_hash": ""
   },
   "src/lib/ecomBus.ts": {
@@ -5325,8 +5325,8 @@
     "semantic_hash": ""
   },
   "docs/MASTER_TODO.md": {
-    "mtime": 1784072854.493409,
-    "ast_hash": "7f11db9095ab01b7ba34bec5f3bc406c",
+    "mtime": 1784080460.3694088,
+    "ast_hash": "31f182a78d9f3d465ceadeb1ea5f7758",
     "semantic_hash": ""
   },
   "supabase/migrations/20260714160000_ecom_biz_r1a_publication_drop.sql": {
@@ -5442,6 +5442,26 @@
   "docs/d3-recon/04-design.md": {
     "mtime": 1784074591.602646,
     "ast_hash": "196bb82ff63c2796d29edf39b73a8c0d",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260715030000_d5_leaderboards.sql": {
+    "mtime": 1784082294.008792,
+    "ast_hash": "ba709215df5adca0bf8c6793faf0cd6e",
+    "semantic_hash": ""
+  },
+  "docs/d5-recon/01-sellers-mb.md": {
+    "mtime": 1784081537.8428388,
+    "ast_hash": "a4106477e95294d7594ed9b483666b4e",
+    "semantic_hash": ""
+  },
+  "docs/d5-recon/02-couriers-db.md": {
+    "mtime": 1784081537.843113,
+    "ast_hash": "8fb9ca175355bb999f97dfeea5cd6197",
+    "semantic_hash": ""
+  },
+  "docs/d5-recon/03-design.md": {
+    "mtime": 1784081577.9324968,
+    "ast_hash": "3544cc0b0352d9c9cfacdaf3226e642b",
     "semantic_hash": ""
   }
 }
