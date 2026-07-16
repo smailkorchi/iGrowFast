@@ -115,6 +115,11 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
             if (role === 'admin') {
                 queryClient.invalidateQueries({ queryKey: ['products-dropdown', businessId] });
                 queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', businessId] });
+                // P5: the admin Products catalog page (list + money totals) now has
+                // staleTime — stock events are its freshness signal, replacing the
+                // old focus-refetch dependency.
+                queryClient.invalidateQueries({ queryKey: ['products', businessId] });
+                queryClient.invalidateQueries({ queryKey: ['catalog-totals', businessId] });
             } else {
                 queryClient.invalidateQueries({ queryKey: ['products-dropdown-seller'] });
                 queryClient.invalidateQueries({ queryKey: ['accessories', businessId] });

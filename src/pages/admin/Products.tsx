@@ -202,6 +202,10 @@ const Products = () => {
                     : b.created_at.localeCompare(a.created_at)
             );
         },
+        // P5: freshness rides mutations + the ecom:biz 'stock' broadcast (which
+        // invalidates this key) — the old staleTime-0 default re-downloaded the
+        // whole catalog on every tab focus per admin.
+        staleTime: 5 * 60 * 1000,
     });
 
     const { data: catalogTotalsData, isLoading: isTotalsLoading } = useQuery({
@@ -214,6 +218,8 @@ const Products = () => {
             return data as CatalogTotalsPayload;
         },
         enabled: !!activeBusinessId,
+        // P5: same policy as the list — mutations + 'stock' broadcast invalidate.
+        staleTime: 5 * 60 * 1000,
     });
 
     const form = useForm<ProductFormValues>({
