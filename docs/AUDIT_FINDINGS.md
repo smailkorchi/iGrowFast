@@ -118,3 +118,7 @@ Post-D1 state: core list = orders_list_page/orders_kpis keyset RPCs (page1 42.6m
 **OR-15 [P3] bulk stock-failure path**: Promise.all of N fetchOrderById full-join selects (100 failures = 100 parallel heavy selects).
 
 Egress per cold page load ≈1.15MB, of which visible list = only 19% — satellites dominate. Healthy & verified: keyset core O(page) at any size, exports gold-standard (count-first+chunked), no Prefer:count=exact anywhere, bulk mutations set-based, realtime auth solid, single-tx bursts coalesce client-side.
+
+## F0-1 + F0-2 — infra levers  [APPLIED + VERIFIED 2026-07-17, owner-approved]
+- **F0-1:** PGRST_DB_POOL 10 (default, unset) → **30** (compose rest service + .env; container recreated; verified in-container env + REST 200). REST concurrency ceiling ×3; conn census headroom was 41/200 before change. Rollback: docker-compose.yml.bak-f01.
+- **F0-2:** Kong global plugins: **rate-limiting 1,200 req/min, limit_by ip, policy local, fault_tolerant** + **request-size-limiting 25MB**. CRITICAL detail: traffic arrives via CF Tunnel, so kong sees the tunnel IP for everyone — added `KONG_TRUSTED_IPS: 0.0.0.0/0` (safe: kong ports are 127.0.0.1-bound) + `KONG_REAL_IP_HEADER: CF-Connecting-IP` + recursive, so the bucket is the REAL client IP. Also added rate-limiting,request-size-limiting to the KONG_PLUGINS allowlist. Verified live: REST 200 with `X-RateLimit-Limit-Minute: 1200` headers. Rollback: kong.yml.bak-f02 + docker-compose.yml.bak-f02 → `docker compose up -d kong`. NOTE: these are BOX-ONLY ops files (not in repo).
