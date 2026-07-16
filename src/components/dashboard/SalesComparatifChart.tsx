@@ -37,8 +37,11 @@ import {
  * revenue line = replace-excluded delivered orders, delivery-bucketed
  * (date_livraison ?? updated_at), collapsed pureRevenue. The client re-buckets
  * the day rows to its grain; the vs-Prev comparison is a SECOND RPC call with
- * the shifted window (same ['dash-stats'] key family → shared cache +
- * invalidation).
+ * the shifted window, fetching ONLY sales_chart via p_sections (D3-7) under a
+ * 'cmp-sales'-discriminated key — a partial payload cached under the shared
+ * ['dash-stats','admin',biz,from,to] key would starve the full dashboard when
+ * the user later selects that window (permanent skeletons). Still inside the
+ * ['dash-stats'] invalidation prefix.
  */
 export interface SalesChartSection {
     orders_by_day: Array<{ d: string; orders: number }>;
@@ -79,12 +82,13 @@ export const SalesComparatifChart = ({ businessId, dateFilter, stats }: SalesCom
 
     // Previous-window day buckets, fetched only when the toggle is active.
     const { data: prevPayload } = useQuery({
-        queryKey: ['dash-stats', 'admin', businessId, prevFromKey, prevToKey],
+        queryKey: ['dash-stats', 'admin', businessId, prevFromKey, prevToKey, 'cmp-sales'],
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc('admin_dashboard_stats', {
                 p_business: businessId,
                 p_from: prevFromKey,
                 p_to: prevToKey,
+                p_sections: ['sales_chart'],
             });
             if (error) throw error;
             return data as { sales_chart: SalesChartSection };
