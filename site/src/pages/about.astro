@@ -1,22 +1,14 @@
 ---
 import Base from '../layouts/Base.astro';
+import RoleScope from '../components/demos/RoleScope.astro';
+import '../styles/demo.css';
 
 /**
- * FACTUAL, NOT INFLATED — deliberately.
- *
- * Google Ads' Unacceptable Business Practices rule bans "an inaccurate business
- * name that does not clearly represent the advertised business" and "a
- * fictitious business that lacks the qualifications or capacity to provide the
- * advertised products or services", enforced by suspension on detection,
- * without warning, permanently. Meta cross-references this page against
- * Business Verification documents.
- *
- * iGrowFast LLC is a real Wyoming entity, so verification itself is truthful.
- * The entire risk lives in the copy. So this page describes what the PRODUCT
- * does and who it is for — never how large, old, or established the company is.
- * No founder names. No invented history, headcount, or customer counts. The
- * Sheridan address is the registered address and is never called an office.
- * German processing is stated plainly rather than implied away.
+ * FACTUAL, NOT INFLATED — Google Ads' "inaccurate business" rule punishes
+ * overstated US-presence claims with a permanent ban, and Meta reads this page
+ * during Business Verification. So this describes what the PRODUCT does, never
+ * how large or established the company is. No founder names. German processing
+ * stated plainly. Registered address never called an office.
  */
 ---
 
@@ -25,92 +17,120 @@ import Base from '../layouts/Base.astro';
   description="iGrowFast LLC builds operational software for cash-on-delivery e-commerce: orders, carriers, chat, ad spend and reconciliation in one workspace."
   path="/about"
 >
-  <section class="head">
+  <section class="hero">
     <div class="container">
-      <h1>We build the workspace COD actually needs</h1>
-      <p class="lede">
+      <span class="hero-tag" data-reveal>iGrowFast LLC · Wyoming, USA</span>
+      <h1 data-reveal>We build the workspace<br />COD actually needs.</h1>
+      <p class="lede" data-reveal>
         Cash-on-delivery is not a payment method bolted onto normal e-commerce.
-        It is a different business, and it breaks the tools built for card
+        It's a different business — and it breaks the tools built for card
         checkout.
       </p>
     </div>
   </section>
 
-  <section class="body">
-    <div class="container narrow">
-      <div class="prose">
-        <h2>The problem we work on</h2>
+  <!-- the problem, in three beats -->
+  <section class="beats">
+    <div class="container">
+      <div class="beat" data-reveal>
+        <span class="beat-n">Le problème</span>
         <p>
-          In a COD business the order isn't finished when someone clicks buy. It
-          is finished when a courier hands over a package and collects cash —
-          days later, sometimes at the third attempt, sometimes never. Between
-          those two moments sit a chat thread, a courier portal, an ad campaign
-          that produced the lead, and a commission that someone has to calculate
-          correctly.
+          The order isn't finished when someone clicks buy. It's finished when a
+          courier hands over a package and collects cash — days later, sometimes
+          on the third attempt, sometimes never.
         </p>
+      </div>
+      <div class="beat" data-reveal>
+        <span class="beat-n">Ce qui casse</span>
         <p>
-          Most teams run that on a spreadsheet and ten browser tabs. It works
-          until it doesn't — and it stops working exactly when the business
-          starts growing, which is the worst possible moment.
+          Between those two moments sit a chat thread, a courier portal, an ad
+          campaign, and a commission someone has to calculate correctly. Most
+          teams run that on a spreadsheet and ten tabs — until it stops working,
+          exactly when the business starts growing.
         </p>
+      </div>
+      <div class="beat" data-reveal>
+        <span class="beat-n">Ce qu'on fait</span>
         <p>
-          iGrowFast puts the loop in one place: orders and their real status,
-          the couriers you already use, the numbers you already sell on, the ad
-          spend that produced the order, and a ledger that tracks and reconciles
-          what everyone is owed.
-        </p>
-
-        <h2>How we think about it</h2>
-        <p>
-          Money has to be right. A tool that is merely fast, but quietly wrong
-          about a commission, is worse than the spreadsheet it replaced. The
-          reconciliation is the part we are most careful about.
-        </p>
-        <p>
-          Roles see their own slice. A media buyer sees the campaigns they run
-          and the commission they earned — not another team's margins. That
-          isn't a setting; it's how the system is built.
-        </p>
-        <p>
-          Density with hierarchy. Operators need a lot on screen. That is a
-          reason to design carefully, not a reason to ship a wall of grey.
-        </p>
-
-        <h2>The company</h2>
-        <p>
-          iGrowFast is operated by <strong>iGrowFast LLC</strong>, a Wyoming
-          limited liability company registered in the United States. Our
-          registered address is below.
-        </p>
-        <p>
-          The platform runs on infrastructure located in <strong>Germany</strong>,
-          and customer data is stored and processed in Europe. We say that plainly
-          here because it belongs in an honest description of the business, not
-          only in a privacy policy — see our <a href="/privacy">Privacy Policy</a>
-          for exactly what is processed and where.
-        </p>
-        <p>
-          The product is used today by cash-on-delivery businesses operating in
-          Morocco, and its interface is primarily French. We are not going to
-          pretend to be bigger or older than we are.
-        </p>
-
-        <address>
-          <strong>iGrowFast LLC</strong><br />
-          30 N Gould St Ste R<br />
-          Sheridan, WY 82801<br />
-          United States
-        </address>
-        <p class="fine">
-          That is our registered address. It is not a walk-in office — if you
-          want to reach us, <a href="/contact">contact us</a> and a person will
-          answer.
+          iGrowFast puts the whole loop in one place: orders and their real
+          status, the couriers you already use, the numbers you sell on, the ad
+          spend behind each order, and a ledger that tracks and reconciles what
+          everyone is owed.
         </p>
       </div>
     </div>
   </section>
 
-  <section class="close">
+  <!-- role-appropriate truth, shown -->
+  <section class="rolesec" data-reveal>
+    <div class="container">
+      <div class="rolesec-intro">
+        <span class="feature-tag">Le principe</span>
+        <h2>Each role sees exactly its slice.</h2>
+        <p>
+          A media buyer sees the campaigns they run and the commission they
+          earned — never another team's margins. That isn't a setting you can
+          switch off. It's enforced by the system, on the same order, for every
+          role.
+        </p>
+      </div>
+      <div class="rolesec-demo">
+        <RoleScope />
+      </div>
+    </div>
+  </section>
+
+  <!-- principles -->
+  <section class="princ">
+    <div class="container">
+      <h2 data-reveal>How we think about it</h2>
+      <div class="princ-grid">
+        <div class="princ-item" data-reveal>
+          <h3>Money has to be right</h3>
+          <p>A tool that's fast but quietly wrong about a commission is worse than the spreadsheet it replaced. Reconciliation is the part we are most careful about.</p>
+        </div>
+        <div class="princ-item" data-reveal>
+          <h3>Density with hierarchy</h3>
+          <p>Operators need a lot on screen. That's a reason to design carefully, not a reason to ship a wall of grey.</p>
+        </div>
+        <div class="princ-item" data-reveal>
+          <h3>Speed over ceremony</h3>
+          <p>Repetitive, high-volume work. Fewer clicks per order beats prettier transitions, every time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- the company: honest facts -->
+  <section class="company" data-reveal>
+    <div class="container company-grid">
+      <div class="company-copy">
+        <span class="feature-tag">L'entreprise</span>
+        <h2>Small, real, and honest about it.</h2>
+        <p>
+          iGrowFast is operated by <strong>iGrowFast LLC</strong>, a Wyoming
+          limited liability company. The platform runs on infrastructure in
+          <strong>Germany</strong>, and customer data is stored and processed in
+          Europe — we say that here because it belongs in an honest description
+          of the business, not only in a <a href="/privacy">privacy policy</a>.
+        </p>
+        <p>
+          It's used today by cash-on-delivery businesses in Morocco, and its
+          interface is primarily French. We're not going to pretend to be bigger
+          or older than we are.
+        </p>
+      </div>
+      <div class="company-card">
+        <div class="cc-row"><span>Entity</span><b>iGrowFast LLC</b></div>
+        <div class="cc-row"><span>Formed in</span><b>Wyoming, USA</b></div>
+        <div class="cc-row"><span>Infrastructure</span><b>Germany / EU</b></div>
+        <div class="cc-row"><span>Interface</span><b>Français</b></div>
+        <div class="cc-row"><span>Registered</span><b>Sheridan, WY 82801</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="close" data-reveal>
     <div class="container">
       <h2>Want to see whether it fits?</h2>
       <a href="/contact" class="btn btn-primary">Talk to us</a>
@@ -119,56 +139,153 @@ import Base from '../layouts/Base.astro';
 </Base>
 
 <style>
-  .head {
-    padding-block: clamp(3rem, 2rem + 5vw, 5rem) 0;
+  .hero {
+    padding-block: clamp(3rem, 2rem + 5vw, 5.5rem) 0;
   }
-  .head h1 {
+  .hero-tag {
+    display: inline-block;
+    font-size: var(--step-caption);
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+  .hero h1 {
     font-size: var(--step-hero);
-    line-height: 1.05;
-    max-width: 20ch;
+    line-height: 1.03;
   }
   .lede {
-    margin-top: 1.25rem;
+    margin-top: 1.5rem;
     font-size: var(--step-body-lg);
     color: var(--muted);
+    max-width: 56ch;
   }
 
-  .body {
-    padding-block: clamp(2.5rem, 1rem + 4vw, 4rem);
+  .beats {
+    padding-block: clamp(3rem, 2rem + 4vw, 5rem);
   }
-  .narrow {
-    max-width: 72ch;
+  .beats .container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 2.5rem 3rem;
   }
-  .prose h2 {
-    margin-top: 2.75rem;
-    margin-bottom: 0.75rem;
+  .beat {
+    border-top: 2px solid var(--ink);
+    padding-top: 1.25rem;
   }
-  .prose h2:first-child {
-    margin-top: 0;
+  .beat-n {
+    display: block;
+    font-size: var(--step-caption);
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.85rem;
   }
-  .prose p {
-    margin-bottom: 1rem;
+  .beat p {
+    color: var(--muted);
+    font-size: var(--step-body);
+    line-height: 1.65;
+  }
+
+  .rolesec {
+    padding-block: clamp(3rem, 2rem + 4vw, 5.5rem);
+    background: var(--paper);
+    border-block: 1px solid var(--line);
+  }
+  .rolesec-intro {
+    max-width: 56ch;
+    margin-bottom: 2.5rem;
+  }
+  .feature-tag {
+    display: inline-block;
+    font-size: var(--step-caption);
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+  }
+  .rolesec-intro h2 { max-width: 18ch; }
+  .rolesec-intro p {
+    margin-top: 0.85rem;
+    color: var(--muted);
+    font-size: var(--step-body-lg);
+  }
+  .rolesec-demo {
+    max-width: 860px;
+  }
+
+  .princ {
+    padding-block: clamp(3rem, 2rem + 4vw, 5rem);
+  }
+  .princ h2 {
+    margin-bottom: 2.5rem;
+    max-width: 20ch;
+  }
+  .princ-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2.5rem 3rem;
+  }
+  .princ-item h3 { margin-bottom: 0.6rem; }
+  .princ-item p {
+    color: var(--muted);
+    font-size: var(--step-small);
+    line-height: 1.65;
+  }
+
+  .company {
+    padding-block: clamp(3rem, 2rem + 4vw, 5rem);
+    background: var(--paper);
+    border-block: 1px solid var(--line);
+  }
+  .company-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(2rem, 1rem + 3vw, 3.5rem);
+    align-items: center;
+  }
+  @media (min-width: 860px) {
+    .company-grid { grid-template-columns: 1.15fr 0.85fr; }
+  }
+  .company-copy h2 { max-width: 16ch; }
+  .company-copy p {
+    margin-top: 0.85rem;
+    color: var(--muted);
+    font-size: var(--step-body);
     line-height: 1.7;
-    max-width: 68ch;
+    max-width: 54ch;
   }
-  address {
-    font-style: normal;
-    line-height: 1.7;
-    margin-block: 1.5rem 0.75rem;
-    padding-left: 1rem;
-    border-left: 1px solid var(--line);
+  .company-card {
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.5rem 1.5rem;
   }
-  .fine {
+  .cc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .cc-row:last-child { border-bottom: 0; }
+  .cc-row span {
     font-size: var(--step-small);
     color: var(--muted);
+  }
+  .cc-row b {
+    font-size: var(--step-small);
+    font-weight: 600;
+    text-align: right;
   }
 
   .close {
     padding-block: var(--space-section);
-    border-top: 1px solid var(--line);
   }
-  .close h2 {
-    margin-bottom: 1.5rem;
-    max-width: 18ch;
-  }
+  .close h2 { margin-bottom: 1.5rem; max-width: 18ch; }
 </style>
+
+<script>
+  import { mountDemos } from '../lib/demo-engine.js';
+  import { mountReveals } from '../lib/reveal.js';
+  mountDemos();
+  mountReveals();
+</script>

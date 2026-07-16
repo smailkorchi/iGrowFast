@@ -1,44 +1,46 @@
 ---
 /**
- * The hero visual: ten scattered tabs collapse into one workspace.
+ * Hero visual: a scatter of ten disconnected tools collapses into one
+ * workspace — and the workspace STAYS. It is the resolved end-state, so it
+ * must dominate the column, not float in it. The earlier version left the
+ * column blank because the resolved panel was small and the collapse could
+ * halt mid-run; this one lands a full product surface and holds it.
  *
- * This IS the pitch. "Ten tabs, one order" is a thing you watch happen, not a
- * sentence you read — so the headline says it and this shows it, and neither
- * repeats the other's job.
- *
- * Brand names appear as TEXT ONLY, used nominatively to depict the problem.
- * No logos: we have no licence to display any of them, and the footer's
- * non-endorsement line qualifies the text references.
- *
- * Same 960-canvas + transform:scale technique as the demos, so the whole site
- * shares one motion language.
+ * Brand names are TEXT ONLY, nominative, depicting the problem. No logos —
+ * no licence to display any, and the footer's non-endorsement line qualifies
+ * the text. Same fixed-canvas + transform:scale technique as the demos.
  */
 
 const tabs = [
-  { label: 'WhatsApp', x: 40, y: 30, r: -8 },
-  { label: 'Sheets', x: 300, y: 8, r: 5 },
-  { label: 'Coliaty', x: 560, y: 40, r: -4 },
-  { label: 'Meta Ads', x: 90, y: 130, r: 6 },
-  { label: 'Vitex', x: 380, y: 120, r: -6 },
-  { label: 'Commandes', x: 610, y: 155, r: 7 },
-  { label: 'Digylog', x: 30, y: 240, r: 4 },
-  { label: 'Comptabilité', x: 300, y: 250, r: -5 },
-  { label: 'Stock', x: 585, y: 265, r: 8 },
-  { label: 'Commissions', x: 150, y: 350, r: -7 },
+  { label: 'WhatsApp', x: 24, y: 22 },
+  { label: 'Google Sheets', x: 300, y: 8 },
+  { label: 'Coliaty', x: 590, y: 28 },
+  { label: 'Meta Ads', x: 150, y: 96 },
+  { label: 'Vitex', x: 470, y: 92 },
+  { label: 'Commandes', x: 40, y: 178 },
+  { label: 'Digylog', x: 620, y: 158 },
+  { label: 'Comptabilité', x: 250, y: 200 },
+  { label: 'Stock', x: 500, y: 214 },
+  { label: 'Commissions', x: 90, y: 286 },
+];
+
+// The resolved workspace: an order table that reads as the real product.
+const rows = [
+  { name: 'Salma B.', city: 'Casablanca', status: 'Livré', tone: 'ok' },
+  { name: 'Youssef E.', city: 'Rabat', status: 'En route', tone: 'go' },
+  { name: 'Nadia K.', city: 'Agadir', status: 'Confirmé', tone: 'warm' },
+  { name: 'Amine M.', city: 'Marrakech', status: 'Livré', tone: 'ok' },
+  { name: 'Hafsa R.', city: 'Tanger', status: 'Retour', tone: 'muted' },
 ];
 ---
 
-<div class="hero-stage-frame" data-w="760" data-h="470">
-  <div class="hero-stage" data-w="760" style="width:760px;height:470px">
-    <!-- the scattered mess -->
+<div class="hero-stage-frame" data-w="760" data-h="520" style="aspect-ratio:760/520">
+  <div class="hero-stage" data-w="760" style="width:760px;height:520px">
+    <!-- scattered mess -->
     <div class="tabs" id="hero-tabs">
       {
         tabs.map((t, i) => (
-          <div
-            class="tab"
-            data-i={i}
-            style={`left:${t.x}px; top:${t.y}px; --r:${t.r}deg`}
-          >
+          <div class="tab" data-i={i} style={`left:${t.x}px; top:${t.y}px`}>
             <span class="dot" />
             <span class="tab-label">{t.label}</span>
           </div>
@@ -46,22 +48,50 @@ const tabs = [
       }
     </div>
 
-    <!-- what they become -->
+    <!-- resolved workspace -->
     <div class="one" id="hero-one">
       <div class="one-bar">
-        <span class="one-dot" /><span class="one-dot" /><span class="one-dot" />
+        <span class="one-mark" />
         <span class="one-title">iGrowFast</span>
+        <span class="one-tab is-on">Commandes</span>
+        <span class="one-tab">Inbox</span>
+        <span class="one-tab">Livraisons</span>
+        <span class="one-grow" />
+        <span class="one-avatar">K</span>
       </div>
       <div class="one-body">
-        <div class="one-side">
-          <span class="ln w60" /><span class="ln w80" /><span class="ln w45" />
-          <span class="ln w70" /><span class="ln w55" />
-        </div>
+        <aside class="one-side">
+          <span class="side-item is-on"><i></i>Tableau de bord</span>
+          <span class="side-item"><i></i>Commandes</span>
+          <span class="side-item"><i></i>Inbox</span>
+          <span class="side-item"><i></i>Livraisons</span>
+          <span class="side-item"><i></i>Campagnes</span>
+          <span class="side-item"><i></i>Paiements</span>
+          <span class="side-sep" />
+          <span class="side-stat"><b>1 284</b>commandes</span>
+        </aside>
         <div class="one-main">
-          <div class="one-row"><span class="ln w40" /><span class="pill" /></div>
-          <div class="one-row"><span class="ln w65" /><span class="pill" /></div>
-          <div class="one-row"><span class="ln w50" /><span class="pill" /></div>
-          <div class="one-row"><span class="ln w70" /><span class="pill" /></div>
+          <div class="one-toolbar">
+            <span class="tb-search">Rechercher une commande</span>
+            <span class="tb-btn">Exporter</span>
+          </div>
+          <div class="one-table">
+            <div class="tr th">
+              <span>Client</span><span>Ville</span><span>Statut</span>
+            </div>
+            {
+              rows.map((r) => (
+                <div class="tr">
+                  <span class="td-name"><i class="av" />{r.name}</span>
+                  <span class="td-city">{r.city}</span>
+                  <span class="td-status">
+                    <i class={`st st-${r.tone}`} />
+                    {r.status}
+                  </span>
+                </div>
+              ))
+            }
+          </div>
         </div>
       </div>
     </div>
@@ -81,18 +111,19 @@ const tabs = [
     user-select: none;
   }
 
+  /* ── scattered tabs ── */
   .tab {
     position: absolute;
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 8px 13px;
+    padding: 9px 14px;
     background: var(--paper);
     border: 1px solid var(--line);
     border-radius: 999px;
-    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 6px 16px rgba(20, 20, 19, 0.05);
+    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 8px 20px rgba(20, 20, 19, 0.06);
     white-space: nowrap;
-    transform: rotate(var(--r));
+    will-change: transform;
   }
   .dot {
     width: 6px;
@@ -102,21 +133,19 @@ const tabs = [
     flex-shrink: 0;
   }
   .tab-label {
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--muted);
   }
 
+  /* ── resolved workspace ── */
   .one {
     position: absolute;
-    left: 80px;
-    top: 65px;
-    width: 600px;
-    height: 340px;
+    inset: 0;
     background: var(--paper);
     border: 1px solid var(--line);
-    border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 20px 50px rgba(20, 20, 19, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 30px 60px -24px rgba(20, 20, 19, 0.22);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -124,82 +153,200 @@ const tabs = [
   .one-bar {
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 11px 14px;
+    gap: 10px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--line-soft);
     background: var(--canvas);
   }
-  .one-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: var(--line);
+  .one-mark {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    background: var(--accent);
+    flex-shrink: 0;
   }
   .one-title {
-    margin-left: 8px;
     font-family: var(--font-display);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     color: var(--ink);
+    margin-right: 8px;
   }
+  .one-tab {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .one-tab.is-on {
+    background: var(--ink);
+    color: var(--canvas);
+  }
+  .one-grow {
+    flex: 1;
+  }
+  .one-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+  }
+
   .one-body {
     flex: 1;
     display: grid;
-    grid-template-columns: 150px 1fr;
+    grid-template-columns: 172px 1fr;
+    min-height: 0;
   }
   .one-side {
     border-right: 1px solid var(--line-soft);
-    padding: 16px 14px;
+    padding: 14px 12px;
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: 3px;
+    background: var(--canvas);
   }
+  .side-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--muted);
+    padding: 7px 10px;
+    border-radius: 8px;
+  }
+  .side-item i {
+    width: 13px;
+    height: 13px;
+    border-radius: 4px;
+    background: var(--line);
+    flex-shrink: 0;
+  }
+  .side-item.is-on {
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .side-item.is-on i {
+    background: var(--accent);
+  }
+  .side-sep {
+    height: 1px;
+    background: var(--line-soft);
+    margin: 10px 4px;
+  }
+  .side-stat {
+    display: flex;
+    flex-direction: column;
+    padding: 0 10px;
+    font-size: 11px;
+    color: var(--mid);
+  }
+  .side-stat b {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+
   .one-main {
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
+    min-width: 0;
   }
-  .one-row {
+  .one-toolbar {
+    display: flex;
+    gap: 8px;
+  }
+  .tb-search {
+    flex: 1;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 11px;
+    font-size: 12px;
+    color: var(--mid);
+  }
+  .tb-btn {
+    background: var(--ink);
+    color: var(--canvas);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .one-table {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .tr {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    align-items: center;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 12.5px;
+  }
+  .tr:last-child {
+    border-bottom: 0;
+  }
+  .tr.th {
+    background: var(--canvas);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .td-name {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-bottom: 13px;
-    border-bottom: 1px solid var(--line-soft);
+    gap: 9px;
+    font-weight: 500;
+    color: var(--ink);
   }
-  .ln {
-    height: 7px;
-    border-radius: 999px;
-    background: var(--line);
-    display: block;
-  }
-  .w40 { width: 40%; }
-  .w45 { width: 45%; }
-  .w50 { width: 50%; }
-  .w55 { width: 55%; }
-  .w60 { width: 60%; }
-  .w65 { width: 65%; }
-  .w70 { width: 70%; }
-  .w80 { width: 80%; }
-  .pill {
-    width: 44px;
-    height: 16px;
+  .td-name .av {
+    width: 22px;
+    height: 22px;
     border-radius: 999px;
     background: var(--accent-soft);
     flex-shrink: 0;
   }
+  .td-city {
+    color: var(--muted);
+  }
+  .td-status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink);
+  }
+  .st {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .st-ok { background: var(--green); }
+  .st-go { background: var(--cool); }
+  .st-warm { background: var(--accent); }
+  .st-muted { background: var(--mid); }
 
-  /* Reduced motion: no collapse, no scatter. Show the resolved state — the
-     answer, not the problem. The headline already carries the problem. */
   @media (prefers-reduced-motion: reduce) {
-    .tabs {
-      display: none;
-    }
-    .one {
-      opacity: 1 !important;
-      transform: none !important;
-    }
+    .tabs { display: none; }
+    .one { opacity: 1 !important; transform: none !important; }
   }
 </style>
 
@@ -209,8 +356,6 @@ const tabs = [
   const frame = document.querySelector('.hero-stage-frame') as HTMLElement | null;
   const stage = document.querySelector('.hero-stage') as HTMLElement | null;
   if (frame && stage) {
-    // Same fixed-canvas scaling trick the demos use — the composition never
-    // reflows, it only scales, so the choreography is identical at every size.
     const fit = () => {
       const w = parseInt(frame.dataset.w!, 10);
       const h = parseInt(frame.dataset.h!, 10);
@@ -222,57 +367,46 @@ const tabs = [
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const tabs = gsap.utils.toArray<HTMLElement>('.tab');
-    const one = document.querySelector('.one');
+    const one = document.querySelector('.one') as HTMLElement;
 
     if (reduced) {
       gsap.set(one, { autoAlpha: 1, scale: 1 });
     } else {
-      gsap.set(one, { autoAlpha: 0, scale: 0.94, transformOrigin: 'center center' });
+      gsap.set(one, { autoAlpha: 0, scale: 0.96, transformOrigin: '50% 55%' });
 
-      const tl = gsap.timeline({ delay: 0.35 });
+      const tl = gsap.timeline({ delay: 0.3 });
 
-      // 1 — the mess arrives, scattered and slightly crooked.
+      // 1 — the mess arrives, scattered.
       tl.from(tabs, {
         autoAlpha: 0,
-        scale: 0.8,
-        y: 14,
+        scale: 0.82,
+        y: 16,
         duration: 0.5,
         ease: 'power2.out',
-        stagger: { each: 0.055, from: 'random' },
+        stagger: { each: 0.05, from: 'random' },
       });
 
-      // 2 — it sits there a beat. This pause is the point: it's the "ugh".
-      tl.to({}, { duration: 0.65 });
+      // 2 — it sits there. The beat is the point: this is the "ugh".
+      tl.to({}, { duration: 0.7 });
 
-      // 3 — everything collapses toward the centre and vanishes.
+      // 3 — everything converges on the centre of the stage and vanishes.
+      //     x/y computed per-target from its real layout position, so it works
+      //     regardless of where each tab started. No junk pre-tween.
       tl.to(tabs, {
-        x: () => 380 - (gsap.getProperty(tabs[0], 'x') as number),
-        duration: 0.01,
-        stagger: 0,
-      }, '<');
+        x: (_i: number, t: HTMLElement) => 380 - (t.offsetLeft + t.offsetWidth / 2),
+        y: (_i: number, t: HTMLElement) => 260 - (t.offsetTop + t.offsetHeight / 2),
+        scale: 0.3,
+        autoAlpha: 0,
+        duration: 0.7,
+        ease: 'power3.inOut',
+        stagger: { each: 0.028, from: 'edges' },
+      });
 
-      tl.to(
-        tabs,
-        {
-          // Converge on the centre of the canvas rather than each tab's own
-          // position — computed per-target from where it actually sits.
-          x: (i, t: HTMLElement) => 380 - (t.offsetLeft + t.offsetWidth / 2),
-          y: (i, t: HTMLElement) => 235 - (t.offsetTop + t.offsetHeight / 2),
-          rotate: 0,
-          scale: 0.35,
-          autoAlpha: 0,
-          duration: 0.75,
-          ease: 'power3.inOut',
-          stagger: { each: 0.03, from: 'edges' },
-        },
-        '+=0'
-      );
-
-      // 4 — one thing remains.
+      // 4 — one workspace remains, and stays. This is the resolved state.
       tl.to(
         one,
-        { autoAlpha: 1, scale: 1, duration: 0.6, ease: 'power3.out' },
-        '-=0.32'
+        { autoAlpha: 1, scale: 1, duration: 0.65, ease: 'power3.out' },
+        '-=0.3'
       );
     }
   }

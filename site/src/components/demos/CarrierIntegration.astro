@@ -1,0 +1,370 @@
+---
+/**
+ * Demo — connecting a delivery carrier.
+ *
+ * Real Moroccan COD carriers, named nominatively (no logos). Scene: pick a
+ * carrier from the grid, credentials fill in, it validates, the card flips to
+ * a live connected state. iGrowFast's own palette throughout.
+ */
+---
+
+<div class="demo-frame" data-demo="carriers" data-w="960" data-h="600" style="aspect-ratio:960/600">
+  <div class="demo-stage carr" data-w="960" style="width:960px;height:600px">
+    <div class="carr-head">
+      <div>
+        <span class="carr-eyebrow">Livraisons</span>
+        <h4 class="carr-title">Transporteurs</h4>
+      </div>
+      <span class="carr-count"><i id="carr-live-dot"></i><span id="carr-count-n">2</span> connectés</span>
+    </div>
+
+    <div class="carr-grid" id="carr-grid">
+      <div class="cc is-connected" data-c="0">
+        <div class="cc-top"><span class="cc-name">Coliaty</span><span class="cc-badge on">Connecté</span></div>
+        <div class="cc-meta">Casablanca · Rabat · +48 villes</div>
+      </div>
+      <div class="cc is-connected" data-c="1">
+        <div class="cc-top"><span class="cc-name">Vitex</span><span class="cc-badge on">Connecté</span></div>
+        <div class="cc-meta">National · batch</div>
+      </div>
+      <div class="cc" data-c="2" id="carr-target">
+        <div class="cc-top"><span class="cc-name">Digylog</span><span class="cc-badge" id="carr-badge">Connecter</span></div>
+        <div class="cc-meta">National · suivi temps réel</div>
+      </div>
+      <div class="cc" data-c="3">
+        <div class="cc-top"><span class="cc-name">QuickLivraison</span><span class="cc-badge">Connecter</span></div>
+        <div class="cc-meta">Marrakech · Agadir</div>
+      </div>
+    </div>
+
+    <!-- credential sheet -->
+    <div class="carr-sheet" id="carr-sheet">
+      <div class="cs-head">
+        <span class="cs-title">Connecter Digylog</span>
+        <span class="cs-x">✕</span>
+      </div>
+      <label class="cs-field">
+        <span>Clé API</span>
+        <div class="cs-input wd-input"><span id="carr-key"></span><i class="cs-caret"></i></div>
+      </label>
+      <label class="cs-field">
+        <span>Identifiant client</span>
+        <div class="cs-input wd-input"><span id="carr-id"></span></div>
+      </label>
+      <div class="cs-actions">
+        <span class="cs-btn" id="carr-submit">Valider la connexion</span>
+      </div>
+      <div class="cs-status" id="carr-check">
+        <i class="cs-spin"></i><span id="carr-check-txt">Vérification…</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .carr {
+    background: var(--canvas);
+    font-family: var(--font-body);
+    color: var(--ink);
+    padding: 30px 34px;
+  }
+  .carr-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 24px;
+  }
+  .carr-eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .carr-title {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 4px 0 0;
+  }
+  .carr-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 14px;
+  }
+  .carr-count i {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--green);
+  }
+
+  .carr-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .cc {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    transition: box-shadow 260ms var(--ease-smooth), border-color 260ms var(--ease-smooth);
+  }
+  .cc.is-target-hot {
+    border-color: var(--ink);
+    box-shadow: 0 12px 30px -14px rgba(20, 20, 19, 0.25);
+  }
+  .cc-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .cc-name {
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .cc-badge {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--line-soft);
+    border-radius: 999px;
+    padding: 4px 12px;
+  }
+  .cc-badge.on {
+    color: var(--ink);
+    background: var(--green-soft);
+  }
+  .cc-meta {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* credential sheet slides up over the grid */
+  .carr-sheet {
+    position: absolute;
+    left: 34px;
+    right: 34px;
+    bottom: 30px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 -1px 2px rgba(20, 20, 19, 0.03), 0 24px 50px -18px rgba(20, 20, 19, 0.28);
+    padding: 22px 24px;
+    transform: translateY(140%);
+    opacity: 0;
+    transition: transform 420ms var(--ease-smooth), opacity 320ms ease;
+  }
+  .carr-sheet.is-up {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  .cs-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .cs-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .cs-x {
+    color: var(--mid);
+    font-size: 13px;
+  }
+  .cs-field {
+    display: block;
+    margin-bottom: 14px;
+  }
+  .cs-field > span {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .cs-input {
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 10px 13px;
+    font-size: 13px;
+    font-family: var(--font-body);
+    letter-spacing: 0.02em;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .cs-input.is-focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .cs-caret {
+    width: 1.5px;
+    height: 15px;
+    background: var(--accent);
+    margin-left: 1px;
+    opacity: 0;
+  }
+  .cs-input.is-focus .cs-caret {
+    opacity: 1;
+    animation: cs-blink 1s steps(1) infinite;
+  }
+  @keyframes cs-blink { 50% { opacity: 0; } }
+  .cs-actions {
+    margin-top: 4px;
+  }
+  .cs-btn {
+    display: inline-flex;
+    background: var(--ink);
+    color: var(--canvas);
+    border-radius: 9px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform 160ms var(--ease-smooth);
+  }
+  .cs-btn.is-hit {
+    transform: scale(0.94);
+  }
+  .cs-status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--muted);
+    opacity: 0;
+    transition: opacity 240ms ease;
+  }
+  .cs-status.is-on {
+    opacity: 1;
+  }
+  .cs-status.is-ok {
+    color: var(--ink);
+  }
+  .cs-spin {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    animation: cs-rot 0.7s linear infinite;
+  }
+  .cs-status.is-ok .cs-spin {
+    border: none;
+    background: var(--green);
+    animation: none;
+    position: relative;
+  }
+  .cs-status.is-ok .cs-spin::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 2px;
+    width: 4px;
+    height: 7px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  @keyframes cs-rot { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+  import { defineDemo } from '../../lib/demo-engine.js';
+
+  const q = (s: HTMLElement, sel: string): any => s.querySelector(sel);
+
+  function reset(stage: HTMLElement) {
+    q(stage, '#carr-target').classList.remove('is-target-hot');
+    q(stage, '#carr-badge').textContent = 'Connecter';
+    q(stage, '#carr-badge').classList.remove('on');
+    q(stage, '#carr-sheet').classList.remove('is-up');
+    q(stage, '#carr-key').textContent = '';
+    q(stage, '#carr-id').textContent = '';
+    q(stage, '.carr-sheet .cs-input')?.classList.remove('is-focus');
+    stage.querySelectorAll('.cs-input').forEach((el: Element) => el.classList.remove('is-focus'));
+    const st = q(stage, '#carr-check');
+    st.classList.remove('is-on', 'is-ok');
+    q(stage, '#carr-check-txt').textContent = 'Vérification…';
+    q(stage, '#carr-count-n').textContent = '2';
+  }
+
+  defineDemo('carriers', {
+    init: reset,
+
+    staticState(stage) {
+      q(stage, '#carr-badge').textContent = 'Connecté';
+      q(stage, '#carr-badge').classList.add('on');
+      q(stage, '#carr-count-n').textContent = '3';
+    },
+
+    async scene(e, stage) {
+      const inputs = stage.querySelectorAll('.carr-sheet .cs-input');
+      await e.sleep(600);
+
+      // 1 — pick the carrier
+      const card = e.center('#carr-target');
+      await e.move(card.x, card.y, 760);
+      await e.click(card.x, card.y);
+      q(stage, '#carr-target').classList.add('is-target-hot');
+      await e.sleep(360);
+
+      // 2 — the credential sheet rises
+      q(stage, '#carr-sheet').classList.add('is-up');
+      await e.sleep(560);
+
+      // 3 — API key
+      const keyField = e.center(inputs[0] as HTMLElement);
+      await e.move(keyField.x, keyField.y, 560);
+      await e.click(keyField.x, keyField.y);
+      inputs[0].classList.add('is-focus');
+      await e.typeText(q(stage, '#carr-key'), 'dgy_live_8f2a4c91e7', 26);
+      inputs[0].classList.remove('is-focus');
+      await e.sleep(220);
+
+      // 4 — client id
+      const idField = e.center(inputs[1] as HTMLElement);
+      await e.move(idField.x, idField.y, 460);
+      await e.click(idField.x, idField.y);
+      inputs[1].classList.add('is-focus');
+      await e.typeText(q(stage, '#carr-id'), 'IGF-2026-114', 30);
+      inputs[1].classList.remove('is-focus');
+      await e.sleep(300);
+
+      // 5 — validate
+      const btn = e.center('#carr-submit');
+      await e.move(btn.x, btn.y, 480);
+      await e.click(btn.x, btn.y);
+      q(stage, '#carr-submit').classList.add('is-hit');
+      setTimeout(() => q(stage, '#carr-submit').classList.remove('is-hit'), 160);
+
+      const st = q(stage, '#carr-check');
+      st.classList.add('is-on');
+      await e.sleep(1300);
+
+      // 6 — connected
+      st.classList.add('is-ok');
+      q(stage, '#carr-check-txt').textContent = 'Connexion établie';
+      await e.sleep(520);
+      q(stage, '#carr-badge').textContent = 'Connecté';
+      q(stage, '#carr-badge').classList.add('on');
+      q(stage, '#carr-count-n').textContent = '3';
+      await e.sleep(400);
+      q(stage, '#carr-sheet').classList.remove('is-up');
+
+      await e.sleep(2400);
+    },
+  });
+</script>

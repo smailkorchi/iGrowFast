@@ -1,0 +1,378 @@
+---
+/**
+ * Demo — batch parcel creation. Multi-select orders across carriers, create in
+ * one pass, tracking numbers come back, a bon de livraison is produced.
+ * The story is scale: many parcels, several carriers, one action.
+ */
+
+const rows = [
+  { id: 'CMD-5012', name: 'Salma B.', carrier: 'Coliaty' },
+  { id: 'CMD-5013', name: 'Youssef E.', carrier: 'Vitex' },
+  { id: 'CMD-5014', name: 'Nadia K.', carrier: 'Digylog' },
+  { id: 'CMD-5015', name: 'Amine M.', carrier: 'Coliaty' },
+  { id: 'CMD-5016', name: 'Hafsa R.', carrier: 'Vitex' },
+];
+---
+
+<div class="demo-frame" data-demo="delivery-notes" data-w="960" data-h="600" style="aspect-ratio:960/600">
+  <div class="demo-stage dn" data-w="960" style="width:960px;height:600px">
+    <div class="dn-head">
+      <div>
+        <span class="dn-eyebrow">Livraisons</span>
+        <h4>Créer les colis</h4>
+      </div>
+      <label class="dn-selectall" id="dn-selectall">
+        <span class="dn-check" id="dn-check-all"></span>
+        Tout sélectionner
+      </label>
+    </div>
+
+    <div class="dn-table">
+      {
+        rows.map((r) => (
+          <div class="dn-row" data-row={r.id}>
+            <span class="dn-check dn-row-check"></span>
+            <span class="dn-id">{r.id}</span>
+            <span class="dn-name">{r.name}</span>
+            <span class="dn-carrier">{r.carrier}</span>
+            <span class="dn-track" data-track>—</span>
+          </div>
+        ))
+      }
+      <div class="dn-more">+ 195 autres commandes</div>
+    </div>
+
+    <!-- batch action bar -->
+    <div class="dn-bar" id="dn-bar">
+      <span class="dn-bar-count"><b id="dn-count">200</b> sélectionnées · 3 transporteurs</span>
+      <span class="dn-bar-progress" id="dn-bar-progress">
+        <span class="dn-bar-fill" id="dn-fill"></span>
+      </span>
+      <span class="dn-bar-btn" id="dn-create">Créer les colis</span>
+    </div>
+
+    <!-- bon de livraison -->
+    <div class="dn-doc" id="dn-doc">
+      <div class="dn-doc-head">
+        <span class="dn-doc-title">Bon de livraison</span>
+        <span class="dn-doc-badge">200 colis · prêt</span>
+      </div>
+      <div class="dn-doc-lines">
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .dn {
+    background: var(--canvas);
+    font-family: var(--font-body);
+    color: var(--ink);
+    padding: 30px 34px 100px;
+  }
+  .dn-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 20px;
+  }
+  .dn-eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .dn-head h4 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 4px 0 0;
+  }
+  .dn-selectall {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .dn-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--line);
+    background: var(--paper);
+    flex-shrink: 0;
+    position: relative;
+    transition: background-color 200ms ease, border-color 200ms ease;
+  }
+  .dn-check.is-checked {
+    background: var(--ink);
+    border-color: var(--ink);
+  }
+  .dn-check.is-checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--canvas);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .dn-table {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .dn-row {
+    display: grid;
+    grid-template-columns: 32px 90px 1fr 100px 150px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    transition: background-color 200ms ease;
+  }
+  .dn-row.is-sel {
+    background: var(--accent-soft);
+  }
+  .dn-id {
+    font-size: 12px;
+    color: var(--mid);
+    font-weight: 500;
+  }
+  .dn-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .dn-carrier {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .dn-track {
+    font-size: 12px;
+    font-family: 'Inter', monospace;
+    color: var(--mid);
+    text-align: right;
+  }
+  .dn-track.is-done {
+    color: var(--green);
+    font-weight: 600;
+  }
+  .dn-more {
+    padding: 13px 18px;
+    font-size: 12.5px;
+    color: var(--mid);
+    text-align: center;
+    background: var(--canvas);
+  }
+
+  /* batch bar */
+  .dn-bar {
+    position: absolute;
+    left: 34px;
+    right: 34px;
+    bottom: 30px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: var(--ink);
+    color: var(--canvas);
+    border-radius: 14px;
+    padding: 15px 20px;
+    box-shadow: 0 20px 44px -18px rgba(20, 20, 19, 0.4);
+    transform: translateY(150%);
+    opacity: 0;
+    transition: transform 400ms var(--ease-smooth), opacity 300ms ease;
+  }
+  .dn-bar.is-up {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  .dn-bar-count {
+    font-size: 13.5px;
+  }
+  .dn-bar-count b {
+    font-family: var(--font-display);
+    font-size: 17px;
+  }
+  .dn-bar-progress {
+    flex: 1;
+    height: 5px;
+    background: rgba(250, 249, 245, 0.15);
+    border-radius: 999px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+  .dn-bar-progress.is-on {
+    opacity: 1;
+  }
+  .dn-bar-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+  .dn-bar-btn {
+    background: var(--canvas);
+    color: var(--ink);
+    border-radius: 9px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: transform 160ms var(--ease-smooth);
+  }
+  .dn-bar-btn.is-hit {
+    transform: scale(0.94);
+  }
+
+  /* bon de livraison */
+  .dn-doc {
+    position: absolute;
+    right: 34px;
+    bottom: 100px;
+    width: 260px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 24px 50px -18px rgba(20, 20, 19, 0.3);
+    padding: 18px;
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+    transition: opacity 360ms ease, transform 360ms var(--ease-smooth);
+  }
+  .dn-doc.is-in {
+    opacity: 1;
+    transform: none;
+  }
+  .dn-doc-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: 12px;
+  }
+  .dn-doc-title {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .dn-doc-badge {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--green-soft);
+    border-radius: 999px;
+    padding: 3px 9px;
+    align-self: flex-start;
+  }
+  .dn-doc-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dn-doc-lines span {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--line);
+  }
+  .dn-doc-lines span:nth-child(1) { width: 90%; }
+  .dn-doc-lines span:nth-child(2) { width: 70%; }
+  .dn-doc-lines span:nth-child(3) { width: 82%; }
+  .dn-doc-lines span:nth-child(4) { width: 60%; }
+</style>
+
+<script>
+  import { defineDemo } from '../../lib/demo-engine.js';
+
+  const q = (s: HTMLElement, sel: string): any => s.querySelector(sel);
+  const TRACKS = ['CLY-8841022', 'VTX-550193', 'DGY-70228', 'CLY-8841023', 'VTX-550194'];
+
+  function reset(stage: HTMLElement) {
+    q(stage, '#dn-check-all').classList.remove('is-checked');
+    stage.querySelectorAll('.dn-row').forEach((r: Element) => {
+      r.classList.remove('is-sel');
+      r.querySelector('.dn-row-check')!.classList.remove('is-checked');
+      const t = r.querySelector('[data-track]')!;
+      t.textContent = '—';
+      t.classList.remove('is-done');
+    });
+    q(stage, '#dn-bar').classList.remove('is-up');
+    q(stage, '#dn-bar-progress').classList.remove('is-on');
+    q(stage, '#dn-fill').style.width = '0';
+    q(stage, '#dn-doc').classList.remove('is-in');
+  }
+
+  defineDemo('delivery-notes', {
+    init: reset,
+
+    staticState(stage) {
+      q(stage, '#dn-check-all').classList.add('is-checked');
+      stage.querySelectorAll('.dn-row').forEach((r: Element, i: number) => {
+        r.classList.add('is-sel');
+        r.querySelector('.dn-row-check')!.classList.add('is-checked');
+        const t = r.querySelector('[data-track]')!;
+        t.textContent = TRACKS[i];
+        t.classList.add('is-done');
+      });
+      q(stage, '#dn-bar').classList.add('is-up');
+      q(stage, '#dn-fill').style.width = '100%';
+      q(stage, '#dn-doc').classList.add('is-in');
+    },
+
+    async scene(e, stage) {
+      const rows = stage.querySelectorAll('.dn-row');
+      await e.sleep(650);
+
+      // 1 — select all
+      const sa = e.center('#dn-selectall');
+      await e.move(sa.x, sa.y, 720);
+      await e.click(sa.x, sa.y);
+      q(stage, '#dn-check-all').classList.add('is-checked');
+      // cascade the row checks + selection tint
+      for (let i = 0; i < rows.length; i++) {
+        rows[i].classList.add('is-sel');
+        rows[i].querySelector('.dn-row-check')!.classList.add('is-checked');
+        await e.sleep(70);
+      }
+      await e.sleep(300);
+
+      // 2 — batch bar rises
+      q(stage, '#dn-bar').classList.add('is-up');
+      await e.sleep(520);
+
+      // 3 — create
+      const btn = e.center('#dn-create');
+      await e.move(btn.x, btn.y, 520);
+      await e.click(btn.x, btn.y, true);
+      q(stage, '#dn-create').classList.add('is-hit');
+      setTimeout(() => q(stage, '#dn-create').classList.remove('is-hit'), 160);
+
+      // 4 — progress runs; tracking numbers land as it fills
+      q(stage, '#dn-bar-progress').classList.add('is-on');
+      const fill = q(stage, '#dn-fill');
+      for (let i = 0; i < rows.length; i++) {
+        fill.style.transition = 'width 240ms linear';
+        fill.style.width = `${Math.round(((i + 1) / rows.length) * 100)}%`;
+        const t = rows[i].querySelector('[data-track]')!;
+        t.textContent = TRACKS[i];
+        t.classList.add('is-done');
+        await e.sleep(280);
+      }
+      await e.sleep(300);
+
+      // 5 — the bon de livraison
+      q(stage, '#dn-doc').classList.add('is-in');
+      await e.sleep(2600);
+    },
+  });
+</script>

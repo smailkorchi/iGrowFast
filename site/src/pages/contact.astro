@@ -22,8 +22,8 @@ const PRIVACY_EMAIL = 'privacy@igrowfast.com';
 >
   <section class="head">
     <div class="container">
-      <h1>Talk to us</h1>
-      <p class="lede">
+      <h1 data-reveal>Talk to us</h1>
+      <p class="lede" data-reveal>
         Tell us how you run today — how many orders, how many numbers, which
         couriers — and we'll tell you honestly whether this fits.
       </p>
@@ -33,7 +33,7 @@ const PRIVACY_EMAIL = 'privacy@igrowfast.com';
   <section class="grid-wrap">
     <div class="container">
       <div class="grid">
-        <div class="col">
+        <div class="col" data-reveal>
           <h2>Sales and questions</h2>
           <p>
             A person reads these. Support is handled directly today, not through
@@ -68,7 +68,7 @@ const PRIVACY_EMAIL = 'privacy@igrowfast.com';
           </address>
         </div>
 
-        <div class="col">
+        <div class="col" data-reveal>
           <div class="form-card">
             <div class="form-head">
               <h2>Send us a note</h2>
@@ -236,6 +236,11 @@ const PRIVACY_EMAIL = 'privacy@igrowfast.com';
     align-self: flex-start;
   }
 </style>
+
+<script>
+  import { mountReveals } from '../lib/reveal.js';
+  mountReveals();
+</script>
 
 <script>
   // No backend. Compose a mail draft instead of POSTing into a void.

@@ -82,7 +82,8 @@ const tiers = [
       <div class="tier-grid">
         {
           tiers.map((t) => (
-            <div class:list={['tier', { 'is-featured': t.featured }]}>
+            <div class:list={['tier', { 'is-featured': t.featured }]} data-reveal>
+              {t.featured && <span class="tier-flag">Le plus choisi</span>}
               <h2>{t.name}</h2>
               <p class="who">{t.who}</p>
               <ul>
@@ -101,7 +102,7 @@ const tiers = [
   <section class="soon">
     <div class="container">
       <h2>On the way</h2>
-      <div class="soon-item">
+      <div class="soon-item" data-reveal>
         <h3>Hermes <span class="wip">Coming soon</span></h3>
         <p>
           An assistant layer for the inbox. It isn't built yet, it isn't part of
@@ -168,6 +169,7 @@ const tiers = [
   /* Cards ARE the right affordance here: three parallel, comparable options
      that a reader scans side by side. That is what a card is for. */
   .tier {
+    position: relative;
     background: var(--paper);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -176,9 +178,26 @@ const tiers = [
     flex-direction: column;
     gap: 1rem;
     height: 100%;
+    transition: transform 300ms var(--ease-smooth), box-shadow 300ms var(--ease-smooth);
+  }
+  .tier:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card);
   }
   .tier.is-featured {
     border-color: var(--ink);
+    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 16px 40px -20px rgba(20, 20, 19, 0.2);
+  }
+  .tier-flag {
+    position: absolute;
+    top: -11px;
+    left: 1.75rem;
+    font-size: var(--step-caption);
+    font-weight: 600;
+    color: var(--canvas);
+    background: var(--ink);
+    border-radius: 999px;
+    padding: 3px 12px;
   }
   .tier h2 {
     font-size: var(--step-h3);
@@ -255,3 +274,8 @@ const tiers = [
     max-width: 56ch;
   }
 </style>
+
+<script>
+  import { mountReveals } from '../lib/reveal.js';
+  mountReveals();
+</script>

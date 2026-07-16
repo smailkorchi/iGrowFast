@@ -1,0 +1,309 @@
+---
+/**
+ * Demo — role-appropriate truth. One order, seen through four role lenses.
+ *
+ * This visualises a core product principle: each role sees exactly its slice,
+ * enforced by the system, not by the UI hiding things cosmetically. It respects
+ * the real rule — a media buyer never sees others' spend/margin/ROAS, only its
+ * own commission; a seller sees delivered + own commission; a courier sees the
+ * delivery; only an admin sees the full economics.
+ *
+ * Cursor cycles the role tabs; the metric grid rewrites per role.
+ */
+
+const roles = ['Admin', 'Vendeur', 'Media buyer', 'Livreur'];
+
+// The Admin view, rendered into the HTML so the grid is NEVER empty — content
+// exists without JS (crawlers, and robustness if the engine doesn't fire). The
+// script swaps it per role during the animation.
+const adminView = [
+  { label: 'Prix', val: '349 DH' },
+  { label: 'Livraison', val: '35 DH' },
+  { label: 'Coût pub', val: '42 DH' },
+  { label: 'Marge', val: '187 DH', accent: true },
+  { label: 'ROAS', val: '3,2×' },
+  { label: 'Commission', val: '45 DH' },
+];
+---
+
+<div class="demo-frame" data-demo="rolescope" data-w="860" data-h="480" style="aspect-ratio:860/480">
+  <div class="demo-stage rs" data-w="860" style="width:860px;height:480px">
+    <div class="rs-order">
+      <div class="rs-order-l">
+        <span class="rs-ref">CMD-4471</span>
+        <span class="rs-name">Salma B.</span>
+        <span class="rs-city">Casablanca · pack x2</span>
+      </div>
+      <span class="rs-livre"><i></i>Livré</span>
+    </div>
+
+    <div class="rs-tabs" id="rs-tabs">
+      {roles.map((r, i) => (
+        <span class={`rs-tab${i === 0 ? ' is-on' : ''}`} data-role={i}>{r}</span>
+      ))}
+    </div>
+
+    <div class="rs-view">
+      <div class="rs-viewlabel">Ce que voit ce rôle</div>
+      <div class="rs-grid" id="rs-grid">
+        {adminView.map((m) => (
+          <div class="rs-metric">
+            <span class="rs-mlabel">{m.label}</span>
+            <span class={`rs-mval${m.accent ? ' accent' : ''}`}>{m.val}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .rs {
+    background: var(--canvas);
+    font-family: var(--font-body);
+    color: var(--ink);
+    padding: 28px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .rs-order {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+  .rs-order-l {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .rs-ref {
+    font-size: 11.5px;
+    color: var(--mid);
+    font-weight: 500;
+  }
+  .rs-name {
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .rs-city {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .rs-livre {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--green-soft);
+    border-radius: 999px;
+    padding: 7px 14px;
+  }
+  .rs-livre i {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--green);
+  }
+
+  .rs-tabs {
+    display: flex;
+    gap: 8px;
+  }
+  .rs-tab {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    transition: background-color 240ms var(--ease-smooth), color 240ms var(--ease-smooth), border-color 240ms var(--ease-smooth);
+  }
+  .rs-tab.is-on {
+    background: var(--ink);
+    color: var(--canvas);
+    border-color: var(--ink);
+  }
+
+  .rs-view {
+    flex: 1;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+  }
+  .rs-viewlabel {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mid);
+    margin-bottom: 16px;
+  }
+  .rs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px 20px;
+    align-content: start;
+    flex: 1;
+  }
+  .rs-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: rs-in 380ms var(--ease-smooth) forwards;
+  }
+  @keyframes rs-in {
+    to { opacity: 1; transform: none; }
+  }
+  .rs-metric.hidden-field {
+    justify-content: center;
+    gap: 8px;
+  }
+  .rs-mlabel {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .rs-mval {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .rs-mval.accent { color: var(--accent); }
+  .rs-lock {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--mid);
+  }
+  .rs-lock i {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1.5px solid var(--mid);
+    position: relative;
+  }
+  .rs-lock i::before {
+    content: '';
+    position: absolute;
+    left: 2.5px;
+    top: -4px;
+    width: 5px;
+    height: 5px;
+    border: 1.5px solid var(--mid);
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rs-metric { animation: none; opacity: 1; transform: none; }
+  }
+</style>
+
+<script>
+  import { defineDemo } from '../../lib/demo-engine.js';
+
+  type Metric = { label: string; val?: string; accent?: boolean; locked?: boolean };
+
+  // Each role's slice. Respects the rule: MB sees own commission only, never
+  // others' spend/margin/ROAS. Admin sees the full economics.
+  const VIEWS: Metric[][] = [
+    // Admin — everything
+    [
+      { label: 'Prix', val: '349 DH' },
+      { label: 'Livraison', val: '35 DH' },
+      { label: 'Coût pub', val: '42 DH' },
+      { label: 'Marge', val: '187 DH', accent: true },
+      { label: 'ROAS', val: '3,2×' },
+      { label: 'Commission', val: '45 DH' },
+    ],
+    // Vendeur — delivered + own commission
+    [
+      { label: 'Statut', val: 'Livré' },
+      { label: 'Total encaissé', val: '349 DH' },
+      { label: 'Ma commission', val: '45 DH', accent: true },
+      { label: 'Marge business', locked: true },
+      { label: 'Coût pub', locked: true },
+      { label: 'ROAS', locked: true },
+    ],
+    // Media buyer — own commission only, NEVER others' spend/margin/ROAS
+    [
+      { label: 'Statut', val: 'Livré' },
+      { label: 'Ma commission', val: '28 DH', accent: true },
+      { label: 'Mon taux', val: '8%' },
+      { label: 'Marge business', locked: true },
+      { label: 'Dépense (autres)', locked: true },
+      { label: 'ROAS global', locked: true },
+    ],
+    // Livreur — the delivery
+    [
+      { label: 'Statut', val: 'Livré' },
+      { label: 'Ville', val: 'Casablanca' },
+      { label: 'Frais livraison', val: '35 DH', accent: true },
+      { label: 'Prix produit', locked: true },
+      { label: 'Marge', locked: true },
+      { label: 'Commissions', locked: true },
+    ],
+  ];
+
+  const q = (s: HTMLElement, sel: string): any => s.querySelector(sel);
+
+  function render(stage: HTMLElement, role: number) {
+    const grid = q(stage, '#rs-grid');
+    grid.innerHTML = '';
+    VIEWS[role].forEach((m, i) => {
+      const el = document.createElement('div');
+      el.style.animationDelay = `${i * 45}ms`;
+      if (m.locked) {
+        el.className = 'rs-metric hidden-field';
+        el.innerHTML = `<span class="rs-mlabel">${m.label}</span><span class="rs-lock"><i></i>Masqué</span>`;
+      } else {
+        el.className = 'rs-metric';
+        el.innerHTML = `<span class="rs-mlabel">${m.label}</span><span class="rs-mval${m.accent ? ' accent' : ''}">${m.val}</span>`;
+      }
+      grid.appendChild(el);
+    });
+  }
+
+  function setTab(stage: HTMLElement, role: number) {
+    stage.querySelectorAll('.rs-tab').forEach((t: Element, i: number) =>
+      t.classList.toggle('is-on', i === role)
+    );
+  }
+
+  defineDemo('rolescope', {
+    init(stage) {
+      setTab(stage, 0);
+      render(stage, 0);
+    },
+    staticState(stage) {
+      setTab(stage, 0);
+      render(stage, 0);
+    },
+    async scene(e, stage) {
+      await e.sleep(1400);
+      for (let r = 1; r < VIEWS.length + 1; r++) {
+        const role = r % VIEWS.length;
+        const tab = stage.querySelectorAll('.rs-tab')[role] as HTMLElement;
+        const c = e.center(tab);
+        await e.move(c.x, c.y, 640);
+        await e.click(c.x, c.y);
+        setTab(stage, role);
+        render(stage, role);
+        await e.sleep(1900);
+      }
+    },
+  });
+</script>

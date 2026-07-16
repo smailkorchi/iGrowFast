@@ -1,0 +1,329 @@
+---
+/**
+ * Demo — webhooks. A carrier posts a status update and the order flips itself.
+ * The message is "your statuses update themselves" — so the scene shows an
+ * external event arriving and the UI reacting with nobody touching it.
+ *
+ * Two columns: an incoming event feed on the left, the live order list on the
+ * right. An event lands, pulses, and the matching order's status transitions.
+ */
+
+const orders = [
+  { id: 'CMD-4471', name: 'Salma B.', from: 'Confirmé', fromTone: 'warm' },
+  { id: 'CMD-4472', name: 'Youssef E.', from: 'En route', fromTone: 'go' },
+  { id: 'CMD-4473', name: 'Nadia K.', from: 'En route', fromTone: 'go' },
+];
+---
+
+<div class="demo-frame" data-demo="webhooks" data-w="960" data-h="600" style="aspect-ratio:960/600">
+  <div class="demo-stage wh" data-w="960" style="width:960px;height:600px">
+    <!-- incoming feed -->
+    <aside class="wh-feed">
+      <div class="wh-feed-head">
+        <span class="wh-endpoint">POST /webhooks/carrier</span>
+        <span class="wh-listening"><i></i>À l'écoute</span>
+      </div>
+      <div class="wh-events" id="wh-events">
+        <!-- events injected here -->
+      </div>
+    </aside>
+
+    <!-- live orders -->
+    <section class="wh-orders">
+      <div class="wh-orders-head">
+        <h4>Commandes</h4>
+        <span class="wh-auto">Mise à jour automatique</span>
+      </div>
+      <div class="wh-list">
+        {
+          orders.map((o) => (
+            <div class="wo" data-order={o.id}>
+              <div class="wo-left">
+                <span class="wo-id">{o.id}</span>
+                <span class="wo-name">{o.name}</span>
+              </div>
+              <span class={`wo-status st-${o.fromTone}`} data-status>
+                <i class="wo-dot" />
+                <span class="wo-label">{o.from}</span>
+              </span>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  .wh {
+    background: var(--canvas);
+    font-family: var(--font-body);
+    color: var(--ink);
+    display: grid;
+    grid-template-columns: 370px 1fr;
+    gap: 0;
+  }
+
+  /* ── feed ── */
+  .wh-feed {
+    background: var(--ink);
+    color: var(--canvas);
+    padding: 26px 24px;
+    display: flex;
+    flex-direction: column;
+  }
+  .wh-feed-head {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(250, 249, 245, 0.12);
+    margin-bottom: 18px;
+  }
+  .wh-endpoint {
+    font-family: 'Inter', monospace;
+    font-size: 12.5px;
+    color: var(--accent-soft);
+    letter-spacing: 0.01em;
+  }
+  .wh-listening {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--mid);
+  }
+  .wh-listening i {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--green);
+    animation: wh-pulse 1.8s ease-out infinite;
+  }
+  @keyframes wh-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(120, 140, 93, 0.5); }
+    70% { box-shadow: 0 0 0 7px rgba(120, 140, 93, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(120, 140, 93, 0); }
+  }
+  .wh-events {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .wh-ev {
+    background: rgba(250, 249, 245, 0.06);
+    border: 1px solid rgba(250, 249, 245, 0.1);
+    border-radius: 10px;
+    padding: 11px 13px;
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  .wh-ev.is-in {
+    opacity: 1;
+    transform: none;
+    transition: opacity 300ms ease, transform 300ms var(--ease-smooth);
+  }
+  .wh-ev-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--mid);
+    margin-bottom: 5px;
+  }
+  .wh-ev-carrier {
+    color: var(--accent-soft);
+    font-weight: 600;
+  }
+  .wh-ev-body {
+    font-family: 'Inter', monospace;
+    font-size: 11.5px;
+    color: var(--canvas);
+  }
+  .wh-ev-body b {
+    color: var(--green-soft);
+    font-weight: 600;
+  }
+
+  /* ── orders ── */
+  .wh-orders {
+    padding: 26px 30px;
+  }
+  .wh-orders-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .wh-orders-head h4 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .wh-auto {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 12px;
+  }
+  .wh-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .wo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    transition: box-shadow 300ms var(--ease-smooth), border-color 300ms var(--ease-smooth);
+  }
+  .wo.is-hit {
+    border-color: var(--accent);
+    box-shadow: 0 10px 26px -14px rgba(217, 119, 87, 0.4);
+  }
+  .wo-left {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .wo-id {
+    font-size: 11.5px;
+    color: var(--mid);
+    font-weight: 500;
+  }
+  .wo-name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .wo-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: var(--line-soft);
+  }
+  .wo-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--mid);
+    transition: background-color 300ms ease;
+  }
+  .wo-label {
+    transition: opacity 200ms ease;
+  }
+  .st-warm .wo-dot { background: var(--accent); }
+  .st-go .wo-dot { background: var(--cool); }
+  .st-ok {
+    background: var(--green-soft);
+  }
+  .st-ok .wo-dot { background: var(--green); }
+
+  .wo-flash {
+    animation: wo-flash 600ms var(--ease-smooth);
+  }
+  @keyframes wo-flash {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+  }
+</style>
+
+<script>
+  import { defineDemo } from '../../lib/demo-engine.js';
+
+  const q = (s: HTMLElement, sel: string): any => s.querySelector(sel);
+
+  // event → which order it hits and the resulting status
+  const SEQ = [
+    { order: 'CMD-4472', carrier: 'Coliaty', to: 'Livré', tone: 'ok', code: '"status":"delivered"' },
+    { order: 'CMD-4471', carrier: 'Digylog', to: 'En route', tone: 'go', code: '"status":"in_transit"' },
+    { order: 'CMD-4473', carrier: 'Vitex', to: 'Livré', tone: 'ok', code: '"status":"delivered"' },
+  ];
+
+  function reset(stage: HTMLElement) {
+    q(stage, '#wh-events').innerHTML = '';
+    const wos = stage.querySelectorAll('.wo');
+    const originals = [
+      { tone: 'warm', label: 'Confirmé' },
+      { tone: 'go', label: 'En route' },
+      { tone: 'go', label: 'En route' },
+    ];
+    wos.forEach((wo: Element, i: number) => {
+      const st = wo.querySelector('[data-status]')!;
+      st.className = `wo-status st-${originals[i].tone}`;
+      st.querySelector('.wo-label')!.textContent = originals[i].label;
+      wo.classList.remove('is-hit', 'wo-flash');
+    });
+  }
+
+  function pushEvent(stage: HTMLElement, ev: typeof SEQ[number], t: string) {
+    const el = document.createElement('div');
+    el.className = 'wh-ev';
+    el.innerHTML = `<div class="wh-ev-top"><span class="wh-ev-carrier">${ev.carrier}</span><span>${t}</span></div><div class="wh-ev-body">${ev.order} · <b>${ev.code}</b></div>`;
+    q(stage, '#wh-events').prepend(el);
+    void el.offsetWidth;
+    el.classList.add('is-in');
+    // keep the feed from growing forever
+    const evs = stage.querySelectorAll('.wh-ev');
+    if (evs.length > 4) evs[evs.length - 1].remove();
+  }
+
+  defineDemo('webhooks', {
+    init: reset,
+
+    staticState(stage) {
+      // resolved: the two delivered orders shown delivered
+      const map: Record<string, { tone: string; label: string }> = {
+        'CMD-4471': { tone: 'go', label: 'En route' },
+        'CMD-4472': { tone: 'ok', label: 'Livré' },
+        'CMD-4473': { tone: 'ok', label: 'Livré' },
+      };
+      stage.querySelectorAll('.wo').forEach((wo: Element) => {
+        const id = wo.getAttribute('data-order')!;
+        const st = wo.querySelector('[data-status]')!;
+        st.className = `wo-status st-${map[id].tone}`;
+        st.querySelector('.wo-label')!.textContent = map[id].label;
+      });
+      SEQ.slice(0, 2).forEach((ev) => pushEvent(stage, ev, '14:0' + Math.floor(Math.random())));
+    },
+
+    async scene(e, stage) {
+      await e.sleep(700);
+      let clock = 31;
+      for (const ev of SEQ) {
+        // 1 — the event arrives in the feed
+        pushEvent(stage, ev, '14:' + clock++);
+        await e.sleep(650);
+
+        // 2 — the matching order reacts, on its own
+        const wo = q(stage, `[data-order="${ev.order}"]`) as HTMLElement;
+        wo.classList.add('is-hit', 'wo-flash');
+        const st = wo.querySelector('[data-status]')!;
+        const label = st.querySelector('.wo-label')!;
+
+        // fade label out, swap, fade in
+        (label as HTMLElement).style.opacity = '0';
+        await e.sleep(200);
+        st.className = `wo-status st-${ev.tone}`;
+        label.textContent = ev.to;
+        (label as HTMLElement).style.opacity = '1';
+        await e.sleep(600);
+        wo.classList.remove('is-hit');
+        setTimeout(() => wo.classList.remove('wo-flash'), 600);
+
+        await e.sleep(900);
+      }
+      await e.sleep(1800);
+    },
+  });
+</script>

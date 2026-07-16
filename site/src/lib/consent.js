@@ -186,7 +186,7 @@ function buildBanner(onDone, initial) {
   const state = { ...(initial || DENIED) };
 
   const root = h('div', {
-    class: 'cc',
+    class: 'igf-cookie',
     role: 'dialog',
     'aria-modal': 'false', // NOT modal — it must never trap or block content
     'aria-label': 'Cookie preferences',
@@ -279,7 +279,7 @@ export function mountConsent() {
   if (existing) applyConsent(existing);
 
   const show = () => {
-    if (document.querySelector('.cc')) return;
+    if (document.querySelector('.igf-cookie')) return;
     document.body.appendChild(buildBanner(null, readConsent() || DENIED));
   };
 

@@ -8,7 +8,10 @@
    It docks to the bottom, scrolls with nothing, traps nothing.
    ============================================================ */
 
-.cc {
+/* Namespaced. Was `.cc`, which collided with the carrier demo's card class
+   and stacked those cards at the viewport bottom like a banner. Never use a
+   two-letter generic class in shared CSS. */
+.igf-cookie {
   position: fixed;
   z-index: var(--z-toast);
   left: var(--gutter);

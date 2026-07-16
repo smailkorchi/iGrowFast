@@ -3,6 +3,9 @@ import Base from '../layouts/Base.astro';
 import HeroTabs from '../components/HeroTabs.astro';
 import LoopPipeline from '../components/LoopPipeline.astro';
 import WhatsAppInbox from '../components/demos/WhatsAppInbox.astro';
+import CarrierIntegration from '../components/demos/CarrierIntegration.astro';
+import Webhooks from '../components/demos/Webhooks.astro';
+import DeliveryNotes from '../components/demos/DeliveryNotes.astro';
 import '../styles/demo.css';
 ---
 
@@ -11,15 +14,15 @@ import '../styles/demo.css';
   description="One workspace for cash-on-delivery e-commerce: orders, carriers, a shared WhatsApp inbox, ad spend, and commission reconciliation. Built for sellers who outgrew a spreadsheet."
   path="/"
 >
-  <!-- ── Hero: the pitch, shown ────────────────────────── -->
+  <!-- ── Hero ──────────────────────────────────────────── -->
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-copy">
         <h1>Ten tabs,<br />one order.</h1>
         <p class="lede">
           Cash-on-delivery runs on a chat thread, a courier portal, a
-          spreadsheet, an ad dashboard, and someone's memory. Watch what that
-          looks like — then watch it collapse.
+          spreadsheet, an ad dashboard, and someone's memory. Watch that
+          collapse into one workspace.
         </p>
         <div class="cta">
           <a href="/contact" class="btn btn-primary">Talk to us</a>
@@ -32,68 +35,128 @@ import '../styles/demo.css';
     </div>
   </section>
 
+  <!-- ── Integrations band ─────────────────────────────── -->
+  <section class="strip" data-reveal>
+    <div class="container">
+      <p class="strip-label">Sits on top of the tools you already run</p>
+      <div class="strip-marquee" aria-hidden="true">
+        <div class="strip-track" id="strip-track">
+          {
+            [
+              'WhatsApp', 'Coliaty', 'Vitex', 'Digylog', 'QuickLivraison',
+              'Google Sheets', 'Meta Ads', 'Shopify', 'WooCommerce', 'TikTok',
+              'WhatsApp', 'Coliaty', 'Vitex', 'Digylog', 'QuickLivraison',
+              'Google Sheets', 'Meta Ads', 'Shopify', 'WooCommerce', 'TikTok',
+            ].map((n) => <span class="chip">{n}</span>)
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ── The loop, scrubbed ────────────────────────────── -->
   <LoopPipeline />
 
-  <!-- ── The inbox demo ───────────────────────────────── -->
-  <section class="demo-section" data-reveal>
+  <!-- ── Demo: inbox ───────────────────────────────────── -->
+  <section class="feature" data-reveal>
     <div class="container">
-      <div class="demo-intro">
-        <h2>Every number. Every agent. One inbox.</h2>
+      <div class="feature-intro">
+        <span class="feature-tag">Inbox</span>
+        <h2>Every number. Every agent. One thread.</h2>
         <p>
           COD sells over chat. Run all your numbers in one place, assign
-          conversations to agents, and keep the thread when the order becomes
-          real. Works with WhatsApp.
+          conversations to agents, and keep the thread attached when the order
+          becomes real. Works with WhatsApp.
         </p>
       </div>
-      <div class="demo-hold">
+      <div class="feature-demo wide">
         <WhatsAppInbox />
-        <p class="demo-caption">
-          A recreation of the iGrowFast inbox. Not a recording — it's running.
+        <p class="demo-caption">A recreation of the iGrowFast inbox — running live, not a recording.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Demo: carriers ────────────────────────────────── -->
+  <section class="feature alt" data-reveal>
+    <div class="container">
+      <div class="feature-intro">
+        <span class="feature-tag">Transporteurs</span>
+        <h2>Connect a courier in under a minute.</h2>
+        <p>
+          The couriers you already use — Coliaty, Vitex, Digylog and more.
+          Credentials in, connection verified, parcels flowing. No integration
+          project.
         </p>
       </div>
-    </div>
-  </section>
-
-  <!-- ── More demos land here ─────────────────────────── -->
-  <section class="soon-demos" data-reveal>
-    <div class="container">
-      <div class="sd-grid">
-        <div class="sd-item">
-          <h3>Carrier integrations</h3>
-          <p>
-            Connect the couriers you already use. Credentials in, connection
-            verified, parcels flowing.
-          </p>
-          <span class="wip">Demo being built</span>
-        </div>
-        <div class="sd-item">
-          <h3>Webhooks</h3>
-          <p>
-            A carrier posts a status. The order flips. Nobody refreshed
-            anything.
-          </p>
-          <span class="wip">Demo being built</span>
-        </div>
-        <div class="sd-item">
-          <h3>Batch delivery notes</h3>
-          <p>
-            Two hundred parcels, several carriers, one pass — and the bon de
-            livraison at the end of it.
-          </p>
-          <span class="wip">Demo being built</span>
-        </div>
+      <div class="feature-demo">
+        <CarrierIntegration />
       </div>
     </div>
   </section>
 
-  <!-- ── Close ────────────────────────────────────────── -->
+  <!-- ── Demo: webhooks ────────────────────────────────── -->
+  <section class="feature" data-reveal>
+    <div class="container">
+      <div class="feature-intro">
+        <span class="feature-tag">Webhooks</span>
+        <h2>Statuses that update themselves.</h2>
+        <p>
+          A carrier posts a status. The order flips. The ledger hears it. Nobody
+          refreshes a portal, nobody retypes a tracking number.
+        </p>
+      </div>
+      <div class="feature-demo">
+        <Webhooks />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Demo: delivery notes ──────────────────────────── -->
+  <section class="feature alt" data-reveal>
+    <div class="container">
+      <div class="feature-intro">
+        <span class="feature-tag">Colis</span>
+        <h2>Two hundred parcels. One click.</h2>
+        <p>
+          Select the orders, pick the carriers, create every parcel in one pass
+          — across several couriers at once — and print the bon de livraison at
+          the end of it.
+        </p>
+      </div>
+      <div class="feature-demo">
+        <DeliveryNotes />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Reconciliation statement ──────────────────────── -->
+  <section class="recon" data-reveal>
+    <div class="container recon-grid">
+      <div class="recon-copy">
+        <span class="feature-tag">Réconcilié</span>
+        <h2>And the money comes out right.</h2>
+        <p>
+          What the seller earned, what the courier is owed, what the media buyer
+          made — tracked and reconciled against the orders that actually
+          completed. A tool that's fast but quietly wrong about a commission is
+          worse than the spreadsheet it replaced.
+        </p>
+      </div>
+      <div class="recon-stats">
+        <div class="stat"><b>1&nbsp;284</b><span>commandes ce mois</span></div>
+        <div class="stat"><b>3</b><span>transporteurs connectés</span></div>
+        <div class="stat"><b>0</b><span>onglets à rafraîchir</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Close ─────────────────────────────────────────── -->
   <section class="close" data-reveal>
     <div class="container">
       <h2>See it against your own workflow</h2>
       <p>
-        We'll walk through how your orders, couriers and numbers would actually
-        map into it — and tell you honestly if they don't.
+        We'll walk through how your orders, couriers and numbers map into it —
+        and tell you honestly if they don't.
       </p>
       <a href="/contact" class="btn btn-primary">Talk to us</a>
     </div>
@@ -101,8 +164,9 @@ import '../styles/demo.css';
 </Base>
 
 <style>
+  /* ── hero ── */
   .hero {
-    padding-block: clamp(2.5rem, 1rem + 5vw, 4.5rem) clamp(2rem, 1rem + 4vw, 4rem);
+    padding-block: clamp(2.5rem, 1rem + 5vw, 4.5rem) clamp(1.5rem, 1rem + 3vw, 3rem);
   }
   .hero-grid {
     display: grid;
@@ -110,11 +174,9 @@ import '../styles/demo.css';
     gap: clamp(2rem, 1rem + 4vw, 4rem);
     align-items: center;
   }
-  /* Two columns only when the visual has room to be legible. Below that the
-     hero is text-first and the animation follows it. */
   @media (min-width: 940px) {
     .hero-grid {
-      grid-template-columns: 0.85fr 1.15fr;
+      grid-template-columns: 0.82fr 1.18fr;
     }
   }
   .hero h1 {
@@ -125,7 +187,7 @@ import '../styles/demo.css';
     margin-top: 1.5rem;
     font-size: var(--step-body-lg);
     color: var(--muted);
-    max-width: 44ch;
+    max-width: 42ch;
   }
   .cta {
     margin-top: 2rem;
@@ -134,54 +196,138 @@ import '../styles/demo.css';
     gap: 0.75rem;
   }
 
-  .demo-section {
-    padding-block: clamp(2rem, 1rem + 3vw, 3rem);
+  /* ── integrations strip ── */
+  .strip {
+    padding-block: clamp(2rem, 1rem + 3vw, 3.5rem);
+    border-block: 1px solid var(--line);
+    background: var(--paper);
+    overflow: hidden;
   }
-  .demo-intro {
-    max-width: 60ch;
-    margin-bottom: 2rem;
+  .strip-label {
+    text-align: center;
+    font-size: var(--step-small);
+    color: var(--muted);
+    margin-bottom: 1.5rem;
   }
-  .demo-intro p {
-    margin-top: 0.75rem;
+  .strip-marquee {
+    position: relative;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  .strip-track {
+    display: flex;
+    gap: 1rem;
+    width: max-content;
+    animation: strip-scroll 32s linear infinite;
+  }
+  @keyframes strip-scroll {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  .chip {
+    flex-shrink: 0;
+    font-size: var(--step-small);
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+    white-space: nowrap;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .strip-track {
+      animation: none;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: auto;
+    }
+  }
+
+  /* ── feature sections ── */
+  .feature {
+    padding-block: clamp(3rem, 2rem + 4vw, 5.5rem);
+  }
+  .feature.alt {
+    background: var(--paper);
+    border-block: 1px solid var(--line);
+  }
+  .feature-intro {
+    max-width: 56ch;
+    margin-bottom: clamp(1.75rem, 1rem + 2vw, 2.75rem);
+  }
+  .feature-tag {
+    display: inline-block;
+    font-size: var(--step-caption);
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+  }
+  .feature-intro h2 {
+    max-width: 18ch;
+  }
+  .feature-intro p {
+    margin-top: 0.85rem;
     color: var(--muted);
     font-size: var(--step-body-lg);
   }
-  .demo-hold {
+  .feature-demo {
+    max-width: 900px;
+  }
+  .feature-demo.wide {
     max-width: 1080px;
   }
 
-  .soon-demos {
-    padding-block: clamp(2.5rem, 1rem + 4vw, 4rem);
+  /* ── reconciliation ── */
+  .recon {
+    padding-block: clamp(3rem, 2rem + 4vw, 5.5rem);
   }
-  .sd-grid {
+  .recon-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 2rem 3rem;
+    grid-template-columns: 1fr;
+    gap: clamp(2rem, 1rem + 3vw, 3.5rem);
+    align-items: center;
   }
-  .sd-item {
+  @media (min-width: 860px) {
+    .recon-grid {
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+  }
+  .recon-copy h2 {
+    max-width: 16ch;
+  }
+  .recon-copy p {
+    margin-top: 0.85rem;
+    color: var(--muted);
+    font-size: var(--step-body-lg);
+    max-width: 52ch;
+  }
+  .recon-stats {
+    display: grid;
+    gap: 1rem;
+  }
+  .stat {
     border-top: 1px solid var(--line);
-    padding-top: 1rem;
+    padding-top: 0.85rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
   }
-  .sd-item h3 {
-    margin-bottom: 0.5rem;
+  .stat b {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
   }
-  .sd-item p {
+  .stat span {
     color: var(--muted);
     font-size: var(--step-small);
-    line-height: 1.65;
-    margin-bottom: 0.85rem;
-  }
-  .wip {
-    display: inline-flex;
-    padding: 0.15rem 0.5rem;
-    border-radius: var(--radius-sm);
-    background: var(--line-soft);
-    border: 1px solid var(--line);
-    color: var(--muted);
-    font-size: var(--step-caption);
-    font-weight: 500;
   }
 
+  /* ── close ── */
   .close {
     padding-block: var(--space-section);
     border-top: 1px solid var(--line);
@@ -198,9 +344,21 @@ import '../styles/demo.css';
 </style>
 
 <script>
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
   import { mountDemos } from '../lib/demo-engine.js';
   import { mountReveals } from '../lib/reveal.js';
 
+  gsap.registerPlugin(ScrollTrigger);
+
   mountDemos();
   mountReveals();
+
+  // Frame heights are reserved in CSS (aspect-ratio), so layout no longer
+  // shifts when the demos size themselves. Fonts loading can still nudge text
+  // heights, so recalculate ScrollTrigger positions once everything settles —
+  // otherwise the pinned loop can be measured against a pre-font layout.
+  const refresh = () => ScrollTrigger.refresh();
+  window.addEventListener('load', refresh);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
 </script>

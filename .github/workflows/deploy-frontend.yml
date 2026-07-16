@@ -9,9 +9,26 @@
 # 403'd the whole site).
 name: Deploy frontend
 
+# paths filter added 2026-07-16: previously this fired on EVERY push to main,
+# so a marketing-site-only push (site/**) rebuilt the 8GB-heap app AND evicted
+# one real app release from its keep-5 prune. It now runs only when the app's
+# own source changes. The marketing site has its own deploy-site.yml.
+# Deliberately does NOT list `site/**` or `docs/**`.
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+      - 'tailwind.config.ts'
+      - 'postcss.config.js'
+      - 'supabase/**'
+      - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
 
 concurrency:
