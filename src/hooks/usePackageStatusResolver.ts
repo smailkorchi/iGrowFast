@@ -12,6 +12,8 @@ export type ResolvedPackageStatus = {
 
 type PkgStatusRow = ResolvedPackageStatus & {
     delivery_service_statuses: string[] | null;
+    active: boolean | null;
+    show_in_courier: boolean | null;
 };
 
 /**
@@ -28,38 +30,31 @@ type PkgStatusRow = ResolvedPackageStatus & {
  * the raw provider value is used ONLY as a fallback when nothing matches.
  */
 export function usePackageStatusResolver() {
-    const { data: rows } = useQuery({
-        queryKey: ['package-statuses-icons'],
+    // ONE fetch of the global package_statuses master set (all rows). Both the
+    // id-authoritative resolver (all rows) and the raw-value matcher (active +
+    // courier-visible subset) derive from it — collapses the former two
+    // ['package-statuses-icons'] + ['package-statuses-byid'] reads into a single query.
+    // NOTE: distinct key from ['package-statuses-icons'] (which other consumers share);
+    // this all-rows set is a strict superset, filtered to the courier subset below.
+    const { data: allRows } = useQuery({
+        queryKey: ['package-statuses-master'],
         queryFn: async () => {
             const { data } = await supabase
                 .from('package_statuses')
-                .select('id, code, label, color, icon, delivery_service_statuses')
-                .eq('active', true)
-                .eq('show_in_courier', true);
+                .select('id, code, label, color, icon, delivery_service_statuses, active, show_in_courier');
             return (data || []) as PkgStatusRow[];
         },
         staleTime: 5 * 60 * 1000,
     });
 
-    // Full master set (NO active/show_in_courier filter) for id-authoritative resolution:
-    // an order/parcel can reference an inactive or non-courier status by id. Separate query
-    // key so the shared ['package-statuses-icons'] cache (used by other consumers) is untouched.
-    const { data: allRows } = useQuery({
-        queryKey: ['package-statuses-byid'],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('package_statuses')
-                .select('id, code, label, color, icon');
-            return (data || []) as ResolvedPackageStatus[];
-        },
-        staleTime: 5 * 60 * 1000,
-    });
-
     return useMemo(() => {
-        const list = rows ?? [];
+        const all = allRows ?? [];
+        // Raw-value matching uses only active + courier-visible statuses — identical to the
+        // former server-side .eq('active',true).eq('show_in_courier',true) filter.
+        const list = all.filter((r) => r.active && r.show_in_courier);
 
         const byId = new Map<string, ResolvedPackageStatus>();
-        for (const r of allRows ?? []) byId.set(r.id, r);
+        for (const r of all) byId.set(r.id, r);
 
         const byDss = new Map<string, PkgStatusRow>();
         const byLabel = new Map<string, PkgStatusRow>();
@@ -113,5 +108,5 @@ export function usePackageStatusResolver() {
         };
 
         return { rows: list, byId, match, resolve, resolveById, isReady: list.length > 0 };
-    }, [rows, allRows]);
+    }, [allRows]);
 }

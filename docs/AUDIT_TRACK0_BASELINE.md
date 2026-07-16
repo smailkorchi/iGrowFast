@@ -69,3 +69,7 @@ Dominated by **WhatsApp subsystem + per-minute crons**; e-commerce dashboard bar
 | F0-5 | MED | Two RPC outliers 472/548 ms unidentified | identify during Analytics (#17) |
 | F0-6 | LOW | `cron.job_run_details` unbounded; confirm `realtime.messages` retention | add purge cron |
 | F0-7 | GOOD | Realtime is broadcast-only (no CDC fanout) | keep; never reintroduce postgres_changes |
+| F0-8 | HIGH | **APPLIED 2026-07-16** — Kong CORS had no `max_age` → browser re-preflighted every PostgREST call (confirmed empirically via network tab: OPTIONS re-fires for repeat calls). Added `config.max_age: 7200` to all 15 active cors plugins. | DONE: live `kong reload` (graceful, validated), verified `access-control-max-age: 7200` + gateway routes OK; persisted to host template `/opt/supabase-project/volumes/api/kong.yml`; backups `*.bak.1784229807` (host + in-container `/usr/local/kong/kong.yml.bak.*`). Browser now caches preflights 2h → ~halves request count app-wide after warmup. |
+
+### F0-8 rollback (if ever needed)
+`ssh igf`: restore `/opt/supabase-project/volumes/api/kong.yml.bak.1784229807` → template; `docker exec supabase-kong cp /usr/local/kong/kong.yml.bak.1784229807 /usr/local/kong/kong.yml && docker exec supabase-kong kong reload`. NOTE: kong.yml is NOT in git — the box is the only copy; the host template is the persistent source (entrypoint envsubst → /usr/local/kong/kong.yml). Pre-existing unrelated warn: kong ulimit nofile=1024 (should be ≥4096 for scale — separate finding).

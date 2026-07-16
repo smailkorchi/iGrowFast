@@ -1,65 +1,73 @@
-import { type ComponentType, useState, useEffect } from 'react';
+import { type ComponentType } from 'react';
+import {
+    FaArchive, FaBan, FaBarcode, FaBell, FaBox, FaBoxOpen, FaBoxes, FaBuilding, FaCalendarAlt,
+    FaCalendarCheck, FaCheck, FaCheckCircle, FaClipboardCheck, FaClipboardList, FaClock, FaCog,
+    FaComment, FaCommentDots, FaCopy, FaCreditCard, FaDolly, FaEnvelope, FaExclamationCircle,
+    FaExclamationTriangle, FaEye, FaEyeSlash, FaFlag, FaGift, FaHandHolding, FaHandHoldingMedical,
+    FaHeadset, FaHome, FaHourglassHalf, FaInfoCircle, FaLocationArrow, FaMapMarkerAlt, FaMapPin,
+    FaMoneyBillWave, FaPause, FaPercent, FaPhone, FaPhoneAlt, FaPhoneSlash, FaPlane, FaQrcode,
+    FaQuestionCircle, FaReceipt, FaRedo, FaRegStar, FaRoute, FaSearch, FaShip, FaShippingFast,
+    FaShoppingCart, FaSms, FaStar, FaStore, FaSync, FaTag, FaThumbsDown, FaThumbsUp, FaTimes,
+    FaTimesCircle, FaTruck, FaTruckLoading, FaTruckMoving, FaTruckPickup, FaUndo, FaUndoAlt, FaUser,
+    FaUserCheck, FaUserPlus, FaUserTimes, FaUsers, FaVoicemail, FaWallet, FaWarehouse,
+    FaWeightHanging, FaWhatsapp,
+} from 'react-icons/fa';
+import {
+    TbAlertTriangle, TbBell, TbBox, TbCircleCheck, TbCircleX, TbClock, TbInfoCircle, TbMapPin,
+    TbPackage, TbPackages, TbPhone, TbRefresh, TbRepeat, TbTruck, TbTruckDelivery, TbUser,
+    TbUserCheck,
+} from 'react-icons/tb';
+import {
+    BsArrowRepeat, BsArrowReturnLeft, BsArrowReturnRight, BsBell, BsBox, BsBoxSeam, BsCart,
+    BsCheckCircle, BsClockHistory, BsExclamationTriangle, BsGeoAlt, BsInfoCircle, BsPerson,
+    BsReceipt, BsTelephone, BsTruck, BsXCircle,
+} from 'react-icons/bs';
 
 type IconComp = ComponentType<{ className?: string; style?: React.CSSProperties }>;
 
-// Only the packs actually used by statuses: Fa (FontAwesome) is the primary, plus the
-// Tb (Tabler) and Bs (Bootstrap) sets that a couple of statuses use. Other packs were
-// removed because none of them are used and some never rendered (e.g. the old `Hi2`
-// loader exposed `Hi*`-named icons that no prefix matched), which polluted the picker
-// with thousands of blank entries.
-const packLoaders: Record<string, () => Promise<Record<string, IconComp>>> = {
-    Fa: () => import('react-icons/fa') as any,
-    Tb: () => import('react-icons/tb') as any,
-    Bs: () => import('react-icons/bs') as any,
+/**
+ * Curated status-icon palette. This is the ENTIRE react-icons surface the app loads:
+ * a static, tree-shaken map (react-icons 5.7 = sideEffects:false + ESM) covering every
+ * icon currently stored in order_statuses.icon / package_statuses.icon (verified against
+ * the live DB 2026-07-16) plus a featured delivery/status set for the owner picker.
+ *
+ * The former whole-pack dynamic loaders (`import('react-icons/fa'|'tb'|'bs')`, ~5.5 MB)
+ * were removed: because those packs were ALSO statically imported (brand icons in the
+ * sidebars), the dynamic import could not be split off and forced the whole ~5.5 MB into
+ * the eager bundle. Curating to this list drops react-icons to ~tens of KB. The owner
+ * IconPicker now selects from this palette; every stored icon is guaranteed present here.
+ */
+const CURATED_ICONS: Record<string, IconComp> = {
+    FaArchive, FaBan, FaBarcode, FaBell, FaBox, FaBoxOpen, FaBoxes, FaBuilding, FaCalendarAlt,
+    FaCalendarCheck, FaCheck, FaCheckCircle, FaClipboardCheck, FaClipboardList, FaClock, FaCog,
+    FaComment, FaCommentDots, FaCopy, FaCreditCard, FaDolly, FaEnvelope, FaExclamationCircle,
+    FaExclamationTriangle, FaEye, FaEyeSlash, FaFlag, FaGift, FaHandHolding, FaHandHoldingMedical,
+    FaHeadset, FaHome, FaHourglassHalf, FaInfoCircle, FaLocationArrow, FaMapMarkerAlt, FaMapPin,
+    FaMoneyBillWave, FaPause, FaPercent, FaPhone, FaPhoneAlt, FaPhoneSlash, FaPlane, FaQrcode,
+    FaQuestionCircle, FaReceipt, FaRedo, FaRegStar, FaRoute, FaSearch, FaShip, FaShippingFast,
+    FaShoppingCart, FaSms, FaStar, FaStore, FaSync, FaTag, FaThumbsDown, FaThumbsUp, FaTimes,
+    FaTimesCircle, FaTruck, FaTruckLoading, FaTruckMoving, FaTruckPickup, FaUndo, FaUndoAlt, FaUser,
+    FaUserCheck, FaUserPlus, FaUserTimes, FaUsers, FaVoicemail, FaWallet, FaWarehouse,
+    FaWeightHanging, FaWhatsapp,
+    TbAlertTriangle, TbBell, TbBox, TbCircleCheck, TbCircleX, TbClock, TbInfoCircle, TbMapPin,
+    TbPackage, TbPackages, TbPhone, TbRefresh, TbRepeat, TbTruck, TbTruckDelivery, TbUser,
+    TbUserCheck,
+    BsArrowRepeat, BsArrowReturnLeft, BsArrowReturnRight, BsBell, BsBox, BsBoxSeam, BsCart,
+    BsCheckCircle, BsClockHistory, BsExclamationTriangle, BsGeoAlt, BsInfoCircle, BsPerson,
+    BsReceipt, BsTelephone, BsTruck, BsXCircle,
 };
 
-const prefixes = Object.keys(packLoaders).sort((a, b) => b.length - a.length);
-const loadedPacks: Record<string, Record<string, IconComp>> = {};
+const ALL_ICON_NAMES = Object.keys(CURATED_ICONS);
 
-function getPrefix(name: string): string | null {
-    for (const prefix of prefixes) {
-        if (name.startsWith(prefix)) return prefix;
-    }
-    return null;
-}
-
-function isFunctionComponent(val: unknown): val is IconComp {
-    return typeof val === 'function';
-}
-
+/** Sync lookup of a stored icon name to its component (null if not in the palette). */
 export function getIconComponent(name: string): IconComp | null {
     if (!name) return null;
-    const prefix = getPrefix(name);
-    if (!prefix) return null;
-    const comp = loadedPacks[prefix]?.[name];
-    return isFunctionComponent(comp) ? comp : null;
+    return CURATED_ICONS[name] ?? null;
 }
 
-async function loadIcon(name: string): Promise<IconComp | null> {
-    const prefix = getPrefix(name);
-    if (!prefix || !packLoaders[prefix]) return null;
-    if (!loadedPacks[prefix]) {
-        loadedPacks[prefix] = await packLoaders[prefix]();
-    }
-    const comp = loadedPacks[prefix][name];
-    return isFunctionComponent(comp) ? comp : null;
-}
-
+/** Kept async for the IconPicker call-site; now resolves the curated palette (no pack load). */
 export async function getAllIconNamesAsync(): Promise<string[]> {
-    const allNames: string[] = [];
-    await Promise.all(
-        Object.entries(packLoaders).map(async ([prefix, loader]) => {
-            if (!loadedPacks[prefix]) {
-                loadedPacks[prefix] = await loader();
-            }
-            for (const key of Object.keys(loadedPacks[prefix])) {
-                if (typeof loadedPacks[prefix][key] === 'function') {
-                    allNames.push(key);
-                }
-            }
-        })
-    );
-    return allNames;
+    return ALL_ICON_NAMES;
 }
 
 export function DynamicIcon({
@@ -71,20 +79,7 @@ export function DynamicIcon({
     className?: string;
     style?: React.CSSProperties;
 }) {
-    const [Icon, setIcon] = useState<IconComp | null>(() => {
-        const c = name ? getIconComponent(name) : null;
-        return c;
-    });
-
-    useEffect(() => {
-        if (!name) { setIcon(null); return; }
-        const sync = getIconComponent(name);
-        if (sync) { setIcon(() => sync); return; }
-        let cancelled = false;
-        loadIcon(name).then(comp => { if (!cancelled && comp) setIcon(() => comp); });
-        return () => { cancelled = true; };
-    }, [name]);
-
+    const Icon = name ? CURATED_ICONS[name] : null;
     if (!Icon) return null;
     return <Icon className={className} style={style} />;
 }

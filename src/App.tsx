@@ -9,10 +9,6 @@ import Register from "./pages/Register";
 import ChangeCredentials from "./pages/ChangeCredentials";
 import Dashboard from "./pages/admin/Dashboard";
 import Orders from "./pages/admin/Orders";
-import ImportOrders from "./pages/admin/ImportOrders";
-import ImportProducts from "./pages/admin/ImportProducts";
-import ImportAccessories from "./pages/admin/ImportAccessories";
-import ImportCustomers from "./pages/admin/ImportCustomers";
 import DeliveryNote from "./pages/admin/DeliveryNote";
 import ReturnNote from "./pages/admin/ReturnNote";
 import DeliveryServices from "./pages/admin/DeliveryServices";
@@ -59,10 +55,6 @@ import MediaBuyerPayments from "./pages/mediabuyer/Payments";
 import MediaBuyerDemands from "./pages/mediabuyer/Demands";
 import MediaBuyerOrders from "./pages/mediabuyer/Orders";
 import Calculator from "./pages/admin/Calculator";
-import Devis from "./pages/admin/tools/Devis";
-import Facture from "./pages/admin/tools/Facture";
-import BonDeCommande from "./pages/admin/tools/BonDeCommande";
-import BonDeLivraison from "./pages/admin/tools/BonDeLivraison";
 import AdminDemands from "./pages/admin/Demands";
 import AdminSalaries from "./pages/admin/Salaries";
 import AdminSellers from "./pages/admin/collaborators/Sellers";
@@ -107,6 +99,15 @@ const WhatsappAssignment = lazy(() => import("@/whatsapp/WhatsappAssignment"));
 const WhatsappContacts = lazy(() => import("@/whatsapp/WhatsappContacts"));
 // Page 3: seller (agent) inbox — WA-verbatim tier, assignment-scoped via RLS.
 const WhatsappSellerInbox = lazy(() => import("@/whatsapp/WhatsappSellerInbox"));
+// Lazy: heavy react-pdf (doc-gen tools) + xlsx (import wizards) — kept OFF the eager bundle.
+const ImportOrders = lazy(() => import("./pages/admin/ImportOrders"));
+const ImportProducts = lazy(() => import("./pages/admin/ImportProducts"));
+const ImportAccessories = lazy(() => import("./pages/admin/ImportAccessories"));
+const ImportCustomers = lazy(() => import("./pages/admin/ImportCustomers"));
+const Devis = lazy(() => import("./pages/admin/tools/Devis"));
+const Facture = lazy(() => import("./pages/admin/tools/Facture"));
+const BonDeCommande = lazy(() => import("./pages/admin/tools/BonDeCommande"));
+const BonDeLivraison = lazy(() => import("./pages/admin/tools/BonDeLivraison"));
 import { supabase } from "./lib/supabase";
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import SuspensionOverlay from "./components/layout/SuspensionOverlay";
@@ -312,10 +313,10 @@ const App = () => (
                     <Route path="/" element={<Dashboard />} />
                     {/* ... other routes ... */}
                     <Route path="/orders" element={<Orders />} />
-                    <Route path="/import-orders" element={<ImportOrders />} />
-                    <Route path="/import-products" element={<ImportProducts />} />
-                    <Route path="/import-accessories" element={<ImportAccessories />} />
-                    <Route path="/import-customers" element={<ImportCustomers />} />
+                    <Route path="/import-orders" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><ImportOrders /></Suspense>} />
+                    <Route path="/import-products" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><ImportProducts /></Suspense>} />
+                    <Route path="/import-accessories" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><ImportAccessories /></Suspense>} />
+                    <Route path="/import-customers" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><ImportCustomers /></Suspense>} />
                     <Route path="/delivery-note" element={<DeliveryNote />} />
                     <Route path="/return-note" element={<ReturnNote />} />
                     <Route path="/delivery-services" element={<DeliveryServices />} />
@@ -347,10 +348,10 @@ const App = () => (
                     <Route path="/expenses-types" element={<ExpensesTypes />} />
                     <Route path="/recurring-charges" element={<RecurringCharges />} />
                     <Route path="/calculator" element={<Calculator />} />
-                    <Route path="/devis" element={<Devis />} />
-                    <Route path="/facture" element={<Facture />} />
-                    <Route path="/bon-de-commande" element={<BonDeCommande />} />
-                    <Route path="/bon-de-livraison" element={<BonDeLivraison />} />
+                    <Route path="/devis" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><Devis /></Suspense>} />
+                    <Route path="/facture" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><Facture /></Suspense>} />
+                    <Route path="/bon-de-commande" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><BonDeCommande /></Suspense>} />
+                    <Route path="/bon-de-livraison" element={<Suspense fallback={<div style={{ padding: 24 }}>Chargement…</div>}><BonDeLivraison /></Suspense>} />
                     <Route path="/demands" element={<AdminDemands />} />
                     <Route path="/salaries" element={<AdminSalaries />} />
                     <Route path="/collaborators/sellers" element={<AdminSellers />} />

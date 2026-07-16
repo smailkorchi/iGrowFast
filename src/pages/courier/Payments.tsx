@@ -4,12 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
-import {
-    buildCourierPayoutPdfBlob,
-    resolveCourierPayoutImages,
-    type CourierPayoutPdfInput,
-} from '@/lib/courierPayoutPdf';
-import { buildCourierReturnPdfBlob, type CourierReturnPdfInput } from '@/lib/courierReturnPdf';
+// react-pdf builders dynamically imported at use-sites (below) so @react-pdf (~1.5 MB)
+// stays off the eager bundle — loads only when this page resolves images / generates a PDF.
+import type { CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
+import type { CourierReturnPdfInput } from '@/lib/courierReturnPdf';
 import { saveBlob, canDirectSave } from '@/lib/saveBlob';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -262,6 +260,7 @@ const CourierPayments = () => {
             me?.avatar_url || null,
         ],
         queryFn: async () => {
+            const { resolveCourierPayoutImages } = await import('@/lib/courierPayoutPdf');
             return resolveCourierPayoutImages({
                 businessLogo: businessMeta?.logo || null,
                 courierAvatar: me?.avatar_url || null,
@@ -319,6 +318,7 @@ const CourierPayments = () => {
         setDownloadingId(note.id);
         try {
             const input = buildPdfInput(note);
+            const { buildCourierPayoutPdfBlob } = await import('@/lib/courierPayoutPdf');
             const blob = await buildCourierPayoutPdfBlob(input);
             const filename = `${note.reference || 'courier-payout'}.pdf`;
 
@@ -378,6 +378,7 @@ const CourierPayments = () => {
                 business: pdfBusiness,
                 courier: { name: me?.name || 'Courier', avatar_url: resolvedImages?.courierAvatar || null },
             };
+            const { buildCourierReturnPdfBlob } = await import('@/lib/courierReturnPdf');
             const blob = await buildCourierReturnPdfBlob(input);
             const filename = `${rn.reference || 'courier-return'}.pdf`;
             const result = await saveBlob(blob, {

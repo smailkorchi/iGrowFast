@@ -14,10 +14,12 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
-import { buildSellerPayoutPdfBase64, type SellerPayoutPdfInput, type SellerPayoutPdfOrder } from '@/lib/sellerPayoutPdf';
-import { buildMediaBuyerPayoutPdfBase64, type MediaBuyerPayoutPdfInput } from '@/lib/mediabuyerPayoutPdf';
-import { buildCourierPayoutPdfBase64, type CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
-import { buildCourierReturnPdfBase64, type CourierReturnPdfInput } from '@/lib/courierReturnPdf';
+// PDF builders are dynamically imported at each call site below so @react-pdf (~1.5 MB)
+// stays OFF the eager bundle — it loads only when a payout statement is actually generated.
+import type { SellerPayoutPdfInput, SellerPayoutPdfOrder } from '@/lib/sellerPayoutPdf';
+import type { MediaBuyerPayoutPdfInput } from '@/lib/mediabuyerPayoutPdf';
+import type { CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
+import type { CourierReturnPdfInput } from '@/lib/courierReturnPdf';
 import { attributePaymentOrders } from '@/lib/payoutOrderAttribution';
 import { getPlatformSource } from '@/lib/campaignConstants';
 
@@ -178,6 +180,7 @@ export async function sendSellerPayoutEmail(params: {
     seller: { name: seller?.name || 'Commercial', avatar_url: seller?.avatar_url ?? null },
   };
 
+  const { buildSellerPayoutPdfBase64 } = await import('@/lib/sellerPayoutPdf');
   const { base64, filename } = await buildSellerPayoutPdfBase64(pdfInput);
 
   await invokeEdge({
@@ -319,6 +322,7 @@ export async function sendMediaBuyerPayoutEmail(params: {
     mediabuyer: { name: mb?.name || 'Media Buyer', avatar_url: mb?.avatar_url ?? null },
   };
 
+  const { buildMediaBuyerPayoutPdfBase64 } = await import('@/lib/mediabuyerPayoutPdf');
   const { base64, filename } = await buildMediaBuyerPayoutPdfBase64(pdfInput);
 
   await invokeEdge({
@@ -386,6 +390,7 @@ export async function sendCourierPaymentNoteEmail(params: {
     courier: { name: note.courier.name, avatar_url: note.courier.avatar_url },
   };
 
+  const { buildCourierPayoutPdfBase64 } = await import('@/lib/courierPayoutPdf');
   const { base64, filename } = await buildCourierPayoutPdfBase64(pdfInput);
 
   await invokeEdge({
@@ -448,6 +453,7 @@ export async function sendCourierReturnNoteEmail(params: {
     courier: { name: note.courier.name, avatar_url: note.courier.avatar_url },
   };
 
+  const { buildCourierReturnPdfBase64 } = await import('@/lib/courierReturnPdf');
   const { base64, filename } = await buildCourierReturnPdfBase64(pdfInput);
 
   await invokeEdge({

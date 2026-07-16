@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 
 /** An order reduced to the tracking identifiers it can be matched on. */
 export type TrackingImportOrder = { id: string; trackingCodes: (string | null | undefined)[] };
@@ -23,6 +22,9 @@ const normalize = (s: unknown): string =>
 /** Read a CSV / XLSX / XLS file into a raw 2-D string grid (first sheet). */
 export async function parseSpreadsheet(file: File): Promise<string[][]> {
     const buf = await file.arrayBuffer();
+    // Dynamic import keeps xlsx (~0.5 MB) off the eager bundle — loads only when a
+    // spreadsheet is actually parsed. Mirrors lib/ordersExport.ts.
+    const XLSX = await import('xlsx');
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     if (!ws) return [];
