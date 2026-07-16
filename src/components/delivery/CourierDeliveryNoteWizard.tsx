@@ -534,7 +534,9 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
         }
 
         queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        // D1 keys — the pre-D1 ['orders'] key matches nothing anymore (OR-9)
+        queryClient.invalidateQueries({ queryKey: ['orders-page'] });
+        queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
         queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-courier'] });
 
         toast({

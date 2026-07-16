@@ -120,7 +120,9 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                             phone: courierPhone,
                         }],
                     });
-                    queryClient.invalidateQueries({ queryKey: ['orders'] });
+                    // D1 keys — the pre-D1 ['orders'] key matches nothing anymore (OR-9)
+                    queryClient.invalidateQueries({ queryKey: ['orders-page'] });
+                    queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
                     return;
                 }
 
@@ -149,7 +151,9 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                             .eq('id', parcel.id);
                     }
                 }
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                // D1 keys — the pre-D1 ['orders'] key matches nothing anymore (OR-9)
+                    queryClient.invalidateQueries({ queryKey: ['orders-page'] });
+                    queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             } catch (e: unknown) {
                 if (!cancelled) {
                     toast({ title: 'Tracking Error', description: e instanceof Error ? e.message : 'Échec du suivi', variant: 'destructive' });

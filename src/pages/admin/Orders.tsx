@@ -758,12 +758,13 @@ const Orders = () => {
         },
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
-        // Realtime only covers changes made WHILE this page is mounted. Anything that
-        // happened on another page (e.g. deleting a delivery note reverts the order) is
-        // missed by the subscription, so always refetch when we land here or refocus the
-        // tab — otherwise the 60s-stale cache shows the pre-change state until a hard refresh.
+        // refetchOnMount 'always' covers cross-page staleness (e.g. deleting a delivery
+        // note reverts the order while this page is unmounted). Focus refetch is OFF
+        // (OR-4): while mounted, freshness rides the ecom:biz broadcast seam (which also
+        // full-invalidates on reconnect) — focus-refetching a full page + KPI aggregate
+        // per admin per tab-switch is a fleet-scale storm, not a freshness win.
         refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         // keepPreviousData: the old page stays visible while the next one loads.
         placeholderData: (prev) => prev,
     });
@@ -778,7 +779,9 @@ const Orders = () => {
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
         refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
+        // OFF for the same reason as the list query (OR-4): this is a full-filtered-set
+        // aggregate — focus storms multiply it by fleet size for zero freshness gain.
+        refetchOnWindowFocus: false,
         placeholderData: (prev) => prev,
     });
 
@@ -802,6 +805,7 @@ const Orders = () => {
 
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             return fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', 'id, name, zone_id', { orderBy: 'name' });
@@ -810,6 +814,7 @@ const Orders = () => {
 
     const { data: couriers } = useQuery({
         queryKey: ['couriers-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -825,6 +830,7 @@ const Orders = () => {
 
     const { data: companies } = useQuery({
         queryKey: ['companies-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -839,6 +845,7 @@ const Orders = () => {
 
     const { data: courierZones } = useQuery({
         queryKey: ['courier-zones-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -852,6 +859,7 @@ const Orders = () => {
 
     const { data: companyZones } = useQuery({
         queryKey: ['company-zones-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -865,6 +873,7 @@ const Orders = () => {
 
     const { data: courierFees } = useQuery({
         queryKey: ['courier-fees-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             return await fetchAllRows('courier_fees', '*', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
@@ -873,6 +882,7 @@ const Orders = () => {
 
     const { data: companyFees } = useQuery({
         queryKey: ['company-fees-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             return await fetchAllRows('company_fees', '*', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
@@ -881,6 +891,7 @@ const Orders = () => {
 
     const { data: providerCities } = useQuery({
         queryKey: ['provider-cities-all'],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             return (await fetchAllRows('provider_cities', 'master_city_id, provider_type, fees')) as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
         },
@@ -888,6 +899,7 @@ const Orders = () => {
 
     const { data: orderStatuses } = useQuery({
         queryKey: ['order-statuses-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -927,6 +939,7 @@ const Orders = () => {
 
     const { data: products } = useQuery({
         queryKey: ['products-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -942,6 +955,7 @@ const Orders = () => {
 
     const { data: accessories } = useQuery({
         queryKey: ['accessories-dropdown-orders', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -957,6 +971,7 @@ const Orders = () => {
 
     const { data: productAccessories } = useQuery({
         queryKey: ['product-accessories', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -982,6 +997,7 @@ const Orders = () => {
 
     const { data: packageStatuses } = useQuery({
         queryKey: ['package-statuses-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -996,6 +1012,7 @@ const Orders = () => {
 
     const { data: confirmers } = useQuery({
         queryKey: ['confirmers-dropdown', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -1010,6 +1027,7 @@ const Orders = () => {
 
     const { data: sellers } = useQuery({
         queryKey: ['sellers-commercial-v2', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
