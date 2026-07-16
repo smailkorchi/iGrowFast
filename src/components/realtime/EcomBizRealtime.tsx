@@ -63,7 +63,16 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
     useEffect(() => {
         if (!businessId) return;
 
+        // OR-14: jittered throttle, not a bare debounce. The old resetting 500ms
+        // debounce had two storm modes: (a) a sustained <500ms event stream
+        // deferred invalidation indefinitely (staleness during long bursts), and
+        // (b) every client in the business flushed on an IDENTICAL timer → a
+        // synchronized refetch herd against the ~10-conn PostgREST pool. Fix:
+        // trailing flush at 500ms + a maxWait ceiling (~3.5s) so streams flush
+        // periodically, plus a per-client random jitter so the fleet de-synchronizes.
+        const jitterMs = Math.random() * 1500;
         let ordersTimer: ReturnType<typeof setTimeout> | null = null;
+        let ordersFirstAt: number | null = null;
         const invalidateOrders = () => {
             // Prefix keys: match both the admin and the seller D1 query variants.
             queryClient.invalidateQueries({ queryKey: ['orders-page'] });
@@ -88,9 +97,17 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
             queryClient.invalidateQueries({ queryKey: ['customers-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
         };
+        const flushOrders = () => {
+            ordersTimer = null;
+            ordersFirstAt = null;
+            invalidateOrders();
+        };
         const debouncedOrders = () => {
+            const now = Date.now();
+            if (ordersFirstAt === null) ordersFirstAt = now;
             if (ordersTimer) clearTimeout(ordersTimer);
-            ordersTimer = setTimeout(invalidateOrders, 500);
+            const untilCeiling = Math.max(0, (3500 + jitterMs) - (now - ordersFirstAt));
+            ordersTimer = setTimeout(flushOrders, Math.min(500 + jitterMs, untilCeiling));
         };
 
         let stockTimer: ReturnType<typeof setTimeout> | null = null;
@@ -103,9 +120,18 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
                 queryClient.invalidateQueries({ queryKey: ['accessories', businessId] });
             }
         };
+        let stockFirstAt: number | null = null;
+        const flushStock = () => {
+            stockTimer = null;
+            stockFirstAt = null;
+            invalidateStock();
+        };
         const debouncedStock = () => {
+            const now = Date.now();
+            if (stockFirstAt === null) stockFirstAt = now;
             if (stockTimer) clearTimeout(stockTimer);
-            stockTimer = setTimeout(invalidateStock, 150);
+            const untilCeiling = Math.max(0, (2000 + jitterMs) - (now - stockFirstAt));
+            stockTimer = setTimeout(flushStock, Math.min(150 + jitterMs, untilCeiling));
         };
 
         let hadError = false;
