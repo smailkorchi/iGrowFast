@@ -1,0 +1,640 @@
+---
+/**
+ * Demo — the multi-number shared inbox.
+ *
+ * This recreates iGrowFast's OWN inbox, in iGrowFast's OWN palette. It is
+ * deliberately NOT a WhatsApp lookalike:
+ *   - no #25D366 anywhere
+ *   - no WhatsApp logo or wordmark in the chrome
+ *   - no imitation of WhatsApp's own UI
+ * Meta grants third parties no licence to display its brand features, and a
+ * reviewer reads this page during Business Verification. What we are selling
+ * is our inbox, so our inbox is what this shows.
+ *
+ * Scene is limited to what the official Cloud API actually supports:
+ * inbound messages, free-form send inside the service window, read receipts,
+ * typing indicators. It deliberately does NOT show message edit or delete —
+ * the real app has both, but neither is available to a business through the
+ * Cloud API, so demoing them would market a capability we could not ship.
+ *
+ * French strings are the real ones from src/whatsapp/.
+ */
+---
+
+<div class="demo-frame" data-demo="wa-inbox" data-w="960" data-h="620">
+  <div
+    class="demo-stage wa"
+    data-w="960"
+    style="width:960px;height:620px;display:grid;grid-template-columns:360px minmax(0,1fr)"
+  >
+    <!-- ── Conversation list ─────────────────────────────── -->
+    <aside class="wa-list">
+      <div class="wa-list-head">
+        <div class="wa-num">
+          <span class="wa-num-dot"></span>
+          <span class="wa-num-label">+212 6 61 •• •• 04</span>
+          <span class="wa-num-chip">Ligne 1</span>
+        </div>
+        <div class="wa-search">Rechercher ou démarrer une discussion</div>
+        <div class="wa-filters">
+          <span class="wa-filter is-on">Toutes</span>
+          <span class="wa-filter" id="wa-f-unread">Non lues <i class="wa-count">1</i></span>
+          <span class="wa-filter">Favoris</span>
+        </div>
+      </div>
+
+      <div class="wa-rows" id="wa-rows">
+        <div class="wa-row" data-row="new" id="wa-row-new">
+          <div class="wa-av">SB</div>
+          <div class="wa-row-body">
+            <div class="wa-row-top">
+              <span class="wa-row-name">Salma B.</span>
+              <span class="wa-row-time" id="wa-row-time">14:32</span>
+            </div>
+            <div class="wa-row-sub">
+              <span class="wa-row-msg" id="wa-row-msg">Bonjour, le pack x2 est dispo ?</span>
+              <i class="wa-badge" id="wa-badge">1</i>
+            </div>
+          </div>
+        </div>
+
+        <div class="wa-row">
+          <div class="wa-av av-2">YE</div>
+          <div class="wa-row-body">
+            <div class="wa-row-top">
+              <span class="wa-row-name">Youssef E.</span><span class="wa-row-time">14:02</span>
+            </div>
+            <div class="wa-row-sub"><span class="wa-row-msg">Merci, c'est bien reçu 👍</span></div>
+          </div>
+        </div>
+
+        <div class="wa-row">
+          <div class="wa-av av-3">NK</div>
+          <div class="wa-row-body">
+            <div class="wa-row-top">
+              <span class="wa-row-name">Nadia K.</span><span class="wa-row-time">13:47</span>
+            </div>
+            <div class="wa-row-sub"><span class="wa-row-msg">Vous livrez à Agadir ?</span></div>
+          </div>
+        </div>
+
+        <div class="wa-row">
+          <div class="wa-av av-4">AM</div>
+          <div class="wa-row-body">
+            <div class="wa-row-top">
+              <span class="wa-row-name">Amine M.</span><span class="wa-row-time">13:12</span>
+            </div>
+            <div class="wa-row-sub"><span class="wa-row-msg">Commande confirmée</span></div>
+          </div>
+        </div>
+
+        <div class="wa-row">
+          <div class="wa-av av-5">HR</div>
+          <div class="wa-row-body">
+            <div class="wa-row-top">
+              <span class="wa-row-name">Hafsa R.</span><span class="wa-row-time">12:58</span>
+            </div>
+            <div class="wa-row-sub"><span class="wa-row-msg">D'accord, merci beaucoup</span></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── Chat pane ─────────────────────────────────────── -->
+    <section class="wa-chat">
+      <!-- Reset state. Without this the right half is blank white for the
+           first beat of every loop, which is what a visitor scrolling in
+           actually meets first. The real app shows an empty state here too. -->
+      <div class="wa-empty" id="wa-empty">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span>Sélectionnez une conversation</span>
+      </div>
+
+      <div class="wa-conv" id="wa-chat">
+      <div class="wa-chat-head">
+        <div class="wa-av">SB</div>
+        <div class="wa-chat-who">
+          <span class="wa-chat-name">Salma B.</span>
+          <span class="wa-chat-meta" id="wa-presence">+212 6 12 •• •• 88</span>
+        </div>
+        <div class="wa-chat-tags">
+          <span class="wa-tag">Nouveau</span>
+          <span class="wa-assignee">Karim</span>
+        </div>
+      </div>
+
+      <div class="wa-thread" id="wa-thread">
+        <div class="wa-day">Aujourd'hui</div>
+
+        <div class="wa-msg in" data-m="1">
+          <p>Bonjour, le pack x2 est dispo ?</p>
+          <span class="wa-t">14:32</span>
+        </div>
+
+        <div class="wa-typing" id="wa-typing" hidden>
+          <span></span><span></span><span></span>
+        </div>
+
+        <div class="wa-msg out" data-m="2" hidden>
+          <p id="wa-sent-text"></p>
+          <span class="wa-t">14:33 <i class="wa-tick" id="wa-tick"></i></span>
+        </div>
+      </div>
+
+      <div class="wa-composer">
+        <div class="wa-composer-pill wd-input">
+          <span class="wa-ph" id="wa-ph">Entrez un message</span><span id="wa-type"></span>
+        </div>
+        <div class="wa-send" id="wa-send">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </div>
+      </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  /* Scoped to this demo's stage. Every colour is a brand token — the inbox
+     shares the product's palette exactly (DESIGN.md: same core palette across
+     app + inbox), which is what makes the recreation faithful. */
+  .wa {
+    background: var(--canvas);
+    font-family: var(--font-body);
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  /* ── list ── */
+  .wa-list {
+    border-right: 1px solid var(--line);
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .wa-list-head {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .wa-num {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 12px;
+  }
+  .wa-num-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+  .wa-num-label {
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.01em;
+  }
+  .wa-num-chip {
+    margin-left: auto;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--line-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  .wa-search {
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: var(--mid);
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .wa-filters {
+    display: flex;
+    gap: 6px;
+  }
+  .wa-filter {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--muted);
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 220ms ease, color 220ms ease;
+  }
+  .wa-filter.is-on {
+    background: var(--ink);
+    color: var(--canvas);
+  }
+  .wa-count {
+    font-style: normal;
+    font-size: 9.5px;
+    font-weight: 700;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    min-width: 14px;
+    height: 14px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 3px;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 260ms ease, transform 260ms var(--ease-smooth);
+  }
+  .wa-count.is-on {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .wa-rows {
+    flex: 1;
+    overflow: hidden;
+  }
+  .wa-row {
+    display: flex;
+    gap: 10px;
+    padding: 11px 14px;
+    align-items: center;
+    border-bottom: 1px solid var(--line-soft);
+    transition: background-color 240ms ease;
+  }
+  .wa-row[data-row='new'] {
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 320ms ease, transform 320ms var(--ease-smooth),
+      background-color 240ms ease;
+  }
+  .wa-row[data-row='new'].is-in {
+    opacity: 1;
+    transform: none;
+  }
+  .wa-row.is-active {
+    background: var(--line-soft);
+  }
+  .wa-av {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .av-2 { background: var(--cool-soft); }
+  .av-3 { background: var(--green-soft); }
+  .av-4 { background: var(--line); }
+  .av-5 { background: var(--accent-soft); }
+
+  .wa-row-body { min-width: 0; flex: 1; }
+  .wa-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .wa-row-name { font-weight: 600; font-size: 12.5px; }
+  .wa-row-time { font-size: 10.5px; color: var(--mid); flex-shrink: 0; }
+  .wa-row-sub {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .wa-row-msg {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wa-badge {
+    font-style: normal;
+    font-size: 9.5px;
+    font-weight: 700;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    min-width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 240ms ease, transform 240ms var(--ease-smooth);
+  }
+  .wa-badge.is-on { opacity: 1; transform: scale(1); }
+
+  /* ── chat ── */
+  .wa-chat {
+    position: relative;
+    min-width: 0;
+    background: var(--canvas);
+  }
+  .wa-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--mid);
+    font-size: 12.5px;
+    transition: opacity 260ms ease;
+  }
+  .wa-empty.is-gone {
+    opacity: 0;
+  }
+  .wa-conv {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    opacity: 0;
+    transition: opacity 260ms ease;
+  }
+  .wa-chat-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .wa-chat-who { display: flex; flex-direction: column; min-width: 0; }
+  .wa-chat-name { font-weight: 600; font-size: 13px; }
+  .wa-chat-meta {
+    font-size: 11px;
+    color: var(--muted);
+    transition: color 200ms ease;
+  }
+  .wa-chat-meta.is-typing { color: var(--accent); }
+  .wa-chat-tags { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .wa-tag {
+    font-size: 10.5px;
+    font-weight: 600;
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 3px 9px;
+  }
+  .wa-assignee {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 9px;
+  }
+
+  .wa-thread {
+    flex: 1;
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+    overflow: hidden;
+  }
+  .wa-day {
+    align-self: center;
+    font-size: 10.5px;
+    color: var(--muted);
+    background: var(--line-soft);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 4px;
+  }
+  .wa-msg {
+    max-width: 62%;
+    padding: 8px 11px 6px;
+    border-radius: 12px;
+    position: relative;
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    transition: opacity 300ms ease, transform 300ms var(--ease-smooth);
+  }
+  .wa-msg.is-in { opacity: 1; transform: none; }
+  .wa-msg p { margin: 0; font-size: 12.5px; }
+  .wa-msg.in {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+  }
+  /* Outbound is INK — the brand's own polarity. Not a green bubble. */
+  .wa-msg.out {
+    align-self: flex-end;
+    background: var(--ink);
+    color: var(--canvas);
+    border-bottom-right-radius: 4px;
+  }
+  .wa-t {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    font-size: 9.5px;
+    margin-top: 3px;
+    opacity: 0.55;
+  }
+  .wa-tick { display: inline-flex; }
+
+  .wa-typing {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    border-bottom-left-radius: 4px;
+    padding: 9px 11px;
+  }
+  .wa-typing[hidden] { display: none; }
+  .wa-typing span {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--mid);
+    animation: wa-bounce 1.2s infinite ease-in-out;
+  }
+  .wa-typing span:nth-child(2) { animation-delay: 0.15s; }
+  .wa-typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes wa-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-3px); opacity: 1; }
+  }
+
+  .wa-composer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .wa-composer-pill {
+    flex: 1;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .wa-ph { color: var(--mid); }
+  .wa-ph.is-gone { display: none; }
+  .wa-send {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--canvas);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    transition: transform 160ms var(--ease-smooth), opacity 200ms ease;
+    opacity: 0.35;
+  }
+  .wa-send.is-live { opacity: 1; }
+  .wa-send.is-hit { transform: scale(0.88); }
+</style>
+
+<script>
+  import { defineDemo } from '../../lib/demo-engine.js';
+
+  const TICK_ONE =
+    '<svg width="13" height="10" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6.5 5.8 9.5 11.5 2.5"/></svg>';
+  const TICK_TWO =
+    '<svg width="15" height="10" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 6.5 3.8 9.5 9.5 2.5"/><polyline points="6.5 6.5 9.3 9.5 15 2.5"/></svg>';
+
+  const REPLY = 'Oui, le pack x2 est disponible. Je vous le confirme ?';
+
+  const q = (stage: HTMLElement, sel: string): any => stage.querySelector(sel);
+
+  function reset(stage: HTMLElement) {
+    q(stage, '#wa-row-new').classList.remove('is-in', 'is-active');
+    q(stage, '#wa-badge').classList.remove('is-on');
+    q(stage, '#wa-f-unread .wa-count').classList.remove('is-on');
+    q(stage, '#wa-empty').classList.remove('is-gone');
+    q(stage, '#wa-chat').style.opacity = '0';
+    q(stage, '[data-m="1"]').classList.remove('is-in');
+    const out = q(stage, '[data-m="2"]');
+    out.hidden = true;
+    out.classList.remove('is-in');
+    q(stage, '#wa-sent-text').textContent = '';
+    q(stage, '#wa-tick').innerHTML = '';
+    q(stage, '#wa-type').textContent = '';
+    q(stage, '#wa-ph').classList.remove('is-gone');
+    q(stage, '#wa-send').classList.remove('is-live', 'is-hit');
+    q(stage, '#wa-typing').hidden = true;
+    const p = q(stage, '#wa-presence');
+    p.textContent = '+212 6 12 •• •• 88';
+    p.classList.remove('is-typing');
+  }
+
+  defineDemo('wa-inbox', {
+    init: reset,
+
+    /** prefers-reduced-motion: the finished conversation, no animation. */
+    staticState(stage) {
+      q(stage, '#wa-row-new').classList.add('is-in', 'is-active');
+      q(stage, '#wa-empty').classList.add('is-gone');
+      q(stage, '#wa-chat').style.opacity = '1';
+      q(stage, '[data-m="1"]').classList.add('is-in');
+      const out = q(stage, '[data-m="2"]');
+      out.hidden = false;
+      out.classList.add('is-in');
+      q(stage, '#wa-sent-text').textContent = REPLY;
+      q(stage, '#wa-tick').innerHTML = TICK_TWO;
+      q(stage, '#wa-ph').classList.add('is-gone');
+      q(stage, '#wa-send').classList.add('is-live');
+    },
+
+    async scene(e, stage) {
+      // 1 — an inbound message lands in the list, unread.
+      await e.sleep(500);
+      q(stage, '#wa-row-new').classList.add('is-in');
+      await e.sleep(220);
+      q(stage, '#wa-badge').classList.add('is-on');
+      q(stage, '#wa-f-unread .wa-count').classList.add('is-on');
+      await e.sleep(900);
+
+      // 2 — the agent opens it.
+      const row = e.center('#wa-row-new');
+      await e.move(row.x, row.y, 760);
+      await e.click(row.x, row.y);
+      q(stage, '#wa-row-new').classList.add('is-active');
+      q(stage, '#wa-badge').classList.remove('is-on');
+      q(stage, '#wa-f-unread .wa-count').classList.remove('is-on');
+      q(stage, '#wa-empty').classList.add('is-gone');
+      q(stage, '#wa-chat').style.opacity = '1';
+      await e.sleep(240);
+      q(stage, '[data-m="1"]').classList.add('is-in');
+      await e.sleep(700);
+
+      // 3 — the customer is typing. Cloud API supports typing indicators.
+      const presence = q(stage, '#wa-presence');
+      presence.textContent = 'en train d\'écrire…';
+      presence.classList.add('is-typing');
+      q(stage, '#wa-typing').hidden = false;
+      await e.sleep(1300);
+      q(stage, '#wa-typing').hidden = true;
+      presence.textContent = '+212 6 12 •• •• 88';
+      presence.classList.remove('is-typing');
+      await e.sleep(400);
+
+      // 4 — the agent replies.
+      const pill = e.center('.wa-composer-pill');
+      await e.move(pill.x, pill.y, 620);
+      await e.click(pill.x, pill.y);
+      q(stage, '#wa-ph').classList.add('is-gone');
+      await e.typeText(q(stage, '#wa-type'), REPLY, 24);
+      q(stage, '#wa-send').classList.add('is-live');
+      await e.sleep(320);
+
+      // 5 — send.
+      const send = e.center('#wa-send');
+      await e.move(send.x, send.y, 480);
+      await e.click(send.x, send.y);
+      q(stage, '#wa-send').classList.add('is-hit');
+      setTimeout(() => q(stage, '#wa-send').classList.remove('is-hit'), 160);
+
+      q(stage, '#wa-type').textContent = '';
+      q(stage, '#wa-ph').classList.remove('is-gone');
+      q(stage, '#wa-send').classList.remove('is-live');
+
+      const out = q(stage, '[data-m="2"]');
+      q(stage, '#wa-sent-text').textContent = REPLY;
+      out.hidden = false;
+      // Force a frame so the transition runs from its start state.
+      void out.offsetWidth;
+      out.classList.add('is-in');
+      await e.sleep(420);
+
+      // 6 — delivery, then read. Both are Cloud API supported.
+      q(stage, '#wa-tick').innerHTML = TICK_ONE;
+      await e.sleep(700);
+      q(stage, '#wa-tick').innerHTML = TICK_TWO;
+
+      await e.sleep(2600);
+    },
+  });
+</script>

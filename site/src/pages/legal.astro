@@ -1,0 +1,125 @@
+---
+import Legal from '../layouts/Legal.astro';
+
+const docs = [
+  { href: '/privacy', title: 'Privacy Policy', desc: 'What we collect, why, who else sees it, and where it lives.' },
+  { href: '/terms', title: 'Terms of Service', desc: 'The agreement between us and the business using iGrowFast.' },
+  { href: '/acceptable-use', title: 'Acceptable Use Policy', desc: 'What you may and may not do with the service. Part of the Terms.' },
+  { href: '/dpa', title: 'Data Processing Addendum', desc: 'The Article 28 terms for processing your customers’ data. Part of the Terms.' },
+  { href: '/sub-processors', title: 'Sub-processors', desc: 'Who else touches the data we process for you, and where they are.' },
+  { href: '/cookies', title: 'Cookie Policy', desc: 'What this site stores on your device, and how to change your mind.' },
+  { href: '/data-deletion', title: 'Your Privacy Rights & Data Deletion', desc: 'How to access, correct or delete your data — whichever route applies to you.' },
+  { href: '/refunds', title: 'Refunds & Cancellation', desc: 'How to cancel and how refunds work.' },
+  { href: '/accessibility', title: 'Accessibility', desc: 'What we aim for, and what we know is missing.' },
+];
+---
+
+<Legal
+  title="Legal Notices"
+  description="Company details, trademark notices, and an index of every legal document for iGrowFast."
+  path="/legal"
+  updated="16 July 2026"
+  summary="Who we are, and every legal document in one place."
+>
+  <h2 id="entity">The company</h2>
+  <p>This service is operated by:</p>
+  <address>
+    <strong>iGrowFast LLC</strong><br />
+    A Limited Liability Company organised under the laws of the State of Wyoming<br />
+    30 N Gould St Ste R<br />
+    Sheridan, WY 82801<br />
+    United States<br />
+    <br />
+    General: <a href="mailto:contact@igrowfast.com">contact@igrowfast.com</a><br />
+    Privacy and data requests: <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a>
+  </address>
+  <p class="note">
+    The address above is our registered address. The platform itself runs on
+    infrastructure located in <strong>Germany</strong>, with storage and backups
+    in the European Union — see the <a href="/privacy#who">Privacy Policy</a>.
+  </p>
+
+  <h2 id="docs">Every document</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Document</th><th>What it covers</th></tr></thead>
+      <tbody>
+        {
+          docs.map((d) => (
+            <tr>
+              <td><a href={d.href}><strong>{d.title}</strong></a></td>
+              <td>{d.desc}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="regulators">Regulatory registrations</h2>
+  <p>
+    <span class="wip">In progress</span> <strong>Morocco — CNDP.</strong> Our
+    declaration to the Commission Nationale de contrôle de la protection des
+    Données à caractère Personnel, and the authorisations required for
+    transferring personal data abroad, are being filed. The reference numbers
+    will be published here once issued.
+  </p>
+  <p>
+    <span class="wip">In progress</span> <strong>EU and UK representatives.</strong>
+    Where required, representatives under Article 27 GDPR and UK GDPR are being
+    appointed, and their details will be published here and in the
+    <a href="/privacy#representatives">Privacy Policy</a>. We are not naming a
+    representative before one exists under a written mandate.
+  </p>
+
+  <h2 id="trademarks">Trademarks</h2>
+  <p>
+    Third-party names on this site are used descriptively, to say what iGrowFast
+    works with. They are the property of their owners:
+  </p>
+  <ul>
+    <li>WhatsApp is a trademark of Meta Platforms, Inc.</li>
+    <li>Google Ads&trade;, Google Analytics&trade; and Google Sheets&trade; are trademarks of Google LLC.</li>
+    <li>Shopify is a trademark of Shopify Inc.</li>
+    <li>WooCommerce is a trademark of Automattic Inc.</li>
+    <li>TikTok is a trademark of ByteDance Ltd.</li>
+    <li>Snapchat is a trademark of Snap Inc.</li>
+  </ul>
+  <p>
+    <strong>iGrowFast LLC is not affiliated with, endorsed by, or sponsored by
+    any of these companies.</strong> Where we say iGrowFast works with a service,
+    we mean exactly that and nothing more. Any carrier or courier named on this
+    site is likewise named descriptively; naming one is not a claim of
+    partnership.
+  </p>
+  <p>
+    The iGrowFast name, logo and the design of this site are ours.
+  </p>
+
+  <h2 id="notice">Notices to us</h2>
+  <p>
+    Legal notices should go to the registered address above, and to
+    <a href="mailto:contact@igrowfast.com">contact@igrowfast.com</a>. If you
+    believe content on this site infringes your rights, tell us what and why and
+    we will look at it promptly.
+  </p>
+
+  <h2 id="security">Reporting a security issue</h2>
+  <p>
+    Email <a href="mailto:contact@igrowfast.com">contact@igrowfast.com</a>. We
+    will not pursue you for a good-faith report — please give us a reasonable
+    chance to fix it before disclosing publicly.
+  </p>
+</Legal>
+
+<style>
+  .note {
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+  address {
+    margin-block: 1rem 1.25rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--line);
+  }
+</style>

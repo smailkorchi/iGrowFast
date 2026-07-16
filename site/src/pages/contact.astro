@@ -1,0 +1,259 @@
+---
+import Base from '../layouts/Base.astro';
+
+/**
+ * There is NO form backend. So this page does not ship a form that pretends to
+ * submit and silently swallows what someone typed — a contact form that eats a
+ * data-rights request is not a cosmetic bug, it is a failure to honour a
+ * statutory right.
+ *
+ * Until an endpoint exists, the routes here are real mailto: links. The form is
+ * marked as being connected.
+ */
+
+const EMAIL = 'contact@igrowfast.com';
+const PRIVACY_EMAIL = 'privacy@igrowfast.com';
+---
+
+<Base
+  title="Contact — iGrowFast"
+  description="Talk to us about running your cash-on-delivery operation on iGrowFast, or reach us about a privacy or data request."
+  path="/contact"
+>
+  <section class="head">
+    <div class="container">
+      <h1>Talk to us</h1>
+      <p class="lede">
+        Tell us how you run today — how many orders, how many numbers, which
+        couriers — and we'll tell you honestly whether this fits.
+      </p>
+    </div>
+  </section>
+
+  <section class="grid-wrap">
+    <div class="container">
+      <div class="grid">
+        <div class="col">
+          <h2>Sales and questions</h2>
+          <p>
+            A person reads these. Support is handled directly today, not through
+            a ticket queue.
+          </p>
+          <a class="mail" href={`mailto:${EMAIL}`}>{EMAIL}</a>
+
+          <h2 class="spaced">Privacy and data requests</h2>
+          <p>
+            To access, correct, or delete your data — or if you're a customer of
+            a business that uses iGrowFast — start here:
+          </p>
+          <a class="mail" href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>
+          <p class="fine">
+            Read <a href="/data-deletion">Your Privacy Rights &amp; Data Deletion</a>
+            first — if you bought something from a business that uses iGrowFast,
+            that business controls your data and we'll route you to them.
+          </p>
+
+          <h2 class="spaced">Already a customer?</h2>
+          <p>
+            Sign in at <a href="https://app.igrowfast.com">app.igrowfast.com</a>.
+          </p>
+
+          <h2 class="spaced">Registered address</h2>
+          <address>
+            <strong>iGrowFast LLC</strong><br />
+            A Wyoming limited liability company<br />
+            30 N Gould St Ste R<br />
+            Sheridan, WY 82801<br />
+            United States
+          </address>
+        </div>
+
+        <div class="col">
+          <div class="form-card">
+            <div class="form-head">
+              <h2>Send us a note</h2>
+              <span class="wip">Being connected</span>
+            </div>
+            <p class="form-note">
+              This form isn't wired to a backend yet, and we'd rather say so than
+              quietly drop what you wrote. It will open your mail client with the
+              details filled in — or just email
+              <a href={`mailto:${EMAIL}`}>{EMAIL}</a> directly.
+            </p>
+
+            <form id="contact-form">
+              <label>
+                <span>Your name</span>
+                <input type="text" name="name" autocomplete="name" required />
+              </label>
+              <label>
+                <span>Email</span>
+                <input type="email" name="email" autocomplete="email" required />
+              </label>
+              <label>
+                <span>Roughly how many orders a month?</span>
+                <input type="text" name="volume" />
+              </label>
+              <label>
+                <span>What are you trying to fix?</span>
+                <textarea name="message" rows="4" required></textarea>
+              </label>
+              <button type="submit" class="btn btn-primary">Open in my mail app</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .head {
+    padding-block: clamp(3rem, 2rem + 5vw, 5rem) 0;
+  }
+  .head h1 {
+    font-size: var(--step-hero);
+    line-height: 1.05;
+  }
+  .lede {
+    margin-top: 1.25rem;
+    font-size: var(--step-body-lg);
+    color: var(--muted);
+  }
+
+  .grid-wrap {
+    padding-block: clamp(2.5rem, 1rem + 4vw, 4rem) var(--space-section);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 3rem;
+    align-items: start;
+  }
+  .col h2 {
+    font-size: var(--step-h3);
+    margin-bottom: 0.5rem;
+  }
+  .col h2.spaced {
+    margin-top: 2.5rem;
+  }
+  .col p {
+    color: var(--muted);
+    font-size: var(--step-small);
+    line-height: 1.65;
+    max-width: 50ch;
+  }
+  .mail {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: var(--step-body-lg);
+    font-weight: 600;
+    color: var(--ink);
+    border-bottom: 2px solid var(--accent);
+  }
+  .mail:hover {
+    text-decoration: none;
+    color: var(--accent);
+  }
+  .fine {
+    margin-top: 0.75rem;
+    font-size: var(--step-caption);
+  }
+  address {
+    font-style: normal;
+    font-size: var(--step-small);
+    line-height: 1.7;
+    color: var(--muted);
+    margin-top: 0.75rem;
+  }
+
+  .form-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.75rem;
+  }
+  .form-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+  .form-head h2 {
+    margin: 0;
+  }
+  .wip {
+    display: inline-flex;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--line-soft);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: var(--step-caption);
+    font-weight: 500;
+  }
+  .form-note {
+    margin-bottom: 1.5rem;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  label span {
+    font-size: var(--step-small);
+    font-weight: 500;
+  }
+  input,
+  textarea {
+    font-family: var(--font-body);
+    font-size: var(--step-small);
+    color: var(--ink);
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 0.6rem 0.75rem;
+    width: 100%;
+    resize: vertical;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted);
+  }
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+  button {
+    align-self: flex-start;
+  }
+</style>
+
+<script>
+  // No backend. Compose a mail draft instead of POSTing into a void.
+  const form = document.getElementById('contact-form') as HTMLFormElement | null;
+  form?.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const d = new FormData(form);
+    const body = [
+      `Name: ${d.get('name') ?? ''}`,
+      `Email: ${d.get('email') ?? ''}`,
+      `Orders per month: ${d.get('volume') ?? ''}`,
+      '',
+      String(d.get('message') ?? ''),
+    ].join('\n');
+    window.location.href =
+      'mailto:contact@igrowfast.com?subject=' +
+      encodeURIComponent(`iGrowFast enquiry — ${d.get('name') ?? ''}`) +
+      '&body=' +
+      encodeURIComponent(body);
+  });
+</script>

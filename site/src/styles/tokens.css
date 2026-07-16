@@ -1,0 +1,229 @@
+/* ============================================================
+   iGrowFast — public site design tokens
+   ------------------------------------------------------------
+   LOCKED IDENTITY. Every hex below is copied verbatim from
+   BRAND_GUIDELINES.md, which itself extracts them from the product
+   (src/index.css, tailwind.config.ts, DESIGN.md).
+
+   Do NOT alter a hue, value, or font family here. The marketing site
+   and the app must read as one system, and the product demos on this
+   site are pixel recreations of the real UI — if these drift, the
+   demos stop being faithful and the whole premise breaks.
+
+   Craft lives in layout, spacing, hierarchy, and motion.
+   ============================================================ */
+
+:root {
+  /* --- Core palette (locked) --- */
+  --ink: #141413;         /* body text, headings, PRIMARY BUTTONS */
+  --ink-soft: #2a2926;    /* secondary dark surfaces, footers */
+  --canvas: #faf9f5;      /* page background (default) */
+  --paper: #ffffff;       /* cards, elevated panels */
+  --line: #e8e6dc;        /* borders, dividers, muted fills */
+  --line-soft: #f1efe8;   /* hairline separators, subtle zebra */
+  --mid: #b0aea5;         /* placeholder, disabled, low-emphasis icons */
+  --muted: #6b6a63;       /* captions, meta, secondary copy */
+  --accent: #d97757;      /* links, focus rings, highlights — NEVER a button fill */
+  --accent-soft: #f4d9c9; /* accent backgrounds, badges */
+  --destructive: #c96356;
+
+  /* --- Secondary accents: data/illustration only, used sparingly --- */
+  --cool: #6a9bcc;
+  --cool-soft: #d7e3f1;
+  --green: #788c5d;
+  --green-soft: #dbe3cb;
+
+  /* --- Shape --- */
+  --radius: 0.75rem;      /* 12px — cards */
+  --radius-md: 10px;      /* buttons, inputs */
+  --radius-sm: 8px;       /* chips */
+
+  /* --- Type --- */
+  --font-display: 'Poppins', Arial, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Lora', Georgia, serif;
+
+  /* Fluid display scale. Ceiling is 72px per BRAND_GUIDELINES §3
+     (hero 56-72px), which also sits under the 96px shouting-ceiling. */
+  --step-hero: clamp(2.5rem, 1.6rem + 4.2vw, 4.5rem);   /* 40 -> 72 */
+  --step-h1: clamp(2rem, 1.5rem + 2.2vw, 2.5rem);       /* 32 -> 40 */
+  --step-h2: clamp(1.5rem, 1.2rem + 1.4vw, 1.875rem);   /* 24 -> 30 */
+  --step-h3: clamp(1.125rem, 1rem + 0.6vw, 1.375rem);   /* 18 -> 22 */
+  --step-body-lg: 1.125rem;                             /* 18 */
+  --step-body: 1rem;                                    /* 16 */
+  --step-small: 0.875rem;                               /* 14 */
+  --step-caption: 0.8125rem;                            /* 13 */
+
+  /* --- Spacing: 4px base grid. Section rhythm 96-128 desktop / 64 mobile. --- */
+  --space-section: clamp(4rem, 2rem + 8vw, 8rem);
+  --container: 1400px;
+  --gutter: clamp(1.25rem, 0.5rem + 3vw, 2rem);
+
+  /* --- Elevation: prefer borders over shadows (BRAND_GUIDELINES §4) --- */
+  --shadow-card: 0 1px 2px rgba(20, 20, 19, 0.04), 0 8px 24px rgba(20, 20, 19, 0.06);
+
+  /* --- Motion --- */
+  --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
+  --dur-fast: 200ms;
+  --dur-mid: 300ms;
+  --dur-slow: 400ms;
+
+  /* --- Z-index: semantic scale, never arbitrary values --- */
+  --z-sticky: 100;
+  --z-nav: 200;
+  --z-backdrop: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+}
+
+/* The product ships a .dark theme; the marketing site does not.
+   BRAND_GUIDELINES §6: "Don't ship a dark hero as the default marketing look."
+   Light-first is the committed brand. There is no dark variant here on purpose. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-body);
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em; /* BRAND_GUIDELINES §3. Floor is -0.04em; we are well clear. */
+  text-wrap: balance;
+  margin: 0;
+}
+
+h1 { font-size: var(--step-h1); line-height: 1.1; }
+h2 { font-size: var(--step-h2); line-height: 1.15; font-weight: 600; }
+h3 { font-size: var(--step-h3); line-height: 1.25; font-weight: 600; }
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* Body copy caps at 65-75ch for readability. */
+.prose p,
+.lede {
+  max-width: 68ch;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  display: block;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent); /* focus ring is ALWAYS orange — §2 Rules */
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.container {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* --- Buttons. Primary CTA = ink, never the accent. §2 Rules + §5. --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--step-small);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth),
+              color var(--dur-fast) var(--ease-smooth);
+}
+.btn:hover { text-decoration: none; }
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--canvas);
+}
+.btn-primary:hover {
+  background: var(--ink-soft);
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+.btn-secondary:hover {
+  background: var(--line-soft);
+}
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: var(--step-small);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Reduced motion is not optional — every animation needs an alternative.
+   The demo engine has its own path (renders a static end-state); this
+   covers CSS-driven motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

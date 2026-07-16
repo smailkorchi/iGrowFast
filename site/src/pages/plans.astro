@@ -1,0 +1,257 @@
+---
+import Base from '../layouts/Base.astro';
+
+/**
+ * NO PRICES ON THIS PAGE. This is deliberate and load-bearing.
+ *
+ * The product has no payment processor, no feature gating (plans.features is
+ * '[]' and is read by nothing), no licence enforcement, and its money UI is
+ * MAD-hardcoded. Publishing a price would advertise something the system
+ * cannot bill, gate, or enforce — and would trigger the full ROSCA checkout
+ * stack plus California's ARL, whose remedy for getting it wrong is that the
+ * goods are deemed an unconditional gift: a refund of everything ever charged.
+ *
+ * Every tier below describes SHAPE and INCLUSIONS only. Every CTA is a
+ * conversation.
+ */
+
+const tiers = [
+  {
+    name: 'Starter',
+    who: 'One business, one team, getting off spreadsheets.',
+    includes: [
+      'Orders, imports and the full status history',
+      'Product and accessory catalog',
+      'One carrier integration',
+      'Delivery and return notes',
+      'Seller and courier roles',
+      'COD tracking and reconciliation',
+    ],
+  },
+  {
+    name: 'Growth',
+    who: 'Selling over chat, across several numbers and agents.',
+    featured: true,
+    includes: [
+      'Everything in Starter',
+      'The shared inbox, across multiple numbers',
+      'Agent assignment and conversation routing',
+      'All carrier integrations, with batch parcel creation',
+      'Campaign and ad-spend reporting',
+      'Media-buyer role, scoped to its own numbers',
+      'Devis, facture, bon de commande, bon de livraison',
+    ],
+  },
+  {
+    name: 'Scale',
+    who: 'Multiple businesses, or a team that needs the whole loop.',
+    includes: [
+      'Everything in Growth',
+      'Multiple businesses under one operator',
+      'Recurring charges and salary tracking',
+      'Sales-channel and sheet sync',
+      'Commission reconciliation across every role',
+      'Priority support, direct',
+    ],
+  },
+];
+---
+
+<Base
+  title="Plans — iGrowFast"
+  description="Three shapes, depending on how much of the COD loop you run in one place. Pricing is arranged directly — tell us how you operate and we'll tell you what fits."
+  path="/plans"
+>
+  <section class="head">
+    <div class="container">
+      <h1>What's included</h1>
+      <p class="lede">
+        Three shapes, depending on how much of the loop you run in one place.
+        We price directly, against how you actually operate — not against a
+        number on a page.
+      </p>
+      <p class="wip-note">
+        <span class="wip">In progress</span> Self-serve pricing and checkout are
+        being built. Until then, plans are arranged directly with us.
+      </p>
+    </div>
+  </section>
+
+  <section class="tiers">
+    <div class="container">
+      <div class="tier-grid">
+        {
+          tiers.map((t) => (
+            <div class:list={['tier', { 'is-featured': t.featured }]}>
+              <h2>{t.name}</h2>
+              <p class="who">{t.who}</p>
+              <ul>
+                {t.includes.map((i) => <li>{i}</li>)}
+              </ul>
+              <a href="/contact" class:list={['btn', t.featured ? 'btn-primary' : 'btn-secondary']}>
+                Talk to us
+              </a>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="soon">
+    <div class="container">
+      <h2>On the way</h2>
+      <div class="soon-item">
+        <h3>Hermes <span class="wip">Coming soon</span></h3>
+        <p>
+          An assistant layer for the inbox. It isn't built yet, it isn't part of
+          any plan, and we'd rather say so than list it as though it ships today.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="close">
+    <div class="container">
+      <h2>Tell us how you run today</h2>
+      <p>
+        How many orders, how many numbers, which couriers. We'll tell you which
+        shape fits — and if none of them do, we'll say that too.
+      </p>
+      <a href="/contact" class="btn btn-primary">Talk to us</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .head {
+    padding-block: clamp(3rem, 2rem + 5vw, 5rem) 0;
+  }
+  .head h1 {
+    font-size: var(--step-hero);
+    line-height: 1.05;
+  }
+  .lede {
+    margin-top: 1.25rem;
+    font-size: var(--step-body-lg);
+    color: var(--muted);
+  }
+  .wip-note {
+    margin-top: 1.5rem;
+    font-size: var(--step-small);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .wip {
+    display: inline-flex;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--line-soft);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: var(--step-caption);
+    font-weight: 500;
+  }
+
+  .tiers {
+    padding-block: clamp(2.5rem, 1rem + 4vw, 4rem);
+  }
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+  }
+  /* Cards ARE the right affordance here: three parallel, comparable options
+     that a reader scans side by side. That is what a card is for. */
+  .tier {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100%;
+  }
+  .tier.is-featured {
+    border-color: var(--ink);
+  }
+  .tier h2 {
+    font-size: var(--step-h3);
+  }
+  .who {
+    color: var(--muted);
+    font-size: var(--step-small);
+    min-height: 3em;
+  }
+  .tier ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex: 1;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 1rem;
+  }
+  .tier li {
+    font-size: var(--step-small);
+    line-height: 1.5;
+    padding-left: 1.1rem;
+    position: relative;
+  }
+  .tier li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  .tier .btn {
+    width: 100%;
+  }
+
+  .soon {
+    padding-block: clamp(2rem, 1rem + 3vw, 3.5rem);
+    border-top: 1px solid var(--line);
+  }
+  .soon h2 {
+    margin-bottom: 1.5rem;
+  }
+  .soon-item {
+    max-width: 60ch;
+  }
+  .soon-item h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .soon-item p {
+    color: var(--muted);
+    font-size: var(--step-small);
+    line-height: 1.65;
+  }
+
+  .close {
+    padding-block: var(--space-section);
+    border-top: 1px solid var(--line);
+  }
+  .close h2 {
+    max-width: 18ch;
+  }
+  .close p {
+    margin-block: 1rem 2rem;
+    color: var(--muted);
+    font-size: var(--step-body-lg);
+    max-width: 56ch;
+  }
+</style>

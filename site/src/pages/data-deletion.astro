@@ -1,0 +1,172 @@
+---
+import Legal from '../layouts/Legal.astro';
+
+/**
+ * This doubles as Meta's required "Data Deletion Instructions URL" — a
+ * mandatory App Review field. Meta publishes NO content specification for it
+ * (uncertainty U19 in the corpus), so this over-delivers rather than guesses at
+ * a minimum.
+ *
+ * The ROLE FORK is the substance of this page: an iGrowFast user deleting their
+ * own account is a completely different request from an end customer of a
+ * seller, whose data we hold as a PROCESSOR and cannot delete on our own
+ * authority. Getting that wrong means either ignoring a statutory right or
+ * deleting a business's records on a stranger's say-so.
+ */
+---
+
+<Legal
+  title="Your Privacy Rights & Data Deletion"
+  description="How to access, correct or delete your data at iGrowFast — whether you use the product, or bought something from a business that does."
+  path="/data-deletion"
+  updated="16 July 2026"
+  summary="How to get your data, correct it, or have it deleted. Which route you take depends on how your data reached us."
+>
+  <h2 id="start">Start here: which one are you?</h2>
+  <p>
+    This matters, because it decides who is allowed to act on your request.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>If you…</th><th>Then…</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Log in to iGrowFast</strong> — you're a business owner, seller, media buyer, courier or admin with an account</td>
+          <td>We are the controller of your account data. Go to <a href="#users">Section A</a>. We can act directly.</td>
+        </tr>
+        <tr>
+          <td><strong>Bought something from a business that uses iGrowFast</strong> — your name, phone or address is in someone's order list, or you messaged a business on WhatsApp</td>
+          <td>That business controls your data, not us. Go to <a href="#customers">Section B</a>. We will route your request to them and follow their instruction.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="users">Section A — You have an iGrowFast account</h2>
+  <h3>What you can ask for</h3>
+  <ul>
+    <li><strong>A copy</strong> of the personal data we hold about you.</li>
+    <li><strong>A correction</strong> if something is wrong.</li>
+    <li><strong>Deletion</strong> of your account and personal data.</li>
+    <li><strong>Restriction or objection</strong> — tell us to stop a particular use.</li>
+    <li><strong>Portability</strong> — a machine-readable copy.</li>
+    <li><strong>Withdrawal of consent</strong>, at any time, for anything based on consent.</li>
+  </ul>
+
+  <h3>How to ask</h3>
+  <p>
+    Email <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a> from
+    the address on your account, and tell us which of the above you want. That's
+    the whole process — there is no form to hunt for and no fee.
+  </p>
+
+  <h3>What happens next</h3>
+  <ol>
+    <li>We confirm we received it, normally within a few days.</li>
+    <li>
+      We verify it's really you. If you email from your account address that's
+      usually enough; if not, we may ask for something more. We will never ask
+      you for a password.
+    </li>
+    <li>We complete it <strong>within one month</strong>. If it's genuinely complex we may extend by two further months, and we'll tell you why before the first month is up.</li>
+  </ol>
+
+  <h3>What deletion actually does</h3>
+  <p>Being specific, because "we delete everything" is usually not true:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>What</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>Your login, profile, and personal details</td><td>Deleted</td></tr>
+        <tr><td>Your sessions and authentication records</td><td>Deleted — you're signed out everywhere</td></tr>
+        <tr><td>Your business's order and customer records</td><td><strong>Not deleted.</strong> Those belong to the business, not to you personally. If you're the business owner and want the whole account removed, say so explicitly.</td></tr>
+        <tr><td>Records we're legally required to keep (e.g. accounting)</td><td>Retained for the required period, then deleted</td></tr>
+        <tr><td>Backups</td><td>Deletion propagates as backups rotate out on their schedule — not instantly</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="customers">Section B — You're a customer of a business that uses iGrowFast</h2>
+  <p>
+    If you ordered something and it was delivered by a business running on
+    iGrowFast, or you sent a WhatsApp message to that business's number, your
+    data is in our system — but it is <strong>their</strong> data, not ours.
+  </p>
+  <p>
+    Under data protection law we are a <strong>processor</strong>. We only act on
+    the instructions of the business that collected your data. We're not allowed
+    to delete a company's business records because someone emailed us, and you
+    wouldn't want us to be.
+  </p>
+
+  <h3>The fastest route</h3>
+  <p>
+    <strong>Contact the business you bought from directly.</strong> They control
+    the data and can action it immediately. They will usually be the name on the
+    package or the number you messaged.
+  </p>
+
+  <h3>If you can't reach them, or don't know who they are</h3>
+  <p>
+    Email <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a> with
+    whatever you have — the phone number you used, an order reference, a delivery
+    address, or the number you messaged. Then:
+  </p>
+  <ol>
+    <li>We identify which business holds your data.</li>
+    <li>We forward your request to them and tell them their legal obligations.</li>
+    <li>We tell you who they are, so you can follow up yourself.</li>
+    <li>When they instruct us to delete or correct it, we carry it out and confirm.</li>
+  </ol>
+  <p>
+    We will not leave you stuck in the middle. If a business ignores a lawful
+    request from you, you can complain to your data protection authority — in the
+    EU, your local supervisory authority; in the UK, the ICO; in Morocco, the
+    CNDP.
+  </p>
+
+  <h2 id="messaging">Messaging data specifically</h2>
+  <p>
+    If you messaged a business on WhatsApp, the conversation exists in several
+    places at once, and we can only speak for ours:
+  </p>
+  <ul>
+    <li><strong>In iGrowFast</strong> — deletable, on the instruction of the business that operates the number.</li>
+    <li><strong>On the business's own phone or account</strong> — theirs to delete.</li>
+    <li><strong>On WhatsApp / Meta's systems</strong> — governed by Meta's own privacy policy. We cannot delete anything there, and neither can the business. You'd need to take that up with Meta.</li>
+  </ul>
+  <p>
+    We'd rather tell you that plainly than imply a delete button here erases a
+    conversation everywhere it exists.
+  </p>
+
+  <h2 id="app">Deleting data connected through a platform app</h2>
+  <p>
+    If a business connected iGrowFast to a platform account (for example a
+    messaging or advertising platform) and wants that connection's data removed:
+    disconnect the integration inside the product, then email
+    <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a> to request
+    deletion of the data retrieved through it. We will confirm when it is done.
+  </p>
+
+  <h2 id="california">If you're in California</h2>
+  <p>
+    You have the right to know, delete, correct, and to opt out of sale or
+    sharing of personal information, and not to be discriminated against for
+    exercising any of them. <strong>We do not sell or share personal
+    information</strong> as the CCPA defines those terms. Use the same address:
+    <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a>. You may use
+    an authorised agent.
+  </p>
+
+  <h2 id="more">Related</h2>
+  <ul>
+    <li><a href="/privacy">Privacy Policy</a> — what we collect and why</li>
+    <li><a href="/cookies">Cookie Policy</a> — and how to change your choices</li>
+    <li><a href="/dpa">Data Processing Addendum</a> — for businesses using iGrowFast</li>
+    <li><a href="/contact">Contact</a></li>
+  </ul>
+</Legal>

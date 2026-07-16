@@ -1,0 +1,156 @@
+---
+// The footer is load-bearing, not decoration.
+// TikTok's developer terms require privacy + terms reachable WITHOUT opening a
+// menu; Snap requires the privacy policy "conspicuously linked"; Google's OAuth
+// homepage rules require the privacy policy linked from the homepage itself.
+// It therefore renders on every page including 404, never behind a disclosure.
+const year = new Date().getFullYear();
+
+const legal = [
+  { href: '/privacy', label: 'Privacy Policy' },
+  { href: '/terms', label: 'Terms of Service' },
+  { href: '/dpa', label: 'Data Processing Addendum' },
+  { href: '/acceptable-use', label: 'Acceptable Use' },
+  { href: '/cookies', label: 'Cookie Policy' },
+  { href: '/refunds', label: 'Refunds & Cancellation' },
+  { href: '/data-deletion', label: 'Your Privacy Rights & Data Deletion' },
+  { href: '/accessibility', label: 'Accessibility' },
+  { href: '/legal', label: 'Legal Notices' },
+];
+
+const product = [
+  { href: '/', label: 'Home' },
+  { href: '/about', label: 'About' },
+  { href: '/plans', label: 'Plans' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <nav class="col" aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          {product.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+        </ul>
+      </nav>
+
+      <nav class="col col-legal" aria-label="Legal">
+        <h2>Legal</h2>
+        <ul>
+          {legal.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+          <li>
+            <button type="button" data-cookie-settings class="linkish">Cookie settings</button>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="col col-entity">
+        <h2>iGrowFast</h2>
+        <address>
+          <strong>iGrowFast LLC</strong><br />
+          A Wyoming limited liability company<br />
+          30 N Gould St Ste R<br />
+          Sheridan, WY 82801<br />
+          United States
+        </address>
+      </div>
+    </div>
+
+    <div class="fine">
+      <p>&copy; {year} iGrowFast LLC. All rights reserved.</p>
+      <!--
+        Non-endorsement disclaimer. Required in substance by every platform whose
+        marks appear anywhere on this site. Meta grants third parties NO general
+        licence to display its brand features, so no logo appears here — only
+        nominative text references, which this line qualifies.
+      -->
+      <p class="disclaimer">
+        WhatsApp is a trademark of Meta Platforms, Inc. Google Ads&trade;, Google
+        Analytics&trade; and Google Sheets&trade; are trademarks of Google LLC.
+        Shopify is a trademark of Shopify Inc. WooCommerce is a trademark of
+        Automattic Inc. TikTok is a trademark of ByteDance Ltd. Snapchat is a
+        trademark of Snap Inc. iGrowFast LLC is not affiliated with, endorsed by,
+        or sponsored by any of these companies.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    background: var(--ink-soft);
+    color: var(--canvas);
+    padding-block: clamp(3rem, 2rem + 4vw, 5rem) 2rem;
+    margin-top: var(--space-section);
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2.5rem;
+  }
+  .col h2 {
+    font-family: var(--font-body);
+    font-size: var(--step-caption);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mid);
+    margin-bottom: 1rem;
+  }
+  .col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .col a,
+  .linkish {
+    color: var(--canvas);
+    font-size: var(--step-small);
+    /* Light type on a dark ground reads lighter than it measures — the
+       extra line-height is the compensation the brand doc calls for. */
+    line-height: 1.7;
+    opacity: 0.82;
+    transition: opacity var(--dur-fast) var(--ease-smooth);
+  }
+  .col a:hover,
+  .linkish:hover {
+    opacity: 1;
+    text-decoration: underline;
+  }
+  .linkish {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  address {
+    font-style: normal;
+    font-size: var(--step-small);
+    line-height: 1.7;
+    color: var(--canvas);
+    opacity: 0.82;
+  }
+  .fine {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(250, 249, 245, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .fine p {
+    font-size: var(--step-caption);
+    color: var(--canvas);
+    opacity: 0.6;
+  }
+  .disclaimer {
+    max-width: 90ch;
+  }
+</style>

@@ -1,0 +1,279 @@
+---
+/**
+ * The hero visual: ten scattered tabs collapse into one workspace.
+ *
+ * This IS the pitch. "Ten tabs, one order" is a thing you watch happen, not a
+ * sentence you read — so the headline says it and this shows it, and neither
+ * repeats the other's job.
+ *
+ * Brand names appear as TEXT ONLY, used nominatively to depict the problem.
+ * No logos: we have no licence to display any of them, and the footer's
+ * non-endorsement line qualifies the text references.
+ *
+ * Same 960-canvas + transform:scale technique as the demos, so the whole site
+ * shares one motion language.
+ */
+
+const tabs = [
+  { label: 'WhatsApp', x: 40, y: 30, r: -8 },
+  { label: 'Sheets', x: 300, y: 8, r: 5 },
+  { label: 'Coliaty', x: 560, y: 40, r: -4 },
+  { label: 'Meta Ads', x: 90, y: 130, r: 6 },
+  { label: 'Vitex', x: 380, y: 120, r: -6 },
+  { label: 'Commandes', x: 610, y: 155, r: 7 },
+  { label: 'Digylog', x: 30, y: 240, r: 4 },
+  { label: 'Comptabilité', x: 300, y: 250, r: -5 },
+  { label: 'Stock', x: 585, y: 265, r: 8 },
+  { label: 'Commissions', x: 150, y: 350, r: -7 },
+];
+---
+
+<div class="hero-stage-frame" data-w="760" data-h="470">
+  <div class="hero-stage" data-w="760" style="width:760px;height:470px">
+    <!-- the scattered mess -->
+    <div class="tabs" id="hero-tabs">
+      {
+        tabs.map((t, i) => (
+          <div
+            class="tab"
+            data-i={i}
+            style={`left:${t.x}px; top:${t.y}px; --r:${t.r}deg`}
+          >
+            <span class="dot" />
+            <span class="tab-label">{t.label}</span>
+          </div>
+        ))
+      }
+    </div>
+
+    <!-- what they become -->
+    <div class="one" id="hero-one">
+      <div class="one-bar">
+        <span class="one-dot" /><span class="one-dot" /><span class="one-dot" />
+        <span class="one-title">iGrowFast</span>
+      </div>
+      <div class="one-body">
+        <div class="one-side">
+          <span class="ln w60" /><span class="ln w80" /><span class="ln w45" />
+          <span class="ln w70" /><span class="ln w55" />
+        </div>
+        <div class="one-main">
+          <div class="one-row"><span class="ln w40" /><span class="pill" /></div>
+          <div class="one-row"><span class="ln w65" /><span class="pill" /></div>
+          <div class="one-row"><span class="ln w50" /><span class="pill" /></div>
+          <div class="one-row"><span class="ln w70" /><span class="pill" /></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .hero-stage-frame {
+    position: relative;
+    width: 100%;
+  }
+  .hero-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    user-select: none;
+  }
+
+  .tab {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 13px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 6px 16px rgba(20, 20, 19, 0.05);
+    white-space: nowrap;
+    transform: rotate(var(--r));
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--mid);
+    flex-shrink: 0;
+  }
+  .tab-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .one {
+    position: absolute;
+    left: 80px;
+    top: 65px;
+    width: 600px;
+    height: 340px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 20px 50px rgba(20, 20, 19, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .one-bar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--canvas);
+  }
+  .one-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--line);
+  }
+  .one-title {
+    margin-left: 8px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .one-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 150px 1fr;
+  }
+  .one-side {
+    border-right: 1px solid var(--line-soft);
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+  .one-main {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .one-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .ln {
+    height: 7px;
+    border-radius: 999px;
+    background: var(--line);
+    display: block;
+  }
+  .w40 { width: 40%; }
+  .w45 { width: 45%; }
+  .w50 { width: 50%; }
+  .w55 { width: 55%; }
+  .w60 { width: 60%; }
+  .w65 { width: 65%; }
+  .w70 { width: 70%; }
+  .w80 { width: 80%; }
+  .pill {
+    width: 44px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    flex-shrink: 0;
+  }
+
+  /* Reduced motion: no collapse, no scatter. Show the resolved state — the
+     answer, not the problem. The headline already carries the problem. */
+  @media (prefers-reduced-motion: reduce) {
+    .tabs {
+      display: none;
+    }
+    .one {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+</style>
+
+<script>
+  import { gsap } from 'gsap';
+
+  const frame = document.querySelector('.hero-stage-frame') as HTMLElement | null;
+  const stage = document.querySelector('.hero-stage') as HTMLElement | null;
+  if (frame && stage) {
+    // Same fixed-canvas scaling trick the demos use — the composition never
+    // reflows, it only scales, so the choreography is identical at every size.
+    const fit = () => {
+      const w = parseInt(frame.dataset.w!, 10);
+      const h = parseInt(frame.dataset.h!, 10);
+      frame.style.aspectRatio = `${w} / ${h}`;
+      stage.style.transform = `scale(${frame.clientWidth / w})`;
+    };
+    fit();
+    new ResizeObserver(fit).observe(frame);
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const tabs = gsap.utils.toArray<HTMLElement>('.tab');
+    const one = document.querySelector('.one');
+
+    if (reduced) {
+      gsap.set(one, { autoAlpha: 1, scale: 1 });
+    } else {
+      gsap.set(one, { autoAlpha: 0, scale: 0.94, transformOrigin: 'center center' });
+
+      const tl = gsap.timeline({ delay: 0.35 });
+
+      // 1 — the mess arrives, scattered and slightly crooked.
+      tl.from(tabs, {
+        autoAlpha: 0,
+        scale: 0.8,
+        y: 14,
+        duration: 0.5,
+        ease: 'power2.out',
+        stagger: { each: 0.055, from: 'random' },
+      });
+
+      // 2 — it sits there a beat. This pause is the point: it's the "ugh".
+      tl.to({}, { duration: 0.65 });
+
+      // 3 — everything collapses toward the centre and vanishes.
+      tl.to(tabs, {
+        x: () => 380 - (gsap.getProperty(tabs[0], 'x') as number),
+        duration: 0.01,
+        stagger: 0,
+      }, '<');
+
+      tl.to(
+        tabs,
+        {
+          // Converge on the centre of the canvas rather than each tab's own
+          // position — computed per-target from where it actually sits.
+          x: (i, t: HTMLElement) => 380 - (t.offsetLeft + t.offsetWidth / 2),
+          y: (i, t: HTMLElement) => 235 - (t.offsetTop + t.offsetHeight / 2),
+          rotate: 0,
+          scale: 0.35,
+          autoAlpha: 0,
+          duration: 0.75,
+          ease: 'power3.inOut',
+          stagger: { each: 0.03, from: 'edges' },
+        },
+        '+=0'
+      );
+
+      // 4 — one thing remains.
+      tl.to(
+        one,
+        { autoAlpha: 1, scale: 1, duration: 0.6, ease: 'power3.out' },
+        '-=0.32'
+      );
+    }
+  }
+</script>

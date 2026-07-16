@@ -1,0 +1,304 @@
+---
+import Legal from '../layouts/Legal.astro';
+
+/**
+ * The keystone document. Grounded in docs/website-recon/RAW-legal.json.
+ *
+ * Three things in here are deliberate and must not be "cleaned up":
+ *
+ * 1. The messaging provider is disclosed as a CATEGORY ("messaging
+ *    infrastructure providers, EU-hosted"), never by vendor name. GDPR
+ *    Art 13(1)(e) permits "categories of recipients". What is NOT permitted —
+ *    and what would be an affirmative false statement under FTC Act §5 — is
+ *    implying WhatsApp data reaches only Meta. It does not, and this document
+ *    never says it does.
+ *
+ * 2. German processing is stated plainly. The company is American; the servers
+ *    are not. Concealing that mismatch is what turns it into a §5 problem.
+ *
+ * 3. Facts that do not exist yet (EU/UK representatives, the CNDP filing) are
+ *    marked in-progress rather than asserted. A policy claiming a filing that
+ *    hasn't happened is the exact failure this whole exercise exists to avoid.
+ */
+---
+
+<Legal
+  title="Privacy Policy"
+  description="How iGrowFast LLC collects, uses, stores and shares personal data — including what we hold for our own users and what we process on behalf of the businesses that use us."
+  path="/privacy"
+  updated="16 July 2026"
+  summary="What we do with personal data — ours, our customers', and their customers'. Written to be read, not to be survived."
+>
+  <h2 id="who">1. Who we are</h2>
+  <p>
+    This service is operated by <strong>iGrowFast LLC</strong>, a limited
+    liability company formed in Wyoming, United States.
+  </p>
+  <address>
+    iGrowFast LLC<br />
+    30 N Gould St Ste R<br />
+    Sheridan, WY 82801<br />
+    United States<br />
+    <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a>
+  </address>
+  <p>
+    <strong>Where your data actually is.</strong> We are an American company,
+    but our servers are not in America. The platform runs on infrastructure
+    located in <strong>Germany</strong>, and backups and stored files are held
+    in the <strong>European Union</strong>. We state this here, at the top,
+    because it is the sort of thing a privacy policy should not bury.
+  </p>
+
+  <h2 id="roles">2. Two different roles — this matters for your rights</h2>
+  <p>
+    iGrowFast is software used by businesses to run their own operations. That
+    means we handle two very different kinds of personal data, and our
+    responsibility is different for each.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Whose data</th><th>Our role</th><th>What that means for you</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Our own users — the people who log in to iGrowFast (business owners, sellers, media buyers, couriers)</td>
+          <td><strong>Controller</strong></td>
+          <td>We decide what we collect and why. Bring your requests directly to us.</td>
+        </tr>
+        <tr>
+          <td>End customers — people who bought something from a business that uses iGrowFast (name, phone, delivery address, order contents, chat messages)</td>
+          <td><strong>Processor</strong></td>
+          <td>The business you bought from decides what happens to your data. We only act on their instructions. See <a href="/data-deletion">Your Privacy Rights &amp; Data Deletion</a> — we will route you to them.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    If you are an end customer and you contact us, we will not quietly ignore
+    you — but we generally cannot delete or change your data on our own
+    authority, because it isn't ours. We will identify the business that holds
+    it and pass your request on.
+  </p>
+
+  <h2 id="what">3. What we collect</h2>
+  <h3>From our users</h3>
+  <ul>
+    <li>Account details: name, username, email address, phone number, role, and which business you belong to.</li>
+    <li>Authentication data: a hashed password, session records, and — if you enable it — two-factor authentication settings.</li>
+    <li>Usage and security records: sign-in events, IP address and approximate location derived from it, and browser/device information.</li>
+    <li>Anything you type into the product.</li>
+  </ul>
+  <h3>On behalf of our customers (their end customers' data)</h3>
+  <ul>
+    <li>Order data: names, phone numbers, delivery addresses, cities and zones, order contents and prices, delivery and return status.</li>
+    <li>Message content: the text, images, audio, documents and metadata of conversations conducted through the business's own messaging numbers.</li>
+    <li>Contact records the business imports or creates.</li>
+  </ul>
+  <h3>From visitors to this website</h3>
+  <ul>
+    <li>Standard server and security logs.</li>
+    <li>Cookies and similar technologies — but only the strictly necessary ones unless you consent. See our <a href="/cookies">Cookie Policy</a>.</li>
+  </ul>
+
+  <h2 id="why">4. Why we use it, and our legal basis</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Purpose</th><th>Legal basis (where the GDPR applies)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Providing the product to the business you work for</td><td>Performance of a contract</td></tr>
+        <tr><td>Keeping accounts secure; detecting abuse; sign-in alerts</td><td>Legitimate interests (security)</td></tr>
+        <tr><td>Verifying an email address at signup</td><td>Legitimate interests (preventing fraud and undeliverable accounts)</td></tr>
+        <tr><td>Analytics and advertising on this website</td><td><strong>Consent</strong> — nothing is set until you agree, and you can withdraw at any time</td></tr>
+        <tr><td>Processing end-customer data inside the product</td><td>Determined by our customer, who is the controller. We act on their instructions.</td></tr>
+        <tr><td>Meeting legal and accounting obligations</td><td>Legal obligation</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="recipients">5. Who else sees it</h2>
+  <p>
+    We do not sell personal data. We do not share it with data brokers. We use
+    a small number of service providers, described here by category:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Category</th><th>What they handle</th><th>Where</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Hosting and infrastructure</td><td>The application, the database, and everything in it</td><td>Germany</td></tr>
+        <tr><td>Object storage and backups</td><td>Uploaded files, media, and encrypted backups</td><td>European Union</td></tr>
+        <tr><td>Messaging infrastructure providers</td><td>Sending and receiving messages on your business's numbers, including message content and the phone numbers involved</td><td>European Union</td></tr>
+        <tr><td>Email delivery</td><td>Transactional email we send you</td><td>European Union</td></tr>
+        <tr><td>Email verification</td><td>Checking an address is deliverable at signup</td><td>European Union / United States</td></tr>
+        <tr><td>Bot and abuse protection</td><td>Challenge checks on sign-in forms</td><td>Global edge network</td></tr>
+        <tr>
+          <td>Analytics and advertising <span class="wip">Not yet active</span></td>
+          <td>Website measurement and ad measurement — <strong>only if you consent</strong></td>
+          <td>United States / global</td>
+        </tr>
+        <tr>
+          <td>AI providers <span class="wip">Not yet in production</span></td>
+          <td>Not currently used in the product</td>
+          <td>United States</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    We describe these by category rather than by brand because the specific
+    vendors within a category change over time, and a list of names goes stale
+    faster than it helps. If you are a customer and need the current named list
+    for your own compliance records, ask us and we will provide it under our
+    <a href="/dpa">Data Processing Addendum</a>.
+  </p>
+  <p>
+    <strong>What we will not claim.</strong> Messages sent through the product
+    are handled by the messaging infrastructure described above as well as by
+    the messaging platform itself. We are not going to tell you your messages
+    only ever touch one company, because that would not be true.
+  </p>
+
+  <h3>Advertising on this website</h3>
+  <p>
+    If you consent to marketing cookies, this website can load measurement tags
+    from advertising platforms. For some of these — notably the Meta pixel —
+    the platform and iGrowFast act as <strong>joint controllers</strong> for the
+    collection and transmission of that data, following the Court of Justice's
+    decision in <em>Fashion ID</em> (C-40/17). Consent is asked for before
+    anything loads, and refusing is exactly as easy as accepting.
+  </p>
+  <p>
+    <span class="wip">In progress</span> These tags are configured but not yet
+    activated — no advertising or analytics identifiers are currently issued by
+    this website. This section describes what happens when they are, and it will
+    not change what we ask you for: consent first.
+  </p>
+
+  <h2 id="transfers">6. Sending data across borders</h2>
+  <p>
+    Personal data in the product is processed in Germany and stored in the
+    European Union. Some data reaches the United States, because we are an
+    American company and some of our providers are American.
+  </p>
+  <p>
+    Where data leaves the European Economic Area, we rely on the European
+    Commission's <strong>Standard Contractual Clauses</strong>, together with an
+    assessment of the destination country's laws and additional safeguards
+    where needed.
+  </p>
+  <p>
+    <span class="wip">In progress</span> Our transfer documentation is being
+    completed, including the authorisation required under Moroccan law for
+    transfers abroad. See section 10.
+  </p>
+
+  <h2 id="retention">7. How long we keep it</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Data</th><th>Kept for</th></tr></thead>
+      <tbody>
+        <tr><td>Account data for our users</td><td>While the account is active, then deleted or anonymised after closure</td></tr>
+        <tr><td>End-customer and order data</td><td>For as long as our customer instructs. They decide; we act on it.</td></tr>
+        <tr><td>Message content</td><td>As above — set by the business operating the number</td></tr>
+        <tr><td>Security and sign-in logs</td><td>A limited period, for security investigation</td></tr>
+        <tr><td>Backups</td><td>Rotated on a schedule; deletions propagate as backups age out</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    <span class="wip">In progress</span> We are publishing exact retention
+    periods per data category. We would rather leave this marked than print a
+    number our deletion jobs do not actually honour.
+  </p>
+
+  <h2 id="rights">8. Your rights</h2>
+  <p>
+    Depending on where you live, you may have the right to access your data,
+    correct it, delete it, restrict or object to how it is used, receive a
+    portable copy, and withdraw consent at any time. If you are in California,
+    you also have rights to know, delete, correct, and to opt out of sale or
+    sharing — <strong>we do not sell or share personal data</strong> as those
+    terms are defined there.
+  </p>
+  <p>
+    Start at <a href="/data-deletion">Your Privacy Rights &amp; Data Deletion</a>,
+    or email <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a>.
+    We respond within one month, and will tell you if we need longer.
+  </p>
+  <p>Exercising a right never costs you anything and never degrades your service.</p>
+
+  <h2 id="representatives">9. Representatives in the EU and UK</h2>
+  <p>
+    <span class="wip">In progress</span> Where we are required to appoint a
+    representative in the European Union (Article 27 GDPR) and in the United
+    Kingdom, those appointments are being made and their details will be
+    published here. We are not going to name a representative before one is
+    actually appointed under a written mandate.
+  </p>
+  <p>
+    Until then, contact us directly at
+    <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a>. Your rights
+    apply regardless, and we will honour them.
+  </p>
+
+  <h2 id="morocco">10. Morocco</h2>
+  <p>
+    Many of the businesses using iGrowFast operate in Morocco, and much of the
+    personal data in the product belongs to people there. Moroccan law
+    (Loi 09-08) requires processing to be declared to the
+    <abbr title="Commission Nationale de contrôle de la protection des Données à caractère Personnel">CNDP</abbr>,
+    and requires authorisation for transferring personal data abroad.
+  </p>
+  <p>
+    <span class="wip">In progress</span> Our CNDP declaration and the transfer
+    authorisations are being filed. The reference numbers will be published here
+    and on <a href="/legal">Legal Notices</a> once issued.
+  </p>
+
+  <h2 id="security">11. Security</h2>
+  <p>
+    Access is restricted by role, and enforced by the database itself rather
+    than only by the interface. Traffic is encrypted in transit. Credentials and
+    secrets are held in a dedicated secret store. Backups are encrypted.
+    Administrative access to servers is key-based only.
+  </p>
+  <p>
+    We are not going to tell you our systems cannot be breached. If a breach
+    affects personal data, we will notify the relevant authority and affected
+    people as the law requires.
+  </p>
+
+  <h2 id="children">12. Children</h2>
+  <p>
+    iGrowFast is a business tool and is not directed at children. We do not
+    knowingly collect data from anyone under 16. If you believe we have, tell us
+    and we will remove it.
+  </p>
+
+  <h2 id="cookies">13. Cookies</h2>
+  <p>
+    Covered separately, in detail, in our <a href="/cookies">Cookie Policy</a>.
+    You can change your choices at any time using the “Cookie settings” link in
+    the footer of every page.
+  </p>
+
+  <h2 id="complaints">14. Complaints</h2>
+  <p>
+    Tell us first — <a href="mailto:privacy@igrowfast.com">privacy@igrowfast.com</a>
+    — and we will try to fix it. You also have the right to complain to a data
+    protection authority: in the EU, the supervisory authority where you live or
+    work; in the UK, the Information Commissioner's Office; in Morocco, the CNDP.
+    You do not need our permission, and you do not need to contact us first.
+  </p>
+
+  <h2 id="changes">15. Changes</h2>
+  <p>
+    If we change this policy in a way that materially affects you, we will tell
+    you rather than quietly reposting it. The date at the top always reflects the
+    current version.
+  </p>
+</Legal>

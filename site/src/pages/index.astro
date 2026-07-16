@@ -1,0 +1,206 @@
+---
+import Base from '../layouts/Base.astro';
+import HeroTabs from '../components/HeroTabs.astro';
+import LoopPipeline from '../components/LoopPipeline.astro';
+import WhatsAppInbox from '../components/demos/WhatsAppInbox.astro';
+import '../styles/demo.css';
+---
+
+<Base
+  title="iGrowFast — run COD without ten tabs"
+  description="One workspace for cash-on-delivery e-commerce: orders, carriers, a shared WhatsApp inbox, ad spend, and commission reconciliation. Built for sellers who outgrew a spreadsheet."
+  path="/"
+>
+  <!-- ── Hero: the pitch, shown ────────────────────────── -->
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <h1>Ten tabs,<br />one order.</h1>
+        <p class="lede">
+          Cash-on-delivery runs on a chat thread, a courier portal, a
+          spreadsheet, an ad dashboard, and someone's memory. Watch what that
+          looks like — then watch it collapse.
+        </p>
+        <div class="cta">
+          <a href="/contact" class="btn btn-primary">Talk to us</a>
+          <a href="/plans" class="btn btn-secondary">See what's included</a>
+        </div>
+      </div>
+      <div class="hero-vis">
+        <HeroTabs />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The loop, scrubbed ────────────────────────────── -->
+  <LoopPipeline />
+
+  <!-- ── The inbox demo ───────────────────────────────── -->
+  <section class="demo-section" data-reveal>
+    <div class="container">
+      <div class="demo-intro">
+        <h2>Every number. Every agent. One inbox.</h2>
+        <p>
+          COD sells over chat. Run all your numbers in one place, assign
+          conversations to agents, and keep the thread when the order becomes
+          real. Works with WhatsApp.
+        </p>
+      </div>
+      <div class="demo-hold">
+        <WhatsAppInbox />
+        <p class="demo-caption">
+          A recreation of the iGrowFast inbox. Not a recording — it's running.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── More demos land here ─────────────────────────── -->
+  <section class="soon-demos" data-reveal>
+    <div class="container">
+      <div class="sd-grid">
+        <div class="sd-item">
+          <h3>Carrier integrations</h3>
+          <p>
+            Connect the couriers you already use. Credentials in, connection
+            verified, parcels flowing.
+          </p>
+          <span class="wip">Demo being built</span>
+        </div>
+        <div class="sd-item">
+          <h3>Webhooks</h3>
+          <p>
+            A carrier posts a status. The order flips. Nobody refreshed
+            anything.
+          </p>
+          <span class="wip">Demo being built</span>
+        </div>
+        <div class="sd-item">
+          <h3>Batch delivery notes</h3>
+          <p>
+            Two hundred parcels, several carriers, one pass — and the bon de
+            livraison at the end of it.
+          </p>
+          <span class="wip">Demo being built</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Close ────────────────────────────────────────── -->
+  <section class="close" data-reveal>
+    <div class="container">
+      <h2>See it against your own workflow</h2>
+      <p>
+        We'll walk through how your orders, couriers and numbers would actually
+        map into it — and tell you honestly if they don't.
+      </p>
+      <a href="/contact" class="btn btn-primary">Talk to us</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    padding-block: clamp(2.5rem, 1rem + 5vw, 4.5rem) clamp(2rem, 1rem + 4vw, 4rem);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(2rem, 1rem + 4vw, 4rem);
+    align-items: center;
+  }
+  /* Two columns only when the visual has room to be legible. Below that the
+     hero is text-first and the animation follows it. */
+  @media (min-width: 940px) {
+    .hero-grid {
+      grid-template-columns: 0.85fr 1.15fr;
+    }
+  }
+  .hero h1 {
+    font-size: var(--step-hero);
+    line-height: 1.02;
+  }
+  .lede {
+    margin-top: 1.5rem;
+    font-size: var(--step-body-lg);
+    color: var(--muted);
+    max-width: 44ch;
+  }
+  .cta {
+    margin-top: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .demo-section {
+    padding-block: clamp(2rem, 1rem + 3vw, 3rem);
+  }
+  .demo-intro {
+    max-width: 60ch;
+    margin-bottom: 2rem;
+  }
+  .demo-intro p {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: var(--step-body-lg);
+  }
+  .demo-hold {
+    max-width: 1080px;
+  }
+
+  .soon-demos {
+    padding-block: clamp(2.5rem, 1rem + 4vw, 4rem);
+  }
+  .sd-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 2rem 3rem;
+  }
+  .sd-item {
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  .sd-item h3 {
+    margin-bottom: 0.5rem;
+  }
+  .sd-item p {
+    color: var(--muted);
+    font-size: var(--step-small);
+    line-height: 1.65;
+    margin-bottom: 0.85rem;
+  }
+  .wip {
+    display: inline-flex;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--line-soft);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: var(--step-caption);
+    font-weight: 500;
+  }
+
+  .close {
+    padding-block: var(--space-section);
+    border-top: 1px solid var(--line);
+  }
+  .close h2 {
+    max-width: 18ch;
+  }
+  .close p {
+    margin-block: 1rem 2rem;
+    color: var(--muted);
+    font-size: var(--step-body-lg);
+    max-width: 58ch;
+  }
+</style>
+
+<script>
+  import { mountDemos } from '../lib/demo-engine.js';
+  import { mountReveals } from '../lib/reveal.js';
+
+  mountDemos();
+  mountReveals();
+</script>

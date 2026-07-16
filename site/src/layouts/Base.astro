@@ -1,0 +1,124 @@
+---
+// Self-hosted, not the Google Fonts CDN that BRAND_GUIDELINES §3 specifies.
+// Same families, same weights, identical rendering — but the CDN leaks every
+// visitor's IP to Google, which LG Munchen (2022) held to be a GDPR violation.
+// A needless finding on a site whose job includes passing privacy review.
+//
+// latin + latin-ext subsets ONLY. The site is English/French; shipping Greek,
+// Cyrillic, Devanagari and Vietnamese subsets adds ~1MB to every deploy for
+// glyphs no page ever requests.
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import '@fontsource/inter/latin-ext-400.css';
+import '@fontsource/poppins/latin-600.css';
+import '@fontsource/poppins/latin-700.css';
+import '@fontsource/poppins/latin-ext-600.css';
+import '@fontsource/poppins/latin-ext-700.css';
+import '../styles/tokens.css';
+import '../styles/consent.css';
+
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+
+export interface Props {
+  title: string;
+  description: string;
+  /** Path only, e.g. "/plans". Canonical is built against the apex. */
+  path?: string;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  path = Astro.url.pathname,
+  noindex = false,
+} = Astro.props;
+
+const canonical = new URL(path, 'https://igrowfast.com').href;
+const ogImage = new URL('/og-image.png', 'https://igrowfast.com').href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="iGrowFast" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!--
+      Organization schema. Legal name + registered address only.
+      No founder names (owner constraint). No EIN, ever — nothing requires it.
+      This must stay consistent with Meta/Google business verification, which
+      cross-reference the site against submitted documents.
+    -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'iGrowFast LLC',
+        url: 'https://igrowfast.com',
+        logo: 'https://igrowfast.com/logo.png',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: '30 N Gould St Ste R',
+          addressLocality: 'Sheridan',
+          addressRegion: 'WY',
+          postalCode: '82801',
+          addressCountry: 'US',
+        },
+      })}
+    />
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <Nav />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+
+    <script>
+      import { mountConsent } from '../lib/consent.js';
+      mountConsent();
+    </script>
+
+    <style>
+      .skip-link {
+        position: absolute;
+        top: -100%;
+        left: var(--gutter);
+        z-index: var(--z-nav);
+        background: var(--ink);
+        color: var(--canvas);
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-md);
+        font-size: var(--step-small);
+        font-weight: 600;
+      }
+      .skip-link:focus {
+        top: 1rem;
+        text-decoration: none;
+      }
+    </style>
+  </body>
+</html>

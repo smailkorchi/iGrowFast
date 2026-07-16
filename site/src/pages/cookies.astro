@@ -1,0 +1,127 @@
+---
+import Legal from '../layouts/Legal.astro';
+// Categories here MUST stay in sync with PURPOSES in src/lib/consent.js.
+---
+
+<Legal
+  title="Cookie Policy"
+  description="What this website stores on your device, what it doesn't, and how to change your mind at any time."
+  path="/cookies"
+  updated="16 July 2026"
+  summary="What this site stores on your device, and how to change your choices — which is exactly as easy as making them."
+>
+  <h2 id="short">The short version</h2>
+  <p>
+    This website sets nothing on your device beyond what's needed to work,
+    unless you tell it otherwise. No analytics, no advertising, no measurement —
+    until you say yes. Saying no is one click, in the same place, at the same
+    size, as saying yes.
+  </p>
+  <p>
+    Change your mind whenever you like: the <strong>Cookie settings</strong> link
+    at the bottom of every page reopens the choices. Withdrawing is as easy as
+    consenting, which is the way round it's supposed to be.
+  </p>
+
+  <h2 id="categories">What we use, by purpose</h2>
+
+  <h3>Strictly necessary <em>— always on, cannot be disabled</em></h3>
+  <p>
+    Required for the site to function. Not used to track you, not shared, not
+    used for advertising.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>What</th><th>Purpose</th><th>Lifetime</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>igf.consent.v1</code></td>
+          <td>Remembers your cookie choices. Stored in your browser's local storage. Without it we'd have to ask on every page, which would be worse.</td>
+          <td>Until you clear it or we change the purposes</td>
+        </tr>
+        <tr>
+          <td>Security and load-balancing</td>
+          <td>Set by our network provider to route requests and block abuse.</td>
+          <td>Session to short-term</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Analytics <em>— off until you consent</em></h3>
+  <p>
+    Helps us see which pages are actually useful. Aggregate only. If you decline,
+    nothing is set and nothing is sent.
+  </p>
+
+  <h3>Marketing <em>— off until you consent</em></h3>
+  <p>
+    Lets us measure our advertising and show relevant ads on other platforms. If
+    you consent, measurement tags from advertising platforms may be loaded and
+    may set their own cookies and identifiers. For some of these the platform and
+    iGrowFast act as <strong>joint controllers</strong> — see the
+    <a href="/privacy#recipients">Privacy Policy</a>.
+  </p>
+
+  <p>
+    <span class="wip">Not yet active</span> The analytics and marketing tags are
+    configured but no identifiers are currently issued by this website — there is
+    nothing behind those switches yet. We're describing them now so this page is
+    accurate the day they're turned on, and so consent is asked for before
+    anything ever loads. When they go live, this page will list each tag, its
+    provider, and its lifetime.
+  </p>
+
+  <h2 id="consentmode">Google Consent Mode</h2>
+  <p>
+    Where Google tags are used, we run Consent Mode v2 and it defaults to
+    <strong>denied</strong> before any tag loads. Your choice updates it. It is
+    not set to granted first and corrected afterwards.
+  </p>
+
+  <h2 id="notdoing">What we don't do</h2>
+  <ul>
+    <li>We don't load anything before you consent.</li>
+    <li>We don't make refusing harder than accepting.</li>
+    <li>We don't block this site's content behind a cookie wall — you can read every page, including all the legal ones, without agreeing to anything.</li>
+    <li>We don't treat continued scrolling as consent. It isn't.</li>
+    <li>We don't sell what we collect.</li>
+  </ul>
+
+  <h2 id="control">Changing your mind</h2>
+  <p>
+    Use <strong>Cookie settings</strong> in the footer. You can also clear site
+    data in your browser, which resets everything — we'll simply ask again.
+  </p>
+  <p>
+    One honest limitation: if a tag has already loaded in the page you're
+    currently looking at, withdrawing consent stops it transmitting and prevents
+    it loading next time, but it cannot un-load it from the page already open.
+    That is why we don't load anything until you've decided.
+  </p>
+
+  <h2 id="more">Related</h2>
+  <ul>
+    <li><a href="/privacy">Privacy Policy</a></li>
+    <li><a href="/data-deletion">Your Privacy Rights &amp; Data Deletion</a></li>
+    <li><button type="button" data-cookie-settings class="inline-btn">Open cookie settings</button></li>
+  </ul>
+</Legal>
+
+<style>
+  .inline-btn {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  code {
+    font-size: 0.9em;
+    background: var(--line-soft);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+</style>

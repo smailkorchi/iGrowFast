@@ -1,0 +1,172 @@
+---
+import Legal from '../layouts/Legal.astro';
+// Art 28 GDPR required terms. iGrowFast is the PROCESSOR here — for the
+// end-customer data our seller-clients put into the product.
+---
+
+<Legal
+  title="Data Processing Addendum"
+  description="The Article 28 terms governing iGrowFast's processing of personal data on behalf of the businesses that use it."
+  path="/dpa"
+  updated="16 July 2026"
+  summary="For businesses using iGrowFast: the terms under which we process your customers' personal data on your instructions."
+>
+  <h2 id="scope">1. What this is</h2>
+  <p>
+    This addendum forms part of the <a href="/terms">Terms of Service</a>. It
+    applies where you use iGrowFast to process personal data about other people
+    — principally your own customers.
+  </p>
+  <p>
+    <strong>You are the controller. We are the processor.</strong> You decide why
+    and how your customers' data is used; we act on your instructions. For your
+    own users' account data we are the controller — that is covered by the
+    <a href="/privacy">Privacy Policy</a>, not this document.
+  </p>
+
+  <h2 id="subject">2. Subject matter, duration, nature and purpose</h2>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><th>Subject matter</th><td>Providing the iGrowFast platform to you.</td></tr>
+        <tr><th>Duration</th><td>For as long as your account is active, plus the deletion period in section 9.</td></tr>
+        <tr><th>Nature</th><td>Storage, organisation, retrieval, transmission, display, backup and deletion — carried out by the platform's normal operation.</td></tr>
+        <tr><th>Purpose</th><td>Order management, delivery and carrier coordination, customer messaging, advertising reporting, document generation, and reconciliation of amounts owed.</td></tr>
+        <tr>
+          <th>Categories of data subject</th>
+          <td>Your customers; your staff; recipients of deliveries; people who message your numbers.</td>
+        </tr>
+        <tr>
+          <th>Categories of personal data</th>
+          <td>Names; phone numbers; delivery addresses, cities and zones; order contents and values; delivery and return status; message content and metadata (text, images, audio, documents); contact records.</td>
+        </tr>
+        <tr>
+          <th>Special-category data</th>
+          <td><strong>None intended.</strong> The platform is not designed for it and you should not put it in. Message content is free-form, so incidental disclosure by a customer is possible — we treat message content as sensitive in practice regardless.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="instructions">3. Our obligations</h2>
+  <p>We will:</p>
+  <ul>
+    <li>
+      <strong>Process only on your documented instructions</strong>, including
+      for transfers, unless required by law — in which case we will tell you
+      first, unless the law forbids it.
+    </li>
+    <li>
+      <strong>Tell you if an instruction appears to breach data protection
+      law</strong>, rather than quietly carrying it out.
+    </li>
+    <li><strong>Not use your customers' data for our own purposes.</strong> We do not sell it. We do not use it to train models. We do not use it to build a product for someone else.</li>
+    <li><strong>Bind everyone with access to confidentiality.</strong></li>
+    <li><strong>Implement appropriate security</strong> — see section 5.</li>
+    <li><strong>Help you</strong> respond to rights requests, and with your obligations on security, breach notification and impact assessments.</li>
+    <li><strong>Delete or return</strong> the data at the end, per section 9.</li>
+    <li><strong>Make available the information</strong> needed to show compliance, and allow audits — see section 8.</li>
+  </ul>
+
+  <h2 id="your">4. Your obligations</h2>
+  <ul>
+    <li>You must have a lawful basis for the data you put in.</li>
+    <li>You are responsible for the accuracy of your instructions, and for your own privacy notices to your customers.</li>
+    <li><strong>Consent for messaging is yours to obtain and record.</strong> See the <a href="/acceptable-use">Acceptable Use Policy</a>.</li>
+    <li>You must not put special-category data into fields not designed for it.</li>
+  </ul>
+
+  <h2 id="security">5. Security</h2>
+  <p>Measures in place today:</p>
+  <ul>
+    <li>Encryption in transit for all traffic.</li>
+    <li>Encryption at rest for backups.</li>
+    <li>Row-level access control enforced in the database, so a user's role limits what they can retrieve — not merely what the interface shows them.</li>
+    <li>Tenant isolation between businesses.</li>
+    <li>Credentials and API secrets held in a dedicated secret store, not in application code.</li>
+    <li>Key-based administrative access only; no password login to servers.</li>
+    <li>Regular encrypted backups held in the European Union.</li>
+  </ul>
+  <p>
+    We assess these against the risk and update them. We are not going to claim
+    they make a breach impossible.
+  </p>
+
+  <h2 id="subprocessors">6. Sub-processors</h2>
+  <p>
+    <strong>You give us general authorisation</strong> to engage sub-processors,
+    subject to this section.
+  </p>
+  <ul>
+    <li>Every sub-processor is bound by written terms no less protective than these.</li>
+    <li>We remain fully liable to you for their performance.</li>
+    <li>
+      The current list, by category, is at <a href="/sub-processors">Sub-processors</a>.
+      Named detail is available to customers on request for your own compliance
+      records.
+    </li>
+    <li>
+      <strong>Changes:</strong> we will give you reasonable advance notice before
+      adding or replacing a sub-processor. You may object on reasonable data
+      protection grounds. If we cannot resolve your objection, you may terminate
+      the affected part of the service without penalty.
+    </li>
+  </ul>
+
+  <h2 id="transfers">7. International transfers</h2>
+  <p>
+    Processing takes place in <strong>Germany</strong>; storage and backups in
+    the <strong>European Union</strong>. Some data reaches the
+    <strong>United States</strong>, because we are a US company.
+  </p>
+  <p>
+    Where personal data is transferred out of the EEA, we rely on the European
+    Commission's <strong>Standard Contractual Clauses</strong>, which are
+    incorporated into this addendum by reference, together with a transfer impact
+    assessment and supplementary measures where required.
+  </p>
+  <p>
+    <span class="wip">In progress</span> Our transfer documentation is being
+    completed, including the authorisation required under Moroccan law for
+    transfers abroad, and the module selection under the Clauses is being
+    confirmed with counsel. We will not tell you this is finished before it is.
+  </p>
+
+  <h2 id="audit">8. Audits and assistance</h2>
+  <ul>
+    <li>We will answer reasonable questions about our processing in writing.</li>
+    <li>On reasonable notice, not more than once a year unless a regulator requires it or there has been a breach, we will support an audit — proportionate, at your cost, and without compromising other customers' confidentiality or security.</li>
+    <li>We will help you with rights requests within the limits of what the platform can do, and we will route to you anyone who contacts us directly about your data.</li>
+  </ul>
+
+  <h2 id="deletion">9. Deletion and return</h2>
+  <ul>
+    <li>You can export your data at any time using the features in the product.</li>
+    <li>On termination, we make it available for export for a reasonable period.</li>
+    <li>After that, we delete it — except where law requires retention, in which case we keep only what is required, for only as long as required.</li>
+    <li>Backups: deletion propagates as backups rotate out on their schedule. They remain encrypted and access-controlled until they do.</li>
+  </ul>
+
+  <h2 id="breach">10. Breach notification</h2>
+  <p>
+    If we become aware of a personal data breach affecting your data, we will
+    notify you <strong>without undue delay</strong>, with what we know: what
+    happened, which categories and roughly how many records, likely
+    consequences, and what we are doing. We will keep you updated as we learn
+    more. Notifying regulators and affected individuals is your call as the
+    controller; we will give you what you need to make it.
+  </p>
+
+  <h2 id="liability">11. Liability</h2>
+  <p>
+    The limitations in the <a href="/terms#warranty">Terms of Service</a> apply
+    to this addendum. Nothing here limits a data subject's rights, or either
+    party's liability to a supervisory authority.
+  </p>
+
+  <h2 id="conflict">12. Conflict</h2>
+  <p>
+    Where this addendum conflicts with the Terms of Service on the processing of
+    personal data, this addendum wins.
+  </p>
+</Legal>

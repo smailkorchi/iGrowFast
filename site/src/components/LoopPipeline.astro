@@ -1,0 +1,335 @@
+---
+/**
+ * The COD loop, as a scroll-scrubbed pipeline.
+ *
+ * This replaces six paragraphs that described stages in prose. A loop is a
+ * thing that MOVES; describing it in a grid of text was the wrong form. Here
+ * the reader drives an order through the stages with their own scroll, and the
+ * copy for each stage arrives exactly when its node lights up.
+ *
+ * Pinned + scrubbed via ScrollTrigger. Under prefers-reduced-motion (and on
+ * narrow screens) it degrades to a plain readable list — no pin, no scrub.
+ */
+
+const stages = [
+  {
+    key: 'order',
+    label: 'Commande',
+    title: 'The order lands',
+    body: 'From your form, your sheet, an import, or a conversation. It arrives with the customer, the address, and the product already attached.',
+  },
+  {
+    key: 'chat',
+    label: 'Chat',
+    title: 'Someone confirms it',
+    body: 'An agent picks up the thread on whichever number it came in on. Confirmed, changed, or cancelled — the order and the conversation stay attached to each other.',
+  },
+  {
+    key: 'parcel',
+    label: 'Colis',
+    title: 'It becomes a parcel',
+    body: 'Pick the carrier, create the parcel, print the bon de livraison. In batches of two hundred if that is the kind of day it is.',
+  },
+  {
+    key: 'delivery',
+    label: 'Livraison',
+    title: 'The carrier moves it',
+    body: 'Status changes arrive on their own. Nobody refreshes a courier portal. Nobody retypes a tracking number into a spreadsheet.',
+  },
+  {
+    key: 'cash',
+    label: 'Cash',
+    title: 'Cash changes hands',
+    body: 'Delivered, refused, returned, or delivered on the third attempt. The outcome is what decides the money, so the outcome is what the ledger listens to.',
+  },
+  {
+    key: 'recon',
+    label: 'Réconcilié',
+    title: 'The numbers close',
+    body: 'What the seller earned, what the courier is owed, what the media buyer made, what the ad cost. Tracked and reconciled, against the orders that actually completed.',
+  },
+];
+---
+
+<section class="loop" id="loop">
+  <div class="container">
+    <div class="loop-head">
+      <h2>One order, all the way through</h2>
+      <p>
+        This is the loop every COD business runs. Most run it across ten tabs.
+        Scroll it.
+      </p>
+    </div>
+
+    <div class="loop-pin" id="loop-pin">
+      <!-- the track -->
+      <div class="track" aria-hidden="true">
+        <div class="track-line"></div>
+        <div class="track-fill" id="track-fill"></div>
+        <div class="nodes">
+          {
+            stages.map((s, i) => (
+              <div class="node" data-node={i}>
+                <span class="node-ring" />
+                <span class="node-label">{s.label}</span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <!-- the copy, one at a time -->
+      <div class="panels">
+        {
+          stages.map((s, i) => (
+            <div class="panel" data-panel={i}>
+              <span class="panel-num">{String(i + 1).padStart(2, '0')}</span>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <!-- Static fallback: what a reduced-motion or narrow-screen visitor gets.
+         Same content, no choreography. Never an empty section. -->
+    <ol class="loop-static">
+      {
+        stages.map((s) => (
+          <li>
+            <h3>
+              <span class="ls-label">{s.label}</span>
+              {s.title}
+            </h3>
+            <p>{s.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .loop {
+    padding-block: var(--space-section);
+  }
+  .loop-head {
+    max-width: 54ch;
+    margin-bottom: clamp(2rem, 1rem + 3vw, 3.5rem);
+  }
+  .loop-head p {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: var(--step-body-lg);
+  }
+
+  .loop-pin {
+    display: none;
+  }
+  .loop-static {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 2.5rem 3rem;
+  }
+  .loop-static li {
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  .loop-static h3 {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+  .ls-label {
+    font-family: var(--font-body);
+    font-size: var(--step-caption);
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .loop-static p {
+    color: var(--muted);
+    font-size: var(--step-small);
+    line-height: 1.65;
+  }
+
+  /* The choreographed version only exists where there's room for it AND the
+     visitor hasn't asked for less motion. Everything above stays as the
+     fallback — the section is never empty and never depends on JS. */
+  @media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+    .loop-pin {
+      display: block;
+      min-height: 62vh;
+    }
+    .loop-static {
+      display: none;
+    }
+
+    .track {
+      position: relative;
+      height: 62px;
+      margin-bottom: 3.5rem;
+    }
+    .track-line,
+    .track-fill {
+      position: absolute;
+      top: 11px;
+      left: 0;
+      height: 2px;
+      border-radius: 999px;
+    }
+    .track-line {
+      right: 0;
+      background: var(--line);
+    }
+    .track-fill {
+      width: 0;
+      background: var(--accent);
+    }
+    .nodes {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: space-between;
+    }
+    .node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+    .node-ring {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--canvas);
+      border: 2px solid var(--line);
+      display: block;
+      transition: border-color 260ms var(--ease-smooth),
+        background-color 260ms var(--ease-smooth),
+        transform 260ms var(--ease-smooth);
+    }
+    .node.is-on .node-ring {
+      border-color: var(--accent);
+      background: var(--accent);
+      transform: scale(1.18);
+    }
+    .node.is-done .node-ring {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+    .node-label {
+      font-size: var(--step-caption);
+      font-weight: 500;
+      color: var(--mid);
+      white-space: nowrap;
+      transition: color 260ms var(--ease-smooth);
+    }
+    .node.is-on .node-label,
+    .node.is-done .node-label {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .panels {
+      position: relative;
+      min-height: 200px;
+      max-width: 62ch;
+    }
+    .panel {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .panel-num {
+      font-family: var(--font-display);
+      font-size: var(--step-caption);
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+    }
+    .panel h3 {
+      margin-block: 0.5rem 0.75rem;
+      font-size: var(--step-h2);
+    }
+    .panel p {
+      color: var(--muted);
+      font-size: var(--step-body-lg);
+      line-height: 1.65;
+    }
+  }
+</style>
+
+<script>
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const mm = gsap.matchMedia();
+
+  // The pinned/scrubbed version is desktop + motion-allowed only. matchMedia
+  // reverts everything it created when the query stops matching, so a resize
+  // across the breakpoint cleans up after itself.
+  mm.add(
+    '(min-width: 900px) and (prefers-reduced-motion: no-preference)',
+    () => {
+      const nodes = gsap.utils.toArray<HTMLElement>('.node');
+      const panels = gsap.utils.toArray<HTMLElement>('.panel');
+      const fill = document.querySelector('#track-fill') as HTMLElement | null;
+      if (!nodes.length || !panels.length || !fill) return;
+
+      const n = nodes.length;
+      gsap.set(panels, { opacity: 0, y: 14 });
+      gsap.set(panels[0], { opacity: 1, y: 0 });
+
+      const setStage = (i: number) => {
+        nodes.forEach((node, k) => {
+          node.classList.toggle('is-on', k === i);
+          node.classList.toggle('is-done', k < i);
+        });
+        panels.forEach((p, k) => {
+          gsap.to(p, {
+            opacity: k === i ? 1 : 0,
+            y: k === i ? 0 : 14,
+            duration: 0.35,
+            ease: 'power2.out',
+            overwrite: 'auto',
+          });
+        });
+      };
+
+      setStage(0);
+
+      ScrollTrigger.create({
+        trigger: '#loop-pin',
+        start: 'center center',
+        // One viewport of scroll per stage — enough to read each panel without
+        // the section feeling like it has hijacked the page.
+        end: () => '+=' + window.innerHeight * (n - 1) * 0.85,
+        pin: true,
+        scrub: 0.6,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          // The fill tracks scroll continuously; the stage snaps. The line is
+          // the motion, the nodes are the meaning.
+          const p = self.progress;
+          const span = (n - 1) / n; // last node sits at (n-1)/n across the row
+          gsap.set(fill, { width: `${Math.min(p, 1) * span * 100}%` });
+
+          const i = Math.round(p * (n - 1));
+          if ((setStage as any)._i !== i) {
+            (setStage as any)._i = i;
+            setStage(i);
+          }
+        },
+      });
+    }
+  );
+</script>

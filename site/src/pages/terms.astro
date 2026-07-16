@@ -1,0 +1,220 @@
+---
+import Legal from '../layouts/Legal.astro';
+
+/**
+ * Grounded in docs/website-recon/RAW-legal.json.
+ *
+ * Two things NOT in here, on purpose:
+ * - No auto-renewal / negative-option billing mechanics. There is no payment
+ *   rail and no published price. Describing a renewal flow that doesn't exist
+ *   would invent ROSCA and California ARL exposure out of nothing.
+ * - Syria is NOT in the sanctions list. E.O. 14312 terminated the emergency and
+ *   31 CFR Part 542 was removed from the CFR on 26 August 2025. Every ToS
+ *   template on the internet is still wrong about this; copying one would put a
+ *   false term in our own contract.
+ */
+---
+
+<Legal
+  title="Terms of Service"
+  description="The agreement between iGrowFast LLC and the businesses that use iGrowFast."
+  path="/terms"
+  updated="16 July 2026"
+  summary="The agreement between us and the business using iGrowFast. Written to be read once and understood."
+>
+  <h2 id="parties">1. Who this is between</h2>
+  <p>
+    These terms are between <strong>iGrowFast LLC</strong>, a Wyoming limited
+    liability company ("iGrowFast", "we"), and the business that uses the service
+    ("you"). If you are accepting on behalf of a company, you are confirming you
+    have authority to bind it.
+  </p>
+  <p>
+    Two documents form part of this agreement and are incorporated by reference:
+    our <a href="/acceptable-use">Acceptable Use Policy</a> and our
+    <a href="/dpa">Data Processing Addendum</a>. Our
+    <a href="/privacy">Privacy Policy</a> explains how we handle personal data.
+  </p>
+
+  <h2 id="service">2. What we provide</h2>
+  <p>
+    iGrowFast is software for running cash-on-delivery e-commerce operations:
+    orders, carrier integrations, a shared messaging inbox, advertising
+    reporting, documents, and reconciliation of what is owed to sellers,
+    couriers and media buyers.
+  </p>
+  <p>
+    <strong>We track and reconcile. We do not hold, move, or disburse your
+    money.</strong> iGrowFast records what is owed and to whom; every actual
+    payment happens outside the platform, between you and the person you are
+    paying. We are a software provider, not a payment institution, not a bank,
+    and not an intermediary in your cash flow.
+  </p>
+
+  <h2 id="accounts">3. Accounts and your users</h2>
+  <ul>
+    <li>You are responsible for everything done under your account, and for the accuracy of what you enter.</li>
+    <li>You create accounts for your own staff. You decide their roles and what they can see.</li>
+    <li>Keep credentials secure. Tell us promptly if you think an account has been compromised.</li>
+    <li>You must be able to form a binding contract, and you must not use the service if we have previously terminated you.</li>
+  </ul>
+
+  <h2 id="yourdata">4. Your data, and your customers' data</h2>
+  <p>
+    The data you put into iGrowFast is yours. We do not sell it, and we do not
+    use it to train anything.
+  </p>
+  <p>
+    Much of that data belongs to <em>your</em> customers — their names, phone
+    numbers, addresses, orders and messages. For that data you are the
+    controller and we are your processor. That relationship is governed by the
+    <a href="/dpa">Data Processing Addendum</a>, and it means:
+  </p>
+  <ul>
+    <li><strong>You are responsible for having a lawful basis</strong> to hold and use your customers' data.</li>
+    <li>
+      <strong>You are responsible for consent to message them.</strong> If you
+      send marketing or promotional messages, obtaining and recording the
+      necessary consent is yours to do, not ours. Messaging platforms enforce
+      this, and so do regulators.
+    </li>
+    <li>You must handle your customers' rights requests. We will support you, and will route to you anyone who contacts us directly.</li>
+  </ul>
+
+  <h2 id="thirdparty">5. Connecting other services</h2>
+  <p>
+    You can connect accounts you already hold — couriers, messaging platforms,
+    advertising platforms, spreadsheets. When you do:
+  </p>
+  <ul>
+    <li>You authorise us to access that account on your behalf, for the purpose of providing the service.</li>
+    <li>You remain bound by that provider's own terms, and their rules apply to how their data may be used.</li>
+    <li>
+      <strong>Advertising data.</strong> Where staff of yours (for example a
+      media buyer) are given access to an advertising account's data, they act as
+      your authorised agents, on your authority. You can withdraw it at any time.
+    </li>
+    <li>
+      <strong>Disconnection.</strong> If you tell us to disassociate your account
+      from a connected advertising platform, we will do so within
+      <strong>three business days</strong>.
+    </li>
+    <li>We are not responsible for a third-party service changing, breaking, or terminating your access to it.</li>
+  </ul>
+
+  <h2 id="acceptable">6. Acceptable use</h2>
+  <p>
+    The <a href="/acceptable-use">Acceptable Use Policy</a> is part of this
+    agreement. In summary: no unlawful use, no unsolicited messaging, no using
+    the service to do to other people what you would not want done to you. We can
+    suspend an account that is causing harm, and we will tell you why.
+  </p>
+
+  <h2 id="sanctions">7. Sanctions and export control</h2>
+  <p>
+    iGrowFast LLC is a United States person and must comply with US sanctions
+    law wherever it operates. You may not use the service if you are:
+  </p>
+  <ul>
+    <li>
+      Located in, ordinarily resident in, or organised under the laws of a
+      comprehensively sanctioned region — currently <strong>Cuba, Iran, North
+      Korea</strong>, and the <strong>Crimea, Donetsk, Luhansk, Kherson and
+      Zaporizhzhia</strong> regions of Ukraine.
+    </li>
+    <li>
+      Listed on, or owned 50% or more by parties listed on, the US Treasury's
+      <strong>Specially Designated Nationals (SDN) List</strong> or other
+      restricted-party lists.
+    </li>
+  </ul>
+  <p>
+    We reference the SDN List itself rather than reproducing a country list here,
+    because sanctions change and a stale list in a contract is a false statement.
+    You are responsible for confirming your own eligibility, and you must tell us
+    if that changes.
+  </p>
+
+  <h2 id="fees">8. Fees</h2>
+  <p>
+    Plans are arranged directly with us. The price, what it covers, and the
+    payment terms are whatever we agree with you in writing.
+  </p>
+  <p>
+    <span class="wip">In progress</span> We do not currently operate self-serve
+    subscription billing. If and when we do, the terms — price, renewal, and how
+    to cancel — will be presented clearly before you are asked for any payment
+    details, and this section will be replaced. See
+    <a href="/refunds">Refunds &amp; Cancellation</a>.
+  </p>
+
+  <h2 id="availability">9. Availability</h2>
+  <p>
+    We work to keep the service running and we take backups. We do not currently
+    offer a contractual uptime guarantee, and we would rather say that than print
+    a number we have not committed to. Maintenance happens; we will give notice
+    where we reasonably can.
+  </p>
+
+  <h2 id="ip">10. Intellectual property</h2>
+  <p>
+    The software, design and brand are ours. Your data and your content are
+    yours. Nothing here transfers ownership either way. You may not copy, resell,
+    reverse-engineer, or white-label the service without our written agreement.
+  </p>
+  <p>
+    Third-party names used on this site — WhatsApp, Google, Shopify,
+    WooCommerce, TikTok, Snapchat and others — belong to their owners and are
+    used descriptively. We are not affiliated with, endorsed by, or sponsored by
+    any of them.
+  </p>
+
+  <h2 id="warranty">11. Warranties and liability</h2>
+  <p>
+    The service is provided "as is". To the fullest extent the law allows, we
+    disclaim implied warranties of merchantability, fitness for a particular
+    purpose, and non-infringement.
+  </p>
+  <p>
+    To the fullest extent the law allows, neither party is liable for indirect,
+    incidental, special, consequential or punitive damages, or for lost profits
+    or lost data. Our total liability under this agreement is limited to the fees
+    you paid us in the twelve months before the claim arose.
+  </p>
+  <p>
+    Nothing here excludes liability that cannot lawfully be excluded — including
+    for fraud, or for death or personal injury caused by negligence. If you are
+    a consumer, your statutory rights are unaffected.
+  </p>
+
+  <h2 id="term">12. Ending it</h2>
+  <ul>
+    <li>You may stop using the service and ask us to close your account at any time.</li>
+    <li>We may suspend or terminate for material breach, for unlawful use, or if required by law. Except where the breach is serious or urgent, we will tell you and give you a reasonable chance to fix it.</li>
+    <li>On termination, we will make your data available for export for a reasonable period, then delete it in line with the <a href="/dpa">DPA</a> and our retention practice.</li>
+  </ul>
+
+  <h2 id="law">13. Governing law</h2>
+  <p>
+    These terms are governed by the laws of the <strong>State of Wyoming,
+    United States</strong>, without regard to its conflict-of-laws rules. The
+    courts of Wyoming have jurisdiction. If you are a consumer resident
+    elsewhere, this does not deprive you of the protection of mandatory laws in
+    your own country.
+  </p>
+
+  <h2 id="changes">14. Changes</h2>
+  <p>
+    If we materially change these terms, we will give reasonable notice before
+    they take effect. If you don't accept the change, you can stop using the
+    service. The date at the top reflects the current version.
+  </p>
+
+  <h2 id="contact">15. Contact</h2>
+  <address>
+    iGrowFast LLC<br />
+    30 N Gould St Ste R<br />
+    Sheridan, WY 82801, United States<br />
+    <a href="/contact">Contact us</a>
+  </address>
+</Legal>

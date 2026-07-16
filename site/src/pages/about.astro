@@ -1,0 +1,174 @@
+---
+import Base from '../layouts/Base.astro';
+
+/**
+ * FACTUAL, NOT INFLATED — deliberately.
+ *
+ * Google Ads' Unacceptable Business Practices rule bans "an inaccurate business
+ * name that does not clearly represent the advertised business" and "a
+ * fictitious business that lacks the qualifications or capacity to provide the
+ * advertised products or services", enforced by suspension on detection,
+ * without warning, permanently. Meta cross-references this page against
+ * Business Verification documents.
+ *
+ * iGrowFast LLC is a real Wyoming entity, so verification itself is truthful.
+ * The entire risk lives in the copy. So this page describes what the PRODUCT
+ * does and who it is for — never how large, old, or established the company is.
+ * No founder names. No invented history, headcount, or customer counts. The
+ * Sheridan address is the registered address and is never called an office.
+ * German processing is stated plainly rather than implied away.
+ */
+---
+
+<Base
+  title="About — iGrowFast"
+  description="iGrowFast LLC builds operational software for cash-on-delivery e-commerce: orders, carriers, chat, ad spend and reconciliation in one workspace."
+  path="/about"
+>
+  <section class="head">
+    <div class="container">
+      <h1>We build the workspace COD actually needs</h1>
+      <p class="lede">
+        Cash-on-delivery is not a payment method bolted onto normal e-commerce.
+        It is a different business, and it breaks the tools built for card
+        checkout.
+      </p>
+    </div>
+  </section>
+
+  <section class="body">
+    <div class="container narrow">
+      <div class="prose">
+        <h2>The problem we work on</h2>
+        <p>
+          In a COD business the order isn't finished when someone clicks buy. It
+          is finished when a courier hands over a package and collects cash —
+          days later, sometimes at the third attempt, sometimes never. Between
+          those two moments sit a chat thread, a courier portal, an ad campaign
+          that produced the lead, and a commission that someone has to calculate
+          correctly.
+        </p>
+        <p>
+          Most teams run that on a spreadsheet and ten browser tabs. It works
+          until it doesn't — and it stops working exactly when the business
+          starts growing, which is the worst possible moment.
+        </p>
+        <p>
+          iGrowFast puts the loop in one place: orders and their real status,
+          the couriers you already use, the numbers you already sell on, the ad
+          spend that produced the order, and a ledger that tracks and reconciles
+          what everyone is owed.
+        </p>
+
+        <h2>How we think about it</h2>
+        <p>
+          Money has to be right. A tool that is merely fast, but quietly wrong
+          about a commission, is worse than the spreadsheet it replaced. The
+          reconciliation is the part we are most careful about.
+        </p>
+        <p>
+          Roles see their own slice. A media buyer sees the campaigns they run
+          and the commission they earned — not another team's margins. That
+          isn't a setting; it's how the system is built.
+        </p>
+        <p>
+          Density with hierarchy. Operators need a lot on screen. That is a
+          reason to design carefully, not a reason to ship a wall of grey.
+        </p>
+
+        <h2>The company</h2>
+        <p>
+          iGrowFast is operated by <strong>iGrowFast LLC</strong>, a Wyoming
+          limited liability company registered in the United States. Our
+          registered address is below.
+        </p>
+        <p>
+          The platform runs on infrastructure located in <strong>Germany</strong>,
+          and customer data is stored and processed in Europe. We say that plainly
+          here because it belongs in an honest description of the business, not
+          only in a privacy policy — see our <a href="/privacy">Privacy Policy</a>
+          for exactly what is processed and where.
+        </p>
+        <p>
+          The product is used today by cash-on-delivery businesses operating in
+          Morocco, and its interface is primarily French. We are not going to
+          pretend to be bigger or older than we are.
+        </p>
+
+        <address>
+          <strong>iGrowFast LLC</strong><br />
+          30 N Gould St Ste R<br />
+          Sheridan, WY 82801<br />
+          United States
+        </address>
+        <p class="fine">
+          That is our registered address. It is not a walk-in office — if you
+          want to reach us, <a href="/contact">contact us</a> and a person will
+          answer.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="close">
+    <div class="container">
+      <h2>Want to see whether it fits?</h2>
+      <a href="/contact" class="btn btn-primary">Talk to us</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .head {
+    padding-block: clamp(3rem, 2rem + 5vw, 5rem) 0;
+  }
+  .head h1 {
+    font-size: var(--step-hero);
+    line-height: 1.05;
+    max-width: 20ch;
+  }
+  .lede {
+    margin-top: 1.25rem;
+    font-size: var(--step-body-lg);
+    color: var(--muted);
+  }
+
+  .body {
+    padding-block: clamp(2.5rem, 1rem + 4vw, 4rem);
+  }
+  .narrow {
+    max-width: 72ch;
+  }
+  .prose h2 {
+    margin-top: 2.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .prose h2:first-child {
+    margin-top: 0;
+  }
+  .prose p {
+    margin-bottom: 1rem;
+    line-height: 1.7;
+    max-width: 68ch;
+  }
+  address {
+    font-style: normal;
+    line-height: 1.7;
+    margin-block: 1.5rem 0.75rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--line);
+  }
+  .fine {
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+
+  .close {
+    padding-block: var(--space-section);
+    border-top: 1px solid var(--line);
+  }
+  .close h2 {
+    margin-bottom: 1.5rem;
+    max-width: 18ch;
+  }
+</style>

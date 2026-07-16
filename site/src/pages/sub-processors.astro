@@ -1,0 +1,125 @@
+---
+import Legal from '../layouts/Legal.astro';
+
+/**
+ * Category-level list referenced by /dpa §6.
+ *
+ * The messaging provider is a CATEGORY here — "messaging infrastructure
+ * providers (EU-hosted)" — never a vendor name. That is defensible under
+ * Art 13(1)(e) ("categories of recipients") and it is honest: it says the data
+ * goes somewhere beyond the messaging platform, which is the fact that matters.
+ * What is NOT permitted is implying it goes only to Meta.
+ */
+---
+
+<Legal
+  title="Sub-processors"
+  description="The categories of service provider iGrowFast uses to process personal data on behalf of its customers, with regions and data types."
+  path="/sub-processors"
+  updated="16 July 2026"
+  summary="Who else touches the data we process for you, what they handle, and where they are."
+>
+  <h2 id="about">About this list</h2>
+  <p>
+    This supports section 6 of our <a href="/dpa">Data Processing Addendum</a>.
+    It lists sub-processors <strong>by category</strong>, with the region and the
+    data each handles.
+  </p>
+  <p>
+    <strong>Why categories.</strong> Specific vendors within a category change,
+    and a published list of brand names is out of date the week after it ships.
+    What matters for your assessment is what leaves your control, where it goes,
+    and under what terms — that is what this table tells you. If you are a
+    customer and need the current named list for your own records or for your own
+    customers' notices, ask us and we will provide it under the DPA. We answer
+    that question; we just don't publish it.
+  </p>
+
+  <h2 id="list">Current sub-processors</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Category</th><th>What it handles</th><th>Data</th><th>Region</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Hosting and compute</strong></td>
+          <td>Runs the application and the database — everything in the product passes through here</td>
+          <td>All personal data in the product</td>
+          <td>Germany</td>
+        </tr>
+        <tr>
+          <td><strong>Object storage and backups</strong></td>
+          <td>Uploaded files, message media, encrypted database backups</td>
+          <td>Media, attachments, full backups</td>
+          <td>European Union</td>
+        </tr>
+        <tr>
+          <td><strong>Messaging infrastructure providers</strong></td>
+          <td>Sending and receiving messages on your business's numbers</td>
+          <td>Message content and metadata; phone numbers; contact names; media</td>
+          <td>European Union</td>
+        </tr>
+        <tr>
+          <td><strong>Network, CDN and abuse protection</strong></td>
+          <td>Routing, TLS termination, bot challenges on sign-in</td>
+          <td>IP address, request metadata</td>
+          <td>Global edge network</td>
+        </tr>
+        <tr>
+          <td><strong>Transactional email delivery</strong></td>
+          <td>Account emails, invitations, statements, alerts</td>
+          <td>Email address, name, message content</td>
+          <td>European Union</td>
+        </tr>
+        <tr>
+          <td><strong>Email verification</strong></td>
+          <td>Checking an address is deliverable at signup</td>
+          <td>Email address only</td>
+          <td>European Union / United States</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="not-yet">Configured but not active</h2>
+  <p>
+    These are described so this page is accurate the day they are enabled — and
+    so you are not surprised. None currently receives any data.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Category</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Analytics and advertising</strong></td>
+          <td><span class="wip">Not yet active</span></td>
+          <td>Website measurement only, on <a href="/cookies">consent</a>. Does not touch product data or your customers' data.</td>
+        </tr>
+        <tr>
+          <td><strong>AI providers</strong></td>
+          <td><span class="wip">Not yet in production</span></td>
+          <td>Not currently used. If introduced, this list is updated and you are notified in advance under DPA §6 before any data reaches them.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="carriers">Carriers and platforms you connect yourself</h2>
+  <p>
+    When you connect a courier, a messaging platform, an advertising account or a
+    spreadsheet, data flows to a provider <strong>you</strong> have a
+    relationship with, on your instruction. Those are not our sub-processors —
+    they are your own processors, and their terms are between you and them. We
+    pass data to them because you told us to.
+  </p>
+
+  <h2 id="changes">Changes</h2>
+  <p>
+    We give reasonable advance notice before adding or replacing a sub-processor.
+    You may object on reasonable data protection grounds; if we can't resolve it,
+    you may terminate the affected part of the service without penalty. See
+    <a href="/dpa#subprocessors">DPA §6</a>.
+  </p>
+  <p>To be notified of changes, or to request the named list: <a href="/contact">contact us</a>.</p>
+</Legal>

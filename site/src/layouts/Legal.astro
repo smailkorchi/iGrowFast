@@ -1,0 +1,164 @@
+---
+import Base from './Base.astro';
+
+export interface Props {
+  title: string;
+  description: string;
+  path: string;
+  /** Human date, e.g. "16 July 2026". */
+  updated: string;
+  /** Short statement of who/what this document governs. */
+  summary: string;
+}
+
+const { title, description, path, updated, summary } = Astro.props;
+---
+
+<Base title={`${title} — iGrowFast`} description={description} path={path}>
+  <article class="legal">
+    <div class="container narrow">
+      <header class="legal-head">
+        <h1>{title}</h1>
+        <p class="summary">{summary}</p>
+        <p class="meta">
+          Last updated {updated} · iGrowFast LLC, a Wyoming limited liability company
+        </p>
+      </header>
+
+      <!--
+        Draft notice. This is deliberate and honest: these documents are drafted
+        against primary sources but have not been reviewed by counsel, and several
+        underlying facts (regulator filings, appointed representatives) do not exist
+        yet. Publishing a policy that asserts otherwise is the exact failure mode
+        this whole exercise exists to avoid. Remove per-document, only once the
+        document is genuinely reviewed and its facts are true.
+      -->
+      <aside class="draft-notice" role="note">
+        <strong>This document is being finalised.</strong>
+        <span>
+          It is published for transparency while our legal review completes. Some
+          sections are marked as in progress and are being actively worked on. If
+          anything here affects a decision you are making, please
+          <a href="/contact">contact us</a> and we will answer directly.
+        </span>
+      </aside>
+
+      <div class="prose">
+        <slot />
+      </div>
+    </div>
+  </article>
+</Base>
+
+<style>
+  .legal {
+    padding-block: clamp(3rem, 2rem + 4vw, 5rem);
+  }
+  .narrow {
+    max-width: 78ch;
+  }
+  .legal-head h1 {
+    font-size: var(--step-h1);
+  }
+  .summary {
+    margin-top: 0.75rem;
+    font-size: var(--step-body-lg);
+    color: var(--muted);
+    max-width: 68ch;
+  }
+  .meta {
+    margin-top: 1rem;
+    font-size: var(--step-caption);
+    color: var(--mid);
+  }
+
+  .draft-notice {
+    margin-block: 2rem;
+    padding: 1rem 1.15rem;
+    background: var(--accent-soft);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: var(--step-small);
+    line-height: 1.55;
+  }
+  .draft-notice strong {
+    font-weight: 600;
+  }
+
+  /* Long-form legal reading. Lora is the brand's editorial serif and this is
+     the one register that earns it — BRAND_GUIDELINES §3 reserves it for
+     long-form, not UI. Body stays Inter; only the measure and rhythm change. */
+  .prose :global(h2) {
+    margin-top: 2.5rem;
+    margin-bottom: 0.75rem;
+    font-size: var(--step-h3);
+    scroll-margin-top: 84px;
+  }
+  .prose :global(h3) {
+    margin-top: 1.75rem;
+    margin-bottom: 0.5rem;
+    font-size: var(--step-body-lg);
+    font-weight: 600;
+  }
+  .prose :global(p),
+  .prose :global(li) {
+    font-size: var(--step-body);
+    line-height: 1.7;
+  }
+  .prose :global(p) {
+    margin-bottom: 1rem;
+  }
+  .prose :global(ul),
+  .prose :global(ol) {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .prose :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+    font-size: var(--step-small);
+  }
+  /* Wide content must scroll inside its own container — the page body
+     must never scroll horizontally. */
+  .prose :global(.table-wrap) {
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+  }
+  .prose :global(th),
+  .prose :global(td) {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .prose :global(th) {
+    font-weight: 600;
+    background: var(--line-soft);
+  }
+  .prose :global(address) {
+    font-style: normal;
+    line-height: 1.7;
+  }
+
+  /* Marks a section whose underlying fact does not exist yet (a filing not
+     made, a representative not appointed). Visible on purpose — an unmarked
+     gap in a legal page is a misrepresentation. */
+  .prose :global(.wip) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--line-soft);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: var(--step-caption);
+    font-weight: 500;
+  }
+</style>

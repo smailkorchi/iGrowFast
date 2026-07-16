@@ -1,0 +1,130 @@
+---
+const links = [
+  { href: '/', label: 'Home' },
+  { href: '/about', label: 'About' },
+  { href: '/plans', label: 'Plans' },
+  { href: '/contact', label: 'Contact' },
+];
+const here = Astro.url.pathname.replace(/\.html$/, '') || '/';
+---
+
+<header class="site-nav">
+  <div class="container bar">
+    <!--
+      The full logo PNG is a CREAM wordmark — it was drawn for the app's
+      permanently-dark sidebar and is invisible on this cream canvas. So the
+      mark is used on its own and the wordmark is typeset in the brand's own
+      display face, in ink. Same identity, legible on the right ground.
+    -->
+    <a href="/" class="brand" aria-label="iGrowFast — home">
+      <img src="/icon.png" alt="" width="28" height="28" decoding="async" />
+      <span class="brand-word">iGrowFast<i>.</i></span>
+    </a>
+
+    <nav aria-label="Primary">
+      <ul>
+        {
+          links.map((l) => (
+            <li>
+              <a href={l.href} aria-current={here === l.href ? 'page' : undefined}>
+                {l.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="actions">
+      <a href="https://app.igrowfast.com" class="btn btn-secondary">Sign in</a>
+      <a href="/contact" class="btn btn-primary">Talk to us</a>
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-nav {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-nav);
+    background: color-mix(in srgb, var(--canvas) 88%, transparent);
+    /* The one place a blur earns its keep: content scrolls under a sticky bar
+       and needs separating. Not decoration. */
+    backdrop-filter: saturate(140%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    min-height: 68px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .brand:hover {
+    text-decoration: none;
+  }
+  .brand img {
+    height: 28px;
+    width: 28px;
+    object-fit: contain;
+  }
+  .brand-word {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  /* The orange full stop is part of the mark. It is the one place the accent
+     appears in the nav — everything else is ink. */
+  .brand-word i {
+    font-style: normal;
+    color: var(--accent);
+  }
+  nav ul {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  nav a {
+    color: var(--ink);
+    font-size: var(--step-small);
+    font-weight: 500;
+    opacity: 0.72;
+    transition: opacity var(--dur-fast) var(--ease-smooth);
+  }
+  nav a:hover {
+    opacity: 1;
+    text-decoration: none;
+  }
+  nav a[aria-current='page'] {
+    opacity: 1;
+    font-weight: 600;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  /* Below 860px the centre nav would crowd the actions. The four links move
+     into the footer's reach; the two CTAs are what matter on a phone. */
+  @media (max-width: 860px) {
+    nav {
+      display: none;
+    }
+  }
+  @media (max-width: 520px) {
+    .actions .btn-secondary {
+      display: none;
+    }
+  }
+</style>

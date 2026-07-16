@@ -1,0 +1,103 @@
+---
+import Legal from '../layouts/Legal.astro';
+
+/**
+ * WCAG 2.1 AA is a TARGET here, never a conformance CLAIM.
+ *
+ * The FTC fined accessiBe $1M for repeating a vendor's compliance claim. An
+ * unqualified "this site is accessible" is a representation that can be tested
+ * and found false. No overlay widget, ever — they are the thing that got fined.
+ */
+---
+
+<Legal
+  title="Accessibility"
+  description="What we aim for on accessibility, what we know isn't there yet, and how to tell us about a barrier."
+  path="/accessibility"
+  updated="16 July 2026"
+  summary="What we aim for, what we know is missing, and how to tell us when something blocks you."
+>
+  <h2 id="aim">What we aim for</h2>
+  <p>
+    We build against <strong>WCAG 2.1 Level AA</strong> as a target. That means
+    the things it actually asks for: text you can read, contrast you can see,
+    everything reachable with a keyboard, sensible headings, real labels on form
+    fields, and motion that respects your system settings.
+  </p>
+  <p>
+    <strong>We are not claiming conformance.</strong> "Target" and "conformant"
+    are different words and we are using the accurate one. Claiming a standard we
+    have not been independently audited against would be a statement we cannot
+    stand behind — and telling you the truth costs us nothing.
+  </p>
+
+  <h2 id="done">What's in place</h2>
+  <ul>
+    <li>Semantic HTML, so screen readers get real structure rather than a pile of divs.</li>
+    <li>A skip link to jump straight to content.</li>
+    <li>Visible focus indicators on everything focusable.</li>
+    <li>Body text meeting AA contrast against its background.</li>
+    <li>
+      <strong>Animation respects <code>prefers-reduced-motion</code>.</strong>
+      The product demonstrations on this site stop animating entirely and show a
+      finished, static state instead — they don't just slow down.
+    </li>
+    <li>Text that reflows and stays readable when zoomed or on a narrow screen.</li>
+    <li>Nothing conveyed by colour alone.</li>
+  </ul>
+
+  <h2 id="gaps">What we know isn't there yet</h2>
+  <p>Being specific is more useful than a reassuring paragraph:</p>
+  <ul>
+    <li>
+      <span class="wip">In progress</span> The site has not been independently
+      audited, and has not been tested end-to-end with every major screen reader.
+      Our confidence comes from how it is built, not from a test report.
+    </li>
+    <li>
+      <span class="wip">In progress</span> The animated product demonstrations
+      are visual by nature. They carry a reduced-motion alternative and none of
+      them contains information you can't get from the surrounding text — but
+      they are not a substitute for a described walkthrough, and we know it.
+    </li>
+    <li>
+      <span class="wip">In progress</span> The product itself, at
+      app.igrowfast.com, is a dense operational tool held to the same target but
+      not yet at the same level as this site. It is being worked on.
+    </li>
+  </ul>
+
+  <h2 id="overlay">No accessibility overlay</h2>
+  <p>
+    We don't use an overlay widget — the kind that bolts a floating accessibility
+    button onto a site and promises instant compliance. They frequently make
+    things worse for the people they claim to help, and they interfere with the
+    assistive technology you already have configured. We would rather fix the
+    underlying page.
+  </p>
+
+  <h2 id="tell">Tell us</h2>
+  <p>
+    If something on this site or in the product blocks you, we want to know — and
+    we would rather hear about it than have you work around it.
+  </p>
+  <p>
+    Email <a href="mailto:contact@igrowfast.com">contact@igrowfast.com</a> with
+    what you were trying to do, the page, and what got in the way. If you tell us
+    which assistive technology and browser you use, that helps us reproduce it.
+  </p>
+  <p>
+    We will acknowledge within a few days and tell you honestly whether it's a
+    quick fix or a longer one. If you need information from this site in another
+    format in the meantime, ask and we will send it to you directly.
+  </p>
+</Legal>
+
+<style>
+  code {
+    font-size: 0.9em;
+    background: var(--line-soft);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+</style>

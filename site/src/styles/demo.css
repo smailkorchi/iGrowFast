@@ -1,0 +1,115 @@
+/* ============================================================
+   Demo chrome — shared by every product demo.
+   ------------------------------------------------------------
+   Ported from announcement-preview.html:150-171, 299-315, but
+   RE-THEMED. The in-app deck runs on a dark veil; this site is
+   light-first cream (BRAND_GUIDELINES §6 bans a dark hero), so
+   borders/shadows are inverted onto the brand palette.
+
+   Two deliberate drops from the original:
+   - `.demo-caption .live-dot` used --whatsapp (#25D366). Meta grants
+     third parties no marketing licence for its brand features, and a
+     reviewer reads this site during Business Verification. No WhatsApp
+     green anywhere on this site.
+   - `.frame-light` variant is gone: every frame is light here.
+   ============================================================ */
+
+.demo-frame {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+/* Fixed design canvas, uniformly scaled into the frame. Never reflows. */
+.demo-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.demo-stage svg {
+  display: block;
+}
+.demo-stage .wd-fade {
+  transition: opacity 360ms ease;
+}
+.demo-stage.is-resetting .wd-fade {
+  opacity: 0;
+}
+
+/* --- Cursor + ripple (shared by every demo) --- */
+.wd-cursor {
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  /* Lightened from the deck's rgba(0,0,0,0.5) — that shadow was tuned
+     against a dark stage and reads as grime on cream. */
+  filter: drop-shadow(0 2px 4px rgba(20, 20, 19, 0.28));
+  transition: transform 800ms cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+.wd-cursor .cursor-scale {
+  transition: transform 130ms ease-out;
+  transform-origin: 6px 4px;
+}
+.wd-cursor.is-down .cursor-scale {
+  transform: scale(0.82);
+}
+
+.wd-ripple {
+  position: absolute;
+  z-index: 49;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 999px;
+  /* Default is now the INK ripple: stages here are light, so the deck's
+     white-on-dark default would be invisible. `.dark` keeps the original
+     light-on-dark ripple for any dark panel inside a stage. */
+  border: 2px solid rgba(20, 20, 19, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  animation: ripple 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.wd-ripple.dark {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.25);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* --- Caption under a frame --- */
+.demo-caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: var(--step-caption);
+  color: var(--muted);
+}
+
+/* Reduced motion: the engine renders a static end-state and never starts a
+   scene, so the cursor is meaningless — it would sit frozen mid-stage. */
+@media (prefers-reduced-motion: reduce) {
+  .wd-cursor,
+  .wd-ripple {
+    display: none !important;
+  }
+}

@@ -1,0 +1,90 @@
+# Public marketing site deploy — igrowfast.com (apex)
+#
+# Sibling of deploy-frontend.yml, same origin box, same deploy user, same
+# capistrano shape — but a SEPARATE release tree at www/site/.
+#
+# Why www/site/ and not a second box:
+#   The nginx container bind-mounts ./www:/srv/www:ro — the PARENT — so
+#   www/site/current is already visible inside the container with no compose
+#   change and no restart. nginx re-resolves `root` per request, so the
+#   symlink flip is picked up live.
+#
+# Prune isolation (verified, not assumed):
+#   deploy-frontend.yml runs `cd /opt/igf-frontend/www && ls -dt releases/*`.
+#   That glob is relative to www/ and cannot match www/site/releases/*.
+#   This job's prune is `cd .../www/site` and likewise cannot touch the app's
+#   releases. The two trees are independent.
+#
+# NOTE on `paths:` — this workflow is filtered to site/** so app pushes don't
+# rebuild the marketing site. The REVERSE filter is missing from
+# deploy-frontend.yml (it has no `paths:` and fires on every push to main),
+# which means a site-only push still rebuilds the 8GB-heap app AND evicts one
+# app release from its keep-5 prune. Fixing that is a deliberate change to a
+# live workflow with branch-protection implications — tracked separately, not
+# smuggled in here.
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy-site.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - run: npm ci
+
+      # Typecheck GATE, mirroring deploy-frontend.yml's `npx tsc -b` rationale:
+      # the build transpiles without typechecking, so a broken file would ship.
+      # astro check is the equivalent real check for this project.
+      - run: npx astro check
+
+      - run: npm run build
+
+      - name: SSH setup
+        working-directory: .
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.TOOLBOX_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.TOOLBOX_HOST_KEY }}" >> ~/.ssh/known_hosts
+
+      - name: Upload release + atomic flip
+        working-directory: .
+        run: |
+          TS="$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          # rsync only creates the final path component; www/site/releases must
+          # exist before the first deploy.
+          ssh igf-deploy@37.60.250.211 "mkdir -p /opt/igf-frontend/www/site/releases"
+          rsync -az --delete \
+            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+            site/dist/ "igf-deploy@37.60.250.211:/opt/igf-frontend/www/site/releases/$TS/"
+          ssh igf-deploy@37.60.250.211 \
+            "cd /opt/igf-frontend/www/site \
+             && ln -sfn releases/$TS current \
+             && ls -dt releases/* | tail -n +6 | xargs -r rm -rf"
+
+      - name: Verify live
+        working-directory: .
+        run: |
+          sleep 3
+          curl -sfI https://igrowfast.com | head -1
