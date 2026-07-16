@@ -38,7 +38,11 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return;
           if (id.includes("react-icons")) return "react-icons";
-          if (id.includes("@react-pdf")) return "react-pdf";
+          // NOTE: @react-pdf is deliberately NOT force-chunked. Forcing it into a named
+          // manual chunk made Rollup hoist that chunk into the eager entry graph (it was
+          // modulepreloaded + fetched on every page, ~1.5 MB) even though every source
+          // importer is now behind a dynamic import()/React.lazy boundary. Letting Rollup
+          // natural-split it keeps it inside the async (payout/tools) chunks → lazy.
           if (id.includes("recharts") || id.includes("d3-")) return "charts";
           if (id.includes("framer-motion")) return "framer-motion";
           if (id.includes("node_modules/three") || id.includes("postprocessing")) return "three";
