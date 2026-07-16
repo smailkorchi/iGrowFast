@@ -131,7 +131,7 @@ const Dashboard = () => {
 
             <ShippingPipeline businessId={businessId} stats={stats?.shipping_pipeline} />
             <DashboardSellersPerformance businessId={businessId} stats={stats?.sellers_performance} />
-            <DashboardProductsPerformance businessId={businessId} stats={stats?.products_performance} />
+            <DashboardProductsPerformance stats={stats?.products_performance} />
             <DashboardCityStats stats={stats?.city_stats} />
         </div>
     );

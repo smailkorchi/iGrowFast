@@ -128,7 +128,10 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const resolve = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // getSession (local JWT) not getUser (network→GoTrue): ProtectedRoute already
+      // validated the session upstream, and RLS enforces on the selects below.
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return;
 
       const { data: profile } = await supabase

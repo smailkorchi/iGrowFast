@@ -1,16 +1,16 @@
-# Graph Report - iGrowFast  (2026-07-15)
+# Graph Report - iGrowFast  (2026-07-16)
 
 ## Corpus Check
-- 1073 files · ~1,420,064 words
+- 1119 files · ~1,617,878 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 6577 nodes · 14488 edges · 389 communities (239 shown, 150 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 52 edges (avg confidence: 0.65)
+- 6755 nodes · 14707 edges · 400 communities (250 shown, 150 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 61 edges (avg confidence: 0.66)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `16212f67`
+- Built from commit: `cfb7df47`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -365,30 +365,36 @@
 - DeleteInstanceModal.tsx
 - PairDialog.tsx
 - sheet.tsx
-- OrderTrackingImport.tsx
 - Migration `20260714220000_d1_orders_list.sql`
 - D3 RECON — admin Analytics page: OrdersSection, BusinessHealthSection, ShippingSection, CustomersSection, SalesChannelsSection
-- hydrate.ts
+- Dashboard.tsx
+- types.ts
 - breadcrumb.tsx
 - drawer.tsx
+- package.json
+- sellerPayoutPdf.tsx
 - accordion.tsx
 - Sellers.tsx
 - Payments.tsx
-- useSellerLiveOwed.ts
+- Track 0 — Stack-Capacity Baseline (measured 2026-07-16, live box, read-only)
 - D2 DESIGN CONTRACT — per-role dashboard stats RPCs (binding)
 - D2 RECON — SELLER SURFACES (inline recon; Dashboard verified at line level, Statistics/Profile deltas to be re-verified in-file by the implementer)
-- docThumbnail.ts
+- ../lib/demo-engine.js
+- metaTheme.ts
 - commercialCommission.ts
-- ImportProducts.tsx
+- Task #1 — AppLayout shell (admin)  [audit-only, fixes proposed]
+- Copy rules — igrowfast.com
 - ecomBus.ts
-- OrderTrackingImport.tsx
+- demo-engine.js
 - 04-design.md
-- Sidebar.tsx
-- navigation-menu.tsx
-- SellerLayout.tsx
-- LifecycleBadge.tsx
+- index.astro
+- DevisPdfDocument.tsx
+- FacturePdfDocument.tsx
+- scripts
 - alert.tsx
-- xlsx
+- ../components/demos/Webhooks.astro
+- ../components/demos/WhatsAppInbox.astro
+- tsconfig.json
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 502 edges
@@ -407,57 +413,57 @@
   src/components/ui/carousel.tsx → package.json
 - `useChart()` --references--> `react`  [EXTRACTED]
   src/components/ui/chart.tsx → package.json
-- `CourierDeliveryNoteWizard()` --references--> `react`  [EXTRACTED]
-  src/components/delivery/CourierDeliveryNoteWizard.tsx → package.json
-- `DeliveryNoteWizard()` --references--> `react`  [EXTRACTED]
-  src/components/delivery/DeliveryNoteWizard.tsx → package.json
-- `MediaBuyerSidebar()` --references--> `react`  [EXTRACTED]
-  src/components/layout/MediaBuyerSidebar.tsx → package.json
+- `saveExport()` --indirect_call--> `h()`  [INFERRED]
+  src/lib/ordersExport.ts → site/src/lib/consent.js
+- `BonLivraisonWizard()` --indirect_call--> `h()`  [INFERRED]
+  src/pages/admin/tools/bonLivraison/BonLivraisonWizard.tsx → site/src/lib/consent.js
+- `AdsHistory()` --indirect_call--> `h()`  [INFERRED]
+  src/pages/AdsHistory.tsx → site/src/lib/consent.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (389 total, 150 thin omitted)
+## Communities (400 total, 150 thin omitted)
 
 ### Community 0 - "WhatsApp Media & Icons"
-Cohesion: 0.02
-Nodes (148): editMessage(), updateGroupParticipants(), formatUnread(), DeliveryStatus, normalizeDeliveryStatus(), buildMediaUrl(), ResolvedMedia, useResolvedMediaUrl() (+140 more)
+Cohesion: 0.01
+Nodes (173): editMessage(), sendReaction(), setMessagePin(), togglePin(), toggleStar(), ConversationDecrypted, updateGroupParticipants(), DeliveryStatus (+165 more)
 
 ### Community 1 - "App Shell & Route Guards"
 Cohesion: 0.04
-Nodes (116): AccessoryPreviewDialog(), AccessoryPreviewDialogProps, AccessoryPreviewRow, AdminActions, formatAccessoryInventoryValueDh(), AlertDialogAction, AlertDialogCancel, AlertDialogContent (+108 more)
+Nodes (87): AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter(), AlertDialogHeader(), AlertDialogOverlay, AlertDialogTitle (+79 more)
 
 ### Community 2 - "Order Contact Actions"
 Cohesion: 0.06
 Nodes (39): capitalize(), CheckSquare(), dayToIso(), LIMIT_PILLS, LimitChoice, MultiPick(), nf, OrdersExportWizard() (+31 more)
 
 ### Community 3 - "Order Form & Provider Adapters"
-Cohesion: 0.06
-Nodes (53): ImageHoverPreview(), ImageHoverPreviewProps, OrderContactSubmenu(), OrderPhoneContactDropdown(), OrderPhoneContactDropdownProps, smsHref(), telHref(), useContactLinks() (+45 more)
+Cohesion: 0.03
+Nodes (89): WhatsappAssignment, WhatsappContacts, WhatsappConversations, WhatsappNumberDetail, WhatsappNumbers, WhatsappSellerInbox, AnnouncementGate(), MediaBuyerIntegrationGuard() (+81 more)
 
 ### Community 4 - "Dashboard Stat Rows"
-Cohesion: 0.10
-Nodes (27): DashboardProductsPerformanceProps, DPProduct, ProductHeaderRow(), ProductRow, UnitCell(), DashboardSellersPerformance(), DashboardSellersPerformanceProps, DSSeller (+19 more)
+Cohesion: 0.07
+Nodes (44): DashboardProductsPerformance(), DashboardProductsPerformanceProps, ProductHeaderRow(), ProductRow, UnitCell(), DashboardSellersPerformance(), DashboardSellersPerformanceProps, DSSeller (+36 more)
 
 ### Community 5 - "Business & Profile Modals"
 Cohesion: 0.05
 Nodes (38): 0. Page-level facts (apply to ALL six sections), 1. ProfitabilitySection (`src/components/analytics/ProfitabilitySection.tsx`, 806 lines), 2. InventorySection (`InventorySection.tsx`, 349 lines), 3. AdsSection (`AdsSection.tsx`, 634 lines), 4. SellersSection (`SellersSection.tsx`, 348 lines), 5. CouriersSection (`CouriersSection.tsx`, 285 lines), 6. MediaBuyersSection (`MediaBuyersSection.tsx`, 531 lines), 7. Cross-section facts D3 must handle (+30 more)
 
 ### Community 6 - "WhatsApp Quick Replies & Steps"
-Cohesion: 0.04
-Nodes (80): useAgentTyping(), bizCache, businessIdOf(), decodeAudioDurationSeconds(), MediaStep, MediaStepType, MessageStep, QrMediaUploadResponse (+72 more)
+Cohesion: 0.03
+Nodes (104): Profile, bizCache, businessIdOf(), decodeAudioDurationSeconds(), MediaStep, MediaStepType, MessageStep, QrMediaUploadResponse (+96 more)
 
 ### Community 7 - "Business Form & Form Primitives"
 Cohesion: 0.18
 Nodes (16): buildProviderMap(), CarrierMappingSection(), Cities(), CityCoverageStrip(), CityFormValues, citySchema, cityToFormDefaults(), emptyCityForm (+8 more)
 
 ### Community 8 - "WhatsApp Inbox Handlers"
-Cohesion: 0.04
-Nodes (98): activeOpenPeer, armSyncSettle(), backfillContactsFromEvolution(), backfillInFlight, broadcastPeerStoppedTyping(), buildGroupEventBody(), captureJidMapping(), coerceBytes() (+90 more)
+Cohesion: 0.05
+Nodes (87): activeOpenPeer, armSyncSettle(), backfillContactsFromEvolution(), backfillInFlight, broadcastPeerStoppedTyping(), buildGroupEventBody(), captureJidMapping(), coerceBytes() (+79 more)
 
 ### Community 9 - "Order Status Dialogs"
-Cohesion: 0.09
-Nodes (18): CreateCampaignWizard(), BudgetCell(), Props, metaDb, useMetaUpdateBudget(), useMetaUpdateStatus(), useMetaUploadImageFromUrl(), useVerifyMetaToken() (+10 more)
+Cohesion: 0.08
+Nodes (27): CreateCampaignWizard(), BulkActions(), Props, BudgetCell(), Props, StatusToggle(), metaDb, useMetaConnections() (+19 more)
 
 ### Community 10 - "WhatsApp Evolution Handlers"
 Cohesion: 0.06
@@ -476,32 +482,32 @@ Cohesion: 0.07
 Nodes (54): Config, attachListenClient(), channels, closeDb(), listenOn(), NotifyHandler, pool, quoteIdent() (+46 more)
 
 ### Community 14 - "App Pages"
-Cohesion: 0.14
-Nodes (25): CredentialChangeDialog(), SecuritySection(), TotpEnrollDialog(), confirmSelfChange(), deleteOwnPasskey(), describePasskeyError(), enrollTotp(), invokeJson() (+17 more)
+Cohesion: 0.08
+Nodes (39): HistoryRecord, OrderShape, OrderStatusHistoryDialogProps, OrdStatus, AvatarEditDialog(), ProfileScaffold(), CredentialChangeDialog(), SecuritySection() (+31 more)
 
 ### Community 15 - "Shared Libs & Utils"
-Cohesion: 0.07
-Nodes (52): input-otp, JOB_LOG, JobKind, JOBS, ManualBackupWizard(), STEPS, RestoreWizard(), TotpGate() (+44 more)
+Cohesion: 0.08
+Nodes (52): input-otp, HoldToConfirmButton(), JOB_LOG, JobKind, JOBS, ManualBackupWizard(), STEPS, Mode (+44 more)
 
 ### Community 16 - "WhatsApp UI Components"
-Cohesion: 0.07
-Nodes (63): AdminCartOrderDraft, SellerCartOrderDraft, useSidebarCollapse(), sendReadReceipt(), MessageDecrypted, clearDraft(), drafts, emit() (+55 more)
+Cohesion: 0.06
+Nodes (72): AdminCartOrderDraft, SellerCartOrderDraft, subscribeEcomBus(), useSidebarCollapse(), useAuth(), sendMessage(), sendReadReceipt(), sendStepSequence() (+64 more)
 
 ### Community 17 - "WhatsApp Inbox State"
-Cohesion: 0.05
-Nodes (59): cancelOutboundMessage(), clearAllConversations(), deleteAllConversations(), deleteMessageForEveryone(), deleteMessageForMe(), deriveFileName(), forceDispatchNow(), forwardMessage() (+51 more)
+Cohesion: 0.06
+Nodes (44): cancelOutboundMessage(), clearAllConversations(), deleteAllConversations(), deleteMessageForEveryone(), deleteMessageForMe(), deriveFileName(), forceDispatchNow(), forwardMessage() (+36 more)
 
 ### Community 18 - "WhatsApp Conversations"
-Cohesion: 0.07
-Nodes (54): applyAutoAssignBacklog(), assignByFilter(), AssignmentMode, AssignmentPageRow, AssignmentSummary, AutoAssignConfig, AutoAssignStrategy, bulkAssignConversations() (+46 more)
+Cohesion: 0.08
+Nodes (47): applyAutoAssignBacklog(), assignByFilter(), AssignmentMode, AssignmentPageRow, AssignmentSummary, AutoAssignConfig, AutoAssignStrategy, bulkAssignConversations() (+39 more)
 
 ### Community 19 - "UI Components"
-Cohesion: 0.10
-Nodes (39): AdsSection(), AdsSectionProps, getPlatformIcon(), PLATFORM_COLORS, AnalyticsDateFilterProps, DateFilter, PRESETS, BusinessHealthSection() (+31 more)
+Cohesion: 0.07
+Nodes (72): AdsSection(), AdsSectionProps, AdsSlice, getPlatformIcon(), PLATFORM_COLORS, AnalyticsDateFilter(), AnalyticsDateFilterProps, DateFilter (+64 more)
 
 ### Community 20 - "App Pages"
-Cohesion: 0.07
-Nodes (35): ConfirmationPipeline(), ConfirmationPipelineProps, ConfirmationPipelineSection, CityStatsSection, DashboardCityStats(), DashboardCityStatsProps, TOP_COLORS, KpiCardsSection (+27 more)
+Cohesion: 0.06
+Nodes (36): ConfirmationPipeline(), ConfirmationPipelineSection, CityStatsSection, DashboardCityStats(), DashboardCityStatsProps, TOP_COLORS, DashboardKPICards(), DashboardKPICardsProps (+28 more)
 
 ### Community 21 - "WhatsApp Ops"
 Cohesion: 0.07
@@ -512,52 +518,52 @@ Cohesion: 0.07
 Nodes (51): BACKOFF_SECONDS, dispatch(), DispatchPrep, drivePresence(), getOwnerJid(), handleDispatchError(), inflightCount(), isMessageBackedAction() (+43 more)
 
 ### Community 23 - "App Pages"
-Cohesion: 0.15
-Nodes (22): Progress, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader (+14 more)
+Cohesion: 0.08
+Nodes (46): xlsx, OrderTrackingImport(), Props, Stat(), Progress, Table, TableBody, TableCaption (+38 more)
 
 ### Community 24 - "App Pages"
-Cohesion: 0.08
-Nodes (15): sonner, WhatsappAssignment, WhatsappContacts, WhatsappConversations, WhatsappNumberDetail, WhatsappNumbers, WhatsappSellerInbox, MediaBuyerIntegrationGuard() (+7 more)
+Cohesion: 0.50
+Nodes (3): sonner, Toaster(), ToasterProps
 
 ### Community 25 - "Shared Libs"
-Cohesion: 0.09
-Nodes (23): CustomerInsights(), adSpendInWindow(), AnalyticsOrder, ChartGrain, cogsForOrder(), deliveredRevenueForOrder(), hasTrackingCode(), isAdminPullback() (+15 more)
+Cohesion: 0.10
+Nodes (15): adSpendInWindow(), AnalyticsOrder, ChartGrain, cogsForOrder(), deliveredRevenueForOrder(), hasTrackingCode(), isConfirmed(), isRateConfirmed() (+7 more)
 
 ### Community 26 - "UI Components"
 Cohesion: 0.03
-Nodes (112): AdminChatCartOrderDialog(), buildEditResetValues(), friendlyStockError(), orderCompanyIsAmeex(), orderCompanyIsColiaty(), orderCompanyIsDelvoExpress(), orderCompanyIsForcelog(), orderCompanyIsQuickLivraison() (+104 more)
+Nodes (142): AdminChatCartOrderDialog(), buildEditResetValues(), friendlyStockError(), orderCompanyIsAmeex(), orderCompanyIsColiaty(), orderCompanyIsDelvoExpress(), orderCompanyIsForcelog(), orderCompanyIsQuickLivraison() (+134 more)
 
 ### Community 27 - "App Pages"
-Cohesion: 0.11
-Nodes (27): ConnectionInsert, CORE_METRICS, DateRange, GAConnection, gaDb, resolveBusinessId(), useActiveBusinessId(), useAddGAConnection() (+19 more)
+Cohesion: 0.07
+Nodes (40): ConnectionInsert, CORE_METRICS, DateRange, GAConnection, gaDb, resolveBusinessId(), useActiveBusinessId(), useAddGAConnection() (+32 more)
 
 ### Community 28 - "App Pages"
-Cohesion: 0.04
-Nodes (66): BankDetailsCard(), BankProfile, EditableBankField(), Action, ActionType, actionTypes, addToRemoveQueue(), dispatch() (+58 more)
+Cohesion: 0.06
+Nodes (42): SuspensionOverlay(), useToast(), CITIES_TABLE, COMPANY_FEES_TABLE, COMPANY_ZONES_TABLE, CompanyFeesModal(), CompanyModal(), CompanyZonesModal() (+34 more)
 
 ### Community 29 - "App Pages"
-Cohesion: 0.06
-Nodes (52): queryClient, markConversationRead(), markConversationUnread(), togglePin(), ConversationDecrypted, activeConversationRef, BumpRow, cachedLastInboundAt() (+44 more)
+Cohesion: 0.04
+Nodes (62): AccessoryPreviewDialogProps, AdminActions, AdminActions, ProductPreviewDialogProps, ProductPreviewRow, buildDeliveryNoteReference(), buildTrackingCode(), CourierDeliveryNoteWizardProps (+54 more)
 
 ### Community 30 - "Shared Libs"
 Cohesion: 0.04
-Nodes (89): StatCardProps, buildDeliveryNoteReference(), buildTrackingCode(), CourierDeliveryNoteWizard(), CourierDeliveryNoteWizardProps, CreatedParcelEntry, DeliveryNoteEntry, shortId() (+81 more)
+Nodes (79): CourierDeliveryNoteWizard(), AddNoteResult, buildParcelData(), clearWizardSnapshot(), CreatedParcelEntry, DeliveryNoteEntry, DeliveryNoteWizard(), DeliveryNoteWizardProps (+71 more)
 
 ### Community 31 - "UI Components"
-Cohesion: 0.08
-Nodes (32): Avatar, AvatarFallback, AvatarImage, requestCredentialChange(), EDITABLE_ROLES, firstConfigTab(), hasEditableConfig(), IntegrationAccessField() (+24 more)
+Cohesion: 0.06
+Nodes (43): getCourierPackageStatus(), OrderViewDialog(), OrderViewDialogProps, DataListItem, ParcelTrackingDialog(), ParcelTrackingDialogProps, PkgStatus, getCourierPackageStatus() (+35 more)
 
 ### Community 32 - "Shared Libs"
-Cohesion: 0.06
-Nodes (51): embedRemoteImagesForPdf(), embedRemoteImagesForPdf(), buildCourierPayoutPdfBlob(), CourierPayoutDocument(), CourierPayoutPdfInput, CourierPayoutPdfLineItem, downloadCourierPayoutPdf(), fmtDate() (+43 more)
+Cohesion: 0.12
+Nodes (29): buildCourierPayoutPdfBlob(), CourierPayoutDocument(), CourierPayoutPdfInput, CourierPayoutPdfLineItem, downloadCourierPayoutPdf(), fmtDate(), fmtMAD(), resolveCourierPayoutImages() (+21 more)
 
 ### Community 33 - "WhatsApp Ops"
-Cohesion: 0.12
-Nodes (24): Config, required(), requiredNumber(), closeDb(), supabase, stopInstanceManager(), refreshQueueDepth(), startSelfPresenceLoop() (+16 more)
+Cohesion: 0.18
+Nodes (18): closeDb(), stopInstanceManager(), refreshQueueDepth(), startSelfPresenceLoop(), stopSelfPresenceLoop(), stopMediaIngest(), completionTimestamps, markDispatched() (+10 more)
 
 ### Community 34 - "WhatsApp Ops"
 Cohesion: 0.10
-Nodes (39): applyInstanceControl(), applyState(), claimLeases(), deleteEvolutionInstance(), EvolutionInstanceRow, fetchAllEvolutionInstances(), fetchDisconnectReason(), fetchEvolutionState() (+31 more)
+Nodes (40): supabase, applyInstanceControl(), applyState(), claimLeases(), deleteEvolutionInstance(), EvolutionInstanceRow, fetchAllEvolutionInstances(), fetchDisconnectReason() (+32 more)
 
 ### Community 35 - "WhatsApp Frontend"
 Cohesion: 0.07
@@ -568,44 +574,44 @@ Cohesion: 0.11
 Nodes (36): applyState(), claimLeases(), deleteEvolutionInstance(), EvolutionInstanceRow, fetchAllEvolutionInstances(), fetchDisconnectReason(), fetchEvolutionState(), fetchToken() (+28 more)
 
 ### Community 37 - "WhatsApp Frontend"
-Cohesion: 0.06
-Nodes (42): RFC-6868, deriveCountryCode(), DiffRow, ImportContactsModal(), ImportContactsModalProps, Phase, PhoneBookEntry, EnsureConversationArgs (+34 more)
+Cohesion: 0.05
+Nodes (52): RFC-6868, deriveCountryCode(), DiffRow, ImportContactsModal(), ImportContactsModalProps, Phase, PhoneBookEntry, fetchProfile() (+44 more)
 
 ### Community 38 - "React Hooks"
 Cohesion: 0.02
 Nodes (106): 2. Sections by Area, ADMIN MISC, ANALYTICS, COURIER, DASHBOARDS, DELIVERY & RETURN NOTES, EDGE FUNCTIONS, HOOKS (+98 more)
 
 ### Community 39 - "App Pages"
-Cohesion: 0.06
-Nodes (62): useCampaignBasePath(), useCampaignMetrics(), useCurrentUserId(), CampaignPoint, DailyPoint, emptyTotals(), finalize(), MbDashboardStatsPayload (+54 more)
+Cohesion: 0.17
+Nodes (20): fmtCur(), fmtCurFull(), fmtNum(), fmtNumCompact(), fmtPct(), Couriers(), MediaBuyerPayoutsList(), SellerPayoutsList() (+12 more)
 
 ### Community 40 - "WhatsApp Frontend"
-Cohesion: 0.04
-Nodes (72): AddEditBusinessModalProps, BusinessFormValues, businessSchema, STATUS_CFG, formatProductDhAggregate(), productInventoryTotals(), ProductPreviewDialog(), FormControl (+64 more)
+Cohesion: 0.03
+Nodes (93): react, SectionSkeleton(), AddEditBusinessModal(), PricePair(), SellerHeaderRow(), baseNavigation, footerNavigation, isParentPath() (+85 more)
 
 ### Community 41 - "WhatsApp Frontend"
 Cohesion: 0.08
 Nodes (25): 0. Role → dashboard map & global fetch config, 1. ADMIN DASHBOARD — 8 widgets, 1A. DashboardKPICards (`src/components/dashboard/DashboardKPICards.tsx`), 1B. SalesComparatifChart (`SalesComparatifChart.tsx`), 1C. PendingOrdersBreakdown (`PendingOrdersBreakdown.tsx`), 1D. ConfirmationPipeline (`ConfirmationPipeline.tsx`), 1E. ShippingPipeline (`ShippingPipeline.tsx`), 1F. DashboardSellersPerformance (`DashboardSellersPerformance.tsx`) — heaviest widget (+17 more)
 
 ### Community 43 - "Shared Libs"
-Cohesion: 0.11
-Nodes (30): expiryLabel(), InvitationsPanel(), phaseOf(), InviteUserWizard(), RoleMeta, ROLES, checkInvitation(), checkSignupEmail() (+22 more)
+Cohesion: 0.14
+Nodes (23): expiryLabel(), InvitationsPanel(), phaseOf(), checkInvitation(), checkSignupEmail(), ConsumeInput, consumeInvitation(), ConsumeResult (+15 more)
 
 ### Community 44 - "WhatsApp Frontend"
 Cohesion: 0.06
 Nodes (30): 0.1 Live RPC inventory (verified on box, `prosecdef` = SECURITY DEFINER flag), 0.2 Role visibility — all three pages (`src/App.tsx`), §0. Scope, evidence base, verification, 1.1 Sweep-finding verification (brief vs. CURRENT code), 1.2 Exact queries (current), 1.3 Exact client math (current), 1.4 Rendered output, 1.5 Refetch / deps (+22 more)
 
 ### Community 45 - "Shared Libs"
-Cohesion: 0.14
-Nodes (24): CourierLayout(), CourierLayoutProps, NotificationPermissionDialog(), Props, CourierNotificationRow, useCourierNotifications(), UseCourierNotificationsOpts, arrayBufferToBase64() (+16 more)
+Cohesion: 0.18
+Nodes (23): CourierLayout(), CourierLayoutProps, NotificationPermissionDialog(), CourierNotificationRow, useCourierNotifications(), UseCourierNotificationsOpts, arrayBufferToBase64(), ensureServiceWorker() (+15 more)
 
 ### Community 46 - "App Pages"
 Cohesion: 0.04
 Nodes (45): 0.1 WEBHOOK INGESTION — NOT AN EDGE FUNCTION (critical), 0.2 Env vars (edge-fn side, values are secrets — names only), 0. Global architecture facts, 1. `_shared/` helpers, 2.10 group-leave  (`allowUsers: true`), 2.11 group-update-participants  (`allowUsers: true`), 2.12 group-update-picture  (`allowUsers: true`), 2.13 group-update-subject  (`allowUsers: true`) (+37 more)
 
 ### Community 47 - "WhatsApp Ops"
-Cohesion: 0.07
-Nodes (28): ContactCard, DeleteMessageInput, EvolutionClientOptions, EvolutionError, GetBase64FromMediaMessageInput, GetBase64FromMediaMessageResponse, MarkReadInput, MediaType (+20 more)
+Cohesion: 0.08
+Nodes (27): ContactCard, DeleteMessageInput, EvolutionClientOptions, GetBase64FromMediaMessageInput, GetBase64FromMediaMessageResponse, MarkReadInput, MediaType, MessageKey (+19 more)
 
 ### Community 48 - "WhatsApp Ops"
 Cohesion: 0.07
@@ -616,8 +622,8 @@ Cohesion: 0.06
 Nodes (35): 0. Blast-radius measurements (live box, 2026-07-15), 1.1 Reuse candidate A — `admin_analytics_stats` `'customers'` section (mig 20260715010000 L1239-L1390): **REJECT**, 1.2 Reuse candidate B — the `customers` table: **ACCEPT for identity/sort/search, REJECT for aggregates**, 1.3 Parity analysis — two divergences, both quantified, 1.4 Proposed fix — D1-style keyset, two new RPCs, 1. `src/pages/admin/Customers.tsx` — **CONFIRMED P1. The one item that matters.**, 2. `useCampaignMetrics` (→ `CampaignManage.tsx`, `CampaignPreview.tsx`) — **PARTLY STALE. P2.**, 3. `src/pages/mediabuyer/Statistics.tsx` — **MOSTLY STALE. P3.** (+27 more)
 
 ### Community 50 - "Shared Libs"
-Cohesion: 0.13
-Nodes (29): getPlatformSource(), buildCourierPayoutPdfBase64(), buildCourierReturnPdfBase64(), arrayBufferToBase64(), blobToBase64(), buildMediaBuyerPayoutPdfBase64(), attributePaymentOrders(), buildSellerPayoutPdfBase64() (+21 more)
+Cohesion: 0.26
+Nodes (18): buildCourierPayoutPdfBase64(), buildCourierReturnPdfBase64(), blobToBase64(), buildMediaBuyerPayoutPdfBase64(), attributePaymentOrders(), buildSellerPayoutPdfBase64(), BusinessBranding, CourierNoteForEmail (+10 more)
 
 ### Community 51 - "UI Components"
 Cohesion: 0.10
@@ -636,20 +642,20 @@ Cohesion: 0.14
 Nodes (17): BaseHTTPRequestHandler, audit(), b64url_decode(), Handler, is_backup_admin(), _jwk_to_pem(), _load_jwks(), presign_get() (+9 more)
 
 ### Community 55 - "TagsPanel.tsx"
-Cohesion: 0.07
-Nodes (45): HoldToConfirmButton(), Mode, Label, labelVariants, RadioGroup, RadioGroupItem, Switch, Textarea (+37 more)
+Cohesion: 0.05
+Nodes (67): Label, labelVariants, RadioGroup, RadioGroupItem, embedRemoteImagesForPdf(), BonCommandeDirection, BonCommandeSnapshot, BonCommandeSupplierBlock (+59 more)
 
 ### Community 56 - "UI Components"
 Cohesion: 0.07
-Nodes (43): Props, Step, STEPS, AccordionSection(), Props, AdPreviewPanel(), MediaPreview(), Props (+35 more)
+Nodes (34): Props, Step, STEPS, AdPreviewPanel(), MediaPreview(), Props, AD_FORMATS, AdData (+26 more)
 
 ### Community 57 - "App Pages"
 Cohesion: 0.04
 Nodes (44): 1.10 Create Stock BL — `POST /create-delivery-note-stock`, 1.1 Health Check — `POST /test`, 1.2 List Statuses — `POST /list-status`, 1.3 List Cities — `POST /list-ville`, 1.4 Create Parcel — `POST /add-parcels`, 1.5 Tracking (History) — `POST /tracking`, 1.6 Current Status — `POST /parcelstatus`, 1.7 Bulk Status by Date Range — `POST /parcel-status-listing-bydate` (+36 more)
 
 ### Community 58 - "AdsTable.tsx"
-Cohesion: 0.12
-Nodes (22): CreateInstanceDialog(), call(), checkWhatsApp(), CheckWhatsAppEntry, CheckWhatsAppResp, createGroup(), CreateGroupResp, createInstance() (+14 more)
+Cohesion: 0.13
+Nodes (13): CAMPAIGN_OBJECTIVES, CAMPAIGN_TYPES, CampaignDailyEntry, CampaignPlatform, CampaignType, CONVERSION_TYPES, ConversionType, DEFAULT_CTA_LABELS (+5 more)
 
 ### Community 59 - "Demands.tsx"
 Cohesion: 0.12
@@ -668,8 +674,8 @@ Cohesion: 0.15
 Nodes (12): 1. Brand Personality, 2. Color, 3. Typography, 4. Shape, Spacing, Elevation, 5. Component Cues, 6. Do / Don't, Core palette (locked), CSS variables (drop-in for the public site) (+4 more)
 
 ### Community 63 - "WhatsApp Ops"
-Cohesion: 0.12
-Nodes (25): Claimed, claimNextJob(), decodeMediaKey(), downloadWhatsAppMedia(), failJob(), getInstanceCreds(), isCdnExpiry(), MEDIA_CONCURRENCY (+17 more)
+Cohesion: 0.14
+Nodes (19): Claimed, claimNextJob(), decodeMediaKey(), downloadWhatsAppMedia(), failJob(), getInstanceCreds(), isCdnExpiry(), MEDIA_CONCURRENCY (+11 more)
 
 ### Community 64 - "WhatsApp Ops"
 Cohesion: 0.13
@@ -708,8 +714,8 @@ Cohesion: 0.15
 Nodes (21): qrcode, baseStyles(), buildQrDataUrl(), BusinessRow, CourierParcelRow, CourierPrintFormat, CourierRow, escapeHtml() (+13 more)
 
 ### Community 73 - "Shared Libs"
-Cohesion: 0.16
-Nodes (30): AdSetsTable(), AdsTable(), BulkActions(), Props, AdSetSubRows(), AdSubRows(), CampaignRow(), Props (+22 more)
+Cohesion: 0.30
+Nodes (17): AdSetsTable(), AdsTable(), AdSetSubRows(), AdSubRows(), CampaignRow(), SummaryBar(), Totals, getStatusStyle() (+9 more)
 
 ### Community 74 - "Payments.tsx"
 Cohesion: 0.36
@@ -724,28 +730,28 @@ Cohesion: 0.15
 Nodes (15): RFC-1918, assertResolvedHostSafe(), decodeEntities(), escape(), extractCanonical(), extractTagText(), isBlockedIp(), isBlockedIpv4() (+7 more)
 
 ### Community 78 - "Shared Libs"
-Cohesion: 0.20
-Nodes (16): PasswordStrengthBar(), SEG_COLOR, checkCredentialToken(), confirmCredentialChange(), credReason(), CredResult, CredTokenStatus, invokeJson() (+8 more)
+Cohesion: 0.42
+Nodes (9): checkCredentialToken(), confirmCredentialChange(), credReason(), CredResult, CredTokenStatus, invokeJson(), isPasswordPolicyDetail(), requestCredentialOtp() (+1 more)
 
 ### Community 79 - "UI Components"
-Cohesion: 0.14
-Nodes (18): Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastKicker(), ToastProps, ToastTitle (+10 more)
+Cohesion: 0.15
+Nodes (17): Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastKicker(), ToastProps, ToastTitle (+9 more)
 
 ### Community 80 - "PayoutPaymentDialogs.tsx"
 Cohesion: 0.09
 Nodes (22): 0. Executive summary — the two levers are NOT what the brief assumed, 1.1 The literal fact, 1.2 Scope — smaller than it looks, 1.3 Quantified — what the defaults mean NOW, 1.4 🔴 BLOCKER — the global cache is never cleared on sign-out, 1.5 What genuinely depends on the aggressive defaults, 1.6 🟠 NEW DEFECT — `refetchOnWindowFocus: true` does not do what D1's comment says, 1.7 Risk-ranked recommendation (+14 more)
 
 ### Community 81 - "WhatsApp Frontend"
-Cohesion: 0.22
-Nodes (12): TrackableCompanyParcelRow, BatchSyncResult, getPackageStatuses(), matchPackageStatus(), norm(), OrderForSync, PackageStatusRow, pickStatusFromResponse() (+4 more)
+Cohesion: 0.23
+Nodes (11): TrackableCompanyParcelRow, BatchSyncResult, getPackageStatuses(), matchPackageStatus(), norm(), OrderForSync, PackageStatusRow, pickStatusFromResponse() (+3 more)
 
 ### Community 82 - "WhatsApp Frontend"
-Cohesion: 0.04
-Nodes (89): AdminActions, PricePair(), ProductPreviewDialogProps, ProductPreviewRow, EmailAccountModal(), FormValues, makeSchema(), SECURITY_OPTIONS (+81 more)
+Cohesion: 0.06
+Nodes (51): fmt(), MBPayoutLite, MBTxn, MediaBuyerBreakdownDialog(), MediaBuyerGlobalDialog(), MediaBuyerLedger, MediaBuyerPayoutDetailDialog(), MonthRow() (+43 more)
 
 ### Community 83 - "Sellers.tsx"
-Cohesion: 0.11
-Nodes (19): pushWaProfile(), pushWaSettings(), usePushWaProfile(), usePushWaSettings(), useSetInstanceSettings(), ACCENT_DOT, Card(), HumanizationCard() (+11 more)
+Cohesion: 0.19
+Nodes (10): CaptchaGate, CaptchaGateHandle, Window, ensureStyles(), EyePasswordToggle(), EyePasswordToggleProps, requestPasswordReset(), LoginFormValues (+2 more)
 
 ### Community 84 - "useStatusCategories.ts"
 Cohesion: 0.27
@@ -760,16 +766,16 @@ Cohesion: 0.23
 Nodes (13): aws, MIME_TO_EXT, anon, asCaller(), requireAdmin(), requireUser(), logError(), capPayload() (+5 more)
 
 ### Community 88 - "WhatsApp Frontend"
-Cohesion: 0.26
-Nodes (13): avatarKey(), cacheAvatar(), isCachedAvatar(), isWhatsAppCdn(), mediaExists(), backfillInstance(), Candidate, InstanceRow (+5 more)
+Cohesion: 0.11
+Nodes (27): Config, required(), requiredNumber(), Level, log, LogEntry, ORDER, avatarKey() (+19 more)
 
 ### Community 90 - "UI Components"
-Cohesion: 0.18
-Nodes (10): MediaBuyerLayoutProps, baseNavigation, GA_NAV, isParentPath(), isSectionActive(), MediaBuyerSidebar(), META_NAV, NavItem (+2 more)
+Cohesion: 0.06
+Nodes (31): baseNavigation, GA_NAV, isParentPath(), isSectionActive(), MediaBuyerSidebar(), META_NAV, NavItem, NavSection (+23 more)
 
 ### Community 91 - "UI Components"
-Cohesion: 0.05
-Nodes (61): CustomerInsightsProps, MonthData, OrderRecord, OrderPhoneQuickActions(), OrdersListView(), OrderStatusNotifications(), Props, Role (+53 more)
+Cohesion: 0.04
+Nodes (68): OrderContactSubmenu(), OrderPhoneContactDropdown(), OrderPhoneContactDropdownProps, OrderPhoneQuickActions(), smsHref(), telHref(), useContactLinks(), OrdersListView() (+60 more)
 
 ### Community 94 - "UI Components"
 Cohesion: 0.05
@@ -784,28 +790,28 @@ Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, isolatedModules, lib, module, moduleDetection, moduleResolution, noEmit (+7 more)
 
 ### Community 98 - "WhatsApp Ops"
-Cohesion: 0.32
-Nodes (7): pool, cache, CachedSecret, constantTimeEqual(), getInstanceSecret(), invalidateSecretCache(), verifyWebhook()
+Cohesion: 0.18
+Nodes (16): pool, deliveryRank(), handleEvent(), handleMessagesUpdate(), handleQrCodeUpdated(), handlePost(), readBody(), reply() (+8 more)
 
 ### Community 99 - "WhatsApp Ops"
 Cohesion: 0.26
 Nodes (13): avatarKey(), cacheAvatar(), isCachedAvatar(), isWhatsAppCdn(), mediaExists(), backfillInstance(), Candidate, InstanceRow (+5 more)
 
 ### Community 100 - "Package Scripts"
-Cohesion: 0.07
-Nodes (44): fmt(), MBPayoutLite, MBTxn, MediaBuyerBreakdownDialog(), MediaBuyerGlobalDialog(), MediaBuyerLedger, MediaBuyerPayoutDetailDialog(), MonthRow() (+36 more)
+Cohesion: 0.20
+Nodes (10): CourierSidebar(), navigation, NavItem, OwnerLayout(), OwnerLayoutProps, isParentPath(), navigation, NavItem (+2 more)
 
 ### Community 101 - "MediaBuyerSidebar.tsx"
-Cohesion: 0.10
-Nodes (34): ConfigSectionProps, EmailAccountCard(), EmailAccountCardProps, EmailAccountModalProps, EmailAccountsSection(), QK, EmailTemplateCard(), EmailTemplateCardProps (+26 more)
+Cohesion: 0.27
+Nodes (12): jszip, uploadDocPreview(), canvasToJpeg(), generateDocThumbnail(), isOoxml(), isThumbnailable(), ooxmlThumbnail(), pdfThumbnail() (+4 more)
 
 ### Community 102 - "WhatsApp Ops"
 Cohesion: 0.05
 Nodes (38): 10. Update Normal Parcel, 11. Update Stock Parcel, 12. Delete Parcel, 13. Generate Parcel Label, 14. Get Parcel History, 15. Get Parcel Status, 16. Get Parcel Statuses by Date Range, 1. Create Normal Parcel (+30 more)
 
 ### Community 103 - "UI Components"
-Cohesion: 0.12
-Nodes (16): ACTIVE_ANNOUNCEMENT, AppAnnouncement, CaptchaGate, CaptchaGateHandle, Window, ensureStyles(), EyePasswordToggle(), EyePasswordToggleProps (+8 more)
+Cohesion: 0.19
+Nodes (14): CSV_HEADER, CustomerCursor, CustomerKpi(), CustomerKpis, CustomerOrder, CustomerRow, Customers(), CustomersPage (+6 more)
 
 ### Community 104 - "UI Components"
 Cohesion: 0.05
@@ -816,8 +822,8 @@ Cohesion: 0.13
 Nodes (14): Courier, CourierFeeRow, CourierKpi(), CourierStat, deliveryTier(), EMPTY_DETAIL, InfoRow(), KPI_ACCENTS (+6 more)
 
 ### Community 106 - "App Pages"
-Cohesion: 0.20
-Nodes (9): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuShortcut(), ContextMenuSubContent (+1 more)
+Cohesion: 0.29
+Nodes (9): CampaignsTable(), ManagerTab, ManagerTabs(), Props, TABS, MetaAdsManager(), useMetaAccountSummary(), useMetaAccountTimeseries() (+1 more)
 
 ### Community 107 - "UI Components"
 Cohesion: 0.05
@@ -832,8 +838,8 @@ Cohesion: 0.23
 Nodes (13): handleEvent(), handleQrCodeUpdated(), handlePost(), readBody(), reply(), startWebhookServer(), uuidish(), cache (+5 more)
 
 ### Community 110 - "DeleteInstanceModal.tsx"
-Cohesion: 0.11
-Nodes (20): CampaignTotals, DailyMetrics, MediaBuyerProfile, OrderRow, RevenueBasis, AnalyticsOrderItem, Campaign, CAMPAIGN_OBJECTIVES (+12 more)
+Cohesion: 0.20
+Nodes (17): useCurrentUserId(), getPlatformColor(), getPlatformIcon(), getPlatformSource(), CampaignForm(), PreviewCard(), AdMock(), AdMockCard() (+9 more)
 
 ### Community 111 - "Shared Libs"
 Cohesion: 0.06
@@ -868,8 +874,8 @@ Cohesion: 0.17
 Nodes (11): Menubar, MenubarCheckboxItem, MenubarContent, MenubarItem, MenubarLabel, MenubarRadioItem, MenubarSeparator, MenubarShortcut() (+3 more)
 
 ### Community 120 - "waPresence.ts"
-Cohesion: 0.10
-Nodes (32): fetchProfile(), mapUsersRow(), PROFILE_KEY, useAuth(), ConversationTag, Tag, tagKeys, useAssignTag() (+24 more)
+Cohesion: 0.06
+Nodes (30): AllValuesOf, AnyEntryMap, astro:content, CollectionEntry, CollectionKey, ContentCollectionKey, ContentConfig, ContentEntryMap (+22 more)
 
 ### Community 121 - "Edge Functions"
 Cohesion: 0.17
@@ -888,8 +894,8 @@ Cohesion: 0.18
 Nodes (10): background_color, description, display, icons, name, orientation, scope, short_name (+2 more)
 
 ### Community 126 - "ImportContactsModal.tsx"
-Cohesion: 0.16
-Nodes (13): NumbersEmptyState(), Props, InstanceCard(), InstanceCardSkeleton(), STATUS_STRIPE, LABEL, Props, STATUS_DOT (+5 more)
+Cohesion: 0.04
+Nodes (52): Avatar(), AvatarSize, Props, px(), radius, NumbersEmptyState(), Props, InstanceCard() (+44 more)
 
 ### Community 127 - "Evolution patch 003 — companion view-once passthrough (the "message à vue unique" indicator)"
 Cohesion: 0.29
@@ -897,15 +903,15 @@ Nodes (6): Evolution patch 003 — companion view-once passthrough (the "message
 
 ### Community 132 - "Overview.tsx"
 Cohesion: 0.07
-Nodes (26): 0. The mission, measured, 1. Phase R1 — port the 8 postgres_changes consumers → `ecom:biz` broadcast seam, 2. Phase R2 — retire the poller (the 61.4% kill), 3. Phase D — data-layer rebuild (the "thousands of users" half), 4. Phase H — horizontal Realtime (W5-D) — CONTINGENT, LAST, 5. Standing gates (unchanged), 6. Full page registry — every file, every verdict, 7. FINAL STATE (2026-07-15) — registry closed (+18 more)
+Nodes (27): 0. The mission, measured, 1. Phase R1 — port the 8 postgres_changes consumers → `ecom:biz` broadcast seam, 2. Phase R2 — retire the poller (the 61.4% kill), 3. Phase D — data-layer rebuild (the "thousands of users" half), 4. Phase H — horizontal Realtime (W5-D) — CONTINGENT, LAST, 5. Standing gates (unchanged), 6. Full page registry — every file, every verdict, 7. FINAL STATE (2026-07-15) — registry closed (+19 more)
 
 ### Community 133 - "UI Components"
 Cohesion: 0.07
 Nodes (27): 0. System overview (docs/README.md), 10. docs/instance-settings-and-lifecycle.md — the 44 per-instance settings, 11. docs/outbound-queue-and-pacing.md — dispatcher (v2, authoritative), 12. docs/inbox-and-contacts.md — the Conversations + Contacts pages (82 KB, core UI doc), 13. docs/contact-identity-and-jid-mapping.md, 14. docs/contact-truth-build-spec.md — THE migration spec (15-agent audit, 2026-06-01), 15. docs/media-ingest-and-r2-architecture.md, 16. docs/assignment-system.md (+19 more)
 
 ### Community 134 - "UI Components"
-Cohesion: 0.24
-Nodes (9): createLiquidEffect(), createTouchTexture(), PixelBlast(), PixelBlastProps, PixelBlastVariant, ReinitConfig, SHAPE_MAP, TouchPoint (+1 more)
+Cohesion: 0.12
+Nodes (24): applyConsent(), buildBanner(), DENIED, gtag(), h(), initConsentMode(), injectScript(), loaded (+16 more)
 
 ### Community 135 - "BonLivraisonPage.tsx"
 Cohesion: 0.13
@@ -920,8 +926,8 @@ Cohesion: 0.10
 Nodes (20): 0. The aggregate query (L683-729), 1. EVERY filter — state → predicate in `orderMatchesAllFilters` (L2255-2290), 2. Top search — `orderMatchesTopSearch` (`src/lib/orderSearch.ts`), 3. KPI strip + duplicatePhones + shortOrderIds + lockedOrderIds — exact math & input set, 4. Sort model + pagination, 5. Every OTHER consumer of the aggregate data — full set vs visible page, 6. Column usage classification (rendered in list vs filter-only vs dialog/edit-only), 7. Design-relevant gotchas (+12 more)
 
 ### Community 139 - "BonCommandePage.tsx"
-Cohesion: 0.12
-Nodes (24): Props, Props, CampaignsTable(), Props, ColumnCustomizer(), ManagerTab, ManagerTabs(), Props (+16 more)
+Cohesion: 0.23
+Nodes (12): Props, Props, Props, Props, PixelDashboard(), Props, nf, DatePreset (+4 more)
 
 ### Community 140 - "D3 RECON — ADMIN ANALYTICS PAGE (exhaustive) + REUSE/DB MAP"
 Cohesion: 0.10
@@ -932,8 +938,8 @@ Cohesion: 0.07
 Nodes (26): 1. Authentication, 2.1 Networks — `GET /networks`, 2.2 Stores — `GET /stores`, 2.3 Cities — `GET /cities`, 2.4 Statuses — `GET /statuses`, 2.5 Fulfilment centres — `GET /fc`, 2.6 Pickup areas — `GET /pickup/areas?network=N`, 2. Reference data (+18 more)
 
 ### Community 142 - "UI Components"
-Cohesion: 0.28
-Nodes (6): ANT, buildDailySeries(), BusinessRow, fetchOwnerPlatformData(), OwnerPlatformDashboard(), PaymentRow
+Cohesion: 0.29
+Nodes (9): getStatus(), Status, statusConfig, timeAgo(), WebhookHealthIndicator(), ProviderHealth, useWebhookHealth(), WebhookHealthState (+1 more)
 
 ### Community 143 - "UI Components"
 Cohesion: 0.07
@@ -956,24 +962,24 @@ Cohesion: 0.61
 Nodes (6): fail(), parity(), q(), say(), igf-restore-drill.sh script, teardown()
 
 ### Community 151 - "UI Components"
-Cohesion: 0.13
-Nodes (9): BusinessSwitcher(), CHANNEL_SHADES, DateRangeBar(), nf, nfc, OnboardingCard(), PresetKey, PRESETS (+1 more)
+Cohesion: 0.18
+Nodes (14): useCampaignBasePath(), CampaignTotals, DailyMetrics, MediaBuyerProfile, OrderRow, RevenueBasis, useCampaignMetrics(), AnalyticsOrderItem (+6 more)
 
 ### Community 152 - "sellerPayoutPdf.tsx"
-Cohesion: 0.22
-Nodes (10): useDeleteMetaConnection(), useMetaAccountSummary(), useMetaConnections(), useSetDefaultMetaConnection(), useStartMetaOAuth(), BusinessSwitcher(), ConnectionSwitcher(), MetaAdsPage() (+2 more)
+Cohesion: 0.11
+Nodes (17): @fontsource/inter/latin-400.css, @fontsource/inter/latin-500.css, @fontsource/inter/latin-600.css, @fontsource/inter/latin-700.css, @fontsource/inter/latin-ext-400.css, @fontsource/poppins/latin-ext-600.css, @fontsource/poppins/latin-ext-700.css, ../components/Footer.astro (+9 more)
 
 ### Community 153 - "database.types.ts"
-Cohesion: 0.27
-Nodes (7): AnnouncementDeck(), AnnouncementDeckProps, AnnouncementGate(), AuthBackground(), BackgroundMode, detectMode(), PixelBlast
+Cohesion: 0.23
+Nodes (8): ACTIVE_ANNOUNCEMENT, AppAnnouncement, AnnouncementDeck(), AnnouncementDeckProps, AuthBackground(), BackgroundMode, detectMode(), PixelBlast
 
 ### Community 154 - "App Pages"
 Cohesion: 0.08
 Nodes (25): 0. The one rule, 10. Two style layers — know which you're copying, 1. Tokens (Tailwind `ant-*`, static — same in light/dark, do NOT theme-flip), 2. Surface scope — MANDATORY opt-in, 3. Page shell + editorial header (every admin page opens with this), 4. KPI / stat strip (the signature hairline-grid trick), 5. Cards, pills, containers, 6. Buttons (pages OVERRIDE shadcn variants via className) (+17 more)
 
 ### Community 155 - "carousel.tsx"
-Cohesion: 0.14
-Nodes (13): Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem, CarouselNext, CarouselOptions (+5 more)
+Cohesion: 0.08
+Nodes (21): Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem, CarouselNext, CarouselOptions (+13 more)
 
 ### Community 156 - "Edge Functions"
 Cohesion: 0.29
@@ -1012,8 +1018,8 @@ Cohesion: 0.08
 Nodes (24): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+16 more)
 
 ### Community 171 - "useSellerLiveOwed.ts"
-Cohesion: 0.28
-Nodes (12): cache, extractFirstUrl(), fetchOgPreview(), findAllUrls(), inflight, OgPreview, previewFromMediaMeta(), safeDomain() (+4 more)
+Cohesion: 0.25
+Nodes (7): CustomerInsights(), CustomerInsightsProps, MonthData, OrderRecord, isAdminPullback(), isFailed(), isInDeliveryDenominator()
 
 ### Community 177 - "Edge Functions"
 Cohesion: 0.40
@@ -1068,16 +1074,16 @@ Cohesion: 0.12
 Nodes (16): 10. DIFFERENCES vs admin/Orders.tsx (complete), 11. SUPPORT QUERIES MOUNTED BY THE PAGE (candidates to keep/trim in D1), 12. INVALIDATION / REALTIME MAP, 13. D1 DESIGN GOTCHAS SURFACED, 1. THE AGGREGATE QUERY (L789-833), 2. FILTER STATE INVENTORY (each must be pushed down in D1), 3. TOP SEARCH — `orderMatchesTopSearch` (`src/lib/orderSearch.ts`), 4. TABS (seller-only; admin has NONE) (+8 more)
 
 ### Community 196 - "BonLivraisonPdfDocument.tsx"
-Cohesion: 0.22
-Nodes (12): getStatus(), Status, statusConfig, timeAgo(), WebhookHealthIndicator(), ProviderHealth, useWebhookHealth(), WebhookHealthState (+4 more)
+Cohesion: 0.36
+Nodes (8): ALL_NAV_PATHS, findActiveSection(), isParentPath(), isSectionActive(), navigation, NavItem, NavSection, Sidebar()
 
 ### Community 224 - "Edge Functions"
 Cohesion: 0.25
 Nodes (7): 1. Set secrets, 2. Deploy, 3. Wire the Database Webhook, Deployment, send-courier-push, Testing, Troubleshooting
 
 ### Community 228 - "Claude Project"
-Cohesion: 0.29
-Nodes (6): 0. OVERALL MOST IMPORTANT RULE: Absolute Mode, 1. MANDATORY FIRST STEP: Always Check Skills, Commands, and Agents, Database = the self-host BOX ONLY (no managed Supabase, no Supabase MCP), graphify, NEVER assume, Project Rules
+Cohesion: 0.20
+Nodes (9): 0. OVERALL MOST IMPORTANT RULE: Absolute Mode, 1. MANDATORY FIRST STEP: Always Check Skills, Commands, and Agents, 1. Think Before Coding, 2. Simplicity First, 3. Surgical Changes, 4. Goal-Driven Execution, Database = the self-host BOX ONLY (no managed Supabase, no Supabase MCP), graphify (+1 more)
 
 ### Community 238 - "WA Mancer Recon — 08: Infrastructure, Deployment & Secrets"
 Cohesion: 0.08
@@ -1112,8 +1118,8 @@ Cohesion: 0.14
 Nodes (13): 1. Honest headline — are we covered today?, 2. The keystone move (single highest-leverage), 3. Circular-dependency resolution, 4. Phased rollout, 5. Dependency-ordered critical path (summary), 6. UNVERIFIED — must prove before building the dependent phase, 7. Out of scope but must be owned (W7), Phase 0 — Broadcast foundation (no behavior change) (+5 more)
 
 ### Community 246 - "DevisPdfDocument.tsx"
-Cohesion: 0.21
-Nodes (11): fkColumn(), LedgerRow(), PayChip(), PaymentHistoryDialog(), PaymentHistoryDialogProps, PayoutKind, queryInvalidationKeys(), RecordPaymentDialog() (+3 more)
+Cohesion: 0.28
+Nodes (7): PasswordStrengthBar(), SEG_COLOR, COMMON, LABELS, PasswordChecks, PasswordStrength, scorePassword()
 
 ### Community 247 - "Design"
 Cohesion: 0.17
@@ -1128,8 +1134,8 @@ Cohesion: 0.18
 Nodes (10): Cadence (all UTC), Health signals (before anything else, know what still works), iGrowFast — Disaster Recovery Runbook, S1 — Someone deleted/broke rows or a table (DB still healthy), S2 — A deleted user upload, S3 — Whole-database restore onto the live box (the big red button), S4 — The box is dead (rebuild from nothing but backups), S5 — R2 is gone (bucket wiped / account lost) (+2 more)
 
 ### Community 250 - "instances.ts"
-Cohesion: 0.15
-Nodes (19): PairDialog(), disconnectInstance(), getInstance(), getInstanceQr(), listInstances(), pairInstance(), PushWaProfileArgs, restartInstance() (+11 more)
+Cohesion: 0.04
+Nodes (81): CreateInstanceDialog(), DeleteInstanceModal(), Phase, ROWS, RowSpec, ACCENTS, InstanceAvatar(), Props (+73 more)
 
 ### Community 251 - "courierReturnPdf.tsx"
 Cohesion: 0.10
@@ -1161,7 +1167,7 @@ Nodes (17): 0. VERDICT SUMMARY, 1. STALE CLAIMS — already fixed by D1..D5 (do 
 
 ### Community 258 - "LifecycleBadge.tsx"
 Cohesion: 0.06
-Nodes (35): Avatar(), AvatarSize, Props, px(), radius, Props, AvatarConfig, CompositeTypes (+27 more)
+Nodes (54): queryClient, Props, markConversationRead(), markConversationUnread(), WhatsappInstance, conversationLabel(), BumpRow, cachedLastInboundAt() (+46 more)
 
 ### Community 259 - "ops/ — iGrowFast backup & DR infrastructure"
 Cohesion: 0.29
@@ -1204,32 +1210,28 @@ Cohesion: 0.50
 Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
 
 ### Community 358 - "sellerPayoutPdf.tsx"
-Cohesion: 0.18
-Nodes (5): CalculatorInputs, ChartTooltipPayload, defaultInputs, STAT_TONE, StatBoxTone
+Cohesion: 0.04
+Nodes (78): AddEditBusinessModalProps, BusinessFormValues, businessSchema, STATUS_CFG, ConfigSectionProps, EmailAccountCard(), EmailAccountCardProps, EmailAccountModal() (+70 more)
 
 ### Community 359 - "AuthBackground.tsx"
-Cohesion: 0.05
-Nodes (57): BonCommandeDirection, BonCommandeSnapshot, BonCommandeSupplierBlock, CityRow, hydrateBonLivraisonFromAnyNote(), hydrateBonLivraisonFromCompanyNote(), hydrateBonLivraisonFromCourierNote(), hydrateBonLivraisonFromOrder() (+49 more)
+Cohesion: 0.27
+Nodes (14): embedRemoteImagesForPdf(), CityRow, hydrateBonLivraisonFromAnyNote(), hydrateBonLivraisonFromCompanyNote(), hydrateBonLivraisonFromCourierNote(), hydrateBonLivraisonFromOrder(), masterLabel(), mergeLine() (+6 more)
 
 ### Community 360 - "Profile.tsx"
-Cohesion: 0.14
-Nodes (22): AdsSlice, HealthSlice, CouriersSlice, CustomersSlice, InventorySlice, MBMeta, MediaBuyersSection(), MediaBuyersSectionProps (+14 more)
+Cohesion: 0.40
+Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
 
 ### Community 361 - "DeleteInstanceModal.tsx"
-Cohesion: 0.15
-Nodes (9): DeleteInstanceModal(), Phase, ROWS, RowSpec, deleteInstance(), instanceDeletePreflight, InstanceDeleteSummary, useDeleteInstance() (+1 more)
+Cohesion: 0.50
+Nodes (3): AccordionContent, AccordionItem, AccordionTrigger
 
 ### Community 362 - "PairDialog.tsx"
-Cohesion: 0.12
-Nodes (12): ACCENTS, InstanceAvatar(), Props, formatElapsed(), Phase, Props, Spinner(), SyncingBody() (+4 more)
+Cohesion: 0.50
+Nodes (4): isDelivered(), isPaid(), isProvisional(), isRevenueOrder()
 
 ### Community 363 - "sheet.tsx"
-Cohesion: 0.18
-Nodes (8): ChartConfig, ChartContainer, ChartContext, ChartContextProps, ChartLegendContent, ChartTooltipContent, THEMES, useChart()
-
-### Community 364 - "OrderTrackingImport.tsx"
-Cohesion: 0.20
-Nodes (9): CompositeTypes, Constants, Database, DatabaseWithoutInternals, DefaultSchema, Enums, Tables, TablesInsert (+1 more)
+Cohesion: 0.11
+Nodes (24): CourierReturnDocument(), CourierReturnPdfLineItem, fmtDate(), fmtMAD(), styles, buildLegalFooterLines(), LegalFooter(), LegalFooterBusiness (+16 more)
 
 ### Community 366 - "Migration `20260714220000_d1_orders_list.sql`"
 Cohesion: 0.22
@@ -1239,6 +1241,14 @@ Nodes (8): D1 DESIGN CONTRACT — orders list server-side teardown (binding), Fr
 Cohesion: 0.14
 Nodes (13): 0.1 Window semantics (all five sections identical), 0.2 Refetch config (all five sections identical unless noted), 0.3 Shared queries consumed by sections (per D2 recon §0.1, unchanged), 0.4 Shared helper semantics — reference D2 recon §0.2, 0.5 D4 leftovers check (CURRENT code), 0. PAGE SHELL — `src/pages/admin/Analytics.tsx` (212 lines), 1. OrdersSection (`src/components/analytics/OrdersSection.tsx`, 328 lines), 2. BusinessHealthSection (`BusinessHealthSection.tsx`, 314 lines) (+5 more)
 
+### Community 369 - "Dashboard.tsx"
+Cohesion: 0.16
+Nodes (12): CampaignPoint, DailyPoint, emptyTotals(), finalize(), MbDashboardStatsPayload, MbMonthEarnings, PlatformPoint, StatsDateRange (+4 more)
+
+### Community 370 - "types.ts"
+Cohesion: 0.43
+Nodes (6): BonLivraisonPdfDocument(), buildFooterLines(), fmtDate(), fmtMoney(), Props, styles
+
 ### Community 371 - "breadcrumb.tsx"
 Cohesion: 0.25
 Nodes (7): Breadcrumb, BreadcrumbEllipsis(), BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator()
@@ -1247,21 +1257,25 @@ Nodes (7): Breadcrumb, BreadcrumbEllipsis(), BreadcrumbItem, BreadcrumbLink, Bre
 Cohesion: 0.25
 Nodes (6): DrawerContent, DrawerDescription, DrawerFooter(), DrawerHeader(), DrawerOverlay, DrawerTitle
 
-### Community 375 - "accordion.tsx"
-Cohesion: 0.50
-Nodes (3): AccordionContent, AccordionItem, AccordionTrigger
+### Community 373 - "package.json"
+Cohesion: 0.14
+Nodes (13): dependencies, astro, description, devDependencies, @astrojs/check, @fontsource/inter, @fontsource/lora, @fontsource/poppins (+5 more)
+
+### Community 374 - "sellerPayoutPdf.tsx"
+Cohesion: 0.25
+Nodes (9): buildSellerPayoutPdfBlob(), embed(), fmtDateTime(), fmtMAD(), resolveImages(), SellerPayoutDocument(), SellerPayoutPdfInput, SellerPayoutPdfOrder (+1 more)
 
 ### Community 376 - "Sellers.tsx"
 Cohesion: 0.19
 Nodes (13): deliveryTier(), EnrichedSeller, getSellerProducts(), InfoRow(), KPI_ACCENTS, MiniTile(), num(), SellerKpi() (+5 more)
 
 ### Community 377 - "Payments.tsx"
-Cohesion: 0.03
-Nodes (77): react, StatCard(), AddEditBusinessModal(), CourierSidebar(), navigation, NavItem, isParentPath(), navigation (+69 more)
+Cohesion: 0.06
+Nodes (47): AccordionSection(), Props, LANGUAGES, FieldHelper(), FieldLabel(), Props, AdSetStep(), FORMAT_ICONS (+39 more)
 
-### Community 379 - "useSellerLiveOwed.ts"
-Cohesion: 0.10
-Nodes (26): AnalyticsDateFilter(), DashboardKPICards(), DashboardKPICardsProps, KPICardData, DashboardProductsPerformance(), SellerSelfPerformanceSection(), ShippingPipeline(), ORDER_CAT_PRED (+18 more)
+### Community 378 - "Track 0 — Stack-Capacity Baseline (measured 2026-07-16, live box, read-only)"
+Cohesion: 0.18
+Nodes (10): Box, Connection model (CRITICAL for concurrency), Data scale today (why timings mislead), Kong / edge, Postgres ceilings (the denominators), Real DB load profile (pg_stat_statements, ~7 days), Realtime posture (positive), Service topology (all Docker on the box) (+2 more)
 
 ### Community 380 - "D2 DESIGN CONTRACT — per-role dashboard stats RPCs (binding)"
 Cohesion: 0.25
@@ -1271,69 +1285,85 @@ Nodes (7): D2 DESIGN CONTRACT — per-role dashboard stats RPCs (binding), Front
 Cohesion: 0.29
 Nodes (6): D2 implications, D2 RECON — SELLER SURFACES (inline recon; Dashboard verified at line level, Statistics/Profile deltas to be re-verified in-file by the implementer), Dashboard stat math (Dashboard.tsx:150-320, line-verified), Profile deltas (to verify in-file), Shared fetch skeleton (per page, every mount), Statistics deltas (to verify in-file)
 
-### Community 383 - "docThumbnail.ts"
-Cohesion: 0.27
-Nodes (12): jszip, uploadDocPreview(), canvasToJpeg(), generateDocThumbnail(), isOoxml(), isThumbnailable(), ooxmlThumbnail(), pdfThumbnail() (+4 more)
+### Community 384 - "../lib/demo-engine.js"
+Cohesion: 0.25
+Nodes (5): ../components/demos/DeliveryNotes.astro, fill, ../components/demos/RoleScope.astro, ../lib/demo-engine.js, ../styles/demo.css
+
+### Community 385 - "metaTheme.ts"
+Cohesion: 0.15
+Nodes (13): ColumnCustomizer(), Props, ManagerToolbar(), PRESETS, Props, COLUMN_PRESETS, ColumnDef, DeliveryStatus (+5 more)
 
 ### Community 386 - "commercialCommission.ts"
 Cohesion: 0.22
 Nodes (9): commissionAccruedForDeliveredOrder(), computeUnpaidCommission(), deliveryTimestampForMetrics(), isDeliveredForCommission(), isDeliveredOnLocalDay(), OrderForCommission, OrderLine, sumAssignedProductUnits() (+1 more)
 
-### Community 387 - "ImportProducts.tsx"
-Cohesion: 0.28
-Nodes (12): cellToText(), ImportFailure, ImportProducts(), MappedProduct, normalizeHeaderKey(), parseActive(), parseIntSafe(), parseMoney() (+4 more)
+### Community 388 - "Task #1 — AppLayout shell (admin)  [audit-only, fixes proposed]"
+Cohesion: 0.22
+Nodes (8): A1-1 [HIGH at scale] Sidebar profile query — focus-refetch storm + network getUser + select(*), A1-2 [MED, cross-cutting → task #2] Duplicate identity resolution per session, A1-3 [POSITIVE] Realtime shell is the optimized end-state — no change, A1-4 [LOW] `useInstances()` runs for every admin, incl. 0-WA businesses, Cross-cutting (elevates F0-2), Per-Page Audit — Findings Register, Task #1 — AppLayout shell (admin)  [A1-1 APPLIED + tsc-b VERIFIED 2026-07-16; A1-2 deferred→#2], Task #2 — Route guards (ProtectedRoute + BusinessGuard)  [A2-2 APPLIED + tsc-b VERIFIED 2026-07-16]
+
+### Community 389 - "Copy rules — igrowfast.com"
+Cohesion: 0.25
+Nodes (7): 1. Money flow — the copy IS the offence, 2. WhatsApp / Meta, 3. The entity, 4. Third-party names, 5. Claims, 6. Accessibility, Copy rules — igrowfast.com
 
 ### Community 390 - "ecomBus.ts"
 Cohesion: 0.17
 Nodes (12): AppLayout(), AppLayoutProps, EcomBizRealtime(), EcomBusEvent, EcomOrderPayload, EcomParcelPayload, EcomStockPayload, EcomWebhookPayload (+4 more)
 
-### Community 391 - "OrderTrackingImport.tsx"
+### Community 392 - "demo-engine.js"
 Cohesion: 0.36
-Nodes (8): OrderTrackingImport(), Props, Stat(), matchTrackingColumn(), normalize(), parseSpreadsheet(), TrackingImportOrder, TrackingImportResult
+Nodes (6): ABORT, fit(), makeEngine(), mountDemos(), prefersReduced(), registry
 
-### Community 394 - "Sidebar.tsx"
-Cohesion: 0.36
-Nodes (8): ALL_NAV_PATHS, findActiveSection(), isParentPath(), isSectionActive(), navigation, NavItem, NavSection, Sidebar()
+### Community 396 - "index.astro"
+Cohesion: 0.43
+Nodes (4): gsap/ScrollTrigger, gsap, ../components/HeroTabs.astro, ../components/LoopPipeline.astro
 
-### Community 395 - "navigation-menu.tsx"
-Cohesion: 0.25
-Nodes (7): NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle, NavigationMenuViewport
+### Community 398 - "DevisPdfDocument.tsx"
+Cohesion: 0.43
+Nodes (6): buildFooterLines(), DevisPdfDocument(), fmtDate(), fmtMoney(), Props, styles
 
-### Community 397 - "SellerLayout.tsx"
-Cohesion: 0.24
-Nodes (6): ProtectedRoute(), ProtectedRouteProps, SellerLayoutProps, FullscreenLoader(), FullscreenLoaderProps, WaUserRealtime()
+### Community 399 - "FacturePdfDocument.tsx"
+Cohesion: 0.43
+Nodes (6): buildFooterLines(), FacturePdfDocument(), fmtDate(), fmtMoney(), Props, styles
 
-### Community 402 - "LifecycleBadge.tsx"
-Cohesion: 0.33
-Nodes (6): DOT, LABEL, LifecycleBadge(), PILL, Props, InstanceLifecycleState
+### Community 401 - "scripts"
+Cohesion: 0.40
+Nodes (5): scripts, build, check, dev, preview
 
 ### Community 403 - "alert.tsx"
-Cohesion: 0.40
-Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
+Cohesion: 0.70
+Nodes (5): ../components/demos/CarrierIntegration.astro, q(), reset(), scene(), staticState()
 
-### Community 404 - "xlsx"
+### Community 405 - "../components/demos/Webhooks.astro"
+Cohesion: 0.60
+Nodes (5): ../components/demos/Webhooks.astro, pushEvent(), q(), reset(), SEQ
+
+### Community 406 - "../components/demos/WhatsAppInbox.astro"
+Cohesion: 0.70
+Nodes (5): ../components/demos/WhatsAppInbox.astro, q(), reset(), scene(), staticState()
+
+### Community 408 - "tsconfig.json"
 Cohesion: 0.50
-Nodes (4): xlsx, ImportCustomers(), normalizePhoneForCache(), ImportOrders()
+Nodes (3): exclude, extends, include
 
 ## Knowledge Gaps
-- **2767 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+2762 more)
+- **2862 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+2857 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **150 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `Payments.tsx` to `App Shell & Route Guards`, `Order Contact Actions`, `Order Form & Provider Adapters`, `Dashboard Stat Rows`, `ImportProducts.tsx`, `OrderTrackingImport.tsx`, `Business Form & Form Primitives`, `Order Status Dialogs`, `Sidebar.tsx`, `BonCommandePage.tsx`, `navigation-menu.tsx`, `SellerLayout.tsx`, `UI Components`, `Shared Libs & Utils`, `App Pages`, `App Pages`, `LifecycleBadge.tsx`, `UI Components`, `App Pages`, `alert.tsx`, `xlsx`, `App Pages`, `UI Components`, `Shared Libs`, `UI Components`, `carousel.tsx`, `App Pages`, `App Pages`, `Shared Libs`, `UI Components`, `sellerPayoutPdf.tsx`, `Shared Libs`, `App Pages`, `App Pages`, `WhatsApp Frontend`, `Shared Libs`, `Shared Libs`, `UI Components`, `TagsPanel.tsx`, `UI Components`, `UI Components`, `BonLivraisonPdfDocument.tsx`, `Shared Libs`, `Payments.tsx`, `UI Components`, `WhatsApp Frontend`, `Sellers.tsx`, `UI Components`, `UI Components`, `UI Components`, `Package Scripts`, `MediaBuyerSidebar.tsx`, `Profile.tsx`, `EmailPreview.tsx`, `App Pages`, `sheet.tsx`, `PairDialog.tsx`, `DeleteInstanceModal.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `DevisPdfDocument.tsx`, `accordion.tsx`, `Sellers.tsx`, `instances.ts`, `useSellerLiveOwed.ts`, `ImportContactsModal.tsx`?**
-  _High betweenness centrality (0.065) - this node is a cross-community bridge._
-- **Why does `supabase` connect `App Shell & Route Guards` to `Order Contact Actions`, `Order Form & Provider Adapters`, `Dashboard Stat Rows`, `ImportProducts.tsx`, `ecomBus.ts`, `Business Form & Form Primitives`, `Order Status Dialogs`, `Sidebar.tsx`, `App Pages`, `SellerLayout.tsx`, `UI Components`, `Shared Libs & Utils`, `App Pages`, `WhatsApp Conversations`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `UI Components`, `UI Components`, `App Pages`, `App Pages`, `sellerPayoutPdf.tsx`, `Shared Libs`, `UI Components`, `App Pages`, `WhatsApp Frontend`, `Shared Libs`, `Shared Libs`, `Shared Libs`, `TagsPanel.tsx`, `BonLivraisonPdfDocument.tsx`, `Shared Libs`, `Shared Libs`, `WhatsApp Frontend`, `WhatsApp Frontend`, `useStatusCategories.ts`, `UI Components`, `UI Components`, `Package Scripts`, `MediaBuyerSidebar.tsx`, `UI Components`, `Profile.tsx`, `EmailPreview.tsx`, `DeleteInstanceModal.tsx`, `DevisPdfDocument.tsx`, `Sellers.tsx`, `Payments.tsx`, `useSellerLiveOwed.ts`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
-- **Why does `useToast()` connect `App Pages` to `App Shell & Route Guards`, `Order Contact Actions`, `ImportProducts.tsx`, `Order Form & Provider Adapters`, `Business Form & Form Primitives`, `Order Status Dialogs`, `App Pages`, `Shared Libs & Utils`, `xlsx`, `App Pages`, `UI Components`, `sellerPayoutPdf.tsx`, `UI Components`, `App Pages`, `Shared Libs`, `UI Components`, `Shared Libs`, `App Pages`, `WhatsApp Frontend`, `Shared Libs`, `Shared Libs`, `TagsPanel.tsx`, `UI Components`, `Shared Libs`, `UI Components`, `WhatsApp Frontend`, `UI Components`, `Package Scripts`, `MediaBuyerSidebar.tsx`, `AuthBackground.tsx`, `UI Components`, `DeleteInstanceModal.tsx`, `DevisPdfDocument.tsx`, `Payments.tsx`, `useSellerLiveOwed.ts`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+- **Why does `cn()` connect `WhatsApp Frontend` to `metaTheme.ts`, `Order Contact Actions`, `Order Form & Provider Adapters`, `Dashboard Stat Rows`, `App Shell & Route Guards`, `LifecycleBadge.tsx`, `Business Form & Form Primitives`, `Order Status Dialogs`, `App Pages`, `UI Components`, `Shared Libs & Utils`, `App Pages`, `UI Components`, `App Pages`, `App Pages`, `UI Components`, `carousel.tsx`, `App Pages`, `App Pages`, `Shared Libs`, `UI Components`, `App Pages`, `Shared Libs`, `App Pages`, `useSellerLiveOwed.ts`, `Shared Libs`, `Shared Libs`, `UI Components`, `TagsPanel.tsx`, `UI Components`, `AdsTable.tsx`, `UI Components`, `BonLivraisonPdfDocument.tsx`, `Shared Libs`, `Payments.tsx`, `UI Components`, `WhatsApp Frontend`, `UI Components`, `UI Components`, `Package Scripts`, `sellerPayoutPdf.tsx`, `UI Components`, `Profile.tsx`, `DeleteInstanceModal.tsx`, `App Pages`, `EmailPreview.tsx`, `DeleteInstanceModal.tsx`, `Dashboard.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `UI Components`, `Sellers.tsx`, `Payments.tsx`, `instances.ts`, `ImportContactsModal.tsx`?**
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+- **Why does `supabase` connect `Order Form & Provider Adapters` to `App Shell & Route Guards`, `Order Contact Actions`, `Dashboard Stat Rows`, `ecomBus.ts`, `Business Form & Form Primitives`, `Order Status Dialogs`, `App Pages`, `App Pages`, `UI Components`, `Shared Libs & Utils`, `UI Components`, `App Pages`, `UI Components`, `App Pages`, `UI Components`, `App Pages`, `App Pages`, `App Pages`, `Shared Libs`, `UI Components`, `Shared Libs`, `WhatsApp Frontend`, `WhatsApp Frontend`, `Shared Libs`, `Shared Libs`, `Shared Libs`, `AdsTable.tsx`, `BonLivraisonPdfDocument.tsx`, `Shared Libs`, `Shared Libs`, `WhatsApp Frontend`, `WhatsApp Frontend`, `Sellers.tsx`, `useStatusCategories.ts`, `UI Components`, `UI Components`, `Package Scripts`, `sellerPayoutPdf.tsx`, `UI Components`, `EmailPreview.tsx`, `DeleteInstanceModal.tsx`, `Dashboard.tsx`, `Sellers.tsx`, `Payments.tsx`?**
+  _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Why does `useToast()` connect `App Pages` to `App Shell & Route Guards`, `Order Contact Actions`, `Order Form & Provider Adapters`, `Dashboard Stat Rows`, `Business Form & Form Primitives`, `Order Status Dialogs`, `App Pages`, `Shared Libs & Utils`, `App Pages`, `UI Components`, `App Pages`, `App Pages`, `Shared Libs`, `UI Components`, `Shared Libs`, `App Pages`, `WhatsApp Frontend`, `Shared Libs`, `Shared Libs`, `TagsPanel.tsx`, `UI Components`, `UI Components`, `WhatsApp Frontend`, `Sellers.tsx`, `UI Components`, `sellerPayoutPdf.tsx`, `UI Components`, `AuthBackground.tsx`, `DeleteInstanceModal.tsx`, `Payments.tsx`?**
+  _High betweenness centrality (0.019) - this node is a cross-community bridge._
 - **What connects `$schema`, `style`, `rsc` to the rest of the system?**
-  _2795 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2890 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `WhatsApp Media & Icons` be split into smaller, more focused modules?**
-  _Cohesion score 0.01525585844093735 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.014529716361388051 - nodes in this community are weakly interconnected._
 - **Should `App Shell & Route Guards` be split into smaller, more focused modules?**
-  _Cohesion score 0.03576025004596433 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.03949920648915535 - nodes in this community are weakly interconnected._
 - **Should `Order Contact Actions` be split into smaller, more focused modules?**
   _Cohesion score 0.06382978723404255 - nodes in this community are weakly interconnected._

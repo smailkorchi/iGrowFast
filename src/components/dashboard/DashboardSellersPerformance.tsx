@@ -78,6 +78,7 @@ export const DashboardSellersPerformance = ({ businessId, stats }: DashboardSell
     // Names/avatars only — every aggregate rides the RPC section.
     const { data: sellers } = useQuery({
         queryKey: ['dashboard-sellers', businessId],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')

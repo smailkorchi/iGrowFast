@@ -1,6 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Box, ChevronDown, ChevronRight, ShoppingBag } from 'lucide-react';
@@ -23,6 +21,12 @@ import { SourcePills, type SourceStat } from './performance/SourcePills';
 export interface ProductsPerformanceSection {
     products: Array<{
         product_id: string;
+        name: string;
+        image_url: string | null;
+        active: boolean | null;
+        stock: number | null;
+        selling_price: number | null;
+        cost_price: number | null;
         ordered_units: number;
         confirmed_units: number;
         tracked_units: number;
@@ -45,22 +49,10 @@ export interface ProductsPerformanceSection {
 }
 
 interface DashboardProductsPerformanceProps {
-    businessId: string;
     stats: ProductsPerformanceSection | undefined;
 }
 
-type DPProduct = {
-    id: string;
-    name: string;
-    image_url: string | null;
-    stock: number | null;
-    cost_price: number | null;
-    selling_price: number | null;
-    active: boolean | null;
-};
-
 export const DashboardProductsPerformance = ({
-    businessId,
     stats,
 }: DashboardProductsPerformanceProps) => {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -83,26 +75,8 @@ export const DashboardProductsPerformance = ({
         });
     };
 
-    // Product metadata only (name/image/stock/prices/active) — every aggregate
-    // rides the RPC section.
-    const { data: products } = useQuery({
-        queryKey: ['dashboard-products', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('products')
-                .select('id, name, image_url, stock, cost_price, selling_price, active')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
-        if (!products || !stats) return null;
-
-        const productMetaById = new Map(
-            (products as unknown as DPProduct[]).map((p) => [p.id, p]),
-        );
+        if (!stats) return null;
 
         const orderStatusById = new Map(orderStatuses.map((s) => [s.id, s]));
         const packageStatusById = new Map(packageStatuses.map((s) => [s.id, s]));
@@ -110,8 +84,6 @@ export const DashboardProductsPerformance = ({
         // RPC rows already filtered to orderedUnits>0 and sorted deliveredUnits
         // desc, revenue desc, name asc.
         const productData = stats.products.map((row) => {
-            const meta = productMetaById.get(row.product_id);
-
             const confirmedPercent = row.ordered_units > 0
                 ? (row.confirmed_units / row.ordered_units) * 100
                 : 0;
@@ -173,12 +145,12 @@ export const DashboardProductsPerformance = ({
 
             return {
                 id: row.product_id,
-                name: meta?.name || 'Unknown product',
-                image_url: meta?.image_url ?? null,
-                active: meta?.active ?? null,
-                stock: Number(meta?.stock || 0),
-                sellingPrice: Number(meta?.selling_price || 0),
-                unitProductCost: Number(meta?.cost_price || 0),
+                name: row.name || 'Unknown product',
+                image_url: row.image_url ?? null,
+                active: row.active ?? null,
+                stock: Number(row.stock || 0),
+                sellingPrice: Number(row.selling_price || 0),
+                unitProductCost: Number(row.cost_price || 0),
                 // Funnel (units)
                 orderedUnits: row.ordered_units,
                 confirmedUnits: row.confirmed_units,
@@ -213,7 +185,6 @@ export const DashboardProductsPerformance = ({
 
         return { productData };
     }, [
-        products,
         stats,
         orderStatuses,
         packageStatuses,

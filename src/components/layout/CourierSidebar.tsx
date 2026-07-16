@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
-import { useQuery } from '@tanstack/react-query';
+import { useCurrentProfile } from '@/hooks/useCurrentProfile';
 
 type NavItem = {
     icon: LucideIcon;
@@ -42,22 +42,7 @@ const CourierSidebar = () => {
         });
     };
 
-    const { data: profile, isLoading: isProfileLoading } = useQuery({
-        queryKey: ['current-profile'],
-        queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
-
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-
-            if (error) return null;
-            return data;
-        }
-    });
+    const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

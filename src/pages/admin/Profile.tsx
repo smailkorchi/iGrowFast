@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useCurrentProfile } from '@/hooks/useCurrentProfile';
 import {
     User, Mail, Phone, AtSign, Lock, Building2,
     Camera, Loader2, CheckCircle2, Pen, X,
@@ -27,20 +28,7 @@ const Profile = () => {
     const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [avatarOpen, setAvatarOpen] = useState(false);
 
-    const { data: profile, isLoading } = useQuery({
-        queryKey: ['current-profile'],
-        queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-            if (error) return null;
-            return data as any;
-        }
-    });
+    const { data: profile, isLoading } = useCurrentProfile();
 
     const { data: business } = useQuery({
         queryKey: ['profile-business', activeBusinessId],

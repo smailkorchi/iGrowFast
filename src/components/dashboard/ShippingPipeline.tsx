@@ -56,6 +56,7 @@ export const ShippingPipeline = ({ businessId, stats }: ShippingPipelineProps) =
 
     const { data: providers } = useQuery({
         queryKey: ['dashboard-providers', businessId],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data } = await supabase
                 .from('providers')
@@ -70,6 +71,7 @@ export const ShippingPipeline = ({ businessId, stats }: ShippingPipelineProps) =
     // from external providers — previously invisible in this card.
     const { data: couriers } = useQuery({
         queryKey: ['dashboard-couriers', businessId],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
