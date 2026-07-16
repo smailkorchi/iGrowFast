@@ -846,11 +846,14 @@ const Orders = () => {
     const { data: courierZones } = useQuery({
         queryKey: ['courier-zones-all', activeBusinessId],
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
+        // OR-D: fee/zone reference data feeds ONLY the add/edit form (findFee +
+        // availableProviders) — fetch when the form opens, not on page load/focus.
+        enabled: !!activeBusinessId && (isAddModalOpen || isEditModalOpen),
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('courier_zones')
-                .select('*')
+                .select('courier_id, zone_id')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -860,11 +863,14 @@ const Orders = () => {
     const { data: companyZones } = useQuery({
         queryKey: ['company-zones-all', activeBusinessId],
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
+        // OR-D: fee/zone reference data feeds ONLY the add/edit form (findFee +
+        // availableProviders) — fetch when the form opens, not on page load/focus.
+        enabled: !!activeBusinessId && (isAddModalOpen || isEditModalOpen),
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('company_zones')
-                .select('*')
+                .select('company_id, zone_id')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -874,24 +880,33 @@ const Orders = () => {
     const { data: courierFees } = useQuery({
         queryKey: ['courier-fees-all', activeBusinessId],
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
+        // OR-D: fee/zone reference data feeds ONLY the add/edit form (findFee +
+        // availableProviders) — fetch when the form opens, not on page load/focus.
+        enabled: !!activeBusinessId && (isAddModalOpen || isEditModalOpen),
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            return await fetchAllRows('courier_fees', '*', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
+            return await fetchAllRows('courier_fees', 'courier_id, master_city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
         }
     });
 
     const { data: companyFees } = useQuery({
         queryKey: ['company-fees-all', activeBusinessId],
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
+        // OR-D: fee/zone reference data feeds ONLY the add/edit form (findFee +
+        // availableProviders) — fetch when the form opens, not on page load/focus.
+        enabled: !!activeBusinessId && (isAddModalOpen || isEditModalOpen),
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            return await fetchAllRows('company_fees', '*', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
+            return await fetchAllRows('company_fees', 'company_id, master_city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
         }
     });
 
     const { data: providerCities } = useQuery({
         queryKey: ['provider-cities-all'],
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
+        // OR-D: fee/zone reference data feeds ONLY the add/edit form (findFee +
+        // availableProviders) — fetch when the form opens, not on page load/focus.
+        enabled: !!activeBusinessId && (isAddModalOpen || isEditModalOpen),
         queryFn: async () => {
             return (await fetchAllRows('provider_cities', 'master_city_id, provider_type, fees')) as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
         },
@@ -942,14 +957,15 @@ const Orders = () => {
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('products')
-                .select('id, name, code, selling_price, stock, image_url')
-                .eq('active', true)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('name');
-            if (error) throw error;
-            return data;
+            // OR-D: fetchAllRows — the bare select silently capped the dropdown at
+            // 1000 products (PGRST_DB_MAX_ROWS), an order-creation correctness trap.
+            return await fetchAllRows<any>('products', 'id, name, code, selling_price, stock, image_url', {
+                filters: [
+                    { column: 'active', op: 'eq', value: true },
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                ],
+                orderBy: 'name',
+            });
         },
     });
 
@@ -958,14 +974,14 @@ const Orders = () => {
         staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('accessories')
-                .select('id, name, code, cost_price, stock')
-                .eq('active', true)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('name');
-            if (error) throw error;
-            return data;
+            // OR-D: fetchAllRows — same 1000-cap trap as products.
+            return await fetchAllRows<any>('accessories', 'id, name, code, cost_price, stock', {
+                filters: [
+                    { column: 'active', op: 'eq', value: true },
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                ],
+                orderBy: 'name',
+            });
         },
     });
 

@@ -87,6 +87,9 @@ export function OrderStatusHistoryDialog({
             return (data || []) as unknown as OrdStatus[];
         },
         staleTime: 5 * 60 * 1000,
+        // OR-11: kept-mounted dialog — gate the icon lookup on open like the
+        // history query above it.
+        enabled: open,
     });
 
     const getIcon = (statusId: string | null): string | null => {

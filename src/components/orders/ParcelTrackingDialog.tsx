@@ -55,6 +55,9 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 .eq('show_in_courier', true);
             return (data || []) as unknown as PkgStatus[];
         },
+        // OR-11: kept-mounted dialog — without this gate the query fired on every
+        // page load of every host page with the dialog closed.
+        enabled: open,
         staleTime: 5 * 60 * 1000,
     });
 

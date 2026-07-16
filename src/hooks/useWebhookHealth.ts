@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { subscribeEcomBus, getEcomChannelSubscribed } from '@/lib/ecomBus';
 
@@ -41,7 +41,9 @@ export function useWebhookHealth(activeBusinessId: string | null): WebhookHealth
             return data;
         },
         enabled: !!activeBusinessId,
-        refetchInterval: 60_000, // refresh every minute
+        // OR-7: near-static list; freshness rides the 'webhook' broadcast below.
+        // The old 60s poll was ~1 req/min per mounted admin for a status dot.
+        refetchInterval: 5 * 60_000,
     });
 
     // Fetch recent webhook_logs stats (last 1 hour)
@@ -57,25 +59,41 @@ export function useWebhookHealth(activeBusinessId: string | null): WebhookHealth
             });
         },
         enabled: !!activeBusinessId,
-        refetchInterval: 30_000, // refresh every 30s
+        // OR-7: event-driven via the 'webhook' broadcast (debounced below); the
+        // interval is only a slow fallback for missed events. Was a 30s poll.
+        refetchInterval: 5 * 60_000,
     });
 
     // W7 R1b: live pulse now rides the layout-owned ecom:biz broadcast channel
     // ('webhook' events, published on the ecomBus by <EcomBizRealtime/>) —
     // the per-page postgres_changes channel is retired. isListening mirrors the
     // shared channel's subscription state via the bus 'status' events.
+    const queryClient = useQueryClient();
     useEffect(() => {
         if (!activeBusinessId) return;
         setIsListening(getEcomChannelSubscribed());
-        return subscribeEcomBus((event) => {
+        // OR-7: webhook events drive the stats/providers refresh (10s trailing
+        // debounce — storms coalesce) instead of fixed 30s/60s polls.
+        let statsTimer: ReturnType<typeof setTimeout> | null = null;
+        const unsubscribe = subscribeEcomBus((event) => {
             if (event.type === 'webhook') {
                 pulseRef.current += 1;
                 setPulse(pulseRef.current);
+                if (statsTimer) clearTimeout(statsTimer);
+                statsTimer = setTimeout(() => {
+                    statsTimer = null;
+                    queryClient.invalidateQueries({ queryKey: ['webhook-health-stats', activeBusinessId] });
+                    queryClient.invalidateQueries({ queryKey: ['webhook-health-providers', activeBusinessId] });
+                }, 10_000);
             } else if (event.type === 'status') {
                 setIsListening(event.subscribed);
             }
         });
-    }, [activeBusinessId]);
+        return () => {
+            if (statsTimer) clearTimeout(statsTimer);
+            unsubscribe();
+        };
+    }, [activeBusinessId, queryClient]);
 
     // Build provider list
     const providers: ProviderHealth[] = (webhooks || []).map((wh: any) => ({

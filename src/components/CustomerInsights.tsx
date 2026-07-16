@@ -141,28 +141,32 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     // ride useTrackedOrders, which downloaded EVERY parcel row of the business
     // (staleTime 0 + refetchOnMount 'always') to answer it for ONE customer.
     // Scoped to this customer's own order ids instead: same predicate, same Set
-    // semantics, ~99% less payload. Kong caps request URLs at 8k, so a customer
-    // with an implausibly long history falls back to the unscoped fetch rather
-    // than 414-ing.
+    // semantics, ~99% less payload. Kong caps request URLs at 8k, so long
+    // histories are CHUNKED at 150 ids per request (OR-D) — the old fallback
+    // silently re-downloaded EVERY parcel row in the business for one popover
+    // (the exact shape D7a deleted useTrackedOrders for).
     const orderIds = useMemo(() => orders.map((o) => o.id).sort(), [orders]);
     const ID_LIST_MAX = 150;
     const { data: trackedRows } = useQuery({
         queryKey: ['ci-tracked', activeBusinessId, orderIds.join(',')],
         queryFn: async () => {
-            const scoped = orderIds.length <= ID_LIST_MAX;
-            const base = (col: string) => [
+            const chunks: string[][] = [];
+            for (let i = 0; i < orderIds.length; i += ID_LIST_MAX) {
+                chunks.push(orderIds.slice(i, i + ID_LIST_MAX));
+            }
+            const base = (chunk: string[], col: string) => [
                 { column: 'DigiCom Business', op: 'eq' as const, value: activeBusinessId },
-                ...(scoped ? [{ column: col, op: 'in' as const, value: orderIds }] : []),
+                { column: col, op: 'in' as const, value: chunk },
             ];
-            const [company, courier] = await Promise.all([
+            const results = await Promise.all(chunks.flatMap((chunk) => [
                 fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                    'company_parcels', 'order_id, tracking_code', { filters: base('order_id') },
+                    'company_parcels', 'order_id, tracking_code', { filters: base(chunk, 'order_id') },
                 ),
                 fetchAllRows<{ order_id: string | null; tracking_code: string | null }>(
-                    'courier_parcels', 'order_id, tracking_code', { filters: base('order_id') },
+                    'courier_parcels', 'order_id, tracking_code', { filters: base(chunk, 'order_id') },
                 ),
-            ]);
-            return [...company, ...courier];
+            ]));
+            return results.flat();
         },
         enabled: !!activeBusinessId && orderIds.length > 0,
         staleTime: 30 * 1000,
