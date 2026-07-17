@@ -298,3 +298,7 @@ Shell-mounted useInstances cache-keeper now passes {warm:true} → staleTime 5mi
 ### SO-5 + SL-4 [OWNER-DECIDED + APPLIED 2026-07-17]
 - SO-5 → THROTTLE: per-parcel 10-min result cache in syncOrderTracking.ts (getCachedTracking/putCachedTracking). Dialog opens (SellerOrderViewDialog auto-fire + shared ParcelTrackingDialog — used by seller/admin/MB) replay the cached history: no external carrier call, no status re-write, no global invalidations within TTL. The deliberate batch "Sync tracking" action never READS the cache (always fresh) but repopulates it. Admin OrderViewDialog's own auto-fire NOT yet wired to the cache — fold into the admin/MB follow-up if wanted.
 - SL-4 → RECHECK-ON-FOCUS: SellerLayout suspension gate moved to react-query (['seller-business-status'], staleTime 5min, focus refetch) — mid-session suspension bites within minutes, not on reload. FAIL-OPEN retained deliberately (outage never locks sellers out).
+
+### OWNER DECISIONS 2026-07-17 (register items resolved)
+- business-logos bucket → SPLIT: logos stay public; cachet + signature move to a PRIVATE bucket (signed URLs for doc-gen, byte-embed for emails). Queued as task #44, execute after audit blocks #35-37.
+- MB console-read residual → DEDICATED 'mediabuyer' Postgres role (JWT role claim + column-level money grants). Queued as task #45, execute after the audit campaign, before selling.
