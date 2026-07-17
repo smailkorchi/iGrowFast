@@ -368,7 +368,10 @@ const Customers = () => {
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
         refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
+        // C7 (OR-4 class): freshness rides the ecom:biz broadcast seam (these keys
+        // are in its order/parcel invalidation set) — focus refetch of an
+        // O(business) aggregate per admin per tab-switch is a fleet-scale storm.
+        refetchOnWindowFocus: false,
         // keepPreviousData: the current page stays visible while the next loads.
         placeholderData: (prev) => prev,
     });
@@ -390,7 +393,10 @@ const Customers = () => {
         enabled: !!activeBusinessId,
         staleTime: 60 * 1000,
         refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
+        // C7 (OR-4 class): freshness rides the ecom:biz broadcast seam (these keys
+        // are in its order/parcel invalidation set) — focus refetch of an
+        // O(business) aggregate per admin per tab-switch is a fleet-scale storm.
+        refetchOnWindowFocus: false,
         placeholderData: (prev) => prev,
     });
 

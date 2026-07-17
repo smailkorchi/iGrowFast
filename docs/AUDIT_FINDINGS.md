@@ -131,3 +131,7 @@ Post-D4 state healthy: list = cap-proof fetchAllRows (11 explicit columns, no se
 
 ## Task #6 — admin Accessories page  [AUDITED + P6 APPLIED 2026-07-17]
 Exact twin of Products post-D4 (cap-proof fetchAllRows list, shared `catalog_totals` RPC, shared `['products',biz]` picker cache, complete mutation invalidations). **P6 [APPLIED]:** staleTime 5min on all 3 queries + `['accessories',biz]` added to the admin stock-broadcast invalidation (seller branch already had it) — event-driven freshness, no more full-catalog re-download per tab focus. tsc -b clean. Same P5-residual scale note applies (full-catalog list OK to ~5k rows; keyset is the someday end-state).
+
+## Task #7 — admin Customers page  [AUDITED + C7 APPLIED 2026-07-17]
+Post-D7b state healthy: 3 keyset/gated RPCs (customers_list_page 35.8ms / customers_kpis 13.2ms live impersonated / customer_orders gated on selection), staleTime 60s, no client-side derivation, keys covered by the broadcast seam. **C7 [APPLIED]:** refetchOnWindowFocus → false on list+kpis (OR-4 class — seam owns freshness). tsc -b clean.
+**C7-residual [scale note, no change]:** the whole page derives customers FROM orders (GROUP BY normalized phone) — every call is O(business-orders) BY DESIGN, and its search (fold/normalized LIKE) is scan-bound under RLS like all LIKE paths. No multiplier to kill (search adds no new class on top of the baseline aggregate). At 100×+ the end-state is a materialized customers table — same D3-7c pre-aggregation family, same owner-decision gate.
