@@ -220,6 +220,7 @@ const Transactions = () => {
     // --- Queries ---
     const { data: transactions, isLoading } = useQuery({
         queryKey: ['transactions', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: mutation-invalidated data; kills focus refetch
         queryFn: async () => {
             if (!activeBusinessId) return [];
             // fetchAllRows paginates past the PostgREST 1000-row cap so the
@@ -242,6 +243,7 @@ const Transactions = () => {
     // prefix so every mutation invalidation refreshes it.
     const { data: txTotals } = useQuery({
         queryKey: ['transactions', activeBusinessId, 'totals'],
+        staleTime: 5 * 60 * 1000, // tail audit: mutation-invalidated data; kills focus refetch
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc('transactions_totals', {
                 p_business: activeBusinessId,
@@ -262,6 +264,7 @@ const Transactions = () => {
 
     const { data: products } = useQuery({
         queryKey: ['products-minimal', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: mutation-invalidated data; kills focus refetch
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
@@ -276,6 +279,7 @@ const Transactions = () => {
 
     const { data: accessories } = useQuery({
         queryKey: ['accessories-minimal', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: mutation-invalidated data; kills focus refetch
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase

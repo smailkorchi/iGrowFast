@@ -601,6 +601,7 @@ const MediaBuyerPayoutsList: React.FC = () => {
 
     const { data: payouts = [], isLoading } = useQuery<MBPayout[]>({
         queryKey: ['mb-payouts', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: mutation-invalidated data; kills focus refetch
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)

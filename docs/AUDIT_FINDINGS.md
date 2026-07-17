@@ -160,3 +160,8 @@ Money page post-sweep: unpaid total = server aggregate RPC (wrong-money 1000-cap
 - **PM-1 [APPLIED — unbounded-growth class]** The exchange/swap-leg pool fetched ALL `replace=true` un-noted orders (all-time, `*` + 5 joins) then client-filtered to fee-bearing — but zero-fee pure-swap legs are NEVER noted, so the download grew with all-time exchange history. `shipping_cost gt 0` pushed server-side (≡ the first client filter incl. NULL handling; client filters kept as defense). Pool is now bounded by the fee-bearing un-noted backlog.
 - **[APPLIED]** staleTime 5min on 4 reference queries (fee maps, provider/user options); `['unpaid-livre-orders']` added to the broadcast-seam order/parcel invalidation (webhook livré-flips now refresh the pool live). tsc -b clean.
 - Note lists/counts keep focus-refetch (payment notes not on the seam — same DN/RN design rationale).
+
+## Tasks #13/#14/#15 — Transactions / Salaries / Demands  [AUDITED + APPLIED 2026-07-17]
+- **#13 Transactions:** server-aggregate totals RPC (`transactions_totals` — no client money sum), cap-proof fetchAllRows ledger (31 rows live). Applied staleTime 5min ×4 (list, totals, products-minimal, accessories-minimal). Stock-mutation invalidations correct.
+- **#14 Salaries:** seller side = pay_seller RPC + live-owed hooks (payout-ledger authority, untouched — money-critical). mb-payouts got staleTime 5min. Small collaborator-scoped tables.
+- **#15 Demands:** imperative useEffect fetch (fires once per mount/business change — no focus-refetch storm to fix); collaborator-scoped, one FK join, tiny. No change needed. tsc -b clean.
