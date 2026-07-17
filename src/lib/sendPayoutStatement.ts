@@ -14,6 +14,7 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
+import { resolveStamps } from '@/lib/businessStamps';
 // PDF builders are dynamically imported at each call site below so @react-pdf (~1.5 MB)
 // stays OFF the eager bundle — it loads only when a payout statement is actually generated.
 import type { SellerPayoutPdfInput, SellerPayoutPdfOrder } from '@/lib/sellerPayoutPdf';
@@ -57,7 +58,9 @@ async function fetchBusinessBranding(businessId: string): Promise<BusinessBrandi
     .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website, cachet_url, signature_url')
     .eq('id', businessId)
     .maybeSingle();
-  return {
+  // Stamps live in the PRIVATE business-stamps bucket — resolve to signed URLs
+  // so the client-side PDF embed step can fetch them (#44).
+  return resolveStamps({
     name: data?.name || 'iGrowFast',
     logo: data?.logo ?? null,
     legal_form: data?.legal_form ?? null,
@@ -75,7 +78,7 @@ async function fetchBusinessBranding(businessId: string): Promise<BusinessBrandi
     website: data?.website ?? null,
     cachet_url: data?.cachet_url ?? null,
     signature_url: data?.signature_url ?? null,
-  };
+  });
 }
 
 async function invokeEdge(body: Record<string, unknown>): Promise<void> {

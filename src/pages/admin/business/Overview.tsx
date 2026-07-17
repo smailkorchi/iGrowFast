@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { resolveStampUrl } from '@/lib/businessStamps';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -174,12 +175,21 @@ async function rasteriseToPng(file: File, maxDim = 1024): Promise<Blob> {
 async function uploadBrandingAsset(businessId: string, kind: 'logo' | 'cachet' | 'signature', file: File) {
     const pngBlob = await rasteriseToPng(file);
     const path = `profile/${businessId}/${kind}-${Date.now()}.png`;
-    const { error } = await supabase.storage.from('business-logos').upload(path, pngBlob, { contentType: 'image/png' });
+    // #44 (owner-decided): cachet + signature are legal stamping assets — they
+    // go to the PRIVATE business-stamps bucket and are STORED AS PATHS
+    // (consumers resolve via resolveStampUrl → signed URL). Plain logos stay
+    // public in business-logos.
+    if (kind === 'logo') {
+        const { error } = await supabase.storage.from('business-logos').upload(path, pngBlob, { contentType: 'image/png' });
+        if (error) throw error;
+        const {
+            data: { publicUrl },
+        } = supabase.storage.from('business-logos').getPublicUrl(path);
+        return publicUrl;
+    }
+    const { error } = await supabase.storage.from('business-stamps').upload(path, pngBlob, { contentType: 'image/png' });
     if (error) throw error;
-    const {
-        data: { publicUrl },
-    } = supabase.storage.from('business-logos').getPublicUrl(path);
-    return publicUrl;
+    return path;
 }
 
 const KPI_ACCENTS = {
@@ -428,8 +438,22 @@ const BusinessOverview = () => {
     }
 
     const logoPreview = form.watch('logo');
-    const cachetPreview = form.watch('cachet_url');
-    const signaturePreview = form.watch('signature_url');
+    // #44: stored stamp values are private-bucket paths (or legacy URLs) —
+    // resolve to signed URLs for the on-page previews.
+    const cachetValue = form.watch('cachet_url');
+    const signatureValue = form.watch('signature_url');
+    const [cachetPreview, setCachetPreview] = useState<string | null>(null);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+    useEffect(() => {
+        let alive = true;
+        resolveStampUrl(cachetValue).then((u) => { if (alive) setCachetPreview(u); });
+        return () => { alive = false; };
+    }, [cachetValue]);
+    useEffect(() => {
+        let alive = true;
+        resolveStampUrl(signatureValue).then((u) => { if (alive) setSignaturePreview(u); });
+        return () => { alive = false; };
+    }, [signatureValue]);
     const currentName = form.watch('name');
     const sPill = statusPill(business.status);
 

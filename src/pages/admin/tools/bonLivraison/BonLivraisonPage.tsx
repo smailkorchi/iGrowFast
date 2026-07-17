@@ -18,6 +18,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { resolveStamps } from '@/lib/businessStamps';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdf } from '@/lib/bonLivraison/embedImagesForPdf';
 import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
@@ -194,7 +195,7 @@ export default function BonLivraisonPage() {
         .eq('id', activeBusinessId!)
         .single();
       if (error) throw error;
-      return data as BusinessRow;
+      return resolveStamps(data as BusinessRow); // #44: stamps live in the private bucket — sign for previews + PDF embed
     },
   });
 

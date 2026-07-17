@@ -1,3 +1,5 @@
+import { resolveStampUrl } from '@/lib/businessStamps';
+
 /** Snapshots that carry remote image URLs for @react-pdf/renderer (devis, facture, etc.). */
 export type SnapshotWithPdfImages = {
   business: { logo_url?: string | null };
@@ -35,14 +37,16 @@ export async function embedRemoteImagesForPdfDoc<T extends SnapshotWithPdfImages
     business.logo_url = data ?? null;
   }
 
+  // #44: stamp values may be private-bucket paths or legacy public URLs frozen
+  // in old saved snapshots — resolve to a signed URL first, then embed.
   const stamps = { ...snapshot.stamps };
-  if (stamps.cachet_url && /^https?:\/\//i.test(stamps.cachet_url)) {
-    const data = await fetchUrlAsDataUri(stamps.cachet_url);
-    stamps.cachet_url = data ?? null;
+  if (stamps.cachet_url && !stamps.cachet_url.startsWith('data:')) {
+    const url = await resolveStampUrl(stamps.cachet_url);
+    stamps.cachet_url = url && /^https?:\/\//i.test(url) ? await fetchUrlAsDataUri(url) : url;
   }
-  if (stamps.signature_url && /^https?:\/\//i.test(stamps.signature_url)) {
-    const data = await fetchUrlAsDataUri(stamps.signature_url);
-    stamps.signature_url = data ?? null;
+  if (stamps.signature_url && !stamps.signature_url.startsWith('data:')) {
+    const url = await resolveStampUrl(stamps.signature_url);
+    stamps.signature_url = url && /^https?:\/\//i.test(url) ? await fetchUrlAsDataUri(url) : url;
   }
 
   return { ...snapshot, business, stamps };

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
+import { resolveStamps } from '@/lib/businessStamps';
 // react-pdf builders dynamically imported at use-sites (below) so @react-pdf (~1.5 MB)
 // stays off the eager bundle — loads only when this page resolves images / generates a PDF.
 import type { CourierPayoutPdfInput } from '@/lib/courierPayoutPdf';
@@ -248,7 +249,9 @@ const CourierPayments = () => {
                 .select('name, logo, legal_form, capital_social, ice, rc, patente, identifiant_fiscal, cnss, legal_address, legal_city, postal_code, business_phone, business_email, website, cachet_url, signature_url')
                 .eq('id', businessId)
                 .single();
-            return (data || null) as (Record<string, string | null>) | null;
+            if (!data) return null;
+            // #44: stamps live in the private bucket — sign for the PDF embed.
+            return (await resolveStamps(data)) as (Record<string, string | null>) | null;
         },
         enabled: !!businessId,
         staleTime: 10 * 60_000,
