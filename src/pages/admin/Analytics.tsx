@@ -79,25 +79,50 @@ const Analytics = () => {
     const fromKey = dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : null;
     const toKey = dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : null;
 
-    const { data: stats, isError, error, refetch, isFetching } = useQuery({
-        queryKey: ['analytics-stats', businessId, fromKey, toKey],
-        queryFn: async () => {
-            const { data, error } = await (supabase as any).rpc('admin_analytics_stats', {
-                p_business: businessId,
-                p_from: fromKey,
-                p_to: toKey,
-            });
-            if (error) throw error;
-            return data as AdminAnalyticsStats;
-        },
+    // AAS-SECTIONS (the do-now subset of the deferred D3-7c decision): the RPC now
+    // takes p_sections (mig 20260717060000). The page splits ONE 737-807ms call into
+    // a FAST call (9 cheap sections, ~128ms — the page paints immediately) and a
+    // HEAVY call (profitability + sellers + mediabuyers, ~637ms — streams in).
+    // Distinct 'fast'/'heavy' key slots are MANDATORY (OR-B cache-collision lesson:
+    // a partial payload cached under the shared key starves the page); both stay
+    // inside the ['analytics-stats'] invalidation prefix (EcomBizRealtime).
+    const FAST_SECTIONS = ['health', 'orders', 'ads', 'shipping', 'inventory', 'channels', 'customers', 'couriers', 'users'];
+    const HEAVY_SECTIONS = ['profitability', 'sellers', 'mediabuyers'];
+
+    const fetchSections = useCallback(async (sections: string[]) => {
+        const { data, error } = await (supabase as any).rpc('admin_analytics_stats', {
+            p_business: businessId,
+            p_from: fromKey,
+            p_to: toKey,
+            p_sections: sections,
+        });
+        if (error) throw error;
+        return data as Partial<AdminAnalyticsStats>;
+    }, [businessId, fromKey, toKey]);
+
+    const { data: fastStats, isError: fastError, refetch: refetchFast, isFetching: fetchingFast } = useQuery({
+        queryKey: ['analytics-stats', businessId, fromKey, toKey, 'fast'],
+        queryFn: () => fetchSections(FAST_SECTIONS),
+        enabled: !!businessId,
+        staleTime: 60_000,
+    });
+    const { data: heavyStats, isError: heavyError, error, refetch: refetchHeavy, isFetching: fetchingHeavy } = useQuery({
+        queryKey: ['analytics-stats', businessId, fromKey, toKey, 'heavy'],
+        queryFn: () => fetchSections(HEAVY_SECTIONS),
         enabled: !!businessId,
         staleTime: 60_000,
     });
 
-    // A failed RPC must NOT leave every section as a permanent skeleton: the
-    // sections gate on `!stats`, which never resolves on error. Surface the
-    // failure with a retry instead (D3 review).
-    const statsFailed = isError && !stats;
+    const stats = (fastStats || heavyStats)
+        ? ({ ...(fastStats ?? {}), ...(heavyStats ?? {}) } as Partial<AdminAnalyticsStats> as AdminAnalyticsStats)
+        : undefined;
+    const refetch = useCallback(() => { refetchFast(); refetchHeavy(); }, [refetchFast, refetchHeavy]);
+    const isFetching = fetchingFast || fetchingHeavy;
+
+    // A failed RPC must NOT leave sections as permanent skeletons: sections gate on
+    // `!stats?.<key>`, which never resolves on error. Fatal only when a half errored
+    // AND its data is absent — the other half keeps rendering (D3 review, split-aware).
+    const statsFailed = (fastError && !fastStats) || (heavyError && !heavyStats);
 
     // Scroll-spy: watch every section and set `activeSection` to the one whose
     // top is closest to (but still below) the sticky nav row. Uses a single
