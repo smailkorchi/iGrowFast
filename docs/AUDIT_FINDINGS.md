@@ -319,3 +319,13 @@ MB Orders downloaded EVERY business order in the MB's lifetime entry span (all s
 - Dashboard mb-dash-profile 5min. Payments: profile 5min + ledger/txns 60s (monthly tickets — bounded like seller). Demands: getUser→getSession ×2.
 - MB Profile page = shared ProfileScaffold (hardened in #25) — clean. Statistics = hook-only, no direct network surface.
 ### Deferred (register): AdsHistory products combobox eager+1000-cap + GA/Meta connection-list staleTime (logged in #28, shared-page follow-up); EXTAPI-1 cross-viewer edge-fn cache (concurrency-gated).
+
+## Task #36 — COURIER dashboard (shell + 4 pages)  [AUDITED + APPLIED 2026-07-17; tsc-b clean]
+Healthiest dashboard: RPCs already server-side (courier_self_stats, courier_parcel_counts), staleTimes present, sidebar already on useCurrentProfile, all list scans already fetchAllRows-paginated. MEASURED volumes kill every scale concern: max 16 parcels/courier LIFETIME (12/month, 16 orders, 11 payment notes) — internal couriers are a minor channel; company carriers dominate. No DB work justified.
+### Applied
+- getUser→getSession in the 5 per-page "me" queries (CourierLayout, Dashboard, Orders, Payments, Profile) — kills a GoTrue network round-trip per staleTime window per page.
+- Profile avatar save now also invalidates ['current-profile'] (sidebar rides the canonical cache; was stale up to 5min after save).
+### Register notes (no change)
+- The 5 "me" queries keep 5 separate cache keys for the same users row — harmless at these volumes; unify onto one key only if the courier surface ever grows.
+- CourierLayout has NO suspension gate at all (unlike seller/MB shells — no businesses.status read, no SuspensionOverlay). Whether couriers of a suspended business should be locked out = owner call; flagged, not added.
+- courier-earned-this-month computes MAD client-side from parcels × fees — bounded by month (≤12 parcels measured) and display-only next to the payment-notes ledger; acceptable, register for the ledger follow-up if courier volume ever 100×.

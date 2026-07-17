@@ -46,7 +46,8 @@ const CourierProfile = () => {
     const { data: me, isLoading } = useQuery({
         queryKey: ['courier-profile-me'],
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return null;
             const { data, error } = await (supabase as any)
                 .from('users')
@@ -158,7 +159,11 @@ const CourierProfile = () => {
             <AvatarEditDialog
                 isOpen={avatarOpen}
                 onClose={() => setAvatarOpen(false)}
-                onSaved={() => queryClient.invalidateQueries({ queryKey: ['courier-profile-me'] })}
+                onSaved={() => {
+                    queryClient.invalidateQueries({ queryKey: ['courier-profile-me'] });
+                    // Sidebar avatar rides the canonical ['current-profile'] cache.
+                    queryClient.invalidateQueries({ queryKey: ['current-profile'] });
+                }}
                 seed={me.email ?? undefined}
             />
         </div>
