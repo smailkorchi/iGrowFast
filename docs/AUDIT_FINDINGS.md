@@ -135,3 +135,6 @@ Exact twin of Products post-D4 (cap-proof fetchAllRows list, shared `catalog_tot
 ## Task #7 — admin Customers page  [AUDITED + C7 APPLIED 2026-07-17]
 Post-D7b state healthy: 3 keyset/gated RPCs (customers_list_page 35.8ms / customers_kpis 13.2ms live impersonated / customer_orders gated on selection), staleTime 60s, no client-side derivation, keys covered by the broadcast seam. **C7 [APPLIED]:** refetchOnWindowFocus → false on list+kpis (OR-4 class — seam owns freshness). tsc -b clean.
 **C7-residual [scale note, no change]:** the whole page derives customers FROM orders (GROUP BY normalized phone) — every call is O(business-orders) BY DESIGN, and its search (fold/normalized LIKE) is scan-bound under RLS like all LIKE paths. No multiplier to kill (search adds no new class on top of the baseline aggregate). At 100×+ the end-state is a materialized customers table — same D3-7c pre-aggregation family, same owner-decision gate.
+
+## F0-6 — cron history purge + realtime retention  [DONE 2026-07-17]
+`cron.job_run_details` = 41,749 rows / 12MB in 7 days, NO purge (unbounded; the 1/min payout cron dominates). Added daily purge job `cron_history_purge` (jobid 54, 03:20, keep 7 days; mig 20260717030000 = repo record). `realtime.messages` verified self-maintaining (daily partitions, janitor drops >~3d — oldest partition 3 days back). 
