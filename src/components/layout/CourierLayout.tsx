@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import CourierSidebar from './CourierSidebar';
+import SuspensionOverlay from './SuspensionOverlay';
 import NotificationPermissionDialog from '@/components/notifications/NotificationPermissionDialog';
 import { useCourierNotifications } from '@/hooks/useCourierNotifications';
 import {
@@ -39,6 +40,25 @@ const CourierLayout: React.FC<CourierLayoutProps> = ({ children }) => {
     const courierId = me?.id ?? null;
     const businessId = me?.['DigiCom Business'] ?? null;
     const isCourier = me?.role === 'courier';
+
+    // Suspension gate (owner-approved 2026-07-17, parity with seller/MB shells):
+    // couriers of a suspended business are locked out like everyone else,
+    // re-verified on window focus once >5min stale. FAILS OPEN (error/missing
+    // row coerces to 'active') so a backend outage never locks couriers out.
+    const { data: businessStatus = 'active' } = useQuery({
+        queryKey: ['seller-business-status', businessId],
+        queryFn: async () => {
+            const { data: business } = await (supabase as any)
+                .from('businesses')
+                .select('status')
+                .eq('id', businessId!)
+                .single();
+            return (business?.status as string) || 'active';
+        },
+        enabled: !!businessId,
+        staleTime: 5 * 60 * 1000,
+    });
+    const isSuspended = businessStatus !== 'active';
 
     useEffect(() => {
         ensureServiceWorker().catch((e) => {
@@ -92,6 +112,10 @@ const CourierLayout: React.FC<CourierLayoutProps> = ({ children }) => {
                 userId={courierId}
                 businessId={businessId}
             />
+
+            {isSuspended && businessId && (
+                <SuspensionOverlay role="commercial" businessId={businessId} />
+            )}
         </div>
     );
 };
