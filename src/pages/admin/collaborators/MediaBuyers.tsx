@@ -163,6 +163,7 @@ const MediaBuyers = () => {
     // open, contradicting the card the admin just clicked (D5 review).
     const { data: mbCampaigns = [], isPending: campaignsPending } = useQuery<CampaignRow[]>({
         queryKey: ['mb-campaigns', activeBusinessId, selectedId],
+        staleTime: 5 * 60 * 1000, // CB-3: near-static; mutations/seam invalidate
         queryFn: async () => {
             if (!activeBusinessId || !selectedId) return [];
             const { data, error } = await (supabase as any)

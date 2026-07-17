@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Search,
     Truck,
@@ -207,6 +207,7 @@ const Couriers = () => {
     // ---------- DATA LAYER (preserved) ----------
     const { data: couriers = [], isLoading: loadingCouriers } = useQuery<Courier[]>({
         queryKey: ['couriers', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // CB-3: near-static; mutations/seam invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -234,6 +235,8 @@ const Couriers = () => {
         refetch: refetchRoster,
     } = useQuery<RosterStatRow[]>({
         queryKey: ['couriers-roster-stats', activeBusinessId],
+        staleTime: 60 * 1000,
+        refetchOnWindowFocus: false, // CB-3: on the ecom:biz seam — broadcast owns freshness, focus refire is a fleet-scale storm
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -246,14 +249,15 @@ const Couriers = () => {
 
     const { data: courierFees = [] } = useQuery<CourierFeeRow[]>({
         queryKey: ['couriers-fees', activeBusinessId, courierIds.slice().sort().join(',')],
+        // CB-4: fetchAllRows — a bare .in() select silently capped at 1000 rows
+        // (fee matrix = couriers × 1132 master_cities), undercounting the
+        // 'zones covered' tile with no error once a few couriers have broad grids.
+        staleTime: 5 * 60 * 1000, // CB-3: near-static fee grid; refires-on-focus was waste
         queryFn: async () => {
             if (!activeBusinessId || courierIds.length === 0) return [];
-            const { data, error } = await (supabase as any)
-                .from('courier_fees')
-                .select('courier_id, master_city_id, fee')
-                .in('courier_id', courierIds);
-            if (error) throw error;
-            return (data || []) as CourierFeeRow[];
+            return await fetchAllRows<CourierFeeRow>('courier_fees', 'courier_id, master_city_id, fee', {
+                filters: [{ column: 'courier_id', op: 'in', value: courierIds }],
+            });
         },
         enabled: !!activeBusinessId && courierIds.length > 0,
     });
@@ -273,6 +277,7 @@ const Couriers = () => {
     // correct "Zones covered: N cities" tile in the same modal (D5 review).
     const { data: notesDetail = EMPTY_DETAIL, isPending: detailPending } = useQuery<NotesDetail>({
         queryKey: ['courier-notes-detail', activeBusinessId, selected?.id],
+        staleTime: 5 * 60 * 1000, // CB-3: near-static; mutations/seam invalidate
         queryFn: async () => {
             if (!activeBusinessId || !selected?.id) return EMPTY_DETAIL;
             const { data, error } = await (supabase as any)

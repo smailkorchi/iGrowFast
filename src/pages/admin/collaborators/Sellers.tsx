@@ -245,6 +245,7 @@ const Sellers = () => {
         isFetching: fetchingRoster,
     } = useQuery<SellerProfile[]>({
         queryKey: ['sellers-roster', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // CB-3: near-static; mutations/seam invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -270,6 +271,8 @@ const Sellers = () => {
         isFetching: fetchingStats,
     } = useQuery<SellerRosterStats | null>({
         queryKey: ['sellers-roster-stats', activeBusinessId],
+        staleTime: 60 * 1000,
+        refetchOnWindowFocus: false, // CB-3: on the ecom:biz seam — broadcast owns freshness, focus refire is a fleet-scale storm
         queryFn: async () => {
             if (!activeBusinessId) return null;
             const { data, error } = await (supabase as any)
@@ -288,6 +291,7 @@ const Sellers = () => {
     );
     const { data: productsMap = {} } = useQuery<Record<string, { name: string; image: string | null }>>({
         queryKey: ['sellers-products', activeBusinessId, allProductIds.slice().sort().join(',')],
+        staleTime: 5 * 60 * 1000, // CB-3: near-static; mutations/seam invalidate
         queryFn: async () => {
             if (allProductIds.length === 0) return {};
             const { data, error } = await (supabase as any)

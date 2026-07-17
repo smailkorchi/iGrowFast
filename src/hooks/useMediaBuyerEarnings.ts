@@ -178,6 +178,7 @@ export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string 
         refetch: refetchMBs,
     } = useQuery<MBUser[]>({
         queryKey: ['mb-earnings-users', activeBusinessId, selfMbId ?? 'all'],
+        staleTime: 5 * 60 * 1000, // CB-3: near-static; mutations/seam invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             let q = (supabase as any)
@@ -203,6 +204,8 @@ export function useMediaBuyerEarnings(month: string, opts?: { selfMbId?: string 
         refetch: refetchRoster,
     } = useQuery<RosterPayload>({
         queryKey: ['mb-roster-earnings', activeBusinessId, month, selfMbId ?? 'all'],
+        staleTime: 60 * 1000,
+        refetchOnWindowFocus: false, // CB-3: on the ecom:biz seam — broadcast owns freshness, focus refire is a fleet-scale storm
         queryFn: async () => {
             if (!activeBusinessId) return EMPTY_PAYLOAD;
             const { data, error } = await (supabase as any).rpc('mb_roster_earnings', {
