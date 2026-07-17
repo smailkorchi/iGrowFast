@@ -546,6 +546,7 @@ const DeliveryServices = () => {
 
     const { data: deliveryPeople, isLoading: isLoadingPeople } = useQuery({
         queryKey: ['delivery-people', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DS audit: config-page reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
@@ -561,6 +562,7 @@ const DeliveryServices = () => {
 
     const { data: companies, isLoading: isLoadingCompanies } = useQuery({
         queryKey: ['providers', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DS audit: config-page reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
@@ -1775,6 +1777,7 @@ function ZonesModal({ isOpen, onClose, courier }: any) {
 
     const { data: allZones } = useQuery({
         queryKey: ['zones'],
+        staleTime: 5 * 60 * 1000, // DS audit: config-page reference data; mutations invalidate
         queryFn: async () => {
             const { data, error } = await supabase.from(ZONES_TABLE).select('*').order('name');
             if (error) throw error;
@@ -2086,6 +2089,7 @@ function CompanyZonesModal({ isOpen, onClose, company }: any) {
 
     const { data: allZones } = useQuery({
         queryKey: ['zones'],
+        staleTime: 5 * 60 * 1000, // DS audit: config-page reference data; mutations invalidate
         queryFn: async () => {
             const { data, error } = await supabase.from(ZONES_TABLE).select('*').order('name');
             if (error) throw error;

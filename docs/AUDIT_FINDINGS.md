@@ -151,3 +151,6 @@ All four lazy-loaded (FE-1) — zero cost until visited. Fee matrices + code-res
 - **IW-2 [APPLIED — 1000-cap class]** The matcher was a bare select — silently truncated at 1,000 active products (codes past the cap misclassify as new/invalid). → fetchAllRows.
 - **[APPLIED]** staleTime 5min on all 8 ImportOrders reference queries.
 - **[LOGGED, no change — owner ruling]** The per-row import write loops (Products L220, Accessories, Customers) are DELIBERATE best-effort-per-row semantics with per-row failure reporting (documented in-code; D7b made failures honest rather than batching). Post-OR-C the resulting broadcast stream is statement-coalesced + client-throttled, so the storm cost is gone; duration of large imports remains operator-acceptable by design. Do not re-litigate.
+
+## Task #11 — admin DeliveryServices  [AUDITED + DS APPLIED 2026-07-17]
+Admin-config page (couriers/providers/zones), tiny tables, rarely visited. **APPLIED:** staleTime 5min on the 4 reference-query sites (delivery-people, providers, zones ×2 shared-key observers). select('*') on these config tables left as-is (tiny rows, trim risk across 3k lines > payoff). Mutations invalidate correctly. tsc -b clean.
