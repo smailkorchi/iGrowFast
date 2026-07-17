@@ -158,11 +158,16 @@ const CampaignForm: React.FC = () => {
         refetchInterval: 30_000,
         refetchOnWindowFocus: true,
         queryFn: async () => {
-            const { data } = await (supabase as any)
-                .from('campaign_source_locks')
-                .select('source, mediabuyer_id, owner:users!campaign_source_locks_mb_fk(name)')
-                .eq('DigiCom Business', activeBusinessId);
-            return (data || []) as Array<{ source: string; mediabuyer_id: string; owner: { name: string } | null }>;
+            // #45: under the dedicated mediabuyer DB role, peer users rows are
+            // unreadable — holder names come from the gated mb_held_sources
+            // DEFINER instead of a users embed. Same shape for admins.
+            const { data } = await (supabase as any).rpc('mb_held_sources', { p_business: activeBusinessId });
+            return ((data || []) as Array<{ source: string; mediabuyer_id: string; owner_name: string | null }>)
+                .map((r) => ({
+                    source: r.source,
+                    mediabuyer_id: r.mediabuyer_id,
+                    owner: r.owner_name ? { name: r.owner_name } : null,
+                })) as Array<{ source: string; mediabuyer_id: string; owner: { name: string } | null }>;
         },
     });
     // Only media buyers are subject to the source lock — admins create campaigns with no
