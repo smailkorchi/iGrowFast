@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
-import { trackParcelWithFallback } from '@/lib/orders/syncOrderTracking';
+import { trackParcelWithFallback, getCachedTracking } from '@/lib/orders/syncOrderTracking';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 
 type ParcelTrackingDialogProps = {
@@ -130,6 +130,15 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 }
 
                 setTrackingCode(String(parcel.tracking_code).trim());
+
+                // Throttle (owner-approved 2026-07-17): a parcel refreshed in
+                // the last 10min replays its cached result — no external
+                // carrier call, no status re-write, no global invalidations.
+                const cached = getCachedTracking(String(parcel.tracking_code).trim());
+                if (cached) {
+                    setTrackingHistory(cached);
+                    return;
+                }
 
                 const data = await trackParcelWithFallback({
                     id: parcel.id,

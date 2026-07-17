@@ -100,6 +100,25 @@ function matchPackageStatus(
     return null;
 }
 
+// Per-parcel throttle on the external provider call (owner-approved
+// 2026-07-17): dialog opens re-use the last successful result for TTL instead
+// of re-hitting the carrier API — clicking through N tracked orders no longer
+// fires N external calls. Session-scoped (reload clears). DIALOGS read this
+// via getCachedTracking; the deliberate batch sync never reads it (always
+// fresh) but repopulates it on every success.
+const TRACK_CACHE_TTL_MS = 10 * 60 * 1000;
+const trackResultCache = new Map<string, { at: number; data: Record<string, unknown> }>();
+
+export function getCachedTracking(trackingCode: string): Record<string, unknown> | null {
+    const hit = trackResultCache.get(trackingCode);
+    if (!hit || Date.now() - hit.at > TRACK_CACHE_TTL_MS) return null;
+    return hit.data;
+}
+
+export function putCachedTracking(trackingCode: string, data: Record<string, unknown>): void {
+    trackResultCache.set(trackingCode, { at: Date.now(), data });
+}
+
 /** Calls provider-integration with track_parcel + fallback to get_parcel_info. */
 export async function trackParcelWithFallback(
     parcel: TrackableParcel,
@@ -161,6 +180,7 @@ export async function trackParcelWithFallback(
     }
 
     if (result && result.success) {
+        putCachedTracking(parcel.tracking_code, result.data as Record<string, unknown>);
         return result.data as Record<string, unknown>;
     }
     throw new Error(result?.error || 'Unknown error');

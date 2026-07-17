@@ -45,6 +45,7 @@ import { format } from 'date-fns';
 import CustomerInsights from '@/components/CustomerInsights';
 import { OrderPhoneQuickActions } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { getCachedTracking, putCachedTracking } from '@/lib/orders/syncOrderTracking';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -225,6 +226,16 @@ const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit, ownSellerI
             return;
         }
 
+        // Throttle (owner-approved 2026-07-17): replay the cached result if
+        // this parcel was refreshed in the last 10min — no external carrier
+        // call, no status re-write, no global invalidations.
+        const cachedTracking = getCachedTracking(String(parcel.tracking_code || '').trim());
+        if (cachedTracking) {
+            setTrackingHistory(cachedTracking);
+            setIsTrackingLoading(false);
+            return;
+        }
+
         try {
             const { data: { session } } = await supabase.auth.getSession();
             let response = await fetch(EDGE_FUNCTION_URL, {
@@ -285,6 +296,7 @@ const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit, ownSellerI
 
             if (result && result.success) {
                 setTrackingHistory(result.data);
+                putCachedTracking(String(parcel.tracking_code || '').trim(), result.data);
 
                 const providerStatus = result.data?.statusLabel || result.data?.status || result.data?.current_status;
 
