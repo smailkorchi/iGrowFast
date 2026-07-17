@@ -1,6 +1,21 @@
 # D3-7c — Money Pre-Aggregation Proposal (frozen closed-day + live hot-edge)
 
-**Status: PROPOSAL, owner decision required. No schema touched.** Design workflow wf_471a93da-091 (recon complete + measured; design/adversary phases cut by usage limit, synthesized here from the recon by the D3-7 author).
+**Status: DEFERRED WITH TRIPWIRE (owner-confirmed direction 2026-07-17). Do NOT build as written — adversarial validation (wf_ad077849-59e) found 3 FATAL defects; necessity analysis independently verdicts DEFER. This doc is the banked knowledge for when the tripwire fires.**
+
+## ⚠ VALIDATION VERDICT (2026-07-17, adversary + skeptic, both verified on the live box)
+**FATAL-1 — the frozen-day premise is FALSE for the sections that matter.** The hot sections are functions of CURRENT CONFIG, not just historical events: MB-section COGS uses current products.cost_price with NO snapshot (every cost edit rewrites all MB history); seller commission = current users.commission_price × ALL history (the exact reason payout tickets freeze); return fees = live courier_fees/company_fees lookups. None of these writes touches an order row → no proposed trigger fires → frozen cells silently rot on routine admin edits. Any build must FIRST resolve the config-closure decision (snapshot at event time / units-grain cells × current config at read / config-edit epoch invalidation) — this shapes the P1 schema and cannot be bolted on.
+**FATAL-2 — calendar-cutoff read boundary.** `day <= today−60 from rollup, else live` silently UNDER-counts if the freeze cron dies (unfrozen old days land in neither part) and DOUBLE-counts during dirty windows (anchor-migrated rows in both). Must derive the boundary from actual frozen coverage per (business, anchor), serve dirty days live, and alarm on cron liveness + dirty-backlog age.
+**FATAL-3 — the payout cron must NEVER read the rollup. PERMANENT RULE.** refresh_all_open_seller_tickets computes only the current month (entirely inside the hot window) → the rollup contributes ZERO speedup while making frozen-cell correctness a dependency of the function that WRITES seller_payments.total_amount. Same for close_seller_month / refresh_open_seller_ticket / mb_month_earned: money-WRITERS stay on the proven view, forever. The rollup, if ever built, is display-tier only.
+Also required if built: admin-gate the rollup RLS (tenant-only SELECT re-opens the MB-LEAK console P&L read), add a utc_delivery anchor for sde-parity, re-measure N on the triggering tenant (N=60 is calibrated on ONE tenant that is not the future load), and parity is by-TEST not by-construction (the analytics RPC's admin gate 42501s for cron callers).
+
+## THE STANDING DECISION
+**DEFER.** Current pain = 761-810ms on an admin-only, staleTime-cached page, ~80 calls/day ≈ 45s/day of DB time, ~0.0007 pool occupancy — nothing and nobody is blocked. The >3s threshold sits 8k-25k orders away (biggest biz: 1,859 at ~23/day); a new big client starts at ZERO orders → months of observable runway, always. Onset is gradual and visible in pg_stat_statements.
+**TRIPWIRE (build P1-shadow when ANY fires):** (a) any business > 10,000 non-deleted orders; (b) admin_analytics_stats mean_exec_time > 2,000ms; (c) refresh_all_open_seller_tickets mean_exec_time > 500ms (today ~98ms).
+**DO-NOW SUBSET (zero money risk, shipped precedent):** p_sections on admin_analytics_stats (exact D3-7 pattern — section SQL untouched, if-gated) + Analytics page progressive/per-section loading; optional Last-30-days default window (416ms measured). ~785ms → ~150-250ms perceived, ships in a day, parity trivial per-section.
+
+---
+*Original proposal below, kept as the design substrate for the eventual build (amended per the FATALs above).*
+
 
 ## Problem
 The three heavy money aggregates re-scan **all-time** order history every call:
