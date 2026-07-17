@@ -71,6 +71,7 @@ const SheetReview = () => {
 
     const { data: drafts, isLoading } = useQuery({
         queryKey: ['sheet-review-drafts', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // SheetReview audit: drafts arrive via 'review_pending' broadcast; refs static
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const rows = await fetchAllRows('orders', DRAFT_SELECT, { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }, { column: 'source_review_status', op: 'eq', value: 'pending' }, { column: 'date_deleted', op: 'is', value: null }] });
@@ -87,6 +88,7 @@ const SheetReview = () => {
     });
     const { data: products } = useQuery({
         queryKey: ['review-products', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // SheetReview audit: drafts arrive via 'review_pending' broadcast; refs static
         queryFn: async () => {
             const { data } = await (supabase as any).from('products').select('id, name, code').eq('active', true).eq('DigiCom Business', activeBusinessId);
             return (data || []) as { id: string; name: string; code: string }[];

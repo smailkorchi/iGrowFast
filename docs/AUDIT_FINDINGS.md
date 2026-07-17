@@ -173,3 +173,10 @@ Lightweight admin surfaces (small biz-scoped tables, mutation-invalidated, no sc
 - **#16 Expenses trio** (Types/Details/RecurringCharges): staleTime on 7 config keys.
 - **#18 SalesChannels / #20 Users:** staleTime on 1 + 6 config keys. Users mb-* access/conn queries gate on editingUserId (modal-scoped) — already correct.
 - LESSON: a blanket "insert staleTime after every `queryKey: [`" pass mis-hits invalidateQueries/removeQueries calls (→ TS2695 comma-operator) — filter those out or match only useQuery configs.
+
+## Tasks #17/#19/#25/#26/#27 — Analytics / SheetReview / Profile / Calculator / Tools  [AUDITED 2026-07-17]
+- **#17 Analytics:** D3-complete — one `analytics-stats` RPC (12 sections, ~380ms), staleTime present, admin-gated. Verified, no change.
+- **#19 SheetReview:** drafts inbox is broadcast-driven ('review_pending' event → invalidate ['sheet-review-drafts']); +staleTime on drafts + review-products (review-cities already 30min). No focus-storm.
+- **#25 Profile:** identity via the A1 `useCurrentProfile` hook (5min staleTime); +staleTime on the profile-business key. Mutation getUser calls untouched (write auth).
+- **#26 Calculator:** ZERO network — pure client-side calculator. Nothing to audit.
+- **#27 Tools (Devis/Facture/BonCommande/BonLivraison):** D6-complete — distinct_clients + register_totals RPCs (killed 4 copy-pasted unbounded orders downloads + 1000-capped money KPIs); all React.lazy routes (FE-1). Verified, no change.

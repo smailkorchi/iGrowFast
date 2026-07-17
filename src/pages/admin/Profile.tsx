@@ -32,6 +32,7 @@ const Profile = () => {
 
     const { data: business } = useQuery({
         queryKey: ['profile-business', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // Profile audit: business identity is near-static
         queryFn: async () => {
             if (!activeBusinessId) return null;
             const { data, error } = await supabase
