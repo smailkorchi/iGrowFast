@@ -83,8 +83,14 @@ function acquireStore(instanceId: string): InstanceStore {
   const existing = stores.get(instanceId)
   if (existing) { existing.refcount++; return existing }
 
+  // WA-RT-2 (ban-safety): PRIVATE channel — realtime.messages RLS (mig
+  // 20260717050000, whatsapp.can_use_typing_topic → can_use_instance) gates who may
+  // receive OR publish attend/open, closing the cross-tenant vector where any seller
+  // with the anon key + an instance UUID could pin a number online / storm presence.
+  // MUST stay in lockstep with the worker's wa-typing channel (handlers.ts) — mixed
+  // public/private on one topic is undefined; deploy client + worker together.
   const channel: RealtimeChannel = supabase.channel(`wa-typing:${instanceId}`, {
-    config: { broadcast: { self: false, ack: false } },
+    config: { private: true, broadcast: { self: false, ack: false } },
   })
 
   const store: InstanceStore = {

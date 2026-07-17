@@ -2818,6 +2818,10 @@ const viewerRegistry = new Map<string, Map<string, number>>() // instanceId -> v
 // Per-instance currently-open DM peer (phone JID) — the focused chat. Kept
 // warm with a forced re-subscribe so its typing survives the whole session.
 const activeOpenPeer = new Map<string, string>()
+// WA-RT-2: last forced peer-presence re-subscribe per (instance:peerJid), to rate-
+// limit the 'open' handler's force:true path against a same-business 'open' storm.
+const forcedOpenAt = new Map<string, number>()
+const FORCED_OPEN_MIN_MS = 10_000
 // loop.ts registers this so the FIRST attend can flip the number online in ~1s
 // instead of waiting a self-presence tick. Set via setOnFirstAttend (one-way
 // dependency: loop imports from handlers, handlers calls back through this).
@@ -2873,16 +2877,30 @@ function getPresenceChannel(instanceId: string): ReturnType<typeof supabase.chan
   // the next inbound message. And as the bus for edge functions → worker
   // `purge_peer` signals, fired when a conversation is deleted so the next
   // inbound from that peer re-subscribes Baileys cleanly.
-  ch = supabase.channel(`wa-typing:${instanceId}`, { config: { broadcast: { self: false, ack: false } } })
+  // WA-RT-2 (ban-safety): PRIVATE — realtime.messages RLS gates publish/receive to
+  // whatsapp.can_use_instance() holders. Worker authenticates as service_role
+  // (BYPASSRLS) so its own send/receive is unaffected; this blocks cross-tenant
+  // clients from driving attend/open. Keep in lockstep with the frontend wa-typing
+  // channel (src/whatsapp/lib/queries/waPresence.ts) — deploy together.
+  ch = supabase.channel(`wa-typing:${instanceId}`, { config: { private: true, broadcast: { self: false, ack: false } } })
   ch.on('broadcast', { event: 'open' }, (msg) => {
     const payload = msg.payload as { remote_jid?: string } | undefined
     const peerJid = payload?.remote_jid
     if (!peerJid) return
+    // WA-RT-2 defense-in-depth: throttle the FORCED re-subscribe per (instance,peer)
+    // so a same-business client spamming 'open' can't drive a presence-subscribe
+    // storm (the ban fingerprint). Legit cold-opens of a chat re-fire far less often
+    // than every 10s; within the window the peer's subscription is already warm.
+    const key = `${instanceId}:${peerJid}`
+    const now = Date.now()
+    const last = forcedOpenAt.get(key) ?? 0
+    activeOpenPeer.set(instanceId, peerJid)
+    if (now - last < FORCED_OPEN_MIN_MS) return
+    forcedOpenAt.set(key, now)
     // Track the focused peer so the self-presence driver can keep it warm, and
     // force a re-subscribe NOW: a cold-open after idle has a stale (non-expired)
     // throttle entry but a lapsed WA-side subscription, so the throttled call
     // would no-op and typing would not arrive until the next forced refresh.
-    activeOpenPeer.set(instanceId, peerJid)
     ensurePeerPresenceSubscribed(instanceId, peerJid, { force: true })
   })
   ch.on('broadcast', { event: 'attend' }, (msg) => {
