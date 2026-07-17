@@ -165,3 +165,11 @@ Money page post-sweep: unpaid total = server aggregate RPC (wrong-money 1000-cap
 - **#13 Transactions:** server-aggregate totals RPC (`transactions_totals` — no client money sum), cap-proof fetchAllRows ledger (31 rows live). Applied staleTime 5min ×4 (list, totals, products-minimal, accessories-minimal). Stock-mutation invalidations correct.
 - **#14 Salaries:** seller side = pay_seller RPC + live-owed hooks (payout-ledger authority, untouched — money-critical). mb-payouts got staleTime 5min. Small collaborator-scoped tables.
 - **#15 Demands:** imperative useEffect fetch (fires once per mount/business change — no focus-refetch storm to fix); collaborator-scoped, one FK join, tiny. No change needed. tsc -b clean.
+
+## Tasks #16-#20, #23, #24 — config/tail pages  [AUDITED + APPLIED 2026-07-17]
+Lightweight admin surfaces (small biz-scoped tables, mutation-invalidated, no scale bombs). Applied the staleTime discipline (5min; 60s where a live feed matters) to stop per-focus re-downloads:
+- **#23 Webhooks [real fix]:** logs query polled every **5s** (12 req/min/admin) for a table that only changes on carrier POST. Converted to event-driven — the ecom:biz 'webhook' broadcast now invalidates logs+config (3s debounce), 30s interval kept as slow fallback. +staleTime on the 2 config queries. (The 'webhook' event was previously bus-pulse-only; this page is now a real consumer, same OR-7 pattern as useWebhookHealth.)
+- **#24 Trash:** fetchAllRows over soft-deleted orders (5 rows live; 30-day auto-expiry bounds the set) — +staleTime 60s.
+- **#16 Expenses trio** (Types/Details/RecurringCharges): staleTime on 7 config keys.
+- **#18 SalesChannels / #20 Users:** staleTime on 1 + 6 config keys. Users mb-* access/conn queries gate on editingUserId (modal-scoped) — already correct.
+- LESSON: a blanket "insert staleTime after every `queryKey: [`" pass mis-hits invalidateQueries/removeQueries calls (→ TS2695 comma-operator) — filter those out or match only useQuery configs.

@@ -155,6 +155,7 @@ const RecurringCharges = () => {
 
     const { data: charges, isLoading } = useQuery({
         queryKey: ['recurring_charges', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase
@@ -172,6 +173,7 @@ const RecurringCharges = () => {
     // stays under the ['expense_types', biz] prefix Expense Types invalidates.
     const { data: expenseTypes } = useQuery({
         queryKey: ['expense_types', activeBusinessId, 'recurrent'],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase
@@ -190,6 +192,7 @@ const RecurringCharges = () => {
     // — proves the materialisation is actually running.
     const { data: postedThisMonth } = useQuery({
         queryKey: ['recurring_posted_month', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return 0;
             const { data, error } = await (supabase

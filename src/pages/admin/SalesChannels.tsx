@@ -166,6 +166,7 @@ const SalesChannels = () => {
 
     const { data: channels, isLoading } = useQuery({
         queryKey: ['sales_channels', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // SalesChannels audit: config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase

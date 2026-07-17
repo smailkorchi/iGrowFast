@@ -114,6 +114,7 @@ const ExpensesTypes = () => {
 
     const { data: expenseTypes, isLoading } = useQuery({
         queryKey: ['expense_types', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase

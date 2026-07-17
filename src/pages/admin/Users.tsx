@@ -383,6 +383,7 @@ const Users = () => {
 
     const { data: users, isLoading } = useQuery({
         queryKey: ['users', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
@@ -980,6 +981,7 @@ const UserModal = ({
     // Mediabuyer GA / Meta current grants (round-trip) + the business's connectable properties/accounts.
     const { data: existingGaAccess } = useQuery({
         queryKey: ['mb-ga-access', editingUserId],
+        staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!editingUserId) return null;
             const { data, error } = await (supabase as any).from('mediabuyer_ga_access').select('ga_connection_id, scope').eq('user_id', editingUserId);
@@ -993,6 +995,7 @@ const UserModal = ({
     });
     const { data: existingMetaAccess } = useQuery({
         queryKey: ['mb-meta-access', editingUserId],
+        staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!editingUserId) return null;
             const { data, error } = await (supabase as any).from('mediabuyer_meta_access').select('meta_connection_id, scope').eq('user_id', editingUserId);
@@ -1006,6 +1009,7 @@ const UserModal = ({
     });
     const { data: gaConns } = useQuery({
         queryKey: ['mb-ga-conns', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data } = await supabase.from('google_analytics_connections').select('id, display_name, property_id').eq('DigiCom Business', activeBusinessId).order('display_name');
@@ -1015,6 +1019,7 @@ const UserModal = ({
     });
     const { data: metaConns } = useQuery({
         queryKey: ['mb-meta-conns', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data } = await supabase.from('meta_ads_connections').select('id, display_name, ad_account_id').eq('DigiCom Business', activeBusinessId).order('display_name');
@@ -1025,6 +1030,7 @@ const UserModal = ({
 
     const { data: products, isLoading: isProductsLoading } = useQuery({
         queryKey: ['products-user-modal', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase

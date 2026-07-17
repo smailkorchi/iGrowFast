@@ -130,6 +130,7 @@ const ExpensesDetails = () => {
 
     const { data: expenses, isLoading: isExpensesLoading } = useQuery({
         queryKey: ['expenses', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             // fetchAllRows paginates past the PostgREST 1000-row cap so the
@@ -148,6 +149,7 @@ const ExpensesDetails = () => {
     // the ['expenses', biz] prefix so every mutation invalidation refreshes it.
     const { data: expensesTotals, isLoading: isTotalsLoading } = useQuery({
         queryKey: ['expenses', activeBusinessId, 'totals'],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc('expenses_totals', {
                 p_business: activeBusinessId,
@@ -164,6 +166,7 @@ const ExpensesDetails = () => {
     // prefix that Expense Types invalidates when the flag is toggled.
     const { data: expenseTypes } = useQuery({
         queryKey: ['expense_types', activeBusinessId, 'variable'],
+        staleTime: 5 * 60 * 1000, // tail audit: reference/config data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase

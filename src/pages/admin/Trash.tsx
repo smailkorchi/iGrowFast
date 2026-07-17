@@ -55,6 +55,7 @@ const Trash = () => {
 
     const { data: trashedOrders = [], isLoading } = useQuery({
         queryKey: ['trashed-orders', activeBusinessId],
+        staleTime: 60 * 1000, // Trash audit: mutation-invalidated; 30-day auto-expiry bounds the set
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const rows = await fetchAllRows(

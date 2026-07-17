@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { subscribeEcomBus } from '@/lib/ecomBus';
 import { resolveProviderLogo } from '@/lib/providerLogos';
 import {
     Plus,
@@ -109,6 +110,7 @@ const Webhooks = () => {
     // --- Queries ---
     const { data: webhooks, isLoading: hooksLoading } = useQuery({
         queryKey: ['provider_webhooks', activeBusinessId],
+        staleTime: 60 * 1000, // WH audit: config data; webhook broadcast invalidates
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
@@ -134,11 +136,34 @@ const Webhooks = () => {
             if (error) throw error;
             return (data as any[]) || [];
         },
-        refetchInterval: 5000 // Auto-refresh logs every 5 seconds
+        // WH audit (OR-7 class): the live feed is now event-driven — the ecom:biz
+        // 'webhook' broadcast invalidates this key (effect below). The old 5s poll
+        // was 12 req/min per admin on this page for a table that only changes when
+        // a carrier posts. 30s interval is a slow fallback for missed broadcasts.
+        refetchInterval: 30000,
     });
+
+    // WH audit: refresh logs (+ webhook config) on the shared 'webhook' broadcast,
+    // debounced 3s so carrier-sync bursts coalesce into one refetch.
+    useEffect(() => {
+        if (!activeBusinessId) return;
+        let t: ReturnType<typeof setTimeout> | null = null;
+        const unsub = subscribeEcomBus((event) => {
+            if (event.type === 'webhook') {
+                if (t) clearTimeout(t);
+                t = setTimeout(() => {
+                    t = null;
+                    queryClient.invalidateQueries({ queryKey: ['webhook_logs', activeBusinessId] });
+                    queryClient.invalidateQueries({ queryKey: ['provider_webhooks', activeBusinessId] });
+                }, 3000);
+            }
+        });
+        return () => { if (t) clearTimeout(t); unsub(); };
+    }, [activeBusinessId, queryClient]);
 
     const { data: providers } = useQuery({
         queryKey: ['providers', activeBusinessId],
+        staleTime: 60 * 1000, // WH audit: config data; webhook broadcast invalidates
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
