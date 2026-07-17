@@ -41,4 +41,7 @@ rm -f "$TMP"
 
 # Rotate: keep newest 60 (~15 days at 4/day).
 ls -1t "$BK"/evolution-session-*.sql.gz 2>/dev/null | tail -n +61 | xargs -r rm -f
+# Heartbeat: 6h cadence, flag if >9h stale (auto-watched by the peer box —
+# this is what would have caught the silent-empty failure).
+igf-heartbeat.sh wa-session 32400 || true
 logger -t wa-session-backup "ok $OUT ($(stat -c%s "$OUT") bytes)"

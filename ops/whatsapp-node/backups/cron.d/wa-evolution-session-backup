@@ -1,0 +1,2 @@
+# Evolution Baileys creds backup (Session+Instance) every 6h
+0 */6 * * * root /opt/igf-wa/backups/backup-evolution-session.sh >/dev/null 2>&1

@@ -1,0 +1,3 @@
+# Evolution full DB logical backup (conversations + Baileys creds) daily 03:00
+# UTC — before the nightly restic run so the fresh .dump ships offsite same-day.
+0 3 * * * root /opt/igf-wa/backups/backup-evolution-db.sh >/dev/null 2>&1

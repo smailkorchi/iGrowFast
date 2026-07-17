@@ -161,6 +161,8 @@ const STREAM_META: Record<string, { label: string; server: string; cadenceSec: n
     'vmi3414204/toolbox-dbdump': { label: 'Dump BD indépendant', server: 'Toolbox', cadenceSec: 86400 },
     'vmi3414204/watchdog-vmi3390870': { label: 'Surveillance · box', server: 'Toolbox', cadenceSec: 1800 },
     'vmi3418398/restic': { label: 'Config serveur', server: 'WhatsApp', cadenceSec: 86400 },
+    'vmi3418398/wa-dbdump': { label: 'Dump logique', server: 'WhatsApp', cadenceSec: 86400 },
+    'vmi3418398/wa-session': { label: 'Sauvegarde session', server: 'WhatsApp', cadenceSec: 21600 },
 };
 export function streamLabel(key: string): string { return STREAM_META[key]?.label ?? key; }
 export function streamServer(key: string): string { return STREAM_META[key]?.server ?? key.split('/')[0]; }
