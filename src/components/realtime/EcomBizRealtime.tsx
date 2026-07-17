@@ -120,6 +120,7 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
                 // old focus-refetch dependency.
                 queryClient.invalidateQueries({ queryKey: ['products', businessId] });
                 queryClient.invalidateQueries({ queryKey: ['catalog-totals', businessId] });
+                queryClient.invalidateQueries({ queryKey: ['accessories', businessId] });
             } else {
                 queryClient.invalidateQueries({ queryKey: ['products-dropdown-seller'] });
                 queryClient.invalidateQueries({ queryKey: ['accessories', businessId] });

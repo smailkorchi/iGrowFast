@@ -201,6 +201,7 @@ const Accessories = () => {
 
     const { data: accessories, isLoading } = useQuery({
         queryKey: ['accessories', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // P6: freshness rides mutations + the ecom:biz 'stock' broadcast
         queryFn: async () => {
             if (!activeBusinessId) return [];
             // fetchAllRows paginates past the PostgREST 1000-row cap; stable `id`
@@ -220,6 +221,7 @@ const Accessories = () => {
 
     const { data: catalogTotalsData, isLoading: isTotalsLoading } = useQuery({
         queryKey: ['catalog-totals', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // P6: same policy — mutations + 'stock' broadcast invalidate
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc('catalog_totals', {
                 p_business: activeBusinessId,
@@ -232,6 +234,7 @@ const Accessories = () => {
 
     const { data: products } = useQuery({
         queryKey: ['products', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // P6: shared cache with the Products page (same key + policy)
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const rows = await fetchAllRows<ProductPickerRow>(
