@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useCampaignBasePath } from '@/hooks/useCampaignBasePath';
+import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { getPlatformSource, type Campaign, type CampaignDailyEntry } from '@/lib/campaignConstants';
 import { toBusinessDate, shiftYmd } from '@/lib/dateBuckets';
 import { pureRevenueForOrder, type AnalyticsOrderItem } from '@/lib/analyticsDefinitions';
@@ -101,12 +102,38 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
     const basePath = useCampaignBasePath();
     const revenueBasis: RevenueBasis = basePath.startsWith('/mediabuyer') ? 'commission' : 'admin';
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+    const currentUserId = useCurrentUserId();
 
-    // Daily entries (manual spend + leads)
+    // MB-DATA-RULE ENFORCEMENT (audit #28, MB-LEAK-1/2).
+    //
+    // orders/campaigns/campaign_daily_entries RLS is tenant-open (no role or
+    // created_by predicate — a media buyer authenticates as the same DB role as
+    // an admin, so RLS cannot distinguish them). Two rules therefore have to be
+    // enforced HERE, at the data layer, or the forbidden data reaches the MB
+    // browser (network payload + query cache) regardless of what the UI hides:
+    //   - isAdmin only: business revenue columns + computed adminGrossRevenue /
+    //     profit / roas. A media buyer may NEVER receive these.
+    //   - own-campaign only (for MB): spend/entries + attributed order counts.
+    //     A media buyer must not see a PEER's ad spend (CampaignPreview is a
+    //     read-only path onto peers' campaigns — the CREATIVE is shared, the
+    //     numbers are not).
+    // Admins keep the full report unchanged. NOTE (systemic, owner decision):
+    // this closes the product-use + network exposure; a determined MB with the
+    // anon key + console could still raw-read orders.price because the MB role
+    // has tenant-wide SELECT — fully closing that needs a dedicated MB DB role
+    // or RPC-only reads across the whole MB surface (logged in AUDIT_FINDINGS).
+    const isAdmin = revenueBasis === 'admin';
+    const isOwnCampaign =
+        !!currentUserId && !!campaign?.created_by && campaign.created_by === currentUserId;
+    // Metrics (spend + attributed orders) are visible to admins for any campaign
+    // and to a media buyer only for their own campaign.
+    const metricsAllowed = isAdmin || isOwnCampaign;
+
+    // Daily entries (manual spend + leads) — gated: MB peers get nothing.
     const { data: entries = [], isLoading: loadingEntries } = useQuery<CampaignDailyEntry[]>({
-        queryKey: ['campaign-daily-entries', campaign?.id],
+        queryKey: ['campaign-daily-entries', campaign?.id, metricsAllowed],
         queryFn: async () => {
-            if (!campaign?.id) return [];
+            if (!campaign?.id || !metricsAllowed) return [];
             const { data, error } = await (supabase as any)
                 .from('campaign_daily_entries')
                 .select('*')
@@ -115,14 +142,14 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
             if (error) throw error;
             return (data || []) as CampaignDailyEntry[];
         },
-        enabled: !!campaign?.id,
+        enabled: !!campaign?.id && metricsAllowed,
     });
 
-    // Mediabuyer profile (for commission lookup)
+    // Mediabuyer profile (for commission lookup) — gated: don't leak a peer's rate.
     const { data: mediabuyer } = useQuery<MediaBuyerProfile | null>({
-        queryKey: ['campaign-mediabuyer', campaign?.created_by],
+        queryKey: ['campaign-mediabuyer', campaign?.created_by, metricsAllowed],
         queryFn: async () => {
-            if (!campaign?.created_by) return null;
+            if (!campaign?.created_by || !metricsAllowed) return null;
             const { data } = await (supabase as any)
                 .from('users')
                 .select('id, payment_type, commission_price, salary_amount')
@@ -130,7 +157,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
                 .single();
             return (data || null) as MediaBuyerProfile | null;
         },
-        enabled: !!campaign?.created_by,
+        enabled: !!campaign?.created_by && metricsAllowed,
     });
 
     // Compute date range for order fetch from entries. Fall back to campaign dates when no entries.
@@ -145,22 +172,29 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         return { from: null, to: null };
     }, [entries, campaign]);
 
-    // Orders scoped to business + source + date range. We now pull the
-    // revenue-bearing columns (price, raw_price, shipping_cost,
-    // include_delivery_in_total) + per-line item totals so the admin's gross
-    // revenue can be derived via the same formula the dashboard uses
-    // (`pureRevenueForOrder` — product-only, shipping stripped).
+    // Orders scoped to business + source + date range. The revenue-bearing
+    // columns (price, raw_price, shipping_cost, include_delivery_in_total,
+    // order_items) are fetched ONLY on the admin basis — they feed the admin's
+    // gross-revenue derivation (`pureRevenueForOrder`, product-only shipping
+    // stripped). On the MB (commission) basis only the count-bearing columns are
+    // requested, so business per-order revenue never reaches the MB browser
+    // (MB-LEAK-1). The whole fetch is additionally gated on `metricsAllowed` so
+    // a media buyer viewing a peer's campaign downloads no order data at all.
+    const ADMIN_ORDER_COLS =
+        'id, date, source_name, order_status_id, package_status_id, price, raw_price, shipping_cost, include_delivery_in_total, replace, order_items(product_id, quantity, unit_price, total_price)';
+    const MB_ORDER_COLS =
+        'id, date, source_name, order_status_id, package_status_id, replace';
     const source = campaign ? getPlatformSource(campaign.platform) : '';
     const { data: orders = [], isLoading: loadingOrders } = useQuery<OrderRow[]>({
-        queryKey: ['campaign-orders', campaign?.id, activeBusinessId, source, dateRange.from, dateRange.to],
+        queryKey: ['campaign-orders', campaign?.id, activeBusinessId, source, dateRange.from, dateRange.to, isAdmin, metricsAllowed],
         queryFn: async () => {
-            if (!activeBusinessId || !source || !dateRange.from || !dateRange.to) return [];
+            if (!activeBusinessId || !source || !dateRange.from || !dateRange.to || !metricsAllowed) return [];
             // orders.date is timestamptz; entry_date is local. Widen by 1 day each side and
             // re-bucket client-side to business TZ.
             // Paginated so we never truncate at the 1000-row default cap.
             return await fetchAllRows<OrderRow>(
                 'orders',
-                'id, date, source_name, order_status_id, package_status_id, price, raw_price, shipping_cost, include_delivery_in_total, replace, order_items(product_id, quantity, unit_price, total_price)',
+                isAdmin ? ADMIN_ORDER_COLS : MB_ORDER_COLS,
                 {
                     filters: [
                         { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
@@ -173,7 +207,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
                 },
             );
         },
-        enabled: !!activeBusinessId && !!source && !!dateRange.from && !!dateRange.to,
+        enabled: !!activeBusinessId && !!source && !!dateRange.from && !!dateRange.to && metricsAllowed,
     });
 
     // Build per-day metrics
@@ -212,7 +246,10 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
             const isDelivered = !!o.package_status_id && deliveredPkgIds.has(o.package_status_id);
             if (isDelivered) {
                 bucket.delivered += 1;
-                bucket.adminGrossRevenue += pureRevenueForOrder(o as any);
+                // Business gross revenue is an admin-only figure and the price
+                // columns are only fetched on the admin basis — never derive it
+                // for a media buyer (MB-LEAK-1).
+                if (isAdmin) bucket.adminGrossRevenue += pureRevenueForOrder(o as any);
             }
             ordersByDate.set(d, bucket);
         }
@@ -287,7 +324,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         t.days = dailyRows.length;
 
         return { daily: dailyRows, totals: t };
-    }, [entries, orders, deliveredPkgIds, pendingIds, mediabuyer, revenueBasis]);
+    }, [entries, orders, deliveredPkgIds, pendingIds, mediabuyer, revenueBasis, isAdmin]);
 
     return {
         entries,
