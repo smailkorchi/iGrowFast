@@ -82,6 +82,7 @@ const Payments: React.FC = () => {
             return (data || null) as UserProfile | null;
         },
         enabled: !!currentUserId,
+        staleTime: 5 * 60 * 1000, // own identity/bank row — near-static
     });
 
     const { data: payouts = [], isLoading: loadingPayouts } = useQuery<Payout[]>({
@@ -97,6 +98,7 @@ const Payments: React.FC = () => {
             return (data || []) as Payout[];
         },
         enabled: !!currentUserId,
+        staleTime: 60_000, // monthly ticket ledger — payouts land on admin action, not focus
     });
 
     // Real payment dates + amounts come from the txns (now readable by the owning
@@ -116,6 +118,7 @@ const Payments: React.FC = () => {
             return (data || []) as Txn[];
         },
         enabled: payoutIds.length > 0,
+        staleTime: 60_000,
     });
 
     const txnsByPayout = useMemo(() => {

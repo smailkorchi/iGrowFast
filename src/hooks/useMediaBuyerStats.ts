@@ -151,6 +151,7 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             return (data || []) as Campaign[];
         },
         enabled: !!activeBusinessId && !!currentUserId,
+        staleTime: 60_000, // matches the stats RPC — kills the every-focus re-download
     });
 
     // 3. Mediabuyer commission price (for revenue calc).
@@ -171,6 +172,7 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             } | null;
         },
         enabled: !!currentUserId,
+        staleTime: 5 * 60 * 1000, // own commission config — near-static
     });
 
     // 4. Derive the money/ratio fields from the raw server counts.

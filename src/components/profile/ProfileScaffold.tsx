@@ -37,7 +37,12 @@ export function ProfileScaffold({ roleLabel, extra, securityChapter }: { roleLab
         if (profile && !editing) setForm({ name: profile.name || '', username: profile.username || '', phone: profile.phone || '' });
     }, [profile, editing]);
 
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ['profile-self'] });
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ['profile-self'] });
+        // Sidebars (all roles) render name/avatar from the canonical
+        // ['current-profile'] cache — keep them in lockstep with saves here.
+        queryClient.invalidateQueries({ queryKey: ['current-profile'] });
+    };
 
     const save = async () => {
         setSaving(true);

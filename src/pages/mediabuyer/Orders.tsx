@@ -50,7 +50,6 @@ type OrderRow = {
     items: Array<{
         id: string;
         quantity: number | null;
-        unit_price: number | null;
         product?: { id: string; name: string | null; code: string | null; image_url: string | null } | null;
     }> | null;
 };
@@ -90,6 +89,7 @@ const MediaBuyerOrders = () => {
             return (Array.isArray(data) ? data : []) as EntryDay[];
         },
         enabled: !!activeBusinessId && !!currentUserId,
+        staleTime: 60_000,
     });
 
     const {
@@ -128,6 +128,12 @@ const MediaBuyerOrders = () => {
         queryFn: async () => {
             if (!activeBusinessId || !minDate || !maxDate || distinctSources.length === 0) return [];
             // Paginated so a media buyer with >1000 in-window orders is never truncated.
+            // source_name is pushed SERVER-side (was: whole-business span downloaded,
+            // filtered client-side). Live data is 100% lowercase source_name (verified
+            // 2026-07-17) and distinctSources is lowercased from the platform map, so
+            // exact .in() matches; the attributionSet filter below stays the
+            // correctness authority for the (day, source) pairing.
+            // order_items.unit_price dropped (MB-LEAK-3): zero consumers on this page.
             const data = await fetchAllRows<OrderRow>(
                 'orders',
                 `
@@ -136,7 +142,7 @@ const MediaBuyerOrders = () => {
                     status:order_statuses(id, label, color),
                     package_status:package_statuses(id, label, color, icon),
                     city:master_cities(id, name),
-                    items:order_items(id, quantity, unit_price, product:products(id, name, code, image_url))
+                    items:order_items(id, quantity, product:products(id, name, code, image_url))
                 `,
                 {
                     orderBy: 'id',
@@ -146,6 +152,7 @@ const MediaBuyerOrders = () => {
                         { column: 'date', op: 'lte', value: `${maxDate}T23:59:59.999Z` },
                         { column: 'date_deleted', op: 'is', value: null },
                         { column: 'source_review_status', op: 'neq', value: 'pending' },
+                        { column: 'source_name', op: 'in', value: distinctSources },
                     ],
                 },
             );
@@ -161,6 +168,7 @@ const MediaBuyerOrders = () => {
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         },
         enabled: !!activeBusinessId && !!minDate && !!maxDate && distinctSources.length > 0,
+        staleTime: 60_000,
     });
 
     const filteredOrders = useMemo(() => {

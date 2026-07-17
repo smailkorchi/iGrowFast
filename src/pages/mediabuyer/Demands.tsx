@@ -149,7 +149,8 @@ const MediaBuyerDemands = () => {
 
     const fetchDemands = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return;
 
             const { data, error } = await (supabase as any)
@@ -229,7 +230,8 @@ const MediaBuyerDemands = () => {
         setSubmitting(true);
         setUploadProgress(0);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return;
             const media = await uploadMedia(user.id);
             const { error } = await (supabase as any).from('mediabuyer_demands').insert({

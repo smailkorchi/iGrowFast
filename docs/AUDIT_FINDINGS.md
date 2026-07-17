@@ -302,3 +302,20 @@ Shell-mounted useInstances cache-keeper now passes {warm:true} → staleTime 5mi
 ### OWNER DECISIONS 2026-07-17 (register items resolved)
 - business-logos bucket → SPLIT: logos stay public; cachet + signature move to a PRIVATE bucket (signed URLs for doc-gen, byte-embed for emails). Queued as task #44, execute after audit blocks #35-37.
 - MB console-read residual → DEDICATED 'mediabuyer' Postgres role (JWT role claim + column-level money grants). Queued as task #45, execute after the audit campaign, before selling.
+
+## Task #35 — MEDIA BUYER dashboard (MB-only pages)  [AUDITED + APPLIED 2026-07-17; tsc-b clean]
+Scope: MediaBuyerLayout + Sidebar, Dashboard, Statistics, Orders, Payments, Demands, Profile. (Campaigns/AdsHistory/GA/Meta done in #28-30.) Small surface — already D2-hardened; this pass closed the deferred items + hygiene drift.
+
+### MB-ORD-1 [P2 APPLIED — the deferred over-fetch] server-side source_name filter
+MB Orders downloaded EVERY business order in the MB's lifetime entry span (all sources, all sellers) and filtered client-side. Now pushes `source_name IN (distinctSources)` server-side. Measured basis: live source_name values are 100% lowercase and sources derive from the fixed platform map, so exact .in() matches; the client (day,source) attributionSet filter stays the correctness authority. Register note: if a mixed-case source_name ever appears, the server prefilter is case-sensitive — revisit then.
+### MB-LEAK-3 [P2 APPLIED] order_items.unit_price dropped from MB Orders select (zero consumers — type+select only). Owner-ruled CA display (order.price) untouched.
+### MB-DASH-1 [P2 APPLIED — the deferred sparkline] second useMediaBuyerStats call was ALL-TIME ('2020-01-01') to render a 14-day sparkline; now requests exactly the last-14-days window.
+### Shell parity [APPLIED]
+- MediaBuyerSidebar → canonical useCurrentProfile() (was bespoke getUser + users select('*'), staleTime 0 → per-focus GoTrue round-trip + full row on every MB page). GA/Meta allow-list gates → staleTime 5min.
+- MediaBuyerLayout suspension gate → same owner ruling as seller shell: react-query, focus recheck >5min stale, FAIL-OPEN retained (shares ['seller-business-status'] key).
+- ProfileScaffold saves now ALSO invalidate ['current-profile'] — sidebars of ALL scaffold roles stay in lockstep with avatar/identity saves.
+### Hygiene batch [APPLIED]
+- useMediaBuyerStats: campaigns query staleTime 60s (select('*') kept — Campaign type consumers broad, own campaigns only); mb-stats-profile 5min.
+- Dashboard mb-dash-profile 5min. Payments: profile 5min + ledger/txns 60s (monthly tickets — bounded like seller). Demands: getUser→getSession ×2.
+- MB Profile page = shared ProfileScaffold (hardened in #25) — clean. Statistics = hook-only, no direct network surface.
+### Deferred (register): AdsHistory products combobox eager+1000-cap + GA/Meta connection-list staleTime (logged in #28, shared-page follow-up); EXTAPI-1 cross-viewer edge-fn cache (concurrency-gated).

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import MediaBuyerSidebar from './MediaBuyerSidebar';
 import SuspensionOverlay from './SuspensionOverlay';
 import { supabase } from '@/lib/supabase';
@@ -10,8 +11,7 @@ interface MediaBuyerLayoutProps {
 
 const MediaBuyerLayout: React.FC<MediaBuyerLayoutProps> = ({ children }) => {
     const [isReady, setIsReady] = useState(() => !!localStorage.getItem('activeBusinessId'));
-    const [businessStatus, setBusinessStatus] = useState<string>('active');
-    const [businessId, setBusinessId] = useState<string | null>(null);
+    const [businessId, setBusinessId] = useState<string | null>(() => localStorage.getItem('activeBusinessId'));
 
     useEffect(() => {
         const init = async () => {
@@ -33,20 +33,29 @@ const MediaBuyerLayout: React.FC<MediaBuyerLayoutProps> = ({ children }) => {
                 }
             }
 
-            if (bid) {
-                setBusinessId(bid);
-                const { data: business } = await supabase
-                    .from('businesses')
-                    .select('status')
-                    .eq('id', bid)
-                    .single();
-                setBusinessStatus(business?.status || 'active');
-            }
-
+            if (bid) setBusinessId(bid);
             setIsReady(true);
         };
         init();
     }, []);
+
+    // Suspension gate (owner-approved 2026-07-17, same ruling as the seller
+    // shell): re-verified on window focus once >5min stale — a mid-session
+    // suspension bites within minutes instead of "whenever they hard-reload".
+    // Still FAILS OPEN (error/missing row coerces to 'active').
+    const { data: businessStatus = 'active' } = useQuery({
+        queryKey: ['seller-business-status', businessId],
+        queryFn: async () => {
+            const { data: business } = await supabase
+                .from('businesses')
+                .select('status')
+                .eq('id', businessId!)
+                .single();
+            return business?.status || 'active';
+        },
+        enabled: !!businessId,
+        staleTime: 5 * 60 * 1000,
+    });
 
     if (!isReady) {
         return (

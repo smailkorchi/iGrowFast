@@ -87,8 +87,10 @@ const Dashboard: React.FC = () => {
         monthEarnings: myEarnings,
     } = useMediaBuyerStats(filterRange);
 
-    const allTimeRange = useMemo(() => ({ from: '2020-01-01', to: todayKey }), [todayKey]);
-    const { daily } = useMediaBuyerStats(allTimeRange);
+    // Sparkline shows the last 14 days ONLY — request exactly that window.
+    // (Was an all-time RPC whose full daily array got filtered to 14 points.)
+    const sparklineRange = useMemo(() => ({ from: shiftYmd(todayKey, -13), to: todayKey }), [todayKey]);
+    const { daily } = useMediaBuyerStats(sparklineRange);
 
     const { data: profile } = useQuery<Profile | null>({
         queryKey: ['mb-dash-profile', currentUserId],
@@ -102,6 +104,7 @@ const Dashboard: React.FC = () => {
             return (data || null) as Profile | null;
         },
         enabled: !!currentUserId,
+        staleTime: 5 * 60 * 1000, // own identity row — near-static
     });
 
     const sparklineStart = shiftYmd(todayKey, -13);

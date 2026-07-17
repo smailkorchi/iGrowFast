@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
+import { useCurrentProfile } from '@/hooks/useCurrentProfile';
 
 type SidebarIcon = LucideIcon | React.ComponentType<{ className?: string }>;
 
@@ -112,22 +113,9 @@ const MediaBuyerSidebar = () => {
         });
     };
 
-    const { data: profile, isLoading: isProfileLoading } = useQuery({
-        queryKey: ['mediabuyer-profile'],
-        queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
-
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-
-            if (error) return null;
-            return data;
-        }
-    });
+    // Canonical shared profile (['current-profile'], PROFILE_COLS, staleTime
+    // 5min, getSession) — same hook as the admin/owner/courier/seller sidebars.
+    const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
 
     // Show the GA / Meta nav items only for integrations this media buyer can access.
     // RLS scopes these tables to the buyer's allow-list, so a count > 0 means "has access".
@@ -139,6 +127,7 @@ const MediaBuyerSidebar = () => {
                 .select('id', { count: 'exact', head: true });
             return (count ?? 0) > 0;
         },
+        staleTime: 5 * 60 * 1000, // allow-list changes are rare admin actions
     });
     const { data: hasMeta } = useQuery({
         queryKey: ['mb-sidebar-has-meta'],
@@ -148,6 +137,7 @@ const MediaBuyerSidebar = () => {
                 .select('id', { count: 'exact', head: true });
             return (count ?? 0) > 0;
         },
+        staleTime: 5 * 60 * 1000, // allow-list changes are rare admin actions
     });
 
     const navigation = React.useMemo(() => {
