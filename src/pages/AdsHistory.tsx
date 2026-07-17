@@ -458,15 +458,21 @@ const AdsHistory = () => {
         queryKey: ['products', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, name, code, image_url')
-                .eq('active', true)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('name');
-            if (error) throw error;
-            return data;
-        }
+            // Paginated: a bare select silently caps at 1000 rows — a large
+            // catalog would lose combobox entries without any error.
+            return fetchAllRows<{ id: string; name: string; code: string; image_url: string | null }>(
+                'products',
+                'id, name, code, image_url',
+                {
+                    orderBy: 'name',
+                    filters: [
+                        { column: 'active', op: 'eq', value: true },
+                        { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                    ],
+                },
+            );
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     // Server-side aggregates (ads_history_metrics RPC): spend totals for the

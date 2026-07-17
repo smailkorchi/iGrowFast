@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import CustomerInsights from '@/components/CustomerInsights';
 import { OrderPhoneQuickActions } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { getCachedTracking, putCachedTracking } from '@/lib/orders/syncOrderTracking';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -344,6 +345,16 @@ const OrderViewDialog: React.FC<OrderViewDialogProps> = ({ orderId, open, onOpen
             return;
         }
 
+        // Throttle (same 10-min per-parcel cache as the seller dialog +
+        // ParcelTrackingDialog): replay the cached result instead of re-hitting
+        // the carrier API on every dialog open.
+        const cachedTracking = getCachedTracking(String(parcel.tracking_code || '').trim());
+        if (cachedTracking) {
+            setTrackingHistory(cachedTracking);
+            setIsTrackingLoading(false);
+            return;
+        }
+
         try {
             const { data: { session } } = await supabase.auth.getSession();
             let response = await fetch(EDGE_FUNCTION_URL, {
@@ -404,6 +415,7 @@ const OrderViewDialog: React.FC<OrderViewDialogProps> = ({ orderId, open, onOpen
 
             if (result && result.success) {
                 setTrackingHistory(result.data);
+                putCachedTracking(String(parcel.tracking_code || '').trim(), result.data);
 
                 const providerStatus = result.data?.statusLabel || result.data?.status || result.data?.current_status;
 
