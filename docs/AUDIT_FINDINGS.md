@@ -342,3 +342,11 @@ Healthiest dashboard: RPCs already server-side (courier_self_stats, courier_parc
 
 # CAMPAIGN COMPLETE — all 5 dashboards swept (tasks #1-#37)
 Admin (45 routes) · Seller (13) · Media-buyer (14) · Courier (4) · Owner (12) + shells, guards, shared components, WhatsApp module, infra levers (F0-*), bundle (FE-1). Post-audit queue: #44 bucket split, #45 dedicated MB role, D3-7c tripwire, deferred register items.
+
+## Task #44 — bucket split SHIPPED 2026-07-17 (owner-decided)
+Cachet + signature (legal stamping assets) moved OUT of the public business-logos bucket:
+- Private bucket `business-stamps` + 4 RLS policies (member read / admin+owner write, path-scoped by business uuid, (select…)-wrapped). Migs 20260717090000 + 20260717100000 applied.
+- 10 objects copied; businesses.cachet_url/signature_url rewritten to bare paths; resolveStampUrl (signed 1h, fail-open, handles legacy snapshot URLs) wired at 4 tool pages + sendPayoutStatement + courier Payments + embedRemoteImagesForPdfDoc + Overview (previews + uploads).
+- Deploy-ordered: SPA deployed FIRST, then the 10 public copies DELETED.
+- VERIFIED LIVE: member sees own (4), foreign biz sees 0, private public-fetch 400, sign+fetch 200, old public URL 400 after delete. Final state: 10 private stamps, 0 public stamps, 12 public logos kept.
+- Forgery vector CLOSED. Remaining in queue: #45 dedicated MB role.
