@@ -352,6 +352,7 @@ const Products = () => {
             queryClient.invalidateQueries({ queryKey: ['products-user-modal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products-minimal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['products-import-match'] }); // IW-1 matcher key
             queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
             queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             toast({

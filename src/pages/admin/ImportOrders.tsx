@@ -81,6 +81,7 @@ const ImportOrders = () => {
     // --- Queries ---
     const { data: cities } = useQuery({
         queryKey: ['master-cities', 'import-lite'],
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             return fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', 'id, name, zone_id', { orderBy: 'name' });
@@ -88,21 +89,26 @@ const ImportOrders = () => {
     });
 
     const { data: products } = useQuery({
-        queryKey: ['products'],
+        // IW-1: key MUST carry the business id — the bare ['products'] key survived a
+        // business switch and served the previous business's codes to the CSV matcher.
+        queryKey: ['products-import-match', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('products')
-                .select('id, code, name')
-                .eq('active', true)
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return data;
-        }
+            // IW-2: fetchAllRows — a bare select silently capped the matcher at 1000
+            // products; codes past the cap would misclassify as new/invalid.
+            return await fetchAllRows<any>('products', 'id, code, name', {
+                filters: [
+                    { column: 'active', op: 'eq', value: true },
+                    { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
+                ],
+            });
+        },
+        staleTime: 5 * 60 * 1000,
     });
 
     const { data: couriers } = useQuery({
         queryKey: ['couriers-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -117,6 +123,7 @@ const ImportOrders = () => {
 
     const { data: companies } = useQuery({
         queryKey: ['companies-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -130,6 +137,7 @@ const ImportOrders = () => {
 
     const { data: courierZones } = useQuery({
         queryKey: ['courier-zones-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -142,7 +150,8 @@ const ImportOrders = () => {
     });
 
     const { data: companyZones } = useQuery({
-        queryKey: ['company-zones-all'],
+        queryKey: ['company-zones-all', activeBusinessId], // IW-1: biz-scoped (was bare)
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
@@ -156,6 +165,7 @@ const ImportOrders = () => {
 
     const { data: courierFees } = useQuery({
         queryKey: ['courier-fees-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             return await fetchAllRows('courier_fees', 'id, courier_id, master_city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
@@ -164,6 +174,7 @@ const ImportOrders = () => {
 
     const { data: companyFees } = useQuery({
         queryKey: ['company-fees-all', activeBusinessId],
+        staleTime: 5 * 60 * 1000,
         queryFn: async () => {
             if (!activeBusinessId) return [];
             return await fetchAllRows('company_fees', 'id, company_id, master_city_id, fee', { filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }] });
