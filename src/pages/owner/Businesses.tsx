@@ -148,6 +148,7 @@ const Businesses = () => {
 
     const { data: businesses, isLoading } = useQuery({
         queryKey: ['businesses'],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('businesses')
@@ -187,7 +188,8 @@ const Businesses = () => {
 
     const upsertMutation = useMutation({
         mutationFn: async (payload: BusinessFormValues & { id?: string }) => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) throw new Error("Not authenticated");
 
             const { id, status, ...values } = payload;

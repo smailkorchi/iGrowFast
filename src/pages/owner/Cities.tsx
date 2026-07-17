@@ -542,8 +542,10 @@ const Cities = () => {
 
     const { data: isOwner } = useQuery({
         queryKey: ['user-role'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return false;
             const { data, error } = await supabase
                 .from('users')
@@ -557,6 +559,7 @@ const Cities = () => {
 
     const { data: providerLogos = {} } = useQuery({
         queryKey: ['provider-logos-by-type'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('providers')
@@ -586,6 +589,7 @@ const Cities = () => {
 
     const { data: zones } = useQuery({
         queryKey: ['zones'],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('zones')
@@ -598,6 +602,7 @@ const Cities = () => {
 
     const { data: cities, isLoading } = useQuery({
         queryKey: ['master-cities', 'owner-catalog-full'],
+        staleTime: 60_000,
         queryFn: fetchAllMasterCities,
     });
 

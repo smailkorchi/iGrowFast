@@ -85,6 +85,7 @@ const OwnerUsers = () => {
 
     const { data: users, isLoading } = useQuery({
         queryKey: ['owner-users'],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('users')

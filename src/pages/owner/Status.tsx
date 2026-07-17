@@ -142,8 +142,10 @@ const Status = () => {
 
     const { data: userRole } = useQuery({
         queryKey: ['currentUserRole'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return null;
             const { data, error } = await supabase
                 .from('users')
@@ -158,6 +160,7 @@ const Status = () => {
 
     const { data: statuses, isLoading } = useQuery({
         queryKey: ['statuses', activeTab],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from(table)
@@ -1447,6 +1450,7 @@ const BehaviorsConfig = ({ isOwner }: { isOwner: boolean }) => {
 
     const { data: orderRows = [], isLoading: loadingOrders } = useQuery({
         queryKey: ['behaviors', 'order_statuses'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('order_statuses')
@@ -1459,6 +1463,7 @@ const BehaviorsConfig = ({ isOwner }: { isOwner: boolean }) => {
 
     const { data: pkgRows = [], isLoading: loadingPkg } = useQuery({
         queryKey: ['behaviors', 'package_statuses'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('package_statuses')

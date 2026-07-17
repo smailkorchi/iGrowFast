@@ -91,8 +91,10 @@ const Zones = () => {
 
     const { data: userRole } = useQuery({
         queryKey: ['current-user-role'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return null;
             const { data, error } = await supabase
                 .from('users')
@@ -107,6 +109,7 @@ const Zones = () => {
 
     const { data: zones, isLoading } = useQuery({
         queryKey: ['zones'],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('zones')
@@ -713,7 +716,8 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: {
 
     const { data: cities } = useQuery({
         queryKey: ['cities-all'],
-        queryFn: () => fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', '*', { orderBy: 'name' }),
+        staleTime: 5 * 60_000,
+        queryFn: () => fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', 'id, name, zone_id', { orderBy: 'name' }),
         enabled: isOpen,
     });
 

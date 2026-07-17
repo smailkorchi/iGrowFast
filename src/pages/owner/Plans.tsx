@@ -77,6 +77,7 @@ const Plans = () => {
 
     const { data: plans, isLoading } = useQuery({
         queryKey: ['plans'],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('plans')

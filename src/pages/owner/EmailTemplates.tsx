@@ -38,8 +38,8 @@ const OwnerEmailTemplates = () => {
     const [deleteTarget, setDeleteTarget] = useState<EmailTemplate | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
 
-    const { data: templates, isLoading } = useQuery({ queryKey: QK, queryFn: fetchEmailTemplates });
-    const { data: accounts } = useQuery({ queryKey: ['email-accounts'], queryFn: fetchEmailAccounts });
+    const { data: templates, isLoading } = useQuery({ queryKey: QK, queryFn: fetchEmailTemplates, staleTime: 60_000 });
+    const { data: accounts } = useQuery({ queryKey: ['email-accounts'], queryFn: fetchEmailAccounts, staleTime: 60_000 });
     const accountsById = new Map((accounts || []).map((a) => [a.id, a]));
     const invalidate = () => qc.invalidateQueries({ queryKey: QK });
 

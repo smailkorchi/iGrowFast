@@ -108,6 +108,7 @@ const OwnerPayments = () => {
 
     const { data: payments, isLoading } = useQuery({
         queryKey: ['owner-payment-submissions'],
+        staleTime: 60_000,
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('business_payments')
@@ -128,6 +129,7 @@ const OwnerPayments = () => {
 
     const { data: bankSettings } = useQuery({
         queryKey: ['platform-settings-bank'],
+        staleTime: 5 * 60_000,
         queryFn: async () => {
             const { data } = await supabase
                 .from('platform_settings')
@@ -165,7 +167,8 @@ const OwnerPayments = () => {
 
     const approveMutation = useMutation({
         mutationFn: async (payment: PaymentRow) => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) throw new Error('Not authenticated');
 
             // The license window this payment activates — one computation feeds both the
@@ -213,7 +216,8 @@ const OwnerPayments = () => {
 
     const denyMutation = useMutation({
         mutationFn: async ({ paymentId, message }: { paymentId: string; message: string }) => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) throw new Error('Not authenticated');
 
             const { error } = await supabase

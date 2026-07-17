@@ -329,3 +329,16 @@ Healthiest dashboard: RPCs already server-side (courier_self_stats, courier_parc
 - The 5 "me" queries keep 5 separate cache keys for the same users row — harmless at these volumes; unify onto one key only if the courier surface ever grows.
 - CourierLayout has NO suspension gate at all (unlike seller/MB shells — no businesses.status read, no SuspensionOverlay). Whether couriers of a suspended business should be locked out = owner call; flagged, not added.
 - courier-earned-this-month computes MAD client-side from parcels × fees — bounded by month (≤12 parcels measured) and display-only next to the payment-notes ledger; acceptable, register for the ledger follow-up if courier volume ever 100×.
+
+## Task #37 — OWNER dashboard (full sweep, owner-chosen scope)  [AUDITED + APPLIED 2026-07-17; tsc-b clean]
+1-user surface; shell thin (OwnerLayout 24 lines), OwnerSidebar already on useCurrentProfile, OwnerDashboard/Profile/Config = thin wrappers over shared hardened components.
+### Applied
+- staleTime on ALL 18 read queries (none had any): 60s on mutation-invalidated lists (plans, businesses, owner-users, payment submissions, statuses, zones ×2, master-cities catalog, email templates + accounts), 5min on near-static (platform bank settings, role checks ×3, provider logos, behaviors ×2, cities-all).
+- getUser→getSession ×6 (Businesses, Payments ×2, Status, Cities, Zones).
+- Zones cities-all: master_cities select('*') → 'id, name, zone_id' (1,132 rows; already gated on dialog open).
+### Verified clean / by design
+- Backups.tsx polling (5-10s status while units active, 60s sets) = deliberate agent-monitor design; owner-only page.
+- Security posture: owner pages ride owner-gated RPCs/edge fns (manage-users, delete-business, business-status-notify) — consistent with the owner-confinement model; no secrets in payloads observed.
+
+# CAMPAIGN COMPLETE — all 5 dashboards swept (tasks #1-#37)
+Admin (45 routes) · Seller (13) · Media-buyer (14) · Courier (4) · Owner (12) + shells, guards, shared components, WhatsApp module, infra levers (F0-*), bundle (FE-1). Post-audit queue: #44 bucket split, #45 dedicated MB role, D3-7c tripwire, deferred register items.
