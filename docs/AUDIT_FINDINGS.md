@@ -248,3 +248,49 @@ Owner asked "confirm it's what must be done, not a decision that will break thin
 
 ## AAS-SECTIONS [SHIPPED 2026-07-17, mig 20260717060000] — the D3-7c do-now subset
 `admin_analytics_stats` gains `p_sections text[]` (D3-7 dashboard pattern: whole-section IF-gates, section SQL untouched, conditional return; DROP+CREATE, ACL restored incl. in-migration anon revoke — trap caught this time). Analytics.tsx splits into a FAST call (9 sections, **128ms measured**) that paints the page immediately + a HEAVY call (profitability/sellers/mediabuyers, 637ms) that streams in; distinct 'fast'/'heavy' key slots (OR-B collision discipline), both under the ['analytics-stats'] seam prefix; split-aware error/retry. **PARITY 12/12 over 4 windows: v2(null) byte-equals old; fast||heavy reassembles the full payload exactly; key counts exact. 3-param back-compat verified live.** Perceived analytics load: ~750ms → ~130ms. tsc -b clean.
+
+## Task #34 — SELLER dashboard (shell + 13 pages)  [AUDITED + TRANCHE A APPLIED 2026-07-17; tsc-b clean]
+Recon: 7-agent fan-out (wf_f7470ebd-a82), 13 pages, 42 candidate findings; all P1/P2 re-verified in code + measured on the box before any edit.
+
+### Measured facts that changed severities (measure-first catches again)
+- SO-1 "seller_payments 1000-cap wrong-money" = FALSE ALARM: tickets are MONTHLY (max 4 rows/seller — cap is decades away, staleTime 60s already present). 3rd recon money-bomb killed by measurement this campaign.
+- SP-PAY-1 seller_month_orders cap = REAL: max 661 delivered/seller-month (66% of the 1000 cap).
+- SO-3 lifetime statsOrders scan = REAL: max 1,408 orders/seller already (2 chunks/refetch, grows forever).
+- Wallet sde history (64 rows), demands (5), product_accessories (276): caps years away — over-select fixes only.
+
+### SO-KPI [P2→APPLIED — the end-state fix] Orders KPI cards moved to the shared seller_dashboard_stats RPC
+The "no seller-lifetime RPC exists" premise in the old comment was stale — D2's seller_dashboard_stats IS that RPC (81ms impersonated all-time). PARITY PROVEN before swap: (a) semantic diff of RPC SQL vs client math — delivered=is_delivered flag, pullback=excluded_from_delivery_rate, confirmed_calc identical, live_commission=greatest(0,accrued×rate−paid) identical; (b) the one divergence (RPC pool lacks the page's source_review_status<>'pending' filter) is VACUOUS — 100% of live orders are 'approved'; (c) empirical harness: client-replica SQL vs impersonated RPC across ALL sellers = 0 mismatches. Orders now uses the EXACT Dashboard queryKey ['dash-stats','seller',biz,uid] → Dashboard/Statistics/Profile/Orders share ONE cached RPC execution. Retired: the per-page seller_payments sum + the client commission math (computeUnpaidCommission et al. imports dropped).
+- statsOrders slimmed to filter-options duty ONLY: 3 id columns (master_city_id/courier_id/company_id), re-keyed OFF the ['orders-kpis'] prefix → ecom:biz bumps no longer re-download the seller's full history; staleTime 5min.
+
+### SD-1/SS-1 [P2 APPLIED] duplicate all-time RPC execution collapsed
+SellerSelfPerformanceSection's all-time key now COLLAPSES onto the page-level 4-element key (full payload cached; observer `select`s its self_perf slice). Windowed filters keep their own entries. 2 RPC executions/mount → 1; ecom-bump invalidations halved.
+
+### SP-PAY-1 [P1 APPLIED] seller_month_orders paged + mig 20260717080000 (applied live)
+RPC gains deterministic ORDER BY (5 DESC, 1) — bulk status updates share updated_at, so tie groups straddling .range() page boundaries could dup/skip rows; total order makes paging exact. Client chunk-loops .rpc().range() per 1000. ≤1000 rows = one call, byte-identical behavior. ACLs verified intact (no anon EXECUTE).
+
+### SELLER-PROD-1 / SELLER-ACC-1 / SPRO-1 [P1 APPLIED] cost_price leak (MB-LEAK class)
+Seller Products + Accessories catalogs selected '*' → cost_price (purchase cost ⇒ margin vs selling price) in every seller's network payload/cache/devtools; seller Profile fetched it into an unused field. All three now use explicit seller-visible column lists (dialog row types have cost_price optional — admin variant unaffected). Residual console-read = the standing MB role-ceiling item (owner decision), same as MB-LEAK.
+
+### SL-1/SL-2 [P2 APPLIED] SellerSidebar → canonical useCurrentProfile()
+Shell-level: bespoke ['seller-profile'] (getUser network round-trip + users select('*') on EVERY focus on EVERY seller page) replaced with the shared ['current-profile'] hook (PROFILE_COLS, staleTime 5min, getSession). Seller Profile avatar save wired to invalidate ['current-profile'] (the old key was invalidated by NOTHING — freshness rode the focus-refetch accident).
+
+### SL-3 [P3 APPLIED] WA instances warmer: warm-observer mode
+Shell-mounted useInstances cache-keeper now passes {warm:true} → staleTime 5min + no focus refetch for THAT observer only (freshness rides wa:user 'assignment' invalidations + reconnect reconcile); inbox observers keep 15s+focus defaults.
+
+### Tranche A batch (all APPLIED)
+- Orders: 14 reference queries → staleTime 5min (OR-6 port: cities/couriers/companies/both zones/both fees/provider_cities/both status tables/seller products profile/products/product_accessories/accessories) + business-duplicate-phones 5min (freshness = explicit mutation invalidations) + getUser→getSession.
+- Dashboard: initDashboard users select('*') → 5 interface columns.
+- Statistics: sde fetchAllRows('*') → 3 columns; getUser→getSession.
+- Wallet: sde select('*') unbounded → fetchAllRows with 6 columns (kills the silent oldest-days truncation); seller_presences rows → head count. 
+- Payments/Demands: getUser→getSession.
+- Seller DN/RN: DN/RN-audit staleTime port (shipping-ctx, dn/rn-provider-options, dn/rn-user-options, return-fees-map — 5min). Lists/counts/pool keep focus-refetch by design (admin parity).
+- SellerSelfPerformanceSection: seller row query staleTime 5min.
+
+### Logged, NOT changed (decisions / accepted design)
+- SO-5: SellerOrderViewDialog + ParcelTrackingDialog auto-fire the provider-integration edge fn (external carrier API) on every dialog open of a tracked order, then invalidate global ['orders-page']+['orders-kpis']. Refresh-on-view is a UX contract — owner call whether to gate behind a manual "refresh tracking" button. (Post-KPI-swap the invalidation no longer rescans lifetime history — cost dropped materially.)
+- SO-6: D1 orders_kpis fan-out (8 tab counts + pill buckets per filter change) = accepted D1 architecture, same as admin.
+- SO-11: CustomerInsights leading-wildcard ILIKE phone match = leakproof-index class (seq scan under RLS); user-action gated + debounced. Register for the RLS-search follow-up.
+- SL-4: seller suspension gate reads businesses.status ONCE per full load and FAILS OPEN ('active' on error); mid-session suspension doesn't bite until reload. Enforcement-timeliness = owner decision.
+- SP-PAY-2: seller_payment_txns lifetime fetch — months-grain (4 rows/seller today), years of runway; revisit with the ledger follow-up.
+- SD-DEM-1/2: demands unpaginated + over-select — max 5/seller; skipped as noise.
+- Latent: if sheet-review PENDING drafts ever go live (feature not built), seller Orders KPIs (RPC pool, no source filter) vs the D1 list (filtered) diverge on pending rows — re-check the RPC pool filter when sheet-sync ships.

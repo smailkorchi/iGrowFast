@@ -96,8 +96,7 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
-import { isAdminPullback } from '@/lib/analyticsDefinitions';
+import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -600,9 +599,8 @@ const Orders = () => {
             setActiveTab(tab);
         }
     }, [searchParams]);
-    // sellerStats is derived (useMemo) from the slim `statsOrders` lifetime
-    // aggregate further down so KPI cards 1-3 always reflect the seller's FULL
-    // order history, not the page.
+    // sellerStats (KPI cards 1-3) comes from the shared seller_dashboard_stats
+    // RPC further down — always the seller's FULL order history, not the page.
 
     // Reported Modal States
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
@@ -628,8 +626,8 @@ const Orders = () => {
 
     React.useEffect(() => {
         const getUserId = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUserId(user?.id || null);
+            const { data: { session } } = await supabase.auth.getSession();
+            setUserId(session?.user?.id || null);
         };
         getUserId();
     }, []);
@@ -742,26 +740,19 @@ const Orders = () => {
     // — both defined below, after the filter states they depend on.
     //
     // The ONLY remaining full pass is this SLIM, filter-independent
-    // seller-lifetime aggregate: KPI cards 1-3 (delivery rate / confirmation
-    // rate / commission due) are lifetime metrics the fixed D1 RPC surface
-    // cannot produce (recon 02 §6 — no seller-lifetime RPC was authored), and
-    // the city/provider filter dropdowns derive their options from it. Light
-    // scalar columns + tracking codes only — a fraction of the old payload.
-    // Keyed under the ['orders-kpis', biz] prefix so mutation/realtime
-    // invalidation covers it.
+    // Seller-lifetime filter options ONLY: the city/provider dropdowns span the
+    // seller's full history, not the visible page. KPI cards 1-3 moved to the
+    // shared seller_dashboard_stats RPC (D2) below, so this scan carries just
+    // the 3 id columns the dropdowns read and no longer rides the
+    // ['orders-kpis'] invalidation prefix — a brand-new city/provider showing
+    // up in the dropdown within 5min is acceptable.
     const { data: statsOrders = [] } = useQuery<any[]>({
-        queryKey: ['orders-kpis', activeBusinessId, userId, 'seller-lifetime-stats'],
+        queryKey: ['seller-filter-options', activeBusinessId, userId],
         queryFn: async () => {
             if (!activeBusinessId || !userId) return [];
             return fetchAllRows<any>(
                 'orders',
-                `
-                    id, replace, seller_id, order_status_id, package_status_id,
-                    master_city_id, courier_id, company_id,
-                    items:order_items(product_id, quantity),
-                    parcels:company_parcels(tracking_code),
-                    courier_parcels(tracking_code)
-                `,
+                'master_city_id, courier_id, company_id',
                 {
                     orderBy: 'id',
                     filters: [
@@ -789,6 +780,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             return fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', 'id, name, zone_id', { orderBy: 'name' });
         },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: couriers } = useQuery({
@@ -803,7 +795,8 @@ const Orders = () => {
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: companies } = useQuery({
@@ -817,7 +810,8 @@ const Orders = () => {
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: courierZones } = useQuery({
@@ -830,7 +824,8 @@ const Orders = () => {
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: companyZones } = useQuery({
@@ -843,7 +838,8 @@ const Orders = () => {
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: courierFees } = useQuery({
@@ -853,7 +849,8 @@ const Orders = () => {
             return await fetchAllRows('courier_fees', '*', {
                 filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
             });
-        }
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: companyFees } = useQuery({
@@ -863,7 +860,8 @@ const Orders = () => {
             return await fetchAllRows('company_fees', '*', {
                 filters: [{ column: 'DigiCom Business', op: 'eq', value: activeBusinessId }],
             });
-        }
+        },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: providerCities } = useQuery({
@@ -871,6 +869,7 @@ const Orders = () => {
         queryFn: async () => {
             return (await fetchAllRows('provider_cities', 'master_city_id, provider_type, fees')) as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
         },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: orderStatuses } = useQuery({
@@ -885,6 +884,7 @@ const Orders = () => {
             if (error) throw error;
             return data;
         },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const orderStatusesForModal = useMemo(() => {
@@ -924,6 +924,7 @@ const Orders = () => {
             if (error) throw error;
             return data;
         },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: sellerProfile } = useQuery({
@@ -932,17 +933,14 @@ const Orders = () => {
             if (!userId) return null;
             const { data, error } = await supabase
                 .from('users')
-                .select('products, commission_price, commission_basis')
+                .select('products')
                 .eq('id', userId)
                 .maybeSingle();
             if (error) throw error;
-            return data as {
-                products: string[] | null;
-                commission_price: number | null;
-                commission_basis: string | null;
-            } | null;
+            return data as { products: string[] | null } | null;
         },
         enabled: !!userId && !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const sellerProductIds = useMemo(() => {
@@ -966,6 +964,7 @@ const Orders = () => {
             return data;
         },
         enabled: !!activeBusinessId && sellerProductIds.length > 0,
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: productAccessories } = useQuery({
@@ -979,6 +978,7 @@ const Orders = () => {
             if (error) throw error;
             return data;
         },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const { data: accessories } = useQuery({
@@ -993,6 +993,7 @@ const Orders = () => {
             if (error) throw error;
             return data;
         },
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const productAccessoriesForOrders = useMemo(() => {
@@ -2157,6 +2158,9 @@ const Orders = () => {
             }
             return set;
         },
+        // Freshness rides the explicit invalidations on the 4 order-mutation
+        // paths above — focus-refetch added nothing but a full re-download.
+        staleTime: 5 * 60 * 1000,
     });
 
     const shortOrderIds = useMemo(() => {
@@ -2246,98 +2250,40 @@ const Orders = () => {
     // Tab counts, page totals, keyset pagination and recheck pill buckets are
     // all served by the D1 RPC queries above.
 
-    // Lifetime paid-out cash for this seller. Cached separately so it doesn't
-    // refetch on page changes. Drives the "Commission due" KPI.
-    const { data: sellerPaidAmount = 0 } = useQuery<number>({
-        queryKey: ['seller-payments-paid-sum', userId],
+    // Seller KPI cards 1-3 — served by the shared seller_dashboard_stats RPC
+    // (D2). Same queryKey + queryFn shape as seller Dashboard/Statistics/
+    // Profile, so navigating between those pages within staleTime is a cache
+    // hit and ONE RPC serves all four. Parity with the retired client math
+    // proven 2026-07-17: pool semantics identical (the page's extra
+    // source_review_status filter is vacuous — every live row is 'approved'),
+    // flag sets identical, 0 mismatches across all sellers. The RPC already
+    // reconciles already_paid, so the separate seller_payments sum is retired.
+    const { data: dashStats } = useQuery<any>({
+        queryKey: ['dash-stats', 'seller', activeBusinessId, userId],
         queryFn: async () => {
-            if (!userId) return 0;
-            const { data, error } = await supabase
-                .from('seller_payments')
-                .select('paid_amount')
-                .eq('seller_id', userId);
+            const { data, error } = await (supabase as any).rpc('seller_dashboard_stats', {
+                p_business: activeBusinessId,
+                p_seller: userId,
+            });
             if (error) throw error;
-            return (data || []).reduce(
-                (sum: number, p: any) => sum + (Number(p.paid_amount) || 0),
-                0,
-            );
+            return data;
         },
-        enabled: !!userId,
-        staleTime: 60 * 1000,
+        enabled: !!activeBusinessId && !!userId,
+        staleTime: 60_000,
     });
 
-    // Seller KPI cards 1-3 — derived from the SLIM lifetime aggregate
-    // (`statsOrders`, every order attributed to this seller), never the
-    // paginated page. Filter-independent by design (recon 02 §6).
     const sellerStats = useMemo(() => {
-        const basis = normalizeCommissionBasis(sellerProfile?.commission_basis);
-        const commissionRate = Number(sellerProfile?.commission_price) || 0;
-        const empty = {
-            confirmRate: 0,
-            deliveryRate: 0,
-            unpaidCommission: 0,
-            totalDelivered: 0,
-            commissionRate,
-            commissionBasis: basis,
-        };
-        if (!statsOrders?.length || !userId) return empty;
-
-        // Exclude exchange swap/return legs (replace=true) from the KPI math — not
-        // sales, so they must not inflate delivered / unpaid commission. The order
-        // LIST below still shows exchange legs (this filter is local to the KPIs).
-        const allOrders = statsOrders.filter((o: any) => o.replace !== true);
-
-        const delivered = allOrders.filter((o: any) =>
-            isDeliveredForCommission(o, statusCats.deliveredPkgIds),
-        ).length;
-
-        const trackedSet = new Set<string>();
-        allOrders.forEach((o: any) => {
-            if (!o?.id) return;
-            const parcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.parcels) ? o.parcels : [];
-            const courierParcels: Array<{ tracking_code?: string | null }> = Array.isArray(o.courier_parcels) ? o.courier_parcels : [];
-            const hasCompanyTracking = parcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
-            const hasCourierTracking = courierParcels.some((p) => !!p?.tracking_code && String(p.tracking_code).trim().length > 0);
-            if (hasCompanyTracking || hasCourierTracking) trackedSet.add(o.id);
-        });
-
-        const statusMapsReady = statusCats.pendingIds.size > 0;
-        const rateConfirmedCount = allOrders.filter((o: any) => {
-            const hasTracking = !!o.id && trackedSet.has(o.id);
-            if (hasTracking) return true;
-            return statusMapsReady
-                && !!o.order_status_id
-                && !statusCats.pendingIds.has(o.order_status_id);
-        }).length;
-        const confirmRate = allOrders.length > 0 ? (rateConfirmedCount / allOrders.length) * 100 : 0;
-        const trackedCount = allOrders.filter((o: any) => !!o.id && trackedSet.has(o.id)).length;
-        const pullbackCount = allOrders.filter((o: any) =>
-            !!o.id && trackedSet.has(o.id) && isAdminPullback(o, true, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds),
-        ).length;
-        const deliveryDenom = trackedCount - pullbackCount;
-        const deliveryRate = deliveryDenom > 0 ? (delivered / deliveryDenom) * 100 : 0;
-
-        const commissionOrders = allOrders.filter((o: any) => o.seller_id === userId);
-        const isDelivered = (o: any) =>
-            isDeliveredForCommission(o, statusCats.deliveredPkgIds);
-        const { unpaidCommission } = computeUnpaidCommission({
-            basis,
-            commissionPrice: commissionRate,
-            orders: commissionOrders,
-            isDelivered,
-            sellerProductIds,
-            paidAmount: sellerPaidAmount,
-        });
-
+        const strip = dashStats?.stat_strip;
+        const money = dashStats?.money;
         return {
-            confirmRate,
-            deliveryRate,
-            unpaidCommission,
-            totalDelivered: delivered,
-            commissionRate,
-            commissionBasis: basis,
+            confirmRate: Number(strip?.confirm_rate) || 0,
+            deliveryRate: Number(strip?.success_rate) || 0,
+            unpaidCommission: Number(money?.live_commission) || 0,
+            totalDelivered: Number(strip?.delivered) || 0,
+            commissionRate: Number(money?.commission_rate) || 0,
+            commissionBasis: normalizeCommissionBasis(money?.commission_basis),
         };
-    }, [statsOrders, userId, sellerProfile, sellerProductIds, sellerPaidAmount, statusCats.deliveredPkgIds, statusCats.pendingIds, statusCats.adminPullbackOrderIds, statusCats.adminPullbackPackageIds]);
+    }, [dashStats]);
 
     // Page rows are SLIM (orders_list_page) — the edit form needs the full
     // column set + raw item money fields, so the prefill is a lazy by-id fetch

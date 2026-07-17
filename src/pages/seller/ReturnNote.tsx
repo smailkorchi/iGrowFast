@@ -123,6 +123,7 @@ const ReturnNote = () => {
             return { userId: row.id as string, productIds };
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
 
     // ─── Fetch orders with package_status = Retourné AND not already linked to a return note ───
@@ -248,6 +249,7 @@ const ReturnNote = () => {
             return data || [];
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
     const { data: businessUsers } = useQuery({
         queryKey: ['rn-user-options', activeBusinessId],
@@ -258,6 +260,7 @@ const ReturnNote = () => {
             return data || [];
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
 
     // ─── Filter-bar option lists + active-filter bookkeeping ───
@@ -296,6 +299,7 @@ const ReturnNote = () => {
             return { company, courier };
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
 
     const getReturnFeeForOrder = useCallback((order: ReturnOrder): number => {

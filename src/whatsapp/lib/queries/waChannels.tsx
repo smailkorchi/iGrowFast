@@ -208,7 +208,7 @@ function WaUserRealtimeInner(): null {
   // Keep the (RLS-scoped) instances cache warm app-wide: the toast resolves the
   // instance name + profile picture from it, and without a subscriber the 5min
   // gcTime drops it as soon as the seller leaves the inbox.
-  useInstances()
+  useInstances({ warm: true })
   useWaUserChannel(session?.user.id ?? null)
   return null
 }

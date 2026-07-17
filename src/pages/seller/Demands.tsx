@@ -132,7 +132,8 @@ const SellerDemands = () => {
 
     const fetchDemands = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return;
 
             const { data, error } = await supabase
@@ -242,7 +243,8 @@ const SellerDemands = () => {
         setSubmitting(true);
         setUploadProgress(0);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return;
 
             const media = await uploadMedia(user.id);

@@ -35,7 +35,7 @@ const Accessories = () => {
     }, [location.key]);
 
     useEffect(() => {
-        void supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null));
+        void supabase.auth.getSession().then(({ data: { session } }) => setUserId(session?.user?.id ?? null));
     }, []);
 
     const { data: sellerProfile, isPending: profilePending } = useQuery({
@@ -44,13 +44,14 @@ const Accessories = () => {
             if (!userId) return null;
             const { data, error } = await supabase
                 .from('users')
-                .select('products, commission_price, commission_basis')
+                .select('products')
                 .eq('id', userId)
                 .maybeSingle();
             if (error) throw error;
-            return data as { products: string[] | null; commission_price: number | null; commission_basis: string | null } | null;
+            return data as { products: string[] | null } | null;
         },
         enabled: !!userId && !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const sellerProductIds = useMemo(() => {
@@ -84,9 +85,12 @@ const Accessories = () => {
 
             if (accIds.length === 0) return [];
 
+            // Explicit seller-visible columns — NEVER select('*') here: the raw
+            // row carries cost_price (business purchase cost), which must not
+            // reach the seller client (MB-LEAK class; the select list is the guard).
             const { data: rows, error } = await supabase
                 .from('accessories')
-                .select('*')
+                .select('id, name, code, stock, image_url, active, created_at')
                 .eq('DigiCom Business', activeBusinessId)
                 .in('id', accIds)
                 .order('created_at', { ascending: false });
@@ -95,6 +99,7 @@ const Accessories = () => {
             return rows ?? [];
         },
         enabled: !!activeBusinessId && sellerProductIds.length > 0,
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const isLoading =

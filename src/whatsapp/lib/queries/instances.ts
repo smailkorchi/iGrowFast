@@ -30,10 +30,15 @@ export const instanceKeys = {
 
 // ---------- List + single ---------------------------------------------------
 
-export function useInstances() {
+export function useInstances(opts?: { warm?: boolean }) {
   return useQuery<WhatsappInstance[]>({
     queryKey: instanceKeys.list,
     queryFn:  listInstances,
+    // warm: shell-mounted cache-keeper observer (toast name/pic lookup). Its
+    // freshness rides the wa:user 'assignment' invalidations + reconnect
+    // reconcile, so it must NOT refetch the ~52-col list on every window focus
+    // from every page. Inbox observers keep the client defaults (15s + focus).
+    ...(opts?.warm ? { staleTime: 5 * 60_000, refetchOnWindowFocus: false as const } : {}),
   })
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import {
@@ -54,7 +54,6 @@ interface ProductStat {
     label: string | null;
     description: string | null;
     selling_price: number;
-    cost_price: number;
     stock: number;
     total: number;
     confirmed: number;
@@ -81,6 +80,7 @@ const SellerProfile = () => {
     const [profile, setProfile] = useState<SellerProfileData | null>(null);
     const [businessId, setBusinessId] = useState<string | null>(null);
     const [avatarOpen, setAvatarOpen] = useState(false);
+    const queryClient = useQueryClient();
 
     const [bankInfo, setBankInfo] = useState({
         bank_name: '',
@@ -139,7 +139,7 @@ const SellerProfile = () => {
                 if (productIds.length > 0) {
                     const { data: productsData } = await supabase
                         .from('products')
-                        .select('id, name, image_url, code, label, description, selling_price, cost_price, stock')
+                        .select('id, name, image_url, code, label, description, selling_price, stock')
                         .eq('active', true)
                         .in('id', productIds);
                     setProductsMeta(productsData || []);
@@ -235,7 +235,6 @@ const SellerProfile = () => {
                 label: p.label,
                 description: p.description,
                 selling_price: Number(p.selling_price) || 0,
-                cost_price: Number(p.cost_price) || 0,
                 stock: Number(p.stock) || 0,
                 total,
                 tracked: Number(perf?.tracked) || 0,
@@ -1056,7 +1055,16 @@ const SellerProfile = () => {
                     })()}
                 </DialogContent>
             </Dialog>
-            <AvatarEditDialog isOpen={avatarOpen} onClose={() => setAvatarOpen(false)} onSaved={fetchProfile} seed={profile?.email} />
+            <AvatarEditDialog
+                isOpen={avatarOpen}
+                onClose={() => setAvatarOpen(false)}
+                onSaved={() => {
+                    fetchProfile();
+                    // Sidebar avatar rides the canonical ['current-profile'] cache.
+                    queryClient.invalidateQueries({ queryKey: ['current-profile'] });
+                }}
+                seed={profile?.email}
+            />
             </div>
         </div>
     );

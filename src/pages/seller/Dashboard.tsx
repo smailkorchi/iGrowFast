@@ -93,7 +93,7 @@ const SellerDashboard = () => {
         if (session?.user) {
             const { data: profile } = await supabase
                 .from('users')
-                .select('*')
+                .select('id, name, avatar_url, email, "DigiCom Business"')
                 .eq('id', session.user.id)
                 .single();
             if (profile) {

@@ -33,7 +33,7 @@ const Products = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     useEffect(() => {
-        void supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null));
+        void supabase.auth.getSession().then(({ data: { session } }) => setUserId(session?.user?.id ?? null));
     }, []);
 
     const { data: sellerProfile, isPending: profilePending } = useQuery({
@@ -42,13 +42,14 @@ const Products = () => {
             if (!userId) return null;
             const { data, error } = await supabase
                 .from('users')
-                .select('products, commission_price, commission_basis')
+                .select('products')
                 .eq('id', userId)
                 .maybeSingle();
             if (error) throw error;
-            return data as { products: string[] | null; commission_price: number | null; commission_basis: string | null } | null;
+            return data as { products: string[] | null } | null;
         },
         enabled: !!userId && !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const sellerProductIds = useMemo(() => {
@@ -61,9 +62,13 @@ const Products = () => {
         queryKey: ['seller-view-products', activeBusinessId, [...sellerProductIds].sort().join(',')],
         queryFn: async () => {
             if (!activeBusinessId || sellerProductIds.length === 0) return [];
+            // Explicit seller-visible columns — NEVER select('*') here: the raw
+            // row carries cost_price (business purchase cost), which must not
+            // reach the seller client (MB-LEAK class; role-ceiling means RLS
+            // can't hide columns — the select list is the guard).
             const { data, error } = await supabase
                 .from('products')
-                .select('*')
+                .select('id, name, code, label, description, selling_price, stock, image_url, active, created_at')
                 .eq('DigiCom Business', activeBusinessId)
                 .in('id', sellerProductIds)
                 .order('created_at', { ascending: false });
@@ -72,6 +77,7 @@ const Products = () => {
             return data ?? [];
         },
         enabled: !!activeBusinessId && sellerProductIds.length > 0,
+        staleTime: 5 * 60 * 1000, // OR-6: near-static reference data; kills the every-focus re-download
     });
 
     const isLoading =

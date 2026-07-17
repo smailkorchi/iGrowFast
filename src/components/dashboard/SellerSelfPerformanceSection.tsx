@@ -58,15 +58,23 @@ export function SellerSelfPerformanceSection({
             return data;
         },
         enabled: !!sellerId,
+        staleTime: 5 * 60 * 1000, // identity/avatar row — invalidation-driven, not focus-driven
     });
 
-    // Windowed self_perf slice from the role RPC (its own cache entry per
-    // window; the ['dash-stats'] prefix is invalidated by EcomBizRealtime on
-    // order/parcel broadcasts). The RPC validates p_seller against auth.uid().
+    // self_perf slice from the role RPC (the ['dash-stats'] prefix is
+    // invalidated by EcomBizRealtime on order/parcel broadcasts). The RPC
+    // validates p_seller against auth.uid(). On the default All-Time filter the
+    // key COLLAPSES onto the page-level ['dash-stats','seller',biz,seller]
+    // entry (Dashboard/Statistics/Orders/Profile) so the section and the page
+    // share ONE RPC execution — the cache stores the full payload and this
+    // observer selects its slice. Windowed filters keep their own entries.
     const fromKey = dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : null;
     const toKey = dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : null;
-    const { data: selfPerf, isLoading: loadingStats } = useQuery<SelfPerfSlice | null>({
-        queryKey: ['dash-stats', 'seller', businessId, sellerId, fromKey, toKey],
+    const isAllTime = fromKey === null && toKey === null;
+    const { data: selfPerf, isLoading: loadingStats } = useQuery<any, Error, SelfPerfSlice | null>({
+        queryKey: isAllTime
+            ? ['dash-stats', 'seller', businessId, sellerId]
+            : ['dash-stats', 'seller', businessId, sellerId, fromKey, toKey],
         queryFn: async () => {
             const { data, error } = await (supabase as any).rpc('seller_dashboard_stats', {
                 p_business: businessId,
@@ -75,8 +83,9 @@ export function SellerSelfPerformanceSection({
                 p_to: toKey,
             });
             if (error) throw error;
-            return (data?.self_perf ?? null) as SelfPerfSlice | null;
+            return data;
         },
+        select: (data: any) => (data?.self_perf ?? null) as SelfPerfSlice | null,
         enabled: !!sellerId && !!businessId,
         staleTime: 60_000,
     });

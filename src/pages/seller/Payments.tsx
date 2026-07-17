@@ -104,7 +104,8 @@ const SellerPayments = () => {
     const fetchLedger = async () => {
         setLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return;
             setSellerId(user.id);
 
@@ -181,13 +182,27 @@ const SellerPayments = () => {
         setOrders(null);
         setOrdersLoading(true);
         (async () => {
-            const { data, error } = await (supabase as any).rpc('seller_month_orders', { // eslint-disable-line @typescript-eslint/no-explicit-any
-                p_seller: sellerId,
-                p_business: selected.business_id,
-                p_month: selected.payout_month,
-            });
-            if (cancelled) return;
-            setOrders(error ? [] : ((data || []) as any[]).map((o) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            // Paged: PostgREST silently caps ANY response at 1000 rows and a
+            // heavy month can exceed it (661 delivered/seller-month already
+            // observed) — truncation here would UNDERSTATE the modal's money
+            // totals. Safe to page because the RPC orders by
+            // (delivered_at DESC, order_id) — a total order (mig 20260717080000).
+            const PAGE = 1000;
+            const all: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+            let failed = false;
+            for (let from = 0; ; from += PAGE) {
+                const { data, error } = await (supabase as any).rpc('seller_month_orders', { // eslint-disable-line @typescript-eslint/no-explicit-any
+                    p_seller: sellerId,
+                    p_business: selected.business_id,
+                    p_month: selected.payout_month,
+                }).range(from, from + PAGE - 1);
+                if (cancelled) return;
+                if (error) { failed = true; break; }
+                const batch = (data || []) as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+                all.push(...batch);
+                if (batch.length < PAGE) break;
+            }
+            setOrders(failed ? [] : all.map((o) => ({
                 ...o, units: num(o.units), commission: num(o.commission),
             })) as MonthOrder[]);
             setOrdersLoading(false);

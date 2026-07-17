@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Wallet as WalletIcon,
     TrendingUp,
@@ -51,13 +51,18 @@ const SellerWallet = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const { data, error } = await supabase
-                .from('seller_daily_earnings')
-                .select('*')
-                .eq('seller_id', session.user.id)
-                .order('date', { ascending: false });
-
-            if (error) throw error;
+            // Paginated (silent 1000-row cap would drop the OLDEST days) and
+            // slimmed to the 6 DailyEarning columns the page renders — the
+            // view is O(history) per read, no reason to ship every column.
+            const data = await fetchAllRows<DailyEarning>(
+                'seller_daily_earnings',
+                'id, date, salary_earned, commission_earned, delivered_count, total_earned',
+                {
+                    orderBy: 'date',
+                    ascending: false,
+                    filters: [{ column: 'seller_id', op: 'eq', value: session.user.id }],
+                },
+            );
 
             if (data) {
                 setEarnings(data as DailyEarning[]);
@@ -86,15 +91,16 @@ const SellerWallet = () => {
                 setMonthStats(stats);
             }
 
-            const { data: presenceData, error: presenceError } = await supabase
+            // KPI needs the COUNT only — head request returns zero rows.
+            const { count: presenceCount, error: presenceError } = await supabase
                 .from('seller_presences')
-                .select('id, date')
+                .select('id', { count: 'exact', head: true })
                 .eq('seller_id', session.user.id)
                 .gte('date', format(startOfMonth(new Date()), 'yyyy-MM-dd'))
                 .lte('date', format(endOfMonth(new Date()), 'yyyy-MM-dd'));
 
-            if (!presenceError && presenceData) {
-                setPresenceDays(presenceData.length);
+            if (!presenceError && presenceCount != null) {
+                setPresenceDays(presenceCount);
             }
         } catch (error) {
             console.error('Error fetching earnings:', error);

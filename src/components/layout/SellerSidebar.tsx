@@ -21,7 +21,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
-import { useQuery } from '@tanstack/react-query';
+import { useCurrentProfile } from '@/hooks/useCurrentProfile';
 
 type SidebarIcon = LucideIcon | React.ComponentType<{ className?: string }>;
 
@@ -69,22 +69,10 @@ const SellerSidebar = () => {
         });
     };
 
-    const { data: profile, isLoading: isProfileLoading } = useQuery({
-        queryKey: ['seller-profile'],
-        queryFn: async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
-
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-
-            if (error) return null;
-            return data;
-        },
-    });
+    // Canonical shared profile (['current-profile'], PROFILE_COLS, staleTime
+    // 5min, getSession) — same hook as the admin/owner/courier sidebars. The
+    // seller Profile page invalidates this key on identity/avatar save.
+    const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

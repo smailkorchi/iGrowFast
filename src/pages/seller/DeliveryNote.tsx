@@ -171,6 +171,7 @@ const DeliveryNote = () => {
             return { userId: row.id as string, productIds };
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
 
     const sellerScope =
@@ -932,6 +933,7 @@ const DeliveryNote = () => {
             return data || [];
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
     const { data: businessUsers } = useQuery({
         queryKey: ['dn-user-options', activeBusinessId],
@@ -942,6 +944,7 @@ const DeliveryNote = () => {
             return data || [];
         },
         enabled: !!activeBusinessId,
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
     });
 
     // Channel-total badges — this seller's OWN notes only (unfiltered by the bar), cheap head counts.

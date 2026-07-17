@@ -82,7 +82,8 @@ const SellerStatistics = () => {
 
     useEffect(() => {
         (async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) return;
             const { data: prof } = await supabase
                 .from('users')
@@ -137,7 +138,9 @@ const SellerStatistics = () => {
         (async () => {
             try {
                 // Paginated so a seller with >1000 earning-days is never truncated.
-                const earnings = await fetchAllRows<any>('seller_daily_earnings', '*', {
+                // Only the 3 columns the chart + growth calc read — the view is
+                // O(history) per read, no reason to ship every ledger column.
+                const earnings = await fetchAllRows<any>('seller_daily_earnings', 'date, commission_earned, total_earned', {
                     filters: [{ column: 'seller_id', op: 'eq', value: sellerId }],
                     orderBy: 'date',
                     ascending: true,
