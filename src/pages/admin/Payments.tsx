@@ -143,6 +143,11 @@ const Payments = () => {
                 filters: [
                     { column: 'DigiCom Business', op: 'eq', value: activeBusinessId },
                     { column: 'replace', op: 'eq', value: true },
+                    // PM-1: fee-bearing only, pushed server-side — zero-fee pure-swap legs
+                    // are NEVER noted, so without this the download grew with all-time
+                    // exchange history (each row with * + 5 joins) just to be dropped by
+                    // the client filter below. gt 0 ≡ Number(x||0) > 0 (NULL excluded).
+                    { column: 'shipping_cost', op: 'gt', value: 0 },
                     { column: 'payment_delivery_id', op: 'is', value: null },
                     { column: 'current_courier_payment_note_id', op: 'is', value: null },
                     { column: 'date_deleted', op: 'is', value: null },
@@ -170,6 +175,7 @@ const Payments = () => {
     // (group totals + wizard table) AND the generate mutation so they never diverge.
     const { data: courierFeeRows } = useQuery({
         queryKey: ['courier-fee-map', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // PM audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data } = await (supabase as any)
@@ -192,6 +198,7 @@ const Payments = () => {
     // Same per-city fee model for delivery companies (company_fees, keyed by company_id).
     const { data: companyFeeRows } = useQuery({
         queryKey: ['company-fee-map', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // PM audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data } = await (supabase as any)
@@ -223,6 +230,7 @@ const Payments = () => {
     // ─── Option sources for the filter bar (providers + business users) ───
     const { data: providerOptions } = useQuery({
         queryKey: ['pay-provider-options', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // PM audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [] as any[];
             const { data } = await supabase.from('providers').select('id, name')
@@ -233,6 +241,7 @@ const Payments = () => {
     });
     const { data: businessUsers } = useQuery({
         queryKey: ['pay-user-options', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // PM audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [] as any[];
             const { data } = await supabase.from('users').select('id, name, role')

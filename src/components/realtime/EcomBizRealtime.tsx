@@ -96,6 +96,9 @@ export function EcomBizRealtime({ role }: { role: 'admin' | 'seller' }) {
             queryClient.invalidateQueries({ queryKey: ['customers-page'] });
             queryClient.invalidateQueries({ queryKey: ['customers-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+            // PM: admin Payments unpaid-livré pool — delivered-flips arrive via
+            // webhook→order/parcel events; this keeps the money pool live.
+            queryClient.invalidateQueries({ queryKey: ['unpaid-livre-orders'] });
         };
         const flushOrders = () => {
             ordersTimer = null;

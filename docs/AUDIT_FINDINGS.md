@@ -154,3 +154,9 @@ All four lazy-loaded (FE-1) — zero cost until visited. Fee matrices + code-res
 
 ## Task #11 — admin DeliveryServices  [AUDITED + DS APPLIED 2026-07-17]
 Admin-config page (couriers/providers/zones), tiny tables, rarely visited. **APPLIED:** staleTime 5min on the 4 reference-query sites (delivery-people, providers, zones ×2 shared-key observers). select('*') on these config tables left as-is (tiny rows, trim risk across 3k lines > payoff). Mutations invalidate correctly. tsc -b clean.
+
+## Task #12 — admin Payments  [AUDITED + PM APPLIED 2026-07-17]
+Money page post-sweep: unpaid total = server aggregate RPC (wrong-money 1000-cap class dead), server-search RPC list, head-counts, mutations invalidate correctly.
+- **PM-1 [APPLIED — unbounded-growth class]** The exchange/swap-leg pool fetched ALL `replace=true` un-noted orders (all-time, `*` + 5 joins) then client-filtered to fee-bearing — but zero-fee pure-swap legs are NEVER noted, so the download grew with all-time exchange history. `shipping_cost gt 0` pushed server-side (≡ the first client filter incl. NULL handling; client filters kept as defense). Pool is now bounded by the fee-bearing un-noted backlog.
+- **[APPLIED]** staleTime 5min on 4 reference queries (fee maps, provider/user options); `['unpaid-livre-orders']` added to the broadcast-seam order/parcel invalidation (webhook livré-flips now refresh the pool live). tsc -b clean.
+- Note lists/counts keep focus-refetch (payment notes not on the seam — same DN/RN design rationale).
