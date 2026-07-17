@@ -218,6 +218,7 @@ const ReturnNote = () => {
     // ─── Filter-bar option sources (providers + business users) ───
     const { data: providerOptions } = useQuery({
         queryKey: ['rn-provider-options', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [] as any[];
             const { data } = await supabase.from('providers').select('id, name')
@@ -228,6 +229,7 @@ const ReturnNote = () => {
     });
     const { data: businessUsers } = useQuery({
         queryKey: ['rn-user-options', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [] as any[];
             const { data } = await supabase.from('users').select('id, name, role')
@@ -267,6 +269,7 @@ const ReturnNote = () => {
     // ─── Fetch return fees maps (company + courier) for lookup by (entity, master_city_id) ───
     const { data: returnFeesMap } = useQuery({
         queryKey: ['return-fees-map', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return { company: {}, courier: {} } as { company: Record<string, number>; courier: Record<string, number> };
             const [cf, kf] = await Promise.all([

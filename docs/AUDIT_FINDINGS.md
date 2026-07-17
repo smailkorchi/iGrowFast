@@ -138,3 +138,9 @@ Post-D7b state healthy: 3 keyset/gated RPCs (customers_list_page 35.8ms / custom
 
 ## F0-6 — cron history purge + realtime retention  [DONE 2026-07-17]
 `cron.job_run_details` = 41,749 rows / 12MB in 7 days, NO purge (unbounded; the 1/min payout cron dominates). Added daily purge job `cron_history_purge` (jobid 54, 03:20, keep 7 days; mig 20260717030000 = repo record). `realtime.messages` verified self-maintaining (daily partitions, janitor drops >~3d — oldest partition 3 days back). 
+
+## Tasks #9 + #10 — admin DeliveryNote + ReturnNote  [AUDITED + DN/RN APPLIED 2026-07-17]
+Both post-sweep healthy: server-side filtered/searched lists (SECURITY-INVOKER search_*_note_ids RPCs, mig 20260714120000), head-count badges on bounded tables, trimmed selects (ReturnNote pool per tracker row 114), mutations invalidate the full key set incl. D1 orders keys.
+- **APPLIED:** staleTime 5min on the 5 near-static reference queries (dn/rn provider+user options, return-fees-map — the fee matrices are the same growth class as Orders OR-6). tsc -b clean.
+- **KEPT DELIBERATELY:** notes lists/counts/retourne-pool stay on focus-refetch — these keys have NO realtime coverage (notes aren't on the broadcast seam), so focus refetch IS their cross-user freshness mechanism. Removing it = regression, not optimization. If notes ever join the seam, revisit.
+- **DN-P3 [logged, no fix]:** both admin AND seller DeliveryNote "Charger plus" re-fetch the whole window (`range(0, page*50-1)`, O(page²) cumulative) — bounded by human-created note volume (hundreds/year), useInfiniteQuery refactor not warranted at this scale. Dead `['orders']` invalidation lines sit next to correct D1 keys in mutations (harmless, left per surgical rule).

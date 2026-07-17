@@ -903,6 +903,7 @@ const DeliveryNote = () => {
     // Option sources for the filter bar (providers + business users).
     const { data: providerOptions } = useQuery({
         queryKey: ['dn-provider-options', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [] as any[];
             const { data } = await supabase.from('providers').select('id, name')
@@ -913,6 +914,7 @@ const DeliveryNote = () => {
     });
     const { data: businessUsers } = useQuery({
         queryKey: ['dn-user-options', activeBusinessId],
+        staleTime: 5 * 60 * 1000, // DN/RN audit: near-static reference data; kills every-focus re-download
         queryFn: async () => {
             if (!activeBusinessId) return [] as any[];
             const { data } = await supabase.from('users').select('id, name, role')
