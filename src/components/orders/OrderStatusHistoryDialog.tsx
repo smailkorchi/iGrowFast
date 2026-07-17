@@ -184,24 +184,30 @@ export function OrderStatusHistoryDialog({
                                                     </p>
                                                 )}
 
-                                                {/* Author */}
-                                                <div className="flex items-center gap-2">
-                                                    {record.user ? (
-                                                        <UserAvatar
-                                                            url={record.user.avatar_url}
-                                                            config={(record.user as any).avatar_config}
-                                                            name={record.user.name}
-                                                            className="w-5 h-5 rounded-full border bg-white"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
-                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />
-                                                        </div>
-                                                    )}
-                                                    <span className="text-[11px] font-bold text-ant-ink/70 truncate max-w-[200px]">
-                                                        {record.user?.name || 'Système'}
-                                                    </span>
-                                                </div>
+                                                {/* Author — hidden when a changer EXISTS but the viewer can't
+                                                    resolve them (mediabuyer role: peer users rows are
+                                                    unreadable, so every human changer would mislabel as
+                                                    'Système'). changed_by null = genuine system action →
+                                                    keep the Système chip for all viewers. */}
+                                                {(record.user || !(record as any).changed_by) && (
+                                                    <div className="flex items-center gap-2">
+                                                        {record.user ? (
+                                                            <UserAvatar
+                                                                url={record.user.avatar_url}
+                                                                config={(record.user as any).avatar_config}
+                                                                name={record.user.name}
+                                                                className="w-5 h-5 rounded-full border bg-white"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
+                                                                <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />
+                                                            </div>
+                                                        )}
+                                                        <span className="text-[11px] font-bold text-ant-ink/70 truncate max-w-[200px]">
+                                                            {record.user?.name || 'Système'}
+                                                        </span>
+                                                    </div>
+                                                )}
 
                                                 {/* Postponed schedule */}
                                                 {postponed && reportedText && (
