@@ -3,12 +3,13 @@
  *
  * Designed to give users a predictable "save to device" experience across:
  *   - iOS Safari (ignores `<a download>` for blobs, NEEDS Web Share API)
- *   - Chrome / Firefox desktop (Web Share API missing → classic download)
+ *   - Desktop (classic download — Web Share is deliberately skipped even where
+ *     the browser supports it; see isMobilePlatform)
  *   - Chrome Android (prefers share sheet, also accepts download)
  *   - Edge / Firefox mobile (mixed behavior, fall through gracefully)
  *
  * Strategy (in order):
- *   1. Web Share API with a File  →  best for iOS Safari and Android
+ *   1. Web Share API with a File  →  MOBILE ONLY: best for iOS Safari and Android
  *   2. <a download> on a Blob URL →  standard desktop download
  *   3. window.open(blobUrl)       →  last-resort inline viewer
  *
@@ -86,8 +87,30 @@ function buildFile(blob: Blob, filename: string, mimeType: string): File {
     }
 }
 
+/**
+ * Web Share is the RIGHT save path on mobile (iOS Safari cannot download blobs
+ * at all) and the WRONG one on desktop, where it interrupts an explicit
+ * "download" click with an OS share sheet the user has to dismiss.
+ *
+ * This used to be implied rather than checked: the strategy note above assumed
+ * "desktop → Web Share API missing → classic download". Desktop Chrome/Edge and
+ * macOS Safari have since shipped Web Share *with files*, so that assumption
+ * silently inverted and desktop users started getting the share sheet. Check the
+ * platform explicitly instead of inferring it from feature detection.
+ */
+function isMobilePlatform(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    if (/Android|iPad|iPhone|iPod/.test(ua)) return true;
+    // iPadOS reports as MacIntel — the touch-point check is the only reliable tell.
+    if (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1) return true;
+    return false;
+}
+
 function canUseWebShareWithFiles(file: File): boolean {
     if (typeof navigator === 'undefined') return false;
+    // Desktop: a click on "download" means download. Never hand it to a share sheet.
+    if (!isMobilePlatform()) return false;
     if (typeof (navigator as any).share !== 'function') return false;
     if (typeof (navigator as any).canShare !== 'function') return false;
     try {
