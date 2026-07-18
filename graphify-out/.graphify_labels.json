@@ -423,5 +423,10 @@
   "421": "CompanyFeesModal",
   "422": "xlsx",
   "423": "Task #36 — COURIER dashboard (shell + 4 pages)  [AUDITED + APPLIED 2026-07-17; tsc-b clean]",
-  "424": "Task #37 — OWNER dashboard (full sweep, owner-chosen scope)  [AUDITED + APPLIED 2026-07-17; tsc-b clean]"
+  "424": "Task #37 — OWNER dashboard (full sweep, owner-chosen scope)  [AUDITED + APPLIED 2026-07-17; tsc-b clean]",
+  "425": "drawer.tsx",
+  "426": "useMediaBuyerEarnings.ts",
+  "427": "CAMPAIGN COMPLETE — all 5 dashboards swept (tasks #1-#37)",
+  "428": "Profile.tsx",
+  "429": "backup-evolution-db.sh"
 }

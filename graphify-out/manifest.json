@@ -710,9 +710,9 @@
     "semantic_hash": "182f1afc84ef91f94199e09f4acdfd2e"
   },
   "ops/whatsapp-node/backups/backup-evolution-session.sh": {
-    "mtime": 1783452721.6742964,
-    "ast_hash": "0a4b95fccc7d5dcddedb551cbc929181",
-    "semantic_hash": "0a4b95fccc7d5dcddedb551cbc929181"
+    "mtime": 1784318413.5844648,
+    "ast_hash": "51b744fd4e9ca905e940806c6635ea67",
+    "semantic_hash": ""
   },
   "ops/whatsapp-node/worker-upstream/package.json": {
     "mtime": 1783452721.6771286,
@@ -1205,8 +1205,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/CourierLayout.tsx": {
-    "mtime": 1784305464.8779883,
-    "ast_hash": "bcc78a81fadfed32e5b447515fac8d0d",
+    "mtime": 1784316433.8723717,
+    "ast_hash": "887000580b4f2e9b1da059dc63c593f1",
     "semantic_hash": ""
   },
   "src/components/layout/CourierSidebar.tsx": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": "a6d2cb18febc7f2b5fca70b0a3759ea8"
   },
   "src/components/orders/OrderStatusHistoryDialog.tsx": {
-    "mtime": 1784244449.2330723,
-    "ast_hash": "fd73de1c6fb10c64887f858cc5bd19e6",
+    "mtime": 1784308394.2919335,
+    "ast_hash": "59dd2f60251e30d879494b9c27e0197e",
     "semantic_hash": ""
   },
   "src/components/orders/OrderStatusNotifications.tsx": {
@@ -1960,9 +1960,9 @@
     "semantic_hash": ""
   },
   "src/lib/backupAgent.ts": {
-    "mtime": 1783208749.5747402,
-    "ast_hash": "014c660aa2c524761a0c858da824df4e",
-    "semantic_hash": "014c660aa2c524761a0c858da824df4e"
+    "mtime": 1784318395.5642471,
+    "ast_hash": "5f1b92be0dc21fa309b6ec7d1e8fb8a9",
+    "semantic_hash": ""
   },
   "src/lib/bonCommande/embedImagesForPdf.ts": {
     "mtime": 1774615598.0,
@@ -2055,9 +2055,9 @@
     "semantic_hash": "6657d81b343318cf1328d7c327d09366"
   },
   "src/lib/documentPdf/embedRemoteImages.ts": {
-    "mtime": 1774614945.0,
-    "ast_hash": "b5646657b480632096464f82b7ca95bc",
-    "semantic_hash": "b5646657b480632096464f82b7ca95bc"
+    "mtime": 1784306205.528138,
+    "ast_hash": "ffa7c76d4654225de7955cd4e31c68e5",
+    "semantic_hash": ""
   },
   "src/lib/documentPdf/legalFooter.tsx": {
     "mtime": 1782186018.8402243,
@@ -2205,8 +2205,8 @@
     "semantic_hash": "a51eebfa9630616d5c4b5cb8b6e90725"
   },
   "src/lib/sendPayoutStatement.ts": {
-    "mtime": 1784234016.5851097,
-    "ast_hash": "d275bbcdb517d2c4724015b67fbfb0a6",
+    "mtime": 1784306189.9534626,
+    "ast_hash": "8ce5f50fa9a6880ab23093f33dfbe011",
     "semantic_hash": ""
   },
   "src/lib/supabase.ts": {
@@ -2225,8 +2225,8 @@
     "semantic_hash": "c794bd6a8931a94c2a6a56464852190b"
   },
   "src/pages/AdsHistory.tsx": {
-    "mtime": 1784043591.9738941,
-    "ast_hash": "4032f26ca3e6ddbbd18d77e84ff09d95",
+    "mtime": 1784308913.762604,
+    "ast_hash": "79e763e1a68055e97526c14184d005b0",
     "semantic_hash": ""
   },
   "src/pages/Auth.tsx": {
@@ -2385,9 +2385,9 @@
     "semantic_hash": ""
   },
   "src/pages/admin/business/Overview.tsx": {
-    "mtime": 1782617580.1608508,
-    "ast_hash": "861dec999d7d2b6c3cb7ff53e5ce651b",
-    "semantic_hash": "861dec999d7d2b6c3cb7ff53e5ce651b"
+    "mtime": 1784306247.5984733,
+    "ast_hash": "254d51eda363757c622e2fc20e1ece7f",
+    "semantic_hash": ""
   },
   "src/pages/admin/business/Payments.tsx": {
     "mtime": 1782617580.1610765,
@@ -2435,8 +2435,8 @@
     "semantic_hash": "55277222b859eeeb01a67505d24049d4"
   },
   "src/pages/admin/tools/bonCommande/BonCommandePage.tsx": {
-    "mtime": 1784043674.8411784,
-    "ast_hash": "e7382dff827685c8670633034c23b561",
+    "mtime": 1784306180.9985173,
+    "ast_hash": "252f074f4f37610ba54d565dc0568f57",
     "semantic_hash": ""
   },
   "src/pages/admin/tools/bonCommande/BonCommandePdfDocument.tsx": {
@@ -2450,8 +2450,8 @@
     "semantic_hash": "6b5b881710d2a89b71b6f485e609cf31"
   },
   "src/pages/admin/tools/bonLivraison/BonLivraisonPage.tsx": {
-    "mtime": 1784043774.9851618,
-    "ast_hash": "287a602d940277f49d70ebef71bc1b48",
+    "mtime": 1784306181.0072558,
+    "ast_hash": "c5c22169d08aaa29a7789c0088c62576",
     "semantic_hash": ""
   },
   "src/pages/admin/tools/bonLivraison/BonLivraisonPdfDocument.tsx": {
@@ -2465,8 +2465,8 @@
     "semantic_hash": "9596fd1959712bfc9b13dc6a512308ff"
   },
   "src/pages/admin/tools/devis/DevisPage.tsx": {
-    "mtime": 1784043707.2200997,
-    "ast_hash": "02f2ff81182e0d8a5507ea3b1053e210",
+    "mtime": 1784306180.9897587,
+    "ast_hash": "d24be5c2413758f2832782dbfefa83ba",
     "semantic_hash": ""
   },
   "src/pages/admin/tools/devis/DevisPdfDocument.tsx": {
@@ -2480,8 +2480,8 @@
     "semantic_hash": "1591f6810fa88d6e1f06a20ff8104f7a"
   },
   "src/pages/admin/tools/facture/FacturePage.tsx": {
-    "mtime": 1784043740.7670755,
-    "ast_hash": "8ee7e4b97917a0d4384d1ecd6f2eba35",
+    "mtime": 1784306180.9797392,
+    "ast_hash": "630471fe937c2e85b78e3ee854cf0637",
     "semantic_hash": ""
   },
   "src/pages/admin/tools/facture/FacturePdfDocument.tsx": {
@@ -2515,8 +2515,8 @@
     "semantic_hash": ""
   },
   "src/pages/courier/Payments.tsx": {
-    "mtime": 1784305470.056444,
-    "ast_hash": "201b9add9ec0f0da894649158f98dc5c",
+    "mtime": 1784306197.8379817,
+    "ast_hash": "7bb6fc534a82b45f5138af449bcf424b",
     "semantic_hash": ""
   },
   "src/pages/courier/Profile.tsx": {
@@ -2525,8 +2525,8 @@
     "semantic_hash": ""
   },
   "src/pages/mediabuyer/CampaignForm.tsx": {
-    "mtime": 1784071770.439009,
-    "ast_hash": "4f88b3fd6005d712324206fc2f883a13",
+    "mtime": 1784307426.6528857,
+    "ast_hash": "2765ec1e95aa051f7366fc8e332e8f02",
     "semantic_hash": ""
   },
   "src/pages/mediabuyer/CampaignManage.tsx": {
@@ -2860,8 +2860,8 @@
     "semantic_hash": "911d046e12e0cd575f4dcfd00fe95499"
   },
   "src/whatsapp/lib/queries/conversations.ts": {
-    "mtime": 1783962810.0062475,
-    "ast_hash": "5f3698dab0c4212fc8a7217daca053e9",
+    "mtime": 1784401772.4093986,
+    "ast_hash": "6b6e17c49381cf1ac73e7931d3fce134",
     "semantic_hash": ""
   },
   "src/whatsapp/lib/queries/instances.ts": {
@@ -2955,8 +2955,8 @@
     "semantic_hash": "0e19ce97a15646956c4910bfe3ae514f"
   },
   "src/whatsapp/routes/admin/Conversations.tsx": {
-    "mtime": 1784001970.2835405,
-    "ast_hash": "6b64d87c6ecf377867561ed4155e3f41",
+    "mtime": 1784401121.6319528,
+    "ast_hash": "8a1ab7bb0f7e822b68c495748358cdc5",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/admin/conversations/CreatorBadge.tsx": {
@@ -3005,8 +3005,8 @@
     "semantic_hash": ""
   },
   "src/whatsapp/routes/admin/conversations/parts.tsx": {
-    "mtime": 1783962847.3190553,
-    "ast_hash": "ea40b06584c112a66681d57149ab6192",
+    "mtime": 1784402789.222539,
+    "ast_hash": "c10ac9d62edc2062d65cc9ff02ac9675",
     "semantic_hash": ""
   },
   "src/whatsapp/routes/numbers/NumberDetail.tsx": {
@@ -3020,8 +3020,8 @@
     "semantic_hash": ""
   },
   "src/whatsapp/routes/user/Whatsapp.tsx": {
-    "mtime": 1784001970.2845576,
-    "ast_hash": "ee1d08bdb508c2815e57b3b09e1d24dc",
+    "mtime": 1784401128.290549,
+    "ast_hash": "01660e46b7ee82529ee6b05a0d865670",
     "semantic_hash": ""
   },
   "src/whatsapp/styles/theme.ts": {
@@ -5170,8 +5170,8 @@
     "semantic_hash": ""
   },
   "src/components/orders/OrderViewDialog.tsx": {
-    "mtime": 1784049484.910385,
-    "ast_hash": "bbc3676404638dad6d503a6a282924ed",
+    "mtime": 1784308899.4806447,
+    "ast_hash": "95df084715d7a8432e95edeb2d3fcb5d",
     "semantic_hash": ""
   },
   "src/components/orders/SellerOrderViewDialog.tsx": {
@@ -5695,8 +5695,8 @@
     "semantic_hash": ""
   },
   "docs/AUDIT_FINDINGS.md": {
-    "mtime": 1784305700.6671698,
-    "ast_hash": "0cd695aa394d78baf65c5b567dfffe5d",
+    "mtime": 1784317287.4977014,
+    "ast_hash": "8995ed6fba885e981be20e59274a260b",
     "semantic_hash": ""
   },
   "docs/AUDIT_TRACK0_BASELINE.md": {
@@ -5787,6 +5787,41 @@
   "docs/D3-7c_MONEY_PREAGG_PROPOSAL.md": {
     "mtime": 1784299751.6189153,
     "ast_hash": "f35fd23b9d38f6897854dae801626271",
+    "semantic_hash": ""
+  },
+  "ops/box/whatsapp-schema/migrations/whatsapp_068_search_fold_grant.sql": {
+    "mtime": 1784398347.622449,
+    "ast_hash": "a12891c6f574de193ed37a43e918d743",
+    "semantic_hash": ""
+  },
+  "ops/box/whatsapp-schema/migrations/whatsapp_069_auto_assign_outbound.sql": {
+    "mtime": 1784399760.3366978,
+    "ast_hash": "2877507f8b0448b63c35ac7f447461e6",
+    "semantic_hash": ""
+  },
+  "ops/whatsapp-node/backups/backup-evolution-db.sh": {
+    "mtime": 1784318413.4395642,
+    "ast_hash": "1376ee7445169eeaba10d82e52067561",
+    "semantic_hash": ""
+  },
+  "src/lib/businessStamps.ts": {
+    "mtime": 1784306132.6236176,
+    "ast_hash": "a4f16c440724d28573bf1e400fb8a7cc",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260717090000_business_stamps_private_bucket.sql": {
+    "mtime": 1784306081.1262803,
+    "ast_hash": "48a21ce55eee0f839c2fcdcaf962b1cd",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260717100000_stamps_urls_to_paths.sql": {
+    "mtime": 1784306286.394719,
+    "ast_hash": "797bc39577f357a3ef290ba7d177ac17",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260717110000_mediabuyer_role.sql": {
+    "mtime": 1784307317.0041702,
+    "ast_hash": "3cd05fb05bf56319074bff20cbdec325",
     "semantic_hash": ""
   }
 }
