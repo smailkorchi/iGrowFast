@@ -19,6 +19,7 @@ import {
   type OgPreview,
 } from '../../../lib/ogPreview'
 import { useResolvedMediaUrl } from '../../../lib/queries/media'
+import { saveBlob } from '../../../../lib/saveBlob'
 import { isThumbnailable } from '../../../lib/docThumbnail'
 import { useContacts, type Contact } from '../../../lib/queries/contacts'
 import { buildContactCard, buildContactShare, type ContactCardData } from '../../../lib/vCardBuilder'
@@ -6502,6 +6503,11 @@ function claimExclusiveAudio(el: HTMLAudioElement): void {
   }
   exclusiveAudioEl = el
 }
+// Recording takes the room: a note still playing would bleed into the mic
+// capture. Keep the element referenced so a later play() still claims normally.
+function stopExclusiveAudio(): void {
+  if (exclusiveAudioEl && !exclusiveAudioEl.paused) exclusiveAudioEl.pause()
+}
 
 function VoiceBody({
   msg, isOut, time, status, tickIcon, avatarUrl, avatarFallback, autoAdvanceToId,
@@ -6975,17 +6981,26 @@ function DocumentBody({ msg }: { msg: MessageDecrypted }) {
 
   const resolved = useResolvedMediaUrl(msg)
 
-  function onDownload() {
-    if (!resolved.url) return
-    // Anchor click avoids cross-origin window.open issues for presigned URLs.
-    const a = document.createElement('a')
-    a.href = resolved.url
-    a.download = filename
-    a.rel = 'noopener noreferrer'
-    a.target = '_blank'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
+  const [downloading, setDownloading] = useState(false)
+
+  // `a.download` is same-origin-only per spec, so on a media.igrowfast.com URL it
+  // was inert and the anchor just navigated — the "opens in a new tab" bug. Pull
+  // the bytes ourselves and hand them to saveBlob (shared with orders export /
+  // payout PDFs; it covers the iOS Safari share-sheet path).
+  async function onDownload() {
+    if (!resolved.url || downloading) return
+    setDownloading(true)
+    try {
+      const resp = await fetch(resolved.url)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      await saveBlob(await resp.blob(), { filename, mimeType: resolved.mime ?? undefined })
+    } catch (e) {
+      // Must surface: a silent window.open fallback would look exactly like the
+      // bug we just fixed, so a CORS regression would be invisible.
+      toast.error(normalizeError(e), { title: filename })
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const statusLabel =
@@ -7015,8 +7030,8 @@ function DocumentBody({ msg }: { msg: MessageDecrypted }) {
         className="wac__doc-download"
         aria-label="Télécharger"
         title="Télécharger"
-        onClick={onDownload}
-        disabled={!resolved.url}
+        onClick={() => void onDownload()}
+        disabled={!resolved.url || downloading}
       >
         <svg viewBox="0 0 34 34" width="34" height="34" fill="currentColor" aria-hidden="true">
           <path d="M17,2c8.3,0,15,6.7,15,15s-6.7,15-15,15S2,25.3,2,17S8.7,2,17,2 M17,1C8.2,1,1,8.2,1,17 s7.2,16,16,16s16-7.2,16-16S25.8,1,17,1L17,1z" />
@@ -7679,6 +7694,10 @@ function VoiceRecorder({ onDiscard, onDone }: {
 
   useEffect(() => {
     let cancelled = false
+
+    // Synchronous, before the getUserMedia await — playback stops the moment the
+    // mic is tapped, not after the permission prompt resolves.
+    stopExclusiveAudio()
 
     async function start() {
       try {

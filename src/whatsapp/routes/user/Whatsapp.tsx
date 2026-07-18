@@ -90,7 +90,7 @@ function dataFilter(f: Filter): ConversationFilter {
   switch (f.kind) {
     case 'toutes':   return 'all'
     case 'unread':   return 'unread'
-    case 'favoris':  return 'all'
+    case 'favoris':  return 'favoris'   // server-side, by id (see useConversations)
     case 'groups':   return 'groups'
     case 'archived': return 'archived'
     // Server-side: the old client-side pass over loaded pages hid tagged
@@ -133,7 +133,8 @@ export default function UserWhatsapp() {
   const [view, setView]   = useState<'list' | 'new-chat' | 'quick-replies' | 'tags' | 'tags-create' | 'scheduled'>('list')
   const [scheduledEditId, setScheduledEditId] = useState<string | null>(null)
 
-  const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter))
+  const favoriteIds = useMemo(() => [...favorites], [favorites])
+  const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter), favoriteIds)
   // conversations + tags realtime ride the unified wa:user channel
   // (WaUserRealtime, mounted app-wide in SellerLayout) — one channel per agent.
   // Keep the active number ONLINE while this inbox is open+visible so peer

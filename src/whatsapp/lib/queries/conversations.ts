@@ -15,8 +15,9 @@ import type { ConversationDecrypted } from '../database.types'
 
 export const conversationKeys = {
   all:           ['conversations'] as const,
-  list:          (instanceId: string, filter: ConversationFilter) =>
-                   ['conversations', 'list', instanceId, filter] as const,
+  list:          (instanceId: string, filter: ConversationFilter, favoriteIds?: string[]) =>
+                   ['conversations', 'list', instanceId, filter,
+                    filter === 'favoris' ? [...(favoriteIds ?? [])].sort().join(',') : ''] as const,
   one:           (id: string) => ['conversations', 'one', id] as const,
   search:        (instanceId: string, q: string) =>
                    ['conversations', 'search', instanceId, q] as const,
@@ -39,6 +40,12 @@ export type ConversationFilter =
   // client-side pass over the loaded pages hid tagged conversations the user
   // hadn't scrolled to yet (same class of bug as the assignment .in() filter).
   | `tag:${string}`
+  // Favourites. Same bug class again: the count came from the complete
+  // localStorage set while the list filtered only the loaded pages, so a user
+  // with 8 favourites further down the list saw "8" over an empty list. The ids
+  // live client-side (no server table yet), so they are passed in and filtered
+  // server-side by id — see the favoriteIds param on useConversations.
+  | 'favoris'
 
 const PAGE_SIZE = 50
 
@@ -49,9 +56,13 @@ export interface ConversationListRow extends ConversationDecrypted {
   tags?: string[]
 }
 
-export function useConversations(instanceId: string | null, filter: ConversationFilter = 'all') {
+export function useConversations(
+  instanceId: string | null,
+  filter: ConversationFilter = 'all',
+  favoriteIds: string[] = [],
+) {
   return useInfiniteQuery({
-    queryKey: conversationKeys.list(instanceId ?? '_', filter),
+    queryKey: conversationKeys.list(instanceId ?? '_', filter, favoriteIds),
     enabled:  !!instanceId,
     // Realtime (the wa:biz/wa:user bump broadcast, waChannels.ts) keeps this live,
     // so a focus-refetch of every loaded page on every tab-return is redundant load.
@@ -59,6 +70,40 @@ export function useConversations(instanceId: string | null, filter: Conversation
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       if (!instanceId) return { rows: [] as ConversationListRow[], nextOffset: null as number | null }
+
+      // Favourites live in localStorage, so there is no server-side set to join
+      // against — the ids are sent up and filtered by id instead. Fetched in FULL
+      // rather than paged: the set is user-curated and bounded, and "show me my
+      // favourites" wants all of them. Chunked at 150 ids because the whole list
+      // rides in the URL, and >150 uuids overflows Kong's 8k buffer — the exact
+      // cap that broke the old assignment .in() filter. Every chunk is fetched,
+      // so there is no silent truncation.
+      if (filter === 'favoris') {
+        if (!favoriteIds.length) return { rows: [] as ConversationListRow[], nextOffset: null as number | null }
+        const CHUNK = 150
+        const chunks: string[][] = []
+        for (let i = 0; i < favoriteIds.length; i += CHUNK) chunks.push(favoriteIds.slice(i, i + CHUNK))
+        const pages = await Promise.all(chunks.map(async (ids) => {
+          const { data, error } = await supabase
+            .schema('whatsapp').from('conversations_decrypted')
+            .select('*')
+            .eq('instance_id', instanceId)
+            .not('remote_jid', 'like', '%@broadcast')
+            .not('remote_jid', 'like', '%@newsletter')
+            .eq('is_archived', false)
+            .in('status', ['open', 'pending'])
+            .in('id', ids)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as ConversationListRow[]
+        }))
+        // Same order as the paged query: pinned first, then most recent.
+        const rows = pages.flat().sort((a, b) => {
+          if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1
+          return (b.last_message_at ?? '').localeCompare(a.last_message_at ?? '')
+        })
+        return { rows, nextOffset: null as number | null }
+      }
+
       const tagId = filter.startsWith('tag:') ? filter.slice(4) : null
       let q = supabase
         .schema('whatsapp').from('conversations_decrypted')
@@ -666,8 +711,12 @@ export function applyBump(qc: QueryClient, rawPayload: unknown): void {
 // copy highlights them all (same React key). Dedupe by id here so the
 // rendered list is always a set, not a multiset.
 
-export function useFlattenedConversations(instanceId: string | null, filter: ConversationFilter = 'all') {
-  const q = useConversations(instanceId, filter)
+export function useFlattenedConversations(
+  instanceId: string | null,
+  filter: ConversationFilter = 'all',
+  favoriteIds: string[] = [],
+) {
+  const q = useConversations(instanceId, filter, favoriteIds)
   const rows = useMemo(
     () => {
       const seen = new Set<string>()

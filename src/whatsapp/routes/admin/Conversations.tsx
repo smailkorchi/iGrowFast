@@ -95,7 +95,7 @@ function dataFilter(f: Filter): ConversationFilter {
   switch (f.kind) {
     case 'toutes':   return 'all'
     case 'unread':   return 'unread'
-    case 'favoris':  return 'all'   // favoris filtered client-side
+    case 'favoris':  return 'favoris'   // server-side, by id (see useConversations)
     case 'groups':   return 'groups'
     case 'archived': return 'archived'
     // Server-side: the old client-side pass over loaded pages hid tagged
@@ -168,7 +168,8 @@ export default function AdminConversations() {
   // into edit mode for that scheduled message.
   const [scheduledEditId, setScheduledEditId] = useState<string | null>(null)
 
-  const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter))
+  const favoriteIds = useMemo(() => [...favorites], [favorites])
+  const convs = useFlattenedConversations(activeInstanceId, dataFilter(filter), favoriteIds)
   // Keep the active number ONLINE while this inbox is open+visible so peer
   // typing always arrives (only the connected active instance — never the
   // whole fleet). Reverts to ban-safe offline shortly after the page hides.
