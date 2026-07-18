@@ -74,10 +74,22 @@ export function useConversations(
       // Favourites live in localStorage, so there is no server-side set to join
       // against — the ids are sent up and filtered by id instead. Fetched in FULL
       // rather than paged: the set is user-curated and bounded, and "show me my
-      // favourites" wants all of them. Chunked at 150 ids because the whole list
-      // rides in the URL, and >150 uuids overflows Kong's 8k buffer — the exact
-      // cap that broke the old assignment .in() filter. Every chunk is fetched,
-      // so there is no silent truncation.
+      // favourites" wants all of them.
+      //
+      // CHUNK=150 is measured, not guessed. Kong sets no large_client_header_buffers
+      // override, so nginx's default 4 8k applies = 8192 bytes on the REQUEST LINE
+      // (other headers, incl. the JWT, are counted separately and don't eat into it).
+      // Probed against api.igrowfast.com 2026-07-18 with this exact query shape:
+      //     150 ids -> 6103 B  200 (well clear)
+      //     200 ids -> 8053 B  200 (139 B from the cliff)
+      //     210 ids -> 8262 B  414 Request-URI Too Large
+      // 150 leaves ~2 KB of headroom, which is what absorbs a future added filter.
+      // If you add one here, re-measure — the margin is the only thing protecting it.
+      //
+      // CHUNKED, not capped: every chunk is fetched and merged, so a user with 1000
+      // favourites issues 7 requests instead of silently losing 850 of them. That
+      // silent-truncation trap is exactly what broke the old assignment .in() filter
+      // (see the note at the assignment branch below).
       if (filter === 'favoris') {
         if (!favoriteIds.length) return { rows: [] as ConversationListRow[], nextOffset: null as number | null }
         const CHUNK = 150
