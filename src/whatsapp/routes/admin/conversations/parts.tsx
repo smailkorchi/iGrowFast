@@ -6991,7 +6991,16 @@ function DocumentBody({ msg }: { msg: MessageDecrypted }) {
     if (!resolved.url || downloading) return
     setDownloading(true)
     try {
-      const resp = await fetch(resolved.url)
+      // cache:'reload' is REQUIRED, not defensive. R2 emits `Vary: Origin` only
+      // when the request carries an Origin — a plain <img> load doesn't, so the
+      // browser caches that response with no Vary AND no CORS header. A later
+      // fetch() for the same URL treats that entry as a match and serves it
+      // WITHOUT hitting the network, so the missing Access-Control-Allow-Origin
+      // trips a CORS error even though the bucket is configured correctly.
+      // Forcing revalidation makes the request leave the browser with an Origin,
+      // and R2 then answers with the header. (Measured 2026-07-18: preflight 204
+      // + ACAO https://app.igrowfast.com; failure only ever came from cache.)
+      const resp = await fetch(resolved.url, { cache: 'reload' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       await saveBlob(await resp.blob(), { filename, mimeType: resolved.mime ?? undefined })
     } catch (e) {
@@ -7427,20 +7436,26 @@ export function MediaViewer({
   async function onDownload() {
     if (!resolved.url) return
     try {
-      const resp = await fetch(resolved.url)
-      const blob = await resp.blob()
+      // cache:'reload' is load-bearing — THIS is the "download just opens a new
+      // tab" bug for images. The bubble renders the media in an <img>, which
+      // sends no Origin, so R2 answers without `Vary: Origin` and without a CORS
+      // header and the browser caches THAT. This fetch then matched the cached
+      // entry, never hit the network, and failed CORS — dropping into the catch
+      // below, which used to window.open() and reopen the file in a tab.
+      // Forcing revalidation sends the request with an Origin and R2 returns the
+      // header. Verified in-browser 2026-07-18 on app.igrowfast.com: <img> then
+      // plain fetch = "Failed to fetch"; same URL with cache:'reload' = 200.
+      const resp = await fetch(resolved.url, { cache: 'reload' })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const ext = isVideo ? 'mp4' : 'jpg'
-      const blobUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = `whatsapp-${msg.id?.slice(0, 8) ?? 'media'}.${ext}`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(blobUrl)
-    } catch {
-      const w = window.open(resolved.url, '_blank', 'noopener')
-      if (!w) toast.error('Téléchargement bloqué — autorisez les pop-ups.')
+      await saveBlob(await resp.blob(), {
+        filename: `whatsapp-${msg.id?.slice(0, 8) ?? 'media'}.${ext}`,
+        mimeType: resolved.mime ?? undefined,
+      })
+    } catch (e) {
+      // No window.open fallback: reopening the file in a tab IS the reported bug,
+      // and it made the real failure invisible.
+      toast.error(normalizeError(e))
     }
   }
 
