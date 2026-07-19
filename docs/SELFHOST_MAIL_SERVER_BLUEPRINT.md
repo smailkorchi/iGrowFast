@@ -275,15 +275,46 @@ Config under `/opt` is auto-covered by the existing restic→R2 chain. **Mail DA
 
 ---
 
-## 9. CUTOVER CHECKLIST (irreversible — gate on owner)
+## 9. CUTOVER — PROVEN (executed 2026-07-19; Hostinger fully retired from the mail path)
 
-Only after the server is proven (mail-tester ≥9, Gmail/Proton pass, reputation warming):
-1. `_dmarc` already has `rua` (done in Phase 2). SPF transition value: `v=spf1 ip4:BOX_IP include:<old-provider-spf> ~all` (additive — old host keeps working).
-2. Lower `MX` TTL to 300 a day ahead. `imapsync` existing mailboxes off the old host.
-3. Switch `MX` → `10 MAIL_HOST`. Keep old-provider SPF include + DKIM CNAMEs until fully retired.
-4. Publish **MTA-STS** (policy file at `https://mta-sts.DOMAIN/.well-known/mta-sts.txt` via the tunnel, `mode:testing`→`enforce` after 2 clean weeks) + **TLS-RPT** TXT. Only meaningful once MX points at the box.
-5. Wire the app's sender (`email_accounts`/send function) → Stalwart `app@` creds.
-6. After 2 clean weeks: remove old MX → then SPF include → then DKIM CNAMEs (last).
+Only after the server is proven (mail-tester ≥9, Gmail/Proton pass). Two independent halves — inbound (MX) and outbound (app senders) — cut over separately.
+
+### 9a. INBOUND — flip MX to a SINGLE record
+- `MX` → **`10 MAIL_HOST`** only. **Use a SINGLE MX, not a backup.** A backup MX at the old provider would `550`-bounce mail during any brief outage (the old mailboxes no longer exist there); a single MX makes senders **queue and retry** for days — strictly safer. Priority number is irrelevant with one MX.
+- Verify with a REAL external delivery (from another box, over the internet, to the MX): a spoofed-sender test correctly lands in **Junk** (DNSBL/Pyzor) — that proves inbound + spam-filtering + local delivery all work. A properly-authenticated sender lands in Inbox.
+- A banned sending IP returns TCP `EOF` → cloudflared reports **502** (not 403); origin answering `307` on a direct curl while the tunnel 502s is the ban signature.
+
+### 9b. OUTBOUND — switch the app's senders (email_accounts + Vault)
+- Passwords live in **Postgres Vault**, not the `email_accounts` row (`password_secret_id` → `vault.secrets`). Never write `email_accounts.password`/`vault.secrets` directly. Use the app's SECURITY DEFINER RPCs (service_role/postgres): **`update_email_account(...)`** (FULL-row overwrite — pass EVERY field or it nulls them; rotates the Vault password only when a non-empty password is passed) and **`create_email_account(...)`** (mints uuid + Vault secret atomically).
+- Per sender: `smtp_host=MAIL_HOST, smtp_port=465, smtp_security='ssl'` (TEXT col, CHECK in ssl/tls/starttls/none — `ssl`=implicit TLS on 465), `username=<full email>` (Stalwart AUTH user = full address).
+- **Rename trap:** if renaming a sender (e.g. `no-reply@`→`noreply@`), change `email_address` AND `username` **together** — nodemailer authenticates with `username`; change the address alone and SMTP AUTH fails silently. Safe because the app resolves the sender by **UUID id**, never by name/address (so the rename breaks zero code lookups + template bindings).
+- **Revert safety (mandatory):** capture the old provider passwords (`get_email_account_secret(id)` → keychain) BEFORE rotating — Vault rotation is destructive. Revert = `update_email_account` back to the old host + saved password.
+- **Reputation:** this moves customer mail to a COLD IP → expect Gmail spam-foldering until warmed. Flip a dormant/canary sender first, watch, then the rest. Verify each with a real SMTP AUTH+envelope test (235+250, `RSET` before DATA — no message sent) and `get_email_account_secret==keychain`.
+
+### 9c. DNS hardening after cutover
+- Delete the old provider's DKIM CNAMEs (`<provider>mail-*._domainkey`).
+- Harden SPF to **`v=spf1 ip4:BOX_IP -all`** (drop the provider include; `-all` = reject anything not your IP; DMARC already `p=reject`). **KEEP the provider records only if you want a fast revert window; we cut clean.**
+- **After a static-asset change served via Cloudflare, PURGE the CF cache** (`POST purge_cache {files:[url]}`) or the edge serves the stale copy.
+
+### 9d. Still deferred (owner-gated)
+- MTA-STS (policy at `https://mta-sts.DOMAIN/.well-known/mta-sts.txt` via tunnel, `testing`→`enforce`) + TLS-RPT.
+- `imapsync` old mail off the retired host.
+- List-Unsubscribe header for bulk templates (→ mail-tester 10/10).
+
+---
+
+## 11. OUTBOUND-IP & IPv6 (the Docker trap)
+
+- **The box has an IPv6, but Dockerized Stalwart is IPv4-ONLY** — the Docker bridge network has no IPv6 egress, so Stalwart tries a remote's IPv6 MX, gets `connect-error`, and falls back to IPv4 every time. So `SPF ip4:… -all` (no `ip6:`) is CORRECT — do NOT add `ip6:` for an address it never sends from.
+- **DO NOT pin `MtaConnectionStrategy.sourceIps` to the host's public IP.** The container's local address is a bridge IP (172.x); Docker NATs egress. Binding the outbound socket to the host public IP fails inside the container (`connect-error` on EVERY delivery) — it broke all outbound for ~2 min until reverted. Leave `sourceIps` empty; Docker NAT handles it. (If you ever want true dual-stack: AAAA for `mail`, IPv6 PTR at the provider, then `ip6:` in SPF — never send IPv6 without a PTR or receivers spam it harder than IPv4.)
+
+## 12. BIMI (brand logo in the inbox)
+
+- **Prereq met:** DMARC at enforcement (`p=quarantine`/`p=reject`) + aligned SPF/DKIM.
+- **Logo = SVG Tiny Portable/Secure** (NOT plain SVG): root `version="1.2" baseProfile="tiny-ps"` + `xmlns`, **square** `viewBox`, exactly one `<title>` as first child, **solid opaque background** (no transparency), vector-only (no `<image>`/`<script>`/`<filter>`/`<mask>`/animation/external refs/fonts), text→paths, UTF-8/LF, ≤32 KB. **Size the logo to fit the AVATAR CIRCLE** (fit its diagonal to ~0.9× the circle), not the square — clients crop to a circle and clip corner content. Recipe used: PNG → 2-color masks (PIL) → `potrace -s` each → assemble with a solid bg rect + centered/scaled groups → validate → host over HTTPS.
+- **Self-asserted record (FREE, do now):** `default._bimi.DOMAIN TXT "v=BIMI1; l=https://…/logo.svg;"` (no `a=`). Shows on **Yahoo/AOL/Fastmail** immediately.
+- **Gmail + Apple need a mark certificate** referenced by `a=`. Buy a **CMC** (Common Mark Certificate, ~$650–1,100/yr, DigiCert/GlobalSign/SSL.com) — **no trademark**, just 12+ months of prior logo use. NOT a VMC unless the Gmail blue check is worth a 12–18-month trademark. (Entrust EXITED mark certs in 2025 — don't use it.) Then add `a=<cmc.pem url>`.
+- **Display is reputation-gated** (Gmail/Yahoo suppress it on cold reputation even when valid) and **your own self-hosted webmail never shows BIMI** — Bulwark et al. show a **DuckDuckGo favicon** (`icons.duckduckgo.com/ip3/<domain>.ico`) or initials, which is NOT BIMI. Test BIMI only at Yahoo/Gmail/Apple.
 
 ---
 
@@ -305,6 +336,14 @@ Only after the server is proven (mail-tester ≥9, Gmail/Proton pass, reputation
 | docker logs empty in normal mode | default tracer is a file, not stdout | create `Stdout` tracer at `debug` |
 | compound command blocked | classifier flags cred-write+prod-restart | split into atomic steps / get authorization |
 | email logo broken image | URL points at apex (now a different site) | fix to the host that serves the asset (200); verify with curl |
+| EVERY mailbox JMAP 403 / SMTP `550` | built-in `User` role → empty `Authentication.defaultRoles` → zero perms | build a `mail-user` Custom role (all user-facing perms) + assign to each mailbox |
+| tunnel host 502, `EOF` in cloudflared, origin 307 on direct curl | Stalwart auto-banned the shared tunnel IP (scanBanPaths `*../*`, permanent) | allowlist the docker subnet (`AllowedIp <net>/16`) + `create Action/ReloadBlockedIps` |
+| ban deleted but still 502 | in-memory blocklist not evicted | `create Action/ReloadBlockedIps` (deleting the row alone doesn't) |
+| `services`/IMAP/SMTP autoconfig entries vanish after a patch | `map<>` fields REPLACE wholesale | re-send the FULL map, or use `--field a/b/c=…` JSON-pointer form |
+| ALL outbound `connect-error` after pinning `sourceIps` | container can't bind the host's public IP (Docker NAT) | leave `sourceIps` empty |
+| `useXForwarded=true` trusts a forged `X-Forwarded-For` | Stalwart reads leftmost XFF (client-controlled) | keep `false`, or overwrite XFF=`cf.connecting_ip` at the CF edge first, then verify |
+| static asset still stale after origin update | Cloudflare cached it | `POST purge_cache {files:[url]}` |
+| BIMI logo not in your own webmail | self-hosted webmail has no BIMI (shows favicon/initials) | test only at Gmail/Yahoo/Apple |
 
 ---
-*Companion file (to be written after client build): `SELFHOST_WEBMAIL_BLUEPRINT.md` — Bulwark on JMAP (browser talks JMAP DIRECT to Stalwart, needs `usePermissiveCors:true` + JMAP reachable via the tunnel).*
+*Companion (client side): `SELFHOST_WEBMAIL_BLUEPRINT.md` — Bulwark on JMAP (browser talks JMAP DIRECT to Stalwart, needs `usePermissiveCors:true` + JMAP reachable via the tunnel). Deferred-hardening scripts: `docs/ops/webmail-hardening/`.*

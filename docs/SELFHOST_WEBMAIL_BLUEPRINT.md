@@ -319,6 +319,8 @@ Optional (leaves the app working either way, since the client rewrites URLs rega
 | `/api` on JMAP host reachable | tunnel path allowlist missing/loose | ingress: forward only `^/jmap($|/)`,`^/\.well-known/`,`^/dav($|/)`; 404 the rest |
 | Webmail bounced on every cert renewal | renewal recreates whole compose | scope compose action to `stalwart`; use zero-downtime cert re-import |
 | Bulwark `EACCES` on `/app/data` | volumes not owned by uid 1001 | `chown -R 1001:1001 webmail/` |
+| Sender avatar shows a logo but it's NOT your BIMI | Bulwark has ZERO BIMI code; its "sender favicons" pulls `icons.duckduckgo.com/ip3/<domain>.ico` (priority: contact photo > Gravatar > … > company favicon > initials) | expected — self-hosted webmail never renders BIMI; test BIMI at Gmail/Yahoo/Apple only (see server blueprint §12) |
+| App transactional mail still leaves via the old provider | `email_accounts` not switched | outbound cutover = server blueprint §9b (Vault RPCs, no-reply→noreply, revert-safe) |
 
 ---
 
