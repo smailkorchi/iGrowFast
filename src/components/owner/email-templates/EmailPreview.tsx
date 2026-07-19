@@ -59,7 +59,7 @@ interface EmailPreviewProps {
  * are blocked (no allow-scripts) so untrusted markup can't execute. The device
  * switcher reflows the frame width to preview responsive behaviour.
  */
-const EmailPreview = ({ html, subject, preheader, fromName = 'iGrowFast', fromEmail = 'no-reply@igrowfast.com' }: EmailPreviewProps) => {
+const EmailPreview = ({ html, subject, preheader, fromName = 'iGrowFast', fromEmail = 'noreply@igrowfast.com' }: EmailPreviewProps) => {
     const [device, setDevice] = useState<Device>('desktop');
     const width = DEVICES.find((d) => d.key === device)?.width ?? null;
     const initials = (fromName || 'iG').trim().slice(0, 2).toUpperCase();
