@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "action": "rewrite",
+      "action_parameters": {
+        "headers": {
+          "X-Forwarded-For": {
+            "operation": "set",
+            "expression": "cf.connecting_ip"
+          }
+        }
+      },
+      "expression": "(http.host eq \"jmap.igrowfast.com\")",
+      "description": "anti-spoof: force X-Forwarded-For to true client IP for Stalwart JMAP",
+      "enabled": true
+    }
+  ]
+}
