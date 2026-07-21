@@ -398,6 +398,25 @@ const BusinessOverview = () => {
         },
     });
 
+    const logoPreview = form.watch('logo');
+    // #44: stored stamp values are private-bucket paths (or legacy URLs) —
+    // resolve to signed URLs for the on-page previews.
+    const cachetValue = form.watch('cachet_url');
+    const signatureValue = form.watch('signature_url');
+    const [cachetPreview, setCachetPreview] = useState<string | null>(null);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+    useEffect(() => {
+        let alive = true;
+        resolveStampUrl(cachetValue).then((u) => { if (alive) setCachetPreview(u); });
+        return () => { alive = false; };
+    }, [cachetValue]);
+    useEffect(() => {
+        let alive = true;
+        resolveStampUrl(signatureValue).then((u) => { if (alive) setSignaturePreview(u); });
+        return () => { alive = false; };
+    }, [signatureValue]);
+    const currentName = form.watch('name');
+
     if (!activeBusinessId) {
         return (
             <div className="ant-surface min-h-screen">
@@ -437,24 +456,6 @@ const BusinessOverview = () => {
         );
     }
 
-    const logoPreview = form.watch('logo');
-    // #44: stored stamp values are private-bucket paths (or legacy URLs) —
-    // resolve to signed URLs for the on-page previews.
-    const cachetValue = form.watch('cachet_url');
-    const signatureValue = form.watch('signature_url');
-    const [cachetPreview, setCachetPreview] = useState<string | null>(null);
-    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
-    useEffect(() => {
-        let alive = true;
-        resolveStampUrl(cachetValue).then((u) => { if (alive) setCachetPreview(u); });
-        return () => { alive = false; };
-    }, [cachetValue]);
-    useEffect(() => {
-        let alive = true;
-        resolveStampUrl(signatureValue).then((u) => { if (alive) setSignaturePreview(u); });
-        return () => { alive = false; };
-    }, [signatureValue]);
-    const currentName = form.watch('name');
     const sPill = statusPill(business.status);
 
     const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid';
