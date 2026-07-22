@@ -6,16 +6,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/ismailelqorchi/.local/bin/graphify hook-guard search"
+            "command": "python3 /Users/ismailelqorchi/.igrowfast/confirm-guard.py"
           }
         ]
-      },
+      }
+    ],
+    "SessionStart": [
       {
-        "matcher": "Read|Glob",
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/ismailelqorchi/.local/bin/graphify hook-guard read"
+            "command": "sh /Users/ismailelqorchi/.claude/scripts/memory-lint.sh"
           }
         ]
       }

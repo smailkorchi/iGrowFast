@@ -1,28 +1,21 @@
 # Project Rules
 
-### 0. OVERALL MOST IMPORTANT RULE: Absolute Mode
-System Instruction: Absolute Mode
+### 0. OUTPUT STYLE: Absolute Mode (tone contract — subordinate to the rules below)
+System Instruction: Absolute Mode governs TONE only. It never overrides rules 1-4 or the prod safety gate, and never suppresses a clarifying question, a safety confirmation, or a surfaced tradeoff. When terseness conflicts with asking or confirming, asking/confirming wins.
 - Eliminate: emojis, filler, hype, soft asks, conversational transitions, call-to-action appendixes.
-- Assume: user retains high-perception despite blunt tone.
-- Prioritize: blunt, directive phrasing; aim at cognitive rebuilding, not tone-matching.
+- Assume: user is technically deep but wants PLAIN language — full sentences, categorical answers, no jargon walls or clipped fragments. "I don't get it" / "no lecture" means the explanation failed: re-frame simpler and plainer, never terser.
+- Prioritize: blunt, directive phrasing.
 - Disable: engagement/sentiment-boosting behaviors.
 - Suppress: metrics like satisfaction scores, emotional softening, continuation bias.
 - Never mirror: user's diction, mood, or affect.
-- Speak only: to underlying cognitive tier.
-- No: questions, offers, suggestions, transitions, motivational content.
-- Terminate reply: immediately after delivering info no closures.
-- Goal: restore independent, high-fidelity thinking.
-- Outcome: model obsolescence via user self-sufficiency.
+- Explain at the altitude of the question: a one-line plain re-frame beats a dense technical fragment.
+- No: engagement questions, offers, motivational content, CTA closers. Clarifying questions, safety confirmations, and tradeoff callouts are REQUIRED — not banned.
+- Terminate reply: after the substance — no closers, no "let me know if".
 
 ---
 
-### 1. MANDATORY FIRST STEP: Always Check Skills, Commands, and Agents
-Before starting **ANY** work (coding, debugging, planning, or design), you **MUST** first check available resources:
-- Check `~/.claude/skills/` for specific technology expertise, guidelines, and standards.
-- Check `~/.claude/commands/` for automated workflows and checklists.
-- Check `~/.claude/agents/` for specialized developer personas.
-- If a relevant skill exists, **use the Skill tool** to invoke it before making any implementation decisions.
-- Also check for applicable Agent subagent types that match the task.
+### 1. Use the capability library on demand
+Skill descriptions are surfaced every session — pull one when it genuinely fits (facts, contracts, wiring, an actuator you can't derive). Before claiming a capability or tool does not exist, check `~/.claude/INDEX.md`. Don't route routine work through a mandatory skill-lookup ritual, and don't roleplay an "expert persona" in place of your own reasoning.
 
 ---
 
@@ -31,10 +24,10 @@ Before starting **ANY** work (coding, debugging, planning, or design), you **MUS
 The app cut over to the self-hosted Supabase BOX on 2026-07-03. The managed Supabase project and every Supabase MCP server are DEAD and were removed. Do NOT use `mcp__supabase*` tools, and do NOT reference the managed project refs `zjkqprrfbibjoslvlmxf` / `pcgvfwqkzyozzxktfogi`.
 
 **The ONLY DB interface = `~/.igrowfast/db.sh`** — streams raw-stdin SQL over SSH `igf` into `docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1`.
-- Reads: pipe SQL in; use `--csv` / `-t -A` / `-x` (NOT `-F'|'` — the remote shell eats the pipe).
-- Writes/DDL: wrap in `BEGIN;…COMMIT;` (atomic; first error rolls back). `postgres` is NOT superuser on the box — superuser DDL/restores run as `supabase_admin` (passwordless via socket).
+- Reads: pipe SQL in; use `--csv` / `-t -A` / `-x` (NOT `-F'|'` — the remote shell eats the pipe). db.sh runs READ-ONLY by default (accidental writes fail).
+- Writes/DDL: pass `--write` (without it db.sh runs read-only and the write fails), and wrap in `BEGIN;…COMMIT;` (atomic; first error rolls back). Claude's `--write` runs are confirm-gated by the PreToolUse hook (`~/.igrowfast/confirm-guard.py`). `postgres` is NOT superuser on the box — superuser DDL/restores run as `supabase_admin` (passwordless via socket).
 
-**Edge functions:** source of truth is repo `supabase/functions/`. Deploy = rsync `supabase/functions/` → box `/opt/supabase-project/volumes/functions/` (bind-mounted, hot-loads per request — no restart to update a function). Only the router `volumes/functions/main/index.ts` needs a restart, and only when the PUBLIC_FUNCTIONS allowlist changes (self-host `VERIFY_JWT` is global).
+**Edge functions:** source of truth is repo `supabase/functions/`. Deploy = rsync `supabase/functions/` → box `/opt/supabase-project/volumes/functions/` (bind-mounted). A rsync ALONE does not reliably take effect: the edge runtime caches WARM workers, so a function with recent traffic keeps serving the OLD module. After rsync you MUST `ssh igf 'docker restart supabase-edge-functions'`, wait for health = healthy, then smoke-test. (A first deploy of an *idle* function cold-loads without a restart — which is why an initial deploy can look fine and a redeploy silently doesn't.) The router `volumes/functions/main/index.ts` also needs the restart when the PUBLIC_FUNCTIONS allowlist changes (self-host `VERIFY_JWT` is global).
 
 **Before ANY database work:**
 1. NEVER assume schema — inspect the live box first via `db.sh` (tables, columns, RPCs, triggers, RLS). Managed-DB facts are stale; re-verify on the box.
@@ -47,13 +40,14 @@ Box: `207.180.232.102`, SSH `igf`→root; public via Cloudflare Tunnel `api.igro
 
 ## 1. Think Before Coding
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**Don't assume. Resolve uncertainty at its source. Surface tradeoffs.**
 
 Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
+- Uncertainty about the WORLD (schema, current behavior, what's deployed, why something is the way it is) → inspect ground truth first: db.sh, SSH, the repo, logs. Don't ask what you can observe.
+- Uncertainty about the OWNER's intent, preferences, or risk tolerance → ask. That's the part your instruments can't answer.
+- When the owner explicitly delegates a call ("do what's best"), make it and state it with a one-line rationale — don't bounce options back. Honor named carve-outs verbatim: an asset the owner calls valuable is untouchable without their sign-off. Delegation never waives the safety gate.
+- If multiple interpretations exist, present them — don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
 
 ## 2. Simplicity First
 
@@ -101,12 +95,16 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Prod safety gate + work doctrine (this operation)
+
+**Confirm before applying any irreversible/production action** — DB writes/DDL via `~/.igrowfast/db.sh`, box SSH state changes, mail/DNS changes, deploys, offensive tooling — regardless of success-criteria strength or permission mode. Reads are free.
+
+**Doctrine, split by task type** (owner rulings — override rules 2-3 where they conflict):
+- Feature work → surgical/minimal (rules 2-3).
+- Perf/scale/security work → end-state only: finish the workstream (deferring = leaving a landmine), ship the real fix not a quick patch, and convert `postgres_changes`→broadcast on contact. (Broadcast rule = dated owner ruling, 2026-07; holds while realtime CDC on this box = wal2json — re-evaluate if the realtime stack changes.)
+
+**Managed Supabase MCP is denied at the permission layer here** (box-only, enforced in `.claude/settings.local.json`). A needed `mcp__supabase*` call is a signal something is wrong — stop and inspect the box via `db.sh`.
+
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+An optional knowledge-graph index may exist at graphify-out/. It can be a fast way to get cross-file relationships (`graphify query "<q>"` / `path "<A>" "<B>"` / `explain "<concept>"`) — but it is a CACHE: check freshness against HEAD before trusting it, and prefer reading ground-truth source when in doubt. It is never a prerequisite to reading or grepping. If you rebuild it, `graphify update .` keeps it current (AST-only, no API cost).
