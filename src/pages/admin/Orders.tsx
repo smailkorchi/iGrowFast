@@ -225,9 +225,6 @@ function arrangeExchangePairs(list: any[]): any[] {
   return out;
 }
 
-// Locked = the order is at a payment-terminal status (paid or unpaid), by master flag.
-const isOrderLocked = (order: any): boolean => !!(order?.status?.is_paid || order?.status?.is_unpaid);
-
 // --- Schemas ---
 const orderItemSchema = z.object({
     product_id: z.string().optional().nullable(),
@@ -1969,7 +1966,10 @@ const Orders = () => {
                     updatePayload.canceled_by_id = userId;
                     updatePayload.annulation_date = new Date().toISOString();
                 }
-                if (isOrderCategory(statusId, 'paid')) {
+                if (isOrderCategory(statusId, 'paid') && !selectedOrder.date_livraison) {
+                    // Only stamp when missing — re-stamping now() on an already-
+                    // delivered order moves its commission to the current payout
+                    // month (frozen-ledger double-count).
                     updatePayload.date_livraison = new Date().toISOString();
                 }
                 if (isOrderCategory(statusId, 'postponed')) {
@@ -1978,14 +1978,36 @@ const Orders = () => {
                 }
             }
 
-            // 1. Update order
-            const { error: orderError } = await (supabase as any)
+            // 1. Update order — read back the stored status: zzz_orders_keep_paid
+            // silently reverts changes away from PAID while the order sits on a
+            // settled payment note (mirror of the bulk RPC's kept_paid skip).
+            const { data: updatedRow, error: orderError } = await (supabase as any)
                 .from('orders')
                 .update(updatePayload)
                 .eq('id', selectedOrder.id)
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('DigiCom Business', activeBusinessId)
+                .select('order_status_id')
+                .single();
 
             if (orderError) throw orderError;
+
+            const statusChanged = !!values.order_status_id && values.order_status_id !== selectedOrder.order_status_id;
+            const statusKeptPaid = statusChanged && updatedRow?.order_status_id !== values.order_status_id;
+            if (statusKeptPaid) {
+                // Roll back the transition stamps written for the status that
+                // did not stick (the field edits themselves stay).
+                const stampKeys = ['confirmed_by_id', 'confirmation_date', 'canceled_by_id', 'annulation_date', 'date_livraison', 'reported_date']
+                    .filter((k) => k in updatePayload);
+                if (stampKeys.length > 0) {
+                    const revert: any = {};
+                    stampKeys.forEach((k) => { revert[k] = selectedOrder[k] ?? null; });
+                    await (supabase as any)
+                        .from('orders')
+                        .update(revert)
+                        .eq('id', selectedOrder.id)
+                        .eq('DigiCom Business', activeBusinessId);
+                }
+            }
 
             // 2. Refresh items (Delete & Insert for simplicity, or complex diff)
             const { error: deleteError } = await (supabase as any)
@@ -2014,14 +2036,29 @@ const Orders = () => {
                 );
             });
 
+            // Delete+reinsert must not re-price COGS: the BEFORE INSERT trigger
+            // fills NULL snapshots from TODAY's products.cost_price, so carry the
+            // order's original per-product cost snapshot through the reinsert.
+            const snapshotByProduct = new Map<string, number>();
+            (selectedOrder.items || []).forEach((it: any) => {
+                if (it.product_id && it.product_unit_cost_snapshot != null && !snapshotByProduct.has(it.product_id)) {
+                    snapshotByProduct.set(it.product_id, it.product_unit_cost_snapshot);
+                }
+            });
+            itemRecords.forEach((rec: any) => {
+                if (rec.product_id && snapshotByProduct.has(rec.product_id)) {
+                    rec.product_unit_cost_snapshot = snapshotByProduct.get(rec.product_id);
+                }
+            });
+
             const { error: itemsError } = await (supabase as any)
                 .from('order_items')
                 .insert(itemRecords);
 
             if (itemsError) throw itemsError;
 
-            // 3. Track History if Status Changed
-            if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+            // 3. Track History if Status Changed (and actually stuck)
+            if (statusChanged && !statusKeptPaid) {
                 const statusId = values.order_status_id;
                 let finalComment = values.history_comment || '';
 
@@ -2045,13 +2082,19 @@ const Orders = () => {
                     console.error("History tracking error:", err);
                 }
             }
+
+            return { statusKeptPaid };
         },
-        onSuccess: () => {
+        onSuccess: (result: any) => {
             queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
-            toast({ title: "Order Updated", description: "Changes saved successfully." });
+            if (result?.statusKeptPaid) {
+                toast({ title: "Statut maintenu PAID", description: "Commande sur une note de paiement réglée — le statut n'a pas changé, les autres modifications sont enregistrées.", variant: "destructive" });
+            } else {
+                toast({ title: "Order Updated", description: "Changes saved successfully." });
+            }
         },
         onError: (error: any) => {
             toast({ title: "Error", description: friendlyStockError(error), variant: "destructive" });
@@ -2136,6 +2179,7 @@ const Orders = () => {
                 // insufficient_stock on a confirmed status).
                 const reasonLabel = (reason: string) => {
                     if (reason === 'locked') return 'verrouillée';
+                    if (reason === 'kept_paid') return 'maintenue PAID — note de paiement réglée';
                     if (reason === 'deleted') return 'supprimée';
                     if (reason === 'not_found') return 'introuvable';
                     if (reason === 'not_updatable') return 'non modifiable';
@@ -2222,25 +2266,22 @@ const Orders = () => {
     });
 
     const toggleOrderSelection = (id: string) => {
-        if (lockedOrderIds.has(id)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — sélection impossible.", variant: "destructive" }); return; }
         setSelectedOrders(prev =>
             prev.includes(id) ? prev.filter(oid => oid !== id) : [...prev, id]
         );
     };
 
     const toggleSelectAll = (orderIds: string[]) => {
-        const selectable = orderIds.filter((id) => !lockedOrderIds.has(id));
-        if (selectedOrders.length === selectable.length && selectable.length > 0) {
+        if (selectedOrders.length === orderIds.length && orderIds.length > 0) {
             setSelectedOrders([]);
         } else {
-            setSelectedOrders(selectable);
+            setSelectedOrders(orderIds);
         }
     };
 
     // --- Helpers (page-row derivations — the slim RPC rows carry everything) ---
     // Short flag: computed over the VISIBLE PAGE rows only (slim items vs the
-    // active-only stock maps). Locked: `status.is_paid || is_unpaid` per row —
-    // UI-only; the bulk write guard lives server-side in orders_bulk_guarded.
+    // active-only stock maps).
     const shortOrderIds = useMemo(() => {
         const s = new Set<string>();
         pageRows.forEach((o) => {
@@ -2260,12 +2301,6 @@ const Orders = () => {
         });
         return s;
     }, [pageRows, productStockById, accessoryStockById]);
-
-    const lockedOrderIds = useMemo(() => {
-        const s = new Set<string>();
-        pageRows.forEach((o) => { if (isOrderLocked(o)) s.add(o.id); });
-        return s;
-    }, [pageRows]);
 
     // totalPages / counter pill ride the KPI aggregate's filtered total_count.
     const totalOrdersCount = Number(orderKpis?.total_count ?? 0);
@@ -2315,10 +2350,8 @@ const Orders = () => {
 
     // D1: the slim page row doesn't carry the edit-form payload (address,
     // shipping, notes, item money fields, old-tracking values) — the edit form
-    // rides the shared lazy `fetchOrderById` (full joins + history). The lock
-    // check still runs on the page row first so a locked order never fetches.
+    // rides the shared lazy `fetchOrderById` (full joins + history).
     const handleEdit = async (orderRow: any) => {
-        if (isOrderLocked(orderRow)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — modification impossible.", variant: "destructive" }); return; }
         let order: any;
         try {
             order = await fetchOrderById(orderRow.id);
@@ -3193,7 +3226,6 @@ const Orders = () => {
                                             // latest_tracking_code, can_track, flat items.
                                             const isDuplicateClient = !!order.is_duplicate_phone;
                                             const isShortCard = shortOrderIds.has(order.id);
-                                            const cardLocked = isOrderLocked(order);
                                             const trackingCode = order.latest_tracking_code;
                                             const canTrackParcel = !!order.can_track;
                                             const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
@@ -3231,8 +3263,7 @@ const Orders = () => {
                                                     <Checkbox
                                                         checked={selectedOrders.includes(order.id)}
                                                         onCheckedChange={() => toggleOrderSelection(order.id)}
-                                                        disabled={cardLocked}
-                                                        className={cn("h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light shrink-0", cardLocked && 'opacity-40 cursor-not-allowed')}
+                                                        className="h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light shrink-0"
                                                     />
                                                     <span
                                                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
@@ -3291,7 +3322,7 @@ const Orders = () => {
                                                         >
                                                             <Truck className="w-3.5 h-3.5" /> Track
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => handleEdit(order)} disabled={cardLocked} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
+                                                        <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                             <Edit2 className="w-3.5 h-3.5" /> Edit Order
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
@@ -3477,7 +3508,6 @@ const Orders = () => {
                             orders={arrangeExchangePairs(pageRows)}
                             selectedOrders={selectedOrders}
                             shortOrderIds={shortOrderIds}
-                            lockedOrderIds={lockedOrderIds}
                             toggleOrderSelection={toggleOrderSelection}
                             toggleSelectAll={toggleSelectAll}
                             onView={(order) => { setSelectedOrder(order); setIsViewModalOpen(true); }}
@@ -3485,7 +3515,7 @@ const Orders = () => {
                             onDelete={(order) => setOrderPendingDelete(order)}
                             onTrackParcel={(id) => { setParcelTrackingOrderId(id); setParcelTrackingOpen(true); }}
                             onStatusHistory={setHistoryDialogOrder}
-                            onQuickStatusChange={(order) => { if (isOrderLocked(order)) { toast({ title: "Commande verrouillée", description: "Commande livrée et clôturée — changement de statut impossible.", variant: "destructive" }); return; } setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
+                            onQuickStatusChange={(order) => { setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
                             onStockAlert={(o) => setStockAlert([{ orderName: o.name || 'Commande', lines: computeShortLines(o, productStockById, accessoryStockById) }])}
                             isOrderCategory={isOrderCategory}
                             getCourierPackageStatus={getCourierPackageStatus}

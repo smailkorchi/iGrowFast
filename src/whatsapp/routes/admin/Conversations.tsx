@@ -836,13 +836,6 @@ export default function AdminConversations() {
             open={viewOrderOpen}
             onOpenChange={setViewOrderOpen}
             onEdit={(order) => {
-              // Mirror the Orders page guard: paid/unpaid (delivered/closed) orders
-              // are locked and cannot be edited (isOrderLocked). The joined status
-              // row carries is_paid/is_unpaid.
-              if (order?.status?.is_paid || order?.status?.is_unpaid) {
-                toast.error('Commande verrouillée — livrée et clôturée, modification impossible.')
-                return
-              }
               // Close the view, reopen the cart in edit mode on this order.
               setViewOrderOpen(false)
               cartConvIdRef.current = activeId

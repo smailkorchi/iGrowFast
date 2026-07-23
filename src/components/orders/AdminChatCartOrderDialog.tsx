@@ -1411,7 +1411,10 @@ export function AdminChatCartOrderDialog(props: {
                     updatePayload.canceled_by_id = userId;
                     updatePayload.annulation_date = new Date().toISOString();
                 }
-                if (isOrderCategory(statusId, 'paid')) {
+                if (isOrderCategory(statusId, 'paid') && !selectedOrder.date_livraison) {
+                    // Only stamp when missing — re-stamping now() on an already-
+                    // delivered order moves its commission to the current payout
+                    // month (frozen-ledger double-count).
                     updatePayload.date_livraison = new Date().toISOString();
                 }
                 if (isOrderCategory(statusId, 'postponed')) {
@@ -1419,14 +1422,36 @@ export function AdminChatCartOrderDialog(props: {
                 }
             }
 
-            // 1. Update order
-            const { error: orderError } = await (supabase as any)
+            // 1. Update order — read back the stored status: zzz_orders_keep_paid
+            // silently reverts changes away from PAID while the order sits on a
+            // settled payment note (mirror of the bulk RPC's kept_paid skip).
+            const { data: updatedRow, error: orderError } = await (supabase as any)
                 .from('orders')
                 .update(updatePayload)
                 .eq('id', selectedOrder.id)
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('DigiCom Business', activeBusinessId)
+                .select('order_status_id')
+                .single();
 
             if (orderError) throw orderError;
+
+            const statusChanged = !!values.order_status_id && values.order_status_id !== selectedOrder.order_status_id;
+            const statusKeptPaid = statusChanged && updatedRow?.order_status_id !== values.order_status_id;
+            if (statusKeptPaid) {
+                // Roll back the transition stamps written for the status that
+                // did not stick (the field edits themselves stay).
+                const stampKeys = ['confirmed_by_id', 'confirmation_date', 'canceled_by_id', 'annulation_date', 'date_livraison', 'reported_date']
+                    .filter((k) => k in updatePayload);
+                if (stampKeys.length > 0) {
+                    const revert: any = {};
+                    stampKeys.forEach((k) => { revert[k] = selectedOrder[k] ?? null; });
+                    await (supabase as any)
+                        .from('orders')
+                        .update(revert)
+                        .eq('id', selectedOrder.id)
+                        .eq('DigiCom Business', activeBusinessId);
+                }
+            }
 
             // 2. Refresh items (delete-all-then-reinsert, same as the page)
             const { error: deleteError } = await (supabase as any)
@@ -1455,14 +1480,29 @@ export function AdminChatCartOrderDialog(props: {
                 );
             });
 
+            // Delete+reinsert must not re-price COGS: the BEFORE INSERT trigger
+            // fills NULL snapshots from TODAY's products.cost_price, so carry the
+            // order's original per-product cost snapshot through the reinsert.
+            const snapshotByProduct = new Map<string, number>();
+            (selectedOrder.items || []).forEach((it: any) => {
+                if (it.product_id && it.product_unit_cost_snapshot != null && !snapshotByProduct.has(it.product_id)) {
+                    snapshotByProduct.set(it.product_id, it.product_unit_cost_snapshot);
+                }
+            });
+            itemRecords.forEach((rec: any) => {
+                if (rec.product_id && snapshotByProduct.has(rec.product_id)) {
+                    rec.product_unit_cost_snapshot = snapshotByProduct.get(rec.product_id);
+                }
+            });
+
             const { error: itemsError } = await (supabase as any)
                 .from('order_items')
                 .insert(itemRecords);
 
             if (itemsError) throw itemsError;
 
-            // 3. Track history if status changed
-            if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+            // 3. Track history if status changed (and actually stuck)
+            if (statusChanged && !statusKeptPaid) {
                 const statusId = values.order_status_id;
                 let finalComment = values.history_comment || '';
 
@@ -1486,11 +1526,17 @@ export function AdminChatCartOrderDialog(props: {
                     console.error("History tracking error:", err);
                 }
             }
+
+            return { statusKeptPaid };
         },
-        onSuccess: () => {
+        onSuccess: (result: any) => {
             queryClient.invalidateQueries({ queryKey: ['orders-page'] }); queryClient.invalidateQueries({ queryKey: ['orders-kpis'] });
             queryClient.invalidateQueries({ queryKey: ['order-view'] });
-            toast({ title: "Order Updated", description: "Changes saved successfully." });
+            if (result?.statusKeptPaid) {
+                toast({ title: "Statut maintenu PAID", description: "Commande sur une note de paiement réglée — le statut n'a pas changé, les autres modifications sont enregistrées.", variant: "destructive" });
+            } else {
+                toast({ title: "Order Updated", description: "Changes saved successfully." });
+            }
             // Close, clear the host's edit state, reset to blank; NO draft snapshot.
             props.onOpenChange(false);
             props.onEditClose?.();
