@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/ismailelqorchi/.igrowfast/confirm-guard.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/ismailelqorchi/.claude/scripts/memory-lint.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
