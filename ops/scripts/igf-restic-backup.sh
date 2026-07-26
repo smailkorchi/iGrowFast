@@ -70,7 +70,8 @@ fi
 # 3. postflight content gate: latest snapshot must actually CONTAIN the sentinels
 LSOUT=$(restic ls latest 2>>"$LOG")
 for s in "${SENTINELS[@]}"; do
-  echo "$LSOUT" | grep -qF "$s" || fail "content gate: $s missing from latest snapshot"
+  # herestring, not a pipe: grep -q exiting early must not SIGPIPE the writer under pipefail
+  grep -qF "$s" <<<"$LSOUT" || fail "content gate: $s missing from latest snapshot"
 done
 
 # 4. heartbeat (only after content gate passes)
