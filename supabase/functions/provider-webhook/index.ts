@@ -94,7 +94,7 @@ Deno.serve(async (req: Request) => {
         // ── 4. Validate webhook credentials ─────────────────────────────
         const { data: webhookConfig, error: webhookError } = await supabase
             .from('provider_webhooks')
-            .select('*, "DigiCom Business"')
+            .select('*, "DigiCom Business", providers(provider_type)')
             .eq('webhook_secret', webhookSecret)
             .eq('provider_id', providerId)
             .eq('is_active', true)
@@ -106,6 +106,9 @@ Deno.serve(async (req: Request) => {
         }
 
         const businessId = webhookConfig['DigiCom Business'];
+        // provider_type lives on providers, not provider_webhooks — joined above for the
+        // unmatched-status queue (log_unmatched_provider_status).
+        const providerType: string | null = webhookConfig.providers?.provider_type ?? null;
 
         // ── 5. Extract tracking code (Coliaty=TRACKING, AMEEX=CODE) ─────
         // Forcelog nests fields under `data` — extract defensively without disturbing flat providers.
@@ -306,9 +309,35 @@ Deno.serve(async (req: Request) => {
         if (!matchedStatus) {
             const tried = statusCandidates.filter(c => c !== 'IN_PROGRESS').join(', ');
             console.warn(`[webhook] no mapping for candidates: ${tried}`);
-            // No master match → nothing to persist on the parcel (status_id is the only
-            // status now; the parcel keeps its current status_id). The raw provider string
-            // is not stored.
+            // No master match → status_id is left untouched (the parcel keeps its current
+            // status_id). Capture the VERBATIM primary raw status instead — the first
+            // candidate that isn't the AMEEX synthetic IN_PROGRESS container (same skip rule
+            // as the matching loop above) — on the parcel and in the unmatched-status queue,
+            // for owner triage/mapping. Both writes are fail-open: a failure here must not
+            // block the rest of this handler's existing flow.
+            const rawStatusValue = String(
+                statusCandidates.find((c) => !(c === 'IN_PROGRESS' && isAmeexPayload)) ?? statusCandidates[0]
+            );
+            if (parcel) {
+                try {
+                    const { error: rawStatusErr } = await supabase
+                        .from('company_parcels')
+                        .update({ raw_provider_status: rawStatusValue })
+                        .eq('id', parcel.id);
+                    if (rawStatusErr) console.warn('[webhook] failed to store raw_provider_status:', rawStatusErr.message);
+                } catch (e) {
+                    console.warn('[webhook] raw_provider_status update threw:', e);
+                }
+            }
+            try {
+                const { error: queueErr } = await supabase.rpc('log_unmatched_provider_status', {
+                    p_provider_type: providerType,
+                    p_raw_status: rawStatusValue,
+                });
+                if (queueErr) console.warn('[webhook] log_unmatched_provider_status failed:', queueErr.message);
+            } catch (e) {
+                console.warn('[webhook] log_unmatched_provider_status threw:', e);
+            }
             // If this was a paid-situation event with an unknown status, at least flag payed=true.
             if (isPaidSituation) {
                 await supabase
@@ -419,6 +448,7 @@ Deno.serve(async (req: Request) => {
         if (parcel) {
             await supabase.from('company_parcels').update({
                 status_id: matchedStatus.id,
+                raw_provider_status: null,
                 updated_at: new Date().toISOString(),
             }).eq('id', parcel.id);
         }

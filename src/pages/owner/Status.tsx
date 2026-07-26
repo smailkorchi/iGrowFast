@@ -19,7 +19,11 @@ import {
     AlertTriangle,
     SlidersHorizontal,
     Check,
+    Unlink2,
+    Link2,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { IconPicker } from '@/components/ui/IconPicker';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import {
@@ -82,6 +86,20 @@ const statusSchema = z.object({
     delivery_service_statuses: z.array(z.object({
         value: z.string().min(1, "Status code is required")
     })).optional().default([]),
+    // Semantic flags — only surfaced (and saved) when creating a package status
+    // from the "Non mappés" tab; the normal packages tab still manages these
+    // exclusively via the Comportements tab (BehaviorsConfig).
+    is_new: z.boolean().optional().default(false),
+    is_shipped: z.boolean().optional().default(false),
+    is_awaiting_pickup: z.boolean().optional().default(false),
+    is_delivered: z.boolean().optional().default(false),
+    is_returned: z.boolean().optional().default(false),
+    is_refused: z.boolean().optional().default(false),
+    is_cancelled: z.boolean().optional().default(false),
+    is_postponed: z.boolean().optional().default(false),
+    is_recheck: z.boolean().optional().default(false),
+    is_terminal: z.boolean().optional().default(false),
+    excluded_from_delivery_rate: z.boolean().optional().default(false),
 });
 
 type StatusFormValues = z.infer<typeof statusSchema>;
@@ -107,6 +125,18 @@ type StatusRow = {
     perf_breakdown_phase?: string | null;
 };
 
+type UnmatchedRow = {
+    id: string;
+    provider_type: string;
+    raw_status: string;
+    first_seen: string;
+    last_seen: string;
+    hit_count: number;
+    resolved_at: string | null;
+    resolved_status_id: string | null;
+    resolved_by: string | null;
+};
+
 const errorMessage = (err: unknown): string =>
     err instanceof Error ? err.message : String(err);
 
@@ -126,7 +156,7 @@ function HiddenInOrdersBadge({ className }: { className?: string }) {
 }
 
 const Status = () => {
-    const [activeTab, setActiveTab] = useState<"orders" | "packages" | "behaviors">("orders");
+    const [activeTab, setActiveTab] = useState<"orders" | "packages" | "behaviors" | "unmatched">("orders");
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [editingStatus, setEditingStatus] = useState<StatusRow | null>(null);
@@ -134,6 +164,10 @@ const Status = () => {
     const [statusToDelete, setStatusToDelete] = useState<StatusRow | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    // Bridges the "Créer un statut" action (Non mappés tab) into the shared
+    // upsert dialog: when set, a successful create resolves this unmatched row
+    // against the newly created status instead of showing the normal toast.
+    const [unmatchedResolveTarget, setUnmatchedResolveTarget] = useState<string | null>(null);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -170,7 +204,62 @@ const Status = () => {
             if (error) throw error;
             return (data || []) as unknown as StatusRow[];
         },
-        enabled: activeTab !== 'behaviors',
+        enabled: activeTab === 'orders' || activeTab === 'packages',
+    });
+
+    // Pending-count badge for the "Non mappés" tab — independent of activeTab so
+    // it stays visible while the owner is on another tab.
+    const { data: unmatchedCount = 0 } = useQuery({
+        queryKey: ['unmatched-provider-statuses-count'],
+        staleTime: 30_000,
+        queryFn: async () => {
+            const { count, error } = await supabase
+                .from('unmatched_provider_statuses')
+                .select('*', { count: 'exact', head: true })
+                .is('resolved_at', null);
+            if (error) throw error;
+            return count ?? 0;
+        },
+    });
+
+    // Package statuses for the "Attacher" picker — same query key/shape as the
+    // packages tab so a resolve's invalidation of ['statuses','packages'] keeps
+    // this in sync too.
+    const { data: packageStatusesForPicker } = useQuery({
+        queryKey: ['statuses', 'packages'],
+        staleTime: 60_000,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('package_statuses')
+                .select('*')
+                .order('ranking', { ascending: true });
+            if (error) throw error;
+            return (data || []) as unknown as StatusRow[];
+        },
+        enabled: activeTab === 'unmatched',
+    });
+
+    const resolveMutation = useMutation({
+        mutationFn: async ({ unmatchedId, statusId }: { unmatchedId: string; statusId: string }) => {
+            const { data, error } = await supabase.rpc('resolve_unmatched_provider_status', {
+                p_unmatched_id: unmatchedId,
+                p_status_id: statusId,
+            });
+            if (error) throw error;
+            return data as unknown as { parcels_updated: number; mapping_added: boolean };
+        },
+        onSuccess: (data) => {
+            toast({
+                title: 'Statut mappé',
+                description: `${data.parcels_updated} colis mis à jour.`,
+            });
+            queryClient.invalidateQueries({ queryKey: ['unmatched-provider-statuses'] });
+            queryClient.invalidateQueries({ queryKey: ['unmatched-provider-statuses-count'] });
+            queryClient.invalidateQueries({ queryKey: ['statuses', 'packages'] });
+        },
+        onError: (error) => {
+            toast({ title: 'Erreur', description: errorMessage(error), variant: 'destructive' });
+        },
     });
 
     const form = useForm<StatusFormValues>({
@@ -219,6 +308,22 @@ const Status = () => {
                 } : {
                     show_in_courier: values.show_in_courier,
                 }),
+                // Semantic flags: only set when creating a package status from the
+                // "Non mappés" tab — the normal packages tab never touches these
+                // (they stay owned by the Comportements tab / BehaviorsConfig).
+                ...(activeTab === 'unmatched' ? {
+                    is_new: values.is_new,
+                    is_shipped: values.is_shipped,
+                    is_awaiting_pickup: values.is_awaiting_pickup,
+                    is_delivered: values.is_delivered,
+                    is_returned: values.is_returned,
+                    is_refused: values.is_refused,
+                    is_cancelled: values.is_cancelled,
+                    is_postponed: values.is_postponed,
+                    is_recheck: values.is_recheck,
+                    is_terminal: values.is_terminal,
+                    excluded_from_delivery_rate: values.excluded_from_delivery_rate,
+                } : {}),
             };
 
             if (editingStatus) {
@@ -240,14 +345,20 @@ const Status = () => {
                 return data;
             }
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['statuses', activeTab] });
             setIsUpsertOpen(false);
             setEditingStatus(null);
-            toast({
-                title: editingStatus ? "Status updated" : "Status created",
-                description: `Successfully ${editingStatus ? 'updated' : 'created'} ${form.getValues('label')}.`,
-            });
+            if (unmatchedResolveTarget) {
+                const newStatusId = (data as unknown as { id: string }).id;
+                resolveMutation.mutate({ unmatchedId: unmatchedResolveTarget, statusId: newStatusId });
+                setUnmatchedResolveTarget(null);
+            } else {
+                toast({
+                    title: editingStatus ? "Status updated" : "Status created",
+                    description: `Successfully ${editingStatus ? 'updated' : 'created'} ${form.getValues('label')}.`,
+                });
+            }
         },
         onError: (error) => {
             toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
@@ -274,6 +385,7 @@ const Status = () => {
     };
 
     const openUpsert = (status: StatusRow | null = null) => {
+        setUnmatchedResolveTarget(null);
         if (status) {
             setEditingStatus(status);
             const deliveryStatuses = Array.isArray(status.delivery_service_statuses)
@@ -317,6 +429,41 @@ const Status = () => {
                 delivery_service_statuses: [],
             });
         }
+        setIsUpsertOpen(true);
+    };
+
+    // "Créer un statut" from the Non mappés tab: reuses the same create dialog,
+    // prefilled with the raw provider string as the label. The raw string is
+    // NOT pre-inserted into delivery_service_statuses — resolveMutation adds it.
+    const openUnmatchedCreate = (row: UnmatchedRow) => {
+        setEditingStatus(null);
+        setUnmatchedResolveTarget(row.id);
+        form.reset({
+            code: '',
+            label: row.raw_status,
+            ranking: 0,
+            color: '#D97706',
+            icon: '',
+            recheck: false,
+            active: true,
+            show_in_courier: true,
+            show_in_seller_confirmation: true,
+            show_in_seller_suivi: true,
+            perf_breakdown: false,
+            perf_breakdown_phase: null,
+            delivery_service_statuses: [],
+            is_new: false,
+            is_shipped: false,
+            is_awaiting_pickup: false,
+            is_delivered: false,
+            is_returned: false,
+            is_refused: false,
+            is_cancelled: false,
+            is_postponed: false,
+            is_recheck: false,
+            is_terminal: false,
+            excluded_from_delivery_rate: false,
+        });
         setIsUpsertOpen(true);
     };
 
@@ -436,7 +583,7 @@ const Status = () => {
                             Define the lifecycle for orders and packages — visibility, ranking, and recheck rules.
                         </p>
                     </div>
-                    <div className={cn('flex flex-wrap items-center gap-2', activeTab === 'behaviors' && 'hidden')}>
+                    <div className={cn('flex flex-wrap items-center gap-2', (activeTab === 'behaviors' || activeTab === 'unmatched') && 'hidden')}>
                         <div className="relative flex-1 lg:flex-initial min-w-[200px]">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                             <input
@@ -471,7 +618,7 @@ const Status = () => {
             </header>
 
             {/* KPI hairline strip */}
-            {activeTab !== 'behaviors' && (
+            {(activeTab === 'orders' || activeTab === 'packages') && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
                     <KpiTile label="Total" value={stats.total} accent="bg-ant-ink" />
                     <KpiTile label="Active" value={stats.active} accent="bg-ant-green" />
@@ -487,6 +634,7 @@ const Status = () => {
                         { key: 'orders' as const, label: 'Order statuses', icon: ClipboardCheck },
                         { key: 'packages' as const, label: 'Package statuses', icon: Truck },
                         { key: 'behaviors' as const, label: 'Comportements', icon: SlidersHorizontal },
+                        { key: 'unmatched' as const, label: 'Non mappés', icon: Unlink2 },
                     ]).map((t) => {
                         const isActive = activeTab === t.key;
                         const Icon = t.icon;
@@ -502,11 +650,19 @@ const Status = () => {
                             >
                                 <Icon className="w-3.5 h-3.5" />
                                 {t.label}
+                                {t.key === 'unmatched' && unmatchedCount > 0 && (
+                                    <span className={cn(
+                                        'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-semibold tabular-nums',
+                                        isActive ? 'bg-ant-light text-ant-ink' : 'bg-ant-rose/15 text-ant-rose',
+                                    )}>
+                                        {unmatchedCount}
+                                    </span>
+                                )}
                             </button>
                         );
                     })}
                 </div>
-                {activeTab !== 'behaviors' && (
+                {(activeTab === 'orders' || activeTab === 'packages') && (
                     <div className="sm:ml-auto inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper">
                         <button
                             type="button"
@@ -534,7 +690,17 @@ const Status = () => {
                 )}
             </div>
 
-            {activeTab === 'behaviors' ? <BehaviorsConfig isOwner={isOwner} /> : renderStatusSection()}
+            {activeTab === 'behaviors' ? (
+                <BehaviorsConfig isOwner={isOwner} />
+            ) : activeTab === 'unmatched' ? (
+                <UnmatchedStatusesTab
+                    isOwner={isOwner}
+                    packageStatuses={packageStatusesForPicker || []}
+                    resolving={resolveMutation.isPending}
+                    onAttach={(unmatchedId, statusId) => resolveMutation.mutate({ unmatchedId, statusId })}
+                    onCreateFromRaw={openUnmatchedCreate}
+                />
+            ) : renderStatusSection()}
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
@@ -916,6 +1082,37 @@ const Status = () => {
                                                     </div>
                                                 ))
                                             )}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* Chapter 07 — Comportements (only when creating from Non mappés) */}
+                                {activeTab === 'unmatched' && (
+                                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                        <div className="h-[3px] w-full bg-ant-rose" />
+                                        <div className="px-4 py-3 border-b border-ant-line">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-display text-[10px] text-ant-orange">07</span>
+                                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                    Comportements
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 space-y-2">
+                                            {PKG_BEHAVIORS.map((def) => (
+                                                <FormField
+                                                    key={def.flag}
+                                                    control={form.control}
+                                                    name={def.flag as keyof StatusFormValues}
+                                                    render={({ field }) => (
+                                                        <ToggleRow
+                                                            field={field as unknown as { value: boolean; onChange: (v: boolean) => void }}
+                                                            label={def.title}
+                                                            desc={def.desc}
+                                                        />
+                                                    )}
+                                                />
+                                            ))}
                                         </div>
                                     </section>
                                 )}
@@ -1543,6 +1740,223 @@ const BehaviorsConfig = ({ isOwner }: { isOwner: boolean }) => {
             <Group title="Commandes" icon={ClipboardCheck} defs={ORDER_BEHAVIORS} rows={orderRows} table="order_statuses" loading={loadingOrders} />
             <Group title="Colis" icon={Truck} defs={PKG_BEHAVIORS} rows={pkgRows} table="package_statuses" loading={loadingPkg} />
         </div>
+    );
+};
+
+// ── Non mappés (unmatched provider statuses) ────────────────────────────
+// Provider webhooks that raised no match against any package status land here
+// (see log_unmatched_provider_status). The owner attaches the raw string to an
+// existing master or creates a new one — resolve_unmatched_provider_status does
+// the mapping + retro-apply + close atomically.
+
+type UnmatchedStatusesTabProps = {
+    isOwner: boolean;
+    packageStatuses: StatusRow[];
+    resolving: boolean;
+    onAttach: (unmatchedId: string, statusId: string) => void;
+    onCreateFromRaw: (row: UnmatchedRow) => void;
+};
+
+const UnmatchedStatusesTab = ({ isOwner, packageStatuses, resolving, onAttach, onCreateFromRaw }: UnmatchedStatusesTabProps) => {
+    const [attachRow, setAttachRow] = useState<UnmatchedRow | null>(null);
+    const [selectedStatusId, setSelectedStatusId] = useState<string | null>(null);
+
+    const { data: rows, isLoading } = useQuery({
+        queryKey: ['unmatched-provider-statuses'],
+        staleTime: 30_000,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('unmatched_provider_statuses')
+                .select('*')
+                .is('resolved_at', null)
+                .order('last_seen', { ascending: false });
+            if (error) throw error;
+            return (data || []) as unknown as UnmatchedRow[];
+        },
+    });
+
+    // Affected-parcels count per raw status: fetch the raw strings still sitting
+    // on parcels and compare case-insensitively client-side (no raw_status column
+    // transform — the table itself always shows the string verbatim).
+    const { data: parcelRawCounts } = useQuery({
+        queryKey: ['unmatched-provider-statuses-parcel-counts'],
+        staleTime: 30_000,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('company_parcels')
+                .select('raw_provider_status')
+                .not('raw_provider_status', 'is', null);
+            if (error) throw error;
+            const counts = new Map<string, number>();
+            for (const row of (data || []) as { raw_provider_status: string | null }[]) {
+                if (!row.raw_provider_status) continue;
+                const key = row.raw_provider_status.toLowerCase();
+                counts.set(key, (counts.get(key) || 0) + 1);
+            }
+            return counts;
+        },
+    });
+
+    if (isLoading) {
+        return (
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-ink" />
+                <div className="divide-y divide-ant-line">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-14 w-full rounded-none" />
+                    ))}
+                </div>
+            </section>
+        );
+    }
+
+    if (!rows || rows.length === 0) {
+        return (
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-orange" />
+                <div className="p-10 flex flex-col items-center gap-3 text-center">
+                    <Unlink2 className="w-6 h-6 text-ant-mid" />
+                    <p className="font-display text-[14px] text-ant-ink">Aucun statut non mappé</p>
+                    <p className="font-serif italic text-[12px] text-ant-mid max-w-sm">
+                        Tous les statuts reçus des transporteurs correspondent à un statut existant.
+                    </p>
+                </div>
+            </section>
+        );
+    }
+
+    return (
+        <>
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-ink" />
+                <div className="overflow-x-auto">
+                    <table className="w-full text-[12px] border-collapse">
+                        <thead>
+                            <tr className="border-b border-ant-line text-left">
+                                <th className="px-4 py-2.5 font-display text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid whitespace-nowrap">Statut brut</th>
+                                <th className="px-4 py-2.5 font-display text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid whitespace-nowrap">Transporteur</th>
+                                <th className="px-4 py-2.5 font-display text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid whitespace-nowrap">Vu la 1ère fois</th>
+                                <th className="px-4 py-2.5 font-display text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid whitespace-nowrap">Vu la dernière fois</th>
+                                <th className="px-4 py-2.5 font-display text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid whitespace-nowrap text-right">Occurrences</th>
+                                <th className="px-4 py-2.5 font-display text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid whitespace-nowrap text-right">Colis affectés</th>
+                                {isOwner && <th className="px-4 py-2.5" />}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ant-line">
+                            {rows.map((row) => {
+                                const affected = parcelRawCounts?.get(row.raw_status.toLowerCase()) ?? 0;
+                                return (
+                                    <tr key={row.id} className="hover:bg-ant-light/40 transition-colors">
+                                        <td className="px-4 py-3 font-mono text-ant-ink whitespace-nowrap">{row.raw_status}</td>
+                                        <td className="px-4 py-3 text-ant-mid whitespace-nowrap">{row.provider_type}</td>
+                                        <td className="px-4 py-3 text-ant-mid whitespace-nowrap">{format(new Date(row.first_seen), 'dd MMM yyyy', { locale: fr })}</td>
+                                        <td className="px-4 py-3 text-ant-mid whitespace-nowrap">{format(new Date(row.last_seen), 'dd MMM yyyy', { locale: fr })}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-ant-ink">{row.hit_count}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-ant-ink">{affected}</td>
+                                        {isOwner && (
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setAttachRow(row); setSelectedStatusId(null); }}
+                                                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors whitespace-nowrap"
+                                                    >
+                                                        <Link2 className="w-3 h-3" /> Attacher
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onCreateFromRaw(row)}
+                                                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors whitespace-nowrap"
+                                                    >
+                                                        <Plus className="w-3 h-3" /> Créer un statut
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            {/* Attacher dialog */}
+            <Dialog open={!!attachRow} onOpenChange={(open) => !open && setAttachRow(null)}>
+                <DialogContent className={cn(
+                    'max-w-md p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:rounded-2xl',
+                    '[&>button.absolute]:hidden',
+                )}>
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <DialogHeader className="px-5 pt-4 pb-4 border-b border-ant-line text-left space-y-1.5">
+                        <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Non mappés · Attacher
+                            </span>
+                        </div>
+                        <DialogTitle className="font-display text-[18px] leading-tight text-ant-ink">
+                            Choisir un statut colis
+                        </DialogTitle>
+                        <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                            Mappe <span className="font-mono not-italic text-ant-ink">"{attachRow?.raw_status}"</span> vers un statut existant.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="px-5 py-4 space-y-1.5 max-h-[50vh] overflow-y-auto">
+                        {packageStatuses.length === 0 ? (
+                            <p className="font-serif italic text-[12px] text-ant-mid text-center py-6">Aucun statut colis disponible.</p>
+                        ) : (
+                            packageStatuses.map((s) => {
+                                const color = s.color || '#D97706';
+                                const selected = selectedStatusId === s.id;
+                                return (
+                                    <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => setSelectedStatusId(s.id)}
+                                        className={cn(
+                                            'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all',
+                                            selected ? 'border-ant-ink bg-ant-light' : 'border-ant-line hover:border-ant-ink/30',
+                                        )}
+                                    >
+                                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="font-display text-[13px] text-ant-ink block truncate">{s.label}</span>
+                                            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ant-mid block truncate">{s.code}</span>
+                                        </span>
+                                        {selected && <Check className="w-4 h-4 text-ant-ink shrink-0" />}
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                    <div className="px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line">
+                        <button
+                            type="button"
+                            onClick={() => setAttachRow(null)}
+                            className="flex-1 h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!selectedStatusId || resolving}
+                            onClick={() => {
+                                if (!attachRow || !selectedStatusId) return;
+                                onAttach(attachRow.id, selectedStatusId);
+                                setAttachRow(null);
+                            }}
+                            className="flex-1 h-11 px-5 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-ink/95 disabled:opacity-60 transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
+                        >
+                            {resolving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Attacher
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 };
 

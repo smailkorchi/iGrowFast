@@ -813,6 +813,7 @@ export type Database = {
           order_id: string | null
           provider_id: string | null
           provider_response: Json | null
+          raw_provider_status: string | null
           status_id: string | null
           tracking_code: string | null
           updated_at: string | null
@@ -826,6 +827,7 @@ export type Database = {
           order_id?: string | null
           provider_id?: string | null
           provider_response?: Json | null
+          raw_provider_status?: string | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -839,6 +841,7 @@ export type Database = {
           order_id?: string | null
           provider_id?: string | null
           provider_response?: Json | null
+          raw_provider_status?: string | null
           status_id?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -4420,6 +4423,50 @@ export type Database = {
           },
         ]
       }
+      unmatched_provider_statuses: {
+        Row: {
+          first_seen: string
+          hit_count: number
+          id: string
+          last_seen: string
+          provider_type: string
+          raw_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_status_id: string | null
+        }
+        Insert: {
+          first_seen?: string
+          hit_count?: number
+          id?: string
+          last_seen?: string
+          provider_type: string
+          raw_status: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_status_id?: string | null
+        }
+        Update: {
+          first_seen?: string
+          hit_count?: number
+          id?: string
+          last_seen?: string
+          provider_type?: string
+          raw_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_status_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unmatched_provider_statuses_resolved_status_id_fkey"
+            columns: ["resolved_status_id"]
+            isOneToOne: false
+            referencedRelation: "package_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_invitations: {
         Row: {
           business_id: string
@@ -4898,6 +4945,10 @@ export type Database = {
       invoke_tracking_sync: { Args: { p_trigger?: string }; Returns: number }
       invoke_vitex_poll: { Args: { p_trigger?: string }; Returns: number }
       is_owner: { Args: never; Returns: boolean }
+      log_unmatched_provider_status: {
+        Args: { p_provider_type: string; p_raw_status: string }
+        Returns: undefined
+      }
       login_email_for_username: {
         Args: { p_username: string }
         Returns: string
@@ -4998,6 +5049,10 @@ export type Database = {
       remove_courier_parcel_from_delivery_note: {
         Args: { p_delivery_note_id: string; p_parcel_id: string }
         Returns: undefined
+      }
+      resolve_unmatched_provider_status: {
+        Args: { p_status_id: string; p_unmatched_id: string }
+        Returns: Json
       }
       seller_month_orders: {
         Args: { p_business: string; p_month: string; p_seller: string }
