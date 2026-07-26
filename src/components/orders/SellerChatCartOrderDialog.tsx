@@ -735,21 +735,9 @@ export function SellerChatCartOrderDialog(props: {
             courierFees?.some((f: any) => f.courier_id === c.id && (f.master_city_id === selectedCityId))
         ) || [];
 
-        const feeCompanies = companies?.filter((c: any) =>
-            companyFees?.some((f: any) => f.company_id === c.id && (f.master_city_id === selectedCityId))
-        ) || [];
-
-        // 3. Companies that have a provider_cities mapping for this city
-        const mappedCompanies = companies?.filter((c: any) => {
-            if (!c.provider_type || !providerCities?.length) return false;
-            return providerCities.some(
-                (pc) => pc.master_city_id === selectedCityId && pc.provider_type === c.provider_type
-            );
-        }) || [];
-
         // Combine and unique by ID
         const combinedCouriers = [...(zoneCouriers || []), ...feeCouriers];
-        const combinedCompanies = [...(zoneCompanies || []), ...feeCompanies, ...mappedCompanies];
+        const combinedCompanies = [...(zoneCompanies || [])];
 
         const eligibleCouriers = combinedCouriers
             .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
@@ -760,7 +748,7 @@ export function SellerChatCartOrderDialog(props: {
             .map((c: any) => ({ ...c, type: 'company' }));
 
         return [...eligibleCouriers, ...eligibleCompanies];
-    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees, companyFees, providerCities]);
+    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees]);
 
     // Auto-select best provider and set fee when city changes (Orders.tsx L1713-1762)
     React.useEffect(() => {
