@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import {
   MapPin, Truck, Eye, Package, MoreVertical, Edit2, Trash2, FileSpreadsheet,
-  Calendar, RefreshCcw, Pencil, Package as PackageIcon, AlertTriangle,
+  Calendar, RefreshCcw, Pencil, Package as PackageIcon, AlertTriangle, PackageOpen,
 } from 'lucide-react';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { UserAvatar } from '@/components/users/UserAvatar';
@@ -36,6 +36,9 @@ interface OrdersListViewProps {
   onStatusHistory: (order: any) => void;
   onQuickStatusChange: (order: any) => void;
   onStockAlert?: (order: any) => void;
+  /** Coliaty parcel-change demand — host owns the dialog's open state. */
+  onModifyParcel?: (order: any) => void;
+  getModifyParcelGate?: (order: any) => { visible: boolean; disabled: boolean };
   isOrderCategory: (statusId: string | null | undefined, cat: string) => boolean;
   getCourierPackageStatus: (order: any) => { label: string; color: string | null } | null;
 }
@@ -54,6 +57,8 @@ export default function OrdersListView({
   onStatusHistory,
   onQuickStatusChange,
   onStockAlert,
+  onModifyParcel,
+  getModifyParcelGate,
   isOrderCategory,
   getCourierPackageStatus,
 }: OrdersListViewProps) {
@@ -89,6 +94,7 @@ export default function OrdersListView({
               const exchangeRole = order._exchangeRole as ('exchange' | 'sale' | 'original' | undefined);
               const trackingCode = order.latest_tracking_code;
               const canTrack = !!order.can_track;
+              const modifyParcelGate = getModifyParcelGate?.(order);
 
               const courierPkg = getCourierPackageStatus(order);
               const rawPkgLabel = order.package_status?.label || courierPkg?.label;
@@ -419,6 +425,15 @@ export default function OrdersListView({
                           >
                             <Truck className="w-3.5 h-3.5" /> Track
                           </DropdownMenuItem>
+                          {modifyParcelGate?.visible && (
+                            <DropdownMenuItem
+                              disabled={modifyParcelGate.disabled}
+                              onClick={() => { if (!modifyParcelGate.disabled) onModifyParcel?.(order); }}
+                              className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold"
+                            >
+                              <PackageOpen className="w-3.5 h-3.5" /> Modify Parcel
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => onDelete({ id: order.id, name: order.name })}

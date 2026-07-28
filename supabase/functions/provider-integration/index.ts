@@ -766,6 +766,152 @@ export class ColiatyAdapter {
 
         return `data:application/pdf;base64,${base64}`;
     }
+
+    // GET /parcel/{code}/allowed-destination-cities. Live shape (verified 2026-07-28):
+    // { success, code, message, data: { package_code, package_id, details: {
+    //   can_change_destination: bool, reason: string, allowed_hubs: [], allowed_cities: [] } } }
+    // `allowed_cities` item shape unconfirmed (only seen empty) — items normalized
+    // defensively; array-shaped fallbacks kept in case the endpoint varies.
+    async getAllowedDestinationCities(trackingCode) {
+        const response = await fetch(`${this.baseUrl}/parcel/${encodeURIComponent(trackingCode)}/allowed-destination-cities`, {
+            headers: { Authorization: this.getAuthHeader() }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Coliaty allowed-destination-cities error:', response.status, errorText);
+            let errorMsg = errorText;
+            let errors;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson?.message || errorJson?.error || errorText;
+                errors = errorJson?.errors;
+            } catch (parseError) {
+                // errorText is not JSON - keep the raw text as the message
+            }
+            const err: any = new Error(`Coliaty Error: ${errorMsg}`);
+            err.status_code = response.status;
+            if (errors) err.errors = errors;
+            throw err;
+        }
+
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Coliaty returned non-JSON response: ${responseText.substring(0, 300)}`);
+        }
+
+        const details = data?.data?.details;
+        const raw = Array.isArray(details?.allowed_cities) ? details.allowed_cities
+            : Array.isArray(data) ? data
+            : Array.isArray(data?.data) ? data.data
+            : null;
+        if (!raw) {
+            throw new Error(`Coliaty: unrecognized allowed-destination-cities response: ${responseText.substring(0, 300)}`);
+        }
+
+        const cities = raw.map((c: any) => {
+            if (typeof c === 'string') return { id: null, name: c };
+            return {
+                id: c?.id ?? c?.city_id ?? null,
+                name: String(c?.name ?? c?.city_name ?? c?.label ?? c?.ville ?? '')
+            };
+        }).filter((c: any) => c.name);
+
+        if (cities.length === 0 && raw.length > 0) {
+            throw new Error(`Coliaty: unrecognized allowed-destination-cities item shape: ${responseText.substring(0, 300)}`);
+        }
+
+        return {
+            cities,
+            // Coliaty tells us whether this parcel's status allows a destination
+            // change, with a French reason — surface it instead of an empty list.
+            can_change_destination: details ? details.can_change_destination !== false : true,
+            reason: typeof details?.reason === 'string' ? details.reason : null
+        };
+    }
+
+    // POST /parcel-change-demand/create. request_type CORRECT_INFORMATION fixes
+    // phone/receiver/price/note (city+address not required); CHANGE_DESTINATION also
+    // requires package_city + package_address. package_reciever is Coliaty's own
+    // misspelling - sent exactly as they define it.
+    async createParcelChangeDemand(trackingCode, params) {
+        const payload: any = {
+            package_code: trackingCode,
+            request_type: params.request_type,
+            package_phone: params.package_phone,
+            package_reciever: params.package_reciever,
+            package_price: params.package_price,
+            package_note: params.package_note
+        };
+        if (params.request_type === 'CHANGE_DESTINATION') {
+            payload.package_city = params.package_city;
+            payload.package_address = params.package_address;
+        }
+
+        const response = await fetch(`${this.baseUrl}/parcel-change-demand/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: this.getAuthHeader()
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Coliaty parcel-change-demand error:', response.status, errorText);
+            let errorMsg = errorText;
+            let errors;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson?.message || errorJson?.error || errorText;
+                errors = errorJson?.errors;
+            } catch (parseError) {
+                // errorText is not JSON - keep the raw text as the message
+            }
+            const err: any = new Error(`Coliaty Error: ${errorMsg}`);
+            err.status_code = response.status;
+            if (errors) err.errors = errors;
+            throw err;
+        }
+
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Coliaty returned non-JSON response: ${responseText.substring(0, 300)}`);
+        }
+
+        const details = data?.data?.details || {};
+        const ref = details.ref;
+        // Coliaty can answer 2xx without actually confirming the demand — never
+        // treat that as success. Require an explicit success flag AND a ref.
+        if (data?.success !== true || ref === undefined || ref === null || ref === '') {
+            const err: any = new Error(
+                data?.message || data?.error || `Coliaty: réponse de succès invalide (ref manquante) — ${responseText.substring(0, 300)}`
+            );
+            err.status_code = 502;
+            if (data?.errors) err.errors = data.errors;
+            throw err;
+        }
+        return {
+            success: true,
+            demand: {
+                id: details.id,
+                ref,
+                status: details.status,
+                request_type: details.request_type,
+                created_at: details.created_at
+            },
+            package_code: data?.data?.package_code,
+            package_id: data?.data?.package_id,
+            message: data?.message
+        };
+    }
 }
 
 class AmeexAdapter {
@@ -4194,6 +4340,46 @@ class DelvoExpressAdapter {
     }
 }
 
+// Shared caller-authorization guard for the two Coliaty parcel-change-demand
+// actions (get_allowed_destination_cities / create_parcel_change_demand):
+// resolves the bearer JWT to a user, then requires the target company_parcels
+// row (matched by tracking_code + provider_id) to belong to the caller's own
+// business ("DigiCom Business" on both users and company_parcels). Throws an
+// Error with status_code (401/403) — the callers' existing status_code catch
+// blocks already know how to turn that into a Response.
+async function assertParcelChangeAccess(req, supabase, providerId, trackingCode) {
+    const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+    if (!jwt) {
+        const err: any = new Error('Authentification requise.');
+        err.status_code = 401;
+        throw err;
+    }
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(jwt);
+    if (userErr || !user) {
+        const err: any = new Error('Authentification requise.');
+        err.status_code = 401;
+        throw err;
+    }
+    const { data: me } = await supabase
+        .from('users')
+        .select('"DigiCom Business"')
+        .eq('id', user.id)
+        .maybeSingle();
+    const { data: parcel } = await supabase
+        .from('company_parcels')
+        .select('"DigiCom Business"')
+        .eq('provider_id', providerId)
+        .eq('tracking_code', trackingCode)
+        .maybeSingle();
+    const callerBiz = me?.['DigiCom Business'];
+    const parcelBiz = parcel?.['DigiCom Business'];
+    if (!callerBiz || !parcelBiz || callerBiz !== parcelBiz) {
+        const err: any = new Error('Accès refusé pour ce colis.');
+        err.status_code = 403;
+        throw err;
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
     try {
@@ -4324,6 +4510,70 @@ Deno.serve(async (req) => {
             case 'list_provider_cities': {
                 if (typeof adapter.listCities !== 'function') throw new Error(`${type} ne supporte pas list_provider_cities.`);
                 result = { items: await adapter.listCities() };
+                break;
+            }
+            case 'get_allowed_destination_cities': {
+                if (typeof adapter.getAllowedDestinationCities !== 'function') throw new Error(`${type} ne supporte pas get_allowed_destination_cities.`);
+                if (!data?.tracking_code) throw new Error('Tracking code required');
+                console.log('Getting Coliaty allowed destination cities:', data.tracking_code);
+                try {
+                    await assertParcelChangeAccess(req, supabase, provider_id, data.tracking_code);
+                    result = await adapter.getAllowedDestinationCities(data.tracking_code);
+                } catch (err: any) {
+                    if (typeof err?.status_code === 'number') {
+                        return new Response(JSON.stringify({
+                            error: err.message,
+                            status_code: err.status_code,
+                            ...(err.errors ? { errors: err.errors } : {})
+                        }), {
+                            status: err.status_code,
+                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                        });
+                    }
+                    throw err;
+                }
+                break;
+            }
+            case 'create_parcel_change_demand': {
+                if (typeof adapter.createParcelChangeDemand !== 'function') throw new Error(`${type} ne supporte pas create_parcel_change_demand.`);
+                if (!data?.tracking_code) throw new Error('Tracking code required');
+                if (data.request_type !== 'CORRECT_INFORMATION' && data.request_type !== 'CHANGE_DESTINATION') {
+                    throw new Error('request_type must be CORRECT_INFORMATION or CHANGE_DESTINATION');
+                }
+                if (typeof data.package_phone !== 'string' || !data.package_phone.trim()) {
+                    throw new Error('package_phone is required');
+                }
+                if (typeof data.package_reciever !== 'string' || !data.package_reciever.trim()) {
+                    throw new Error('package_reciever is required');
+                }
+                if (typeof data.package_price !== 'number' || !Number.isFinite(data.package_price) || data.package_price < 0) {
+                    throw new Error('package_price must be a non-negative number');
+                }
+                if (data.request_type === 'CHANGE_DESTINATION') {
+                    const cityOk = data.package_city !== undefined && data.package_city !== null
+                        && (typeof data.package_city !== 'string' || data.package_city.trim().length > 0);
+                    const addressOk = typeof data.package_address === 'string' && data.package_address.trim().length > 0;
+                    if (!cityOk || !addressOk) {
+                        throw new Error('package_city and package_address are required for CHANGE_DESTINATION');
+                    }
+                }
+                console.log('Creating Coliaty parcel change demand:', data.tracking_code, data.request_type);
+                try {
+                    await assertParcelChangeAccess(req, supabase, provider_id, data.tracking_code);
+                    result = await adapter.createParcelChangeDemand(data.tracking_code, data);
+                } catch (err: any) {
+                    if (typeof err?.status_code === 'number') {
+                        return new Response(JSON.stringify({
+                            error: err.message,
+                            status_code: err.status_code,
+                            ...(err.errors ? { errors: err.errors } : {})
+                        }), {
+                            status: err.status_code,
+                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                        });
+                    }
+                    throw err;
+                }
                 break;
             }
             case 'register_webhook': {

@@ -37,6 +37,7 @@ import {
     BarChart3,
     Puzzle,
     AlertTriangle,
+    PackageOpen,
 } from 'lucide-react';
 
 
@@ -90,6 +91,7 @@ import {
     OrderContactSubmenu,
 } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { ParcelChangeDemandDialog, type ParcelChangeDemandOrder } from '@/components/orders/ParcelChangeDemandDialog';
 import OrderViewDialog from '@/components/orders/OrderViewDialog';
 import { WebhookHealthIndicator } from '@/components/orders/WebhookHealthIndicator';
 import { fetchOrderById } from '@/lib/orders/fetchOrderById';
@@ -510,7 +512,12 @@ const Orders = () => {
     const [reportedData, setReportedData] = useState<{ date: Date | undefined, time: string, comment: string }>({ date: undefined, time: "12:00", comment: "" });
     const [pendingReportedAction, setPendingReportedAction] = useState<((date: Date, time: string, comment: string) => void) | null>(null);
     const reportedStatusRevertRef = useRef<string | null>(null);
-    const { getOrderByCategory, isOrderCategory } = useStatusCategories();
+    const { getOrderByCategory, isOrderCategory, packageStatuses: masterPackageStatuses } = useStatusCategories();
+    // Parcel statuses a Coliaty change demand can no longer act on (master flags).
+    const closedPackageStatusIds = useMemo(
+        () => new Set(masterPackageStatuses.filter((s) => s.is_terminal || s.is_returned).map((s) => s.id)),
+        [masterPackageStatuses],
+    );
     const REPORTED_STATUS_ID = getOrderByCategory('postponed')?.id;
     const defaultNewOrderStatusId = getOrderByCategory('new')?.id ?? '';
 
@@ -607,6 +614,8 @@ const Orders = () => {
     const [orderPendingDelete, setOrderPendingDelete] = useState<{ id: string; name: string } | null>(null);
     const [parcelTrackingOpen, setParcelTrackingOpen] = useState(false);
     const [parcelTrackingOrderId, setParcelTrackingOrderId] = useState<string | null>(null);
+    const [parcelChangeOpen, setParcelChangeOpen] = useState(false);
+    const [parcelChangeOrder, setParcelChangeOrder] = useState<ParcelChangeDemandOrder | null>(null);
     const [historyDialogOrder, setHistoryDialogOrder] = useState<any>(null);
 
     // Add custom scrollbar styles to head
@@ -839,6 +848,22 @@ const Orders = () => {
             return data;
         }
     });
+
+    // Coliaty change-demand gate — tracking/provider read exclusively from the
+    // company-parcel `can_track` lateral (never courier), disabled once the
+    // package status is terminal/returned. Shared by the card menu and the
+    // list-view row menu so gating never diverges.
+    const getParcelChangeGate = (order: any) => {
+        const tracking = String(
+            order.can_track?.provider_id ? (order.can_track.tracking_code || order.latest_tracking_code || '') : ''
+        ).trim();
+        return {
+            tracking,
+            providerId: order.can_track?.provider_id ? String(order.can_track.provider_id) : '',
+            visible: !!tracking && orderCompanyIsColiaty(companies, order.can_track?.provider_id),
+            disabled: !!order.package_status_id && closedPackageStatusIds.has(order.package_status_id),
+        };
+    };
 
     const { data: courierZones } = useQuery({
         queryKey: ['courier-zones-all', activeBusinessId],
@@ -3216,6 +3241,10 @@ const Orders = () => {
                                             const isShortCard = shortOrderIds.has(order.id);
                                             const trackingCode = order.latest_tracking_code;
                                             const canTrackParcel = !!order.can_track;
+                                            const parcelChangeGate = getParcelChangeGate(order);
+                                            const changeDemandTracking = parcelChangeGate.tracking;
+                                            const canDemandChange = parcelChangeGate.visible;
+                                            const parcelStatusClosed = parcelChangeGate.disabled;
                                             const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
                                                 .find((it: any) => it?.image_url);
                                             const cardProductThumb: string | null = cardFirstItem?.image_url || null;
@@ -3310,6 +3339,29 @@ const Orders = () => {
                                                         >
                                                             <Truck className="w-3.5 h-3.5" /> Track
                                                         </DropdownMenuItem>
+                                                        {canDemandChange && (
+                                                            <DropdownMenuItem
+                                                                disabled={parcelStatusClosed}
+                                                                onClick={() => {
+                                                                    if (parcelStatusClosed) return;
+                                                                    const rp = resolveById(order.package_status_id);
+                                                                    setParcelChangeOrder({
+                                                                        id: order.id,
+                                                                        name: order.name,
+                                                                        phone: order.phone,
+                                                                        price: order.price,
+                                                                        trackingCode: changeDemandTracking,
+                                                                        providerId: String(order.can_track.provider_id),
+                                                                        statusLabel: rp?.label ?? order.package_status?.label ?? null,
+                                                                        statusColor: rp?.color ?? order.package_status?.color ?? null,
+                                                                    });
+                                                                    setParcelChangeOpen(true);
+                                                                }}
+                                                                className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold"
+                                                            >
+                                                                <PackageOpen className="w-3.5 h-3.5" /> Modify Parcel
+                                                            </DropdownMenuItem>
+                                                        )}
                                                         <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                             <Edit2 className="w-3.5 h-3.5" /> Edit Order
                                                         </DropdownMenuItem>
@@ -3505,6 +3557,22 @@ const Orders = () => {
                             onStatusHistory={setHistoryDialogOrder}
                             onQuickStatusChange={(order) => { setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
                             onStockAlert={(o) => setStockAlert([{ orderName: o.name || 'Commande', lines: computeShortLines(o, productStockById, accessoryStockById) }])}
+                            onModifyParcel={(order) => {
+                                const gate = getParcelChangeGate(order);
+                                const rp = resolveById(order.package_status_id);
+                                setParcelChangeOrder({
+                                    id: order.id,
+                                    name: order.name,
+                                    phone: order.phone,
+                                    price: order.price,
+                                    trackingCode: gate.tracking,
+                                    providerId: gate.providerId,
+                                    statusLabel: rp?.label ?? order.package_status?.label ?? null,
+                                    statusColor: rp?.color ?? order.package_status?.color ?? null,
+                                });
+                                setParcelChangeOpen(true);
+                            }}
+                            getModifyParcelGate={getParcelChangeGate}
                             isOrderCategory={isOrderCategory}
                             getCourierPackageStatus={getCourierPackageStatus}
                         />
@@ -5140,6 +5208,19 @@ const Orders = () => {
                     if (!open) setParcelTrackingOrderId(null);
                 }}
                 orderId={parcelTrackingOrderId}
+            />
+
+            <ParcelChangeDemandDialog
+                open={parcelChangeOpen}
+                onOpenChange={(open) => {
+                    setParcelChangeOpen(open);
+                    if (!open) setParcelChangeOrder(null);
+                }}
+                order={parcelChangeOrder}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['orders-page', activeBusinessId] });
+                    queryClient.invalidateQueries({ queryKey: ['orders-kpis', activeBusinessId] });
+                }}
             />
 
             <OrderStatusHistoryDialog
