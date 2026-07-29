@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
-    Crown, Shield, Headphones, Bike, Target, ArrowRight, ArrowLeft, Loader2, Copy, Check,
+    Crown, Gem, Shield, Headphones, Bike, Target, ArrowRight, ArrowLeft, Loader2, Copy, Check,
     Link as LinkIcon, Search, SlidersHorizontal, UserPlus, Package, Wallet, Sparkles,
     BarChart3, Megaphone, Mail, MailCheck, AlertCircle, Send, type LucideIcon,
 } from 'lucide-react';
@@ -19,8 +19,11 @@ import {
     USER_PAGES, type InviteRole,
 } from '@/lib/invitations';
 
+/** 'business owner' is invitable only by a business owner — hence not part of the base InviteRole union. */
+type WizardRole = InviteRole | 'business owner';
+
 interface RoleMeta {
-    key: InviteRole;
+    key: WizardRole;
     label: string;
     desc: string;
     icon: LucideIcon;
@@ -37,6 +40,17 @@ const ROLES: RoleMeta[] = [
     { key: 'mediabuyer', label: 'Media buyer', desc: 'Runs the ads across every platform.', icon: Target, tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange', ring: 'ring-ant-orange/60', dot: 'bg-ant-orange' },
 ];
 
+/** Only offered when the viewer is a business owner (allowBusinessOwner). */
+const BUSINESS_OWNER_ROLE: RoleMeta = {
+    key: 'business owner',
+    label: 'Business owner',
+    desc: 'Contrôle total de l’entreprise — gère tous les utilisateurs.',
+    icon: Gem,
+    tile: 'bg-ant-blue/10 border-ant-blue/25 text-ant-blue',
+    ring: 'ring-ant-blue/60',
+    dot: 'bg-ant-blue',
+};
+
 const STEPS = [
     { label: 'Role', icon: UserPlus },
     { label: 'Access', icon: SlidersHorizontal },
@@ -47,12 +61,18 @@ interface InviteUserWizardProps {
     isOpen: boolean;
     onClose: () => void;
     activeBusinessId: string | null;
+    /** Business owners may invite peers — adds the 'business owner' tile. */
+    allowBusinessOwner?: boolean;
 }
 
-export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUserWizardProps) => {
+export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId, allowBusinessOwner = false }: InviteUserWizardProps) => {
     const { toast } = useToast();
     const [step, setStep] = useState<0 | 1 | 2>(0);
-    const [role, setRole] = useState<InviteRole | null>(null);
+    const [role, setRole] = useState<WizardRole | null>(null);
+    const roleTiles = useMemo(
+        () => (allowBusinessOwner ? [BUSINESS_OWNER_ROLE, ...ROLES] : ROLES),
+        [allowBusinessOwner],
+    );
 
     // Authorization fields (admin-set; never the invitee's identity).
     const [pages, setPages] = useState<Record<string, boolean>>({});
@@ -98,7 +118,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
 
     useEffect(() => { if (isOpen) reset(); }, [isOpen]);
 
-    const roleMeta = ROLES.find((r) => r.key === role);
+    const roleMeta = roleTiles.find((r) => r.key === role);
 
     const { data: products } = useQuery({
         queryKey: ['invite-products', activeBusinessId],
@@ -140,7 +160,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
     const buildPayload = (): Record<string, unknown> => {
         const base: Record<string, unknown> = { active: true };
         if (role === 'admin') return { ...base, permissions: { pages } };
-        if (role === 'super admin') return base;
+        if (role === 'super admin' || role === 'business owner') return base;
         if (role === 'commercial') return {
             ...base, commission_price: commissionPrice, commission_basis: commissionBasis,
             payment_type: paymentType, salary_amount: salaryAmount, products: productIds,
@@ -182,7 +202,9 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
         setGenerating(true);
         try {
             const res = await createInvitation({
-                target_role: role, email: inviteEmail.trim().toLowerCase(), profile_payload: buildPayload(),
+                // 'business owner' is a valid server-side target role; the shared InviteRole
+                // union stays narrow because only BO viewers may select it.
+                target_role: role as InviteRole, email: inviteEmail.trim().toLowerCase(), profile_payload: buildPayload(),
             });
             setLink(res.link);
             setToken(res.token);
@@ -293,7 +315,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                     {/* STEP 0 — ROLE CARDS */}
                     {step === 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {ROLES.map((r) => {
+                            {roleTiles.map((r) => {
                                 const Icon = r.icon;
                                 const active = role === r.key;
                                 return (
@@ -369,6 +391,16 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId }: InviteUs
                                     <p className="text-[11px] font-medium text-ant-mid">Couldn’t verify right now — you can still proceed.</p>
                                 )}
                             </div>
+
+                            {role === 'business owner' && (
+                                <div className="rounded-2xl border border-ant-blue/25 bg-ant-blue/5 p-6 text-center">
+                                    <Gem className="w-6 h-6 text-ant-blue mx-auto mb-2" />
+                                    <p className="text-[13px] font-semibold text-ant-ink">Contrôle total</p>
+                                    <p className="text-[12px] text-ant-mid mt-1">
+                                        Un business owner gère tous les utilisateurs de l’entreprise. Rien à configurer ici.
+                                    </p>
+                                </div>
+                            )}
 
                             {role === 'super admin' && (
                                 <div className="rounded-2xl border border-ant-rose/25 bg-ant-rose/5 p-6 text-center">

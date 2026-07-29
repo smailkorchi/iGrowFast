@@ -48,6 +48,8 @@ import {
     Power,
     PowerOff,
     KeyRound,
+    Lock,
+    Send,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -104,6 +106,9 @@ import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
 import { InviteUserWizard } from '@/components/users/InviteUserWizard';
 import { InvitationsPanel } from '@/components/users/InvitationsPanel';
+import { DirectCreateUserDialog, type RoleOption } from '@/components/users/DirectCreateUserDialog';
+import { ChangeRoleDialog } from '@/components/users/ChangeRoleDialog';
+import { SetPasswordDialog } from '@/components/users/SetPasswordDialog';
 import { requestCredentialChange } from '@/lib/credentialChange';
 
 const userSchema = z.object({
@@ -378,8 +383,18 @@ const ROLE_META: Record<string, {
 
 const ROLE_ORDER = ['business owner', 'super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'] as const;
 
+// The six real, assignable roles — 'others' is a display bucket, never a choice.
+const ASSIGNABLE_ROLES: RoleOption[] = ROLE_ORDER
+    .filter((r) => r !== 'others')
+    .map((r) => ({ value: r, label: ROLE_META[r].label }));
+
 const Users = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    // Business owners choose between direct creation and an invitation before the wizard opens.
+    const [isAddChooserOpen, setIsAddChooserOpen] = useState(false);
+    const [isDirectCreateOpen, setIsDirectCreateOpen] = useState(false);
+    const [roleTarget, setRoleTarget] = useState<any>(null);
+    const [passwordTarget, setPasswordTarget] = useState<any>(null);
     const [editingUser, setEditingUser] = useState<any>(null);
     const [userToDelete, setUserToDelete] = useState<any>(null);
     // Suspend / reactivate flow: capture an optional reason (fed into the email) before flipping status.
@@ -390,6 +405,32 @@ const Users = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+
+    // Viewer's own role — gates the business-owner management powers below.
+    // Session uid first, so the role query below is keyed per user — a
+    // same-tab account switch can never serve the previous user's cached role.
+    const { data: viewerUid } = useQuery({
+        queryKey: ['viewer-uid'],
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => (await supabase.auth.getUser()).data?.user?.id ?? null,
+    });
+    const { data: viewerRole } = useQuery({
+        queryKey: ['viewer-role', viewerUid],
+        enabled: !!viewerUid,
+        staleTime: 30 * 60 * 1000, // own role barely changes within a session
+        queryFn: async () => {
+            const { data: auth } = await supabase.auth.getUser();
+            const uid = auth?.user?.id;
+            if (!uid) return null;
+            const { data, error } = await supabase.from('users').select('role').eq('id', uid).maybeSingle();
+            if (error) throw error;
+            return (data?.role as string | null) ?? null;
+        },
+    });
+    const isBO = String(viewerRole || '').toLowerCase() === 'business owner';
+
+    // Non-BO viewers keep the invitation wizard as the only path.
+    const openAddFlow = () => (isBO ? setIsAddChooserOpen(true) : setIsAddModalOpen(true));
 
     const { data: users, isLoading } = useQuery({
         queryKey: ['users', activeBusinessId],
@@ -607,7 +648,7 @@ const Users = () => {
                         </p>
                     </div>
                     <Button
-                        onClick={() => setIsAddModalOpen(true)}
+                        onClick={openAddFlow}
                         className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
                     >
                         <UserPlus className="w-4 h-4" />
@@ -688,7 +729,7 @@ const Users = () => {
                         </p>
                         {!users?.length && (
                             <Button
-                                onClick={() => setIsAddModalOpen(true)}
+                                onClick={openAddFlow}
                                 className="mt-5 bg-ant-ink hover:bg-ant-ink/90 text-white h-9 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
                             >
                                 <UserPlus className="w-4 h-4" />
@@ -727,6 +768,9 @@ const Users = () => {
                                             onDelete={() => setUserToDelete(user)}
                                             onToggleActive={() => { setStatusReason(''); setStatusTarget({ user, active: !user.active }); }}
                                             onSendLink={() => sendLinkMutation.mutate(user.id)}
+                                            isBO={isBO}
+                                            onChangeRole={() => setRoleTarget(user)}
+                                            onSetPassword={() => setPasswordTarget(user)}
                                         />
                                     ))}
                                 </div>
@@ -824,12 +868,78 @@ const Users = () => {
                     </DialogContent>
                 </Dialog>
 
+                {/* Business owners pick the path first: full identity now, or an invite link. */}
+                <Dialog open={isAddChooserOpen} onOpenChange={(open) => !open && setIsAddChooserOpen(false)}>
+                    <DialogContent className="max-w-lg p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                Nouvel utilisateur
+                            </div>
+                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+                                Comment voulez-vous procéder&nbsp;?
+                            </DialogTitle>
+                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                Créez le compte vous-même, ou laissez la personne définir sa propre identité via un lien.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => { setIsAddChooserOpen(false); setIsDirectCreateOpen(true); }}
+                                className="text-left p-4 rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/30 hover:shadow-sm transition-all duration-200 motion-reduce:transition-none cursor-pointer"
+                            >
+                                <div className="w-10 h-10 rounded-xl border bg-ant-ink/6 border-ant-ink/20 text-ant-ink flex items-center justify-center mb-3">
+                                    <UserPlus className="w-4 h-4" strokeWidth={1.75} />
+                                </div>
+                                <p className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight">Créer directement</p>
+                                <p className="text-[11.5px] text-ant-mid leading-snug mt-1">
+                                    Vous saisissez l&rsquo;identité et le mot de passe. Compte actif immédiatement.
+                                </p>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setIsAddChooserOpen(false); setIsAddModalOpen(true); }}
+                                className="text-left p-4 rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/30 hover:shadow-sm transition-all duration-200 motion-reduce:transition-none cursor-pointer"
+                            >
+                                <div className="w-10 h-10 rounded-xl border bg-ant-orange/10 border-ant-orange/25 text-ant-orange flex items-center justify-center mb-3">
+                                    <Send className="w-4 h-4" strokeWidth={1.75} />
+                                </div>
+                                <p className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight">Envoyer une invitation</p>
+                                <p className="text-[11.5px] text-ant-mid leading-snug mt-1">
+                                    La personne choisit son nom, son email, son mot de passe et son avatar.
+                                </p>
+                            </button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <DirectCreateUserDialog
+                    isOpen={isDirectCreateOpen}
+                    onClose={() => setIsDirectCreateOpen(false)}
+                    roleOptions={ASSIGNABLE_ROLES}
+                />
+
                 {/* New users are created via an invite link — admins set role + access, the
                     invitee sets their own identity (name, email, password, avatar). */}
                 <InviteUserWizard
                     isOpen={isAddModalOpen}
                     onClose={() => { setIsAddModalOpen(false); queryClient.invalidateQueries({ queryKey: ['invitations'] }); }}
                     activeBusinessId={activeBusinessId}
+                    allowBusinessOwner={isBO}
+                />
+
+                <ChangeRoleDialog
+                    isOpen={!!roleTarget}
+                    onClose={() => setRoleTarget(null)}
+                    user={roleTarget}
+                    roleOptions={ASSIGNABLE_ROLES}
+                />
+
+                <SetPasswordDialog
+                    isOpen={!!passwordTarget}
+                    onClose={() => setPasswordTarget(null)}
+                    user={passwordTarget}
                 />
 
                 {editingUser && (
@@ -855,6 +965,9 @@ const UserCard = ({
     onDelete,
     onToggleActive,
     onSendLink,
+    isBO,
+    onChangeRole,
+    onSetPassword,
 }: {
     user: any;
     meta: typeof ROLE_META[string];
@@ -862,6 +975,10 @@ const UserCard = ({
     onDelete: () => void;
     onToggleActive: () => void;
     onSendLink: () => void;
+    /** Viewer is a business owner — unlocks role + password management on every row. */
+    isBO: boolean;
+    onChangeRole: () => void;
+    onSetPassword: () => void;
 }) => {
     const isActive = user.active;
     const canEdit = hasEditableConfig(user.role);
@@ -941,6 +1058,17 @@ const UserCard = ({
                             <DropdownMenuItem onClick={onSendLink} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
                                 <KeyRound className="w-3.5 h-3.5 text-ant-orange" /> Send change link
                             </DropdownMenuItem>
+                            {isBO && (
+                                <>
+                                    <DropdownMenuSeparator className="my-1 bg-ant-line" />
+                                    <DropdownMenuItem onClick={onChangeRole} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                        <Shield className="w-3.5 h-3.5 text-ant-blue" /> Changer le rôle
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={onSetPassword} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                        <Lock className="w-3.5 h-3.5 text-ant-blue" /> Définir le mot de passe
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                             <DropdownMenuSeparator className="my-1 bg-ant-line" />
                             <DropdownMenuItem onClick={onDelete} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 gap-2">
                                 <Trash2 className="w-3.5 h-3.5" /> Delete user

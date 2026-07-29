@@ -15,7 +15,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ALLOWED_TARGET_ROLES = ["super admin", "admin", "commercial", "courier", "mediabuyer"];
+const ALLOWED_TARGET_ROLES = ["super admin", "business owner", "admin", "commercial", "courier", "mediabuyer"];
+const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être géré que par un propriétaire ou la plateforme.";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const DISPOSABLE = new Set([
@@ -149,8 +150,8 @@ Deno.serve(async (req) => {
 
     const targetRole = String(body?.target_role ?? "");
     if (!ALLOWED_TARGET_ROLES.includes(targetRole)) return json({ error: "Invalid target role" }, 400);
-    if (targetRole === "business owner") {
-      return json({ error: "Business owner cannot be invited" }, 403);
+    if (targetRole === "business owner" && me.role !== "business owner" && me.role !== "owner") {
+      return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
     }
     if (me.role === "admin" && targetRole === "super admin") {
       return json({ error: "Admins cannot invite super admins" }, 403);

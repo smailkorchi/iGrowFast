@@ -17,7 +17,7 @@ const ROLE_FR: Record<string, string> = {
   "super admin": "Super administrateur", "business owner": "Propriétaire d'entreprise", "admin": "Administrateur", "commercial": "Commercial",
   "courier": "Livreur", "mediabuyer": "Media buyer", "owner": "Propriétaire",
 };
-const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être modifié que par la plateforme.";
+const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être géré que par un propriétaire ou la plateforme.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -52,7 +52,9 @@ Deno.serve(async (req) => {
     if (!target) return json({ ok: false, reason: "not_found" }, 404);
     if (target["DigiCom Business"] !== businessId) return json({ ok: false, reason: "forbidden" }, 403);
     if (userId === user.id) return json({ ok: false, reason: "cannot_change_self" }, 400);
-    if (target.role === "business owner" && me.role !== "owner") {
+    // Target already verified same-business above. No last-BO check —
+    // suspension is reversible.
+    if (target.role === "business owner" && me.role !== "owner" && me.role !== "business owner") {
       return json({ ok: false, reason: "forbidden", error: BIZ_OWNER_PROTECTED_MSG }, 403);
     }
 

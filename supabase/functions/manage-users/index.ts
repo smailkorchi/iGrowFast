@@ -24,10 +24,12 @@ function json(body: unknown, status = 200): Response {
 // pinned to their own business.
 const ADMIN_ROLES = ["super admin", "business owner", "admin", "owner"];
 
-// Business owner is protected: only the platform owner may create, edit,
-// delete, or suspend a business-owner account. The DB trigger can't see the
-// real caller through these service-role writes, so this function enforces it.
-const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être modifié que par la plateforme.";
+// Business owner is protected: only the platform owner, or a business owner
+// acting within their OWN business, may create, edit, delete, or suspend a
+// business-owner account. The DB trigger can't see the real caller through
+// these service-role writes, so this function enforces it.
+const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être géré que par un propriétaire ou la plateforme.";
+const LAST_BIZ_OWNER_MSG = "Impossible de retirer le dernier propriétaire de l'entreprise.";
 
 // Map raw Postgres / GoTrue errors to messages a human can act on.
 // supabase-js AuthApiError can surface an opaque body whose .message is "{}"
@@ -212,15 +214,25 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!me || !ADMIN_ROLES.includes(me.role)) return json({ error: "forbidden" }, 403);
 
-    const { action, userData, userId } = await req.json();
+    const body = await req.json();
+    const { action, userData, userId } = body;
 
     if (action === "create") {
       // backup_admin is grantable ONLY by the backup_root account; backup_root is
       // never settable through the app. Destructuring strips both from `rest` so
       // they can't ride in via the service-role writes below.
       const { email, password, name, username, role, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
-      if (role === "business owner" && me.role !== "owner") {
+      // A BO caller creating a "business owner" is structurally same-business
+      // already (the tenant-force below pins `rest["DigiCom Business"]` to
+      // me["DigiCom Business"]); only super admin / admin callers are blocked.
+      if (role === "business owner" && me.role !== "owner" && me.role !== "business owner") {
         return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+      }
+      // The PLATFORM 'owner' role can never be minted through this API by a
+      // non-owner caller — a BO promoting a peer to platform owner would be a
+      // full privilege escalation (mirrors the DB trigger's boundary guard).
+      if (role === "owner" && me.role !== "owner") {
+        return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
       }
       if (me.backup_root === true && typeof backup_admin === "boolean") {
         rest.backup_admin = backup_admin;
@@ -285,15 +297,45 @@ Deno.serve(async (req) => {
       // Same rule as create: only the backup_root caller may set backup_admin;
       // backup_root itself is never accepted from the client.
       const { email, password, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
+      // Business moves are PLATFORM-OWNER-ONLY. Without this strip, a BO could
+      // relocate himself (or a peer) into another business through this
+      // service-role write — the DB trigger cannot see the real caller here
+      // (auth.uid() is NULL), so the edge is the enforcer for tenant moves.
+      if (me.role !== "owner") {
+        delete rest["DigiCom Business"];
+      }
       if (me.backup_root === true && typeof backup_admin === "boolean") {
         rest.backup_admin = backup_admin;
       }
 
       if (me.role !== "owner") {
+        // Platform-owner boundary: no non-owner caller may set (or strip) the
+        // platform 'owner' role — mirrors the DB trigger's boundary guard.
+        if (rest.role === "owner") {
+          return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
+        }
         const { data: targetUser } = await supabaseClient
-          .from("users").select("role").eq("id", userId).maybeSingle();
-        if (targetUser?.role === "business owner" || rest.role === "business owner") {
+          .from("users").select('role, "DigiCom Business"').eq("id", userId).maybeSingle();
+        if (targetUser?.role === "owner") {
+          return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
+        }
+        const sameBiz = me.role === "business owner" &&
+          targetUser?.["DigiCom Business"] === me["DigiCom Business"];
+        if ((targetUser?.role === "business owner" || rest.role === "business owner") && !sameBiz) {
           return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+        }
+        // Last-BO rule: a business must never lose its last business owner.
+        // Platform-owner callers bypass this (handled by the `me.role !== "owner"` guard above).
+        if (targetUser?.role === "business owner" && rest.role && rest.role !== "business owner") {
+          const { count } = await supabaseClient
+            .from("users")
+            .select("id", { count: "exact", head: true })
+            .eq("role", "business owner")
+            .eq("DigiCom Business", targetUser["DigiCom Business"])
+            .neq("id", userId);
+          if (!count) {
+            return json({ error: LAST_BIZ_OWNER_MSG }, 403);
+          }
         }
       }
 
@@ -364,8 +406,25 @@ Deno.serve(async (req) => {
       const { data: doomed } = await supabaseClient
         .from("users").select('name, email, role, "DigiCom Business"').eq("id", userId).maybeSingle();
 
-      if (doomed?.role === "business owner" && me.role !== "owner") {
-        return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+      if (doomed?.role === "business owner") {
+        const sameBiz = me.role === "business owner" &&
+          doomed["DigiCom Business"] === me["DigiCom Business"];
+        if (me.role !== "owner" && !sameBiz) {
+          return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+        }
+        // Last-BO rule: a business must never lose its last business owner.
+        // Platform-owner callers bypass this (they may orphan deliberately).
+        if (me.role !== "owner") {
+          const { count } = await supabaseClient
+            .from("users")
+            .select("id", { count: "exact", head: true })
+            .eq("role", "business owner")
+            .eq("DigiCom Business", doomed["DigiCom Business"])
+            .neq("id", userId);
+          if (!count) {
+            return json({ error: LAST_BIZ_OWNER_MSG }, 403);
+          }
+        }
       }
 
       const { error: authError } = await supabaseClient.auth.admin.deleteUser(userId);
@@ -417,6 +476,25 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
+    }
+
+    if (action === "set_password") {
+      const { user_id, new_password } = body;
+      if (typeof new_password !== "string" || new_password.length < 8) {
+        return json({ error: "Mot de passe trop court (8 caractères minimum)." }, 400);
+      }
+      if (me.role !== "owner") {
+        const { data: targetUser } = await supabaseClient
+          .from("users").select('"DigiCom Business"').eq("id", user_id).maybeSingle();
+        const sameBiz = me.role === "business owner" &&
+          targetUser?.["DigiCom Business"] === me["DigiCom Business"];
+        if (!sameBiz) return json({ error: "forbidden" }, 403);
+      }
+
+      const { error: pwError } = await supabaseClient.auth.admin.updateUserById(user_id, { password: new_password });
+      if (pwError) throw friendlyError(pwError, "password");
+
+      return json({ success: true });
     }
 
     return new Response(JSON.stringify({ error: "Invalid action" }), {
