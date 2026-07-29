@@ -23,9 +23,11 @@
 import { pool, supabase } from '../db.js'
 import { log } from '../logger.js'
 import { setActiveNumbers } from '../heartbeat.js'
-import { warmupPresenceChannels } from '../webhook/handlers.js'
+import { warmupPresenceChannels, resetPresenceChannels } from '../webhook/handlers.js'
 import { config } from '../config.js'
+import { noteRealtimeEvent, startRealtimeSupervisor, stopRealtimeSupervisor } from '../realtime-supervisor.js'
 import {
+  hasLoop,
   loopCount,
   spawnDispatcher,
   stopDispatcher,
@@ -481,7 +483,8 @@ async function reconcileEvolutionStatuses(): Promise<void> {
       // gate on status='disconnected', so a missed wa:node 'disconnect' broadcast
       // would otherwise keep the loop sending → 404s → premature dead-marking.
       // Idempotent (no-op if not running); the watchdog handles reconnection, and a
-      // later 'open' respawns via wa:node / loadAllAndReconcile with the queue intact.
+      // later 'open' respawns via wa:node — or, if that broadcast is missed, via the
+      // owned-but-loopless backstop in renewLeases() (queue intact either way).
       if (state === 'close') {
         await stopDispatcher(r.id).catch(() => undefined)
       }
@@ -558,6 +561,32 @@ async function renewLeases(): Promise<void> {
       }
     }
 
+    // Owned-but-loopless backstop. The reconcile/wa:node 'close' path stops a
+    // dispatcher WITHOUT releasing its lease, so stillOwned alone can hide a
+    // dead loop: the newlyClaimed branch above never sees it, and if the
+    // wa:node socket is wedged the 'open' respawn broadcast never arrives
+    // (incident 2026-07-28: connection flap → stopDispatcher; realtime channel
+    // TIMED_OUT for days → Orelle muted 17h while leases kept renewing).
+    // Owning a lease must imply the loop matches DB state — re-apply any owned
+    // instance with no running loop; shouldRun() gates, so a genuinely
+    // disconnected number stays stopped and this is silent in steady state.
+    const loopless = [...stillOwned].filter((id) => !hasLoop(id))
+    if (loopless.length > 0) {
+      const { rows: looplessRows } = await pool.query<RawInstanceRow>(
+        `${INSTANCE_SELECT} WHERE id = ANY($1)`,
+        [loopless],
+      )
+      for (const row of looplessRows) {
+        if (!shouldRun(row.status, row.lifecycle_state)) continue
+        log.warn('instance.loop.respawned_by_lease_backstop', { number_id: row.id })
+        await applyState(row).catch((err) =>
+          log.error('instance.loop.respawn_failed', {
+            number_id: row.id,
+            error: err instanceof Error ? err.message : String(err),
+          }))
+      }
+    }
+
     // Any instances we used to own but no longer hold the lease for: stop them
     for (const id of ownedInstanceIds) {
       if (!stillOwned.has(id)) {
@@ -628,6 +657,126 @@ async function applyInstanceControl(row: RawInstanceRow): Promise<void> {
   await applyState(row)
 }
 
+// Subscribes (or resubscribes, after a rebuild) the wa:node broadcast channel.
+// Extracted from startInstanceManager so rebuildRealtime() can call it too.
+function subscribeNodeChannel(): void {
+  nodeChannel = supabase
+    .channel(`wa:node:${config.nodeId}`, { config: { private: true } })
+    .on('broadcast', { event: 'instance' }, async ({ payload }) => {
+      noteRealtimeEvent()
+      try {
+        const p = payload as (RawInstanceRow & { deleted?: boolean }) | undefined
+        if (!p) return
+        if ((p as { deleted?: boolean }).deleted === true) {
+          const id = (p as { id?: string }).id
+          if (id) {
+            await stopDispatcher(id)
+            setActiveNumbers(loopCount())
+            log.info('instance.deleted.wanode', { number_id: id })
+          }
+          return
+        }
+        const row = p as RawInstanceRow
+        await applyInstanceControl(row)
+        log.info('instance.reconciled.wanode', {
+          number_id: row.id, status: row.status, lifecycle: row.lifecycle_state,
+        })
+      } catch (err) {
+        log.error('instance.wanode_handler_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    })
+    // wa:node dispatch/media WAKES — the SOLE wake path since Phase 3a moved the
+    // worker off LISTEN and mig 057 dropped the dead pg_notify producers.
+    // wakeLoop/wakeMediaIngest are self-filtering (no-op if this node doesn't own
+    // the number / has no pending media), so a wake is always safe to receive.
+    // Logged at debug: high-frequency, only needed when tracing wake delivery.
+    .on('broadcast', { event: 'wake_outbound' }, ({ payload }) => {
+      noteRealtimeEvent()
+      const numberId = (payload as { number_id?: string })?.number_id
+      if (numberId) { log.debug('wanode.wake_outbound', { number_id: numberId }); wakeLoop(numberId) }
+    })
+    .on('broadcast', { event: 'wake_media' }, ({ payload }) => {
+      noteRealtimeEvent()
+      const messageId = (payload as { message_id?: string })?.message_id
+      if (messageId) { log.debug('wanode.wake_media', { message_id: messageId }); wakeMediaIngest(messageId) }
+    })
+    // Realtime-supervisor self-probe (SQL realtime.send → this channel). Confirms
+    // the socket is actually delivering broadcasts end-to-end, not just "connected".
+    .on('broadcast', { event: 'probe' }, () => { noteRealtimeEvent() })
+    .subscribe((status) => {
+      log.info('instance.wanode_status', { status })
+      if (status === 'SUBSCRIBED') {
+        // Deliberately NOT noteRealtimeEvent() here: a join ack is not proof of
+        // delivery. Only an arriving broadcast (probe included) resets the
+        // supervisor, so a subscribe-then-deaf-again socket keeps escalating
+        // backoff instead of thrashing at the floor. Boot is covered by the
+        // supervisor's init timestamp.
+        if (wanodeHadError) {
+          wanodeHadError = false
+          // Reconnected — a wa:node control change (assign/reassign/disconnect/rate)
+          // may have fired while we were down. Full node-local reconcile catches it.
+          void loadAllAndReconcile().catch((err) =>
+            log.error('instance.wanode.reconcile_failed', {
+              error: err instanceof Error ? err.message : String(err),
+            }))
+        }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        wanodeHadError = true
+      }
+    })
+}
+
+// Rebuilds every realtime channel from scratch after the supervisor declares
+// the socket deaf. Each step is isolated so one failure doesn't abort the
+// rest of the rebuild.
+export async function rebuildRealtime(): Promise<void> {
+  log.warn('realtime.rebuild.start')
+  try {
+    // Socket down FIRST. On a joined-but-deaf wedge, removing a channel over
+    // the zombie socket sends a real leave() push and parks the channel in
+    // 'leaving' for the push timeout — long enough for the warmup below to
+    // re-adopt the same dying channel from socket.channels. With the socket
+    // closed, every removal below resolves synchronously and cleanly.
+    supabase.realtime.disconnect()
+  } catch {
+    // ignore — best-effort
+  }
+  if (nodeChannel) {
+    try {
+      await supabase.removeChannel(nodeChannel)
+    } catch (err) {
+      log.error('realtime.rebuild.remove_node_channel_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    nodeChannel = null
+  }
+  try {
+    resetPresenceChannels()
+  } catch (err) {
+    log.error('realtime.rebuild.reset_presence_failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  try {
+    subscribeNodeChannel()
+  } catch (err) {
+    log.error('realtime.rebuild.subscribe_failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  try {
+    await loadAllAndReconcile()
+  } catch (err) {
+    log.error('realtime.rebuild.reconcile_failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  log.info('realtime.rebuild.done')
+}
+
 export async function startInstanceManager(): Promise<void> {
   // Heal any rows stuck on a stale status BEFORE we decide which loops to run
   // — loadAllAndReconcile()/leases gate on status='connected', so a stuck
@@ -666,64 +815,15 @@ export async function startInstanceManager(): Promise<void> {
   // the lease interval: renewLeases() rescans node_id=self connected instances,
   // claims un-owned, and applyState()s them (spawns dispatchers) — the same backstop
   // coverage the worker always had. Boot state comes from loadAllAndReconcile().
-  nodeChannel = supabase
-    .channel(`wa:node:${config.nodeId}`, { config: { private: true } })
-    .on('broadcast', { event: 'instance' }, async ({ payload }) => {
-      try {
-        const p = payload as (RawInstanceRow & { deleted?: boolean }) | undefined
-        if (!p) return
-        if ((p as { deleted?: boolean }).deleted === true) {
-          const id = (p as { id?: string }).id
-          if (id) {
-            await stopDispatcher(id)
-            setActiveNumbers(loopCount())
-            log.info('instance.deleted.wanode', { number_id: id })
-          }
-          return
-        }
-        const row = p as RawInstanceRow
-        await applyInstanceControl(row)
-        log.info('instance.reconciled.wanode', {
-          number_id: row.id, status: row.status, lifecycle: row.lifecycle_state,
-        })
-      } catch (err) {
-        log.error('instance.wanode_handler_failed', {
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
-    })
-    // wa:node dispatch/media WAKES — the SOLE wake path since Phase 3a moved the
-    // worker off LISTEN and mig 057 dropped the dead pg_notify producers.
-    // wakeLoop/wakeMediaIngest are self-filtering (no-op if this node doesn't own
-    // the number / has no pending media), so a wake is always safe to receive.
-    // Logged at debug: high-frequency, only needed when tracing wake delivery.
-    .on('broadcast', { event: 'wake_outbound' }, ({ payload }) => {
-      const numberId = (payload as { number_id?: string })?.number_id
-      if (numberId) { log.debug('wanode.wake_outbound', { number_id: numberId }); wakeLoop(numberId) }
-    })
-    .on('broadcast', { event: 'wake_media' }, ({ payload }) => {
-      const messageId = (payload as { message_id?: string })?.message_id
-      if (messageId) { log.debug('wanode.wake_media', { message_id: messageId }); wakeMediaIngest(messageId) }
-    })
-    .subscribe((status) => {
-      log.info('instance.wanode_status', { status })
-      if (status === 'SUBSCRIBED') {
-        if (wanodeHadError) {
-          wanodeHadError = false
-          // Reconnected — a wa:node control change (assign/reassign/disconnect/rate)
-          // may have fired while we were down. Full node-local reconcile catches it.
-          void loadAllAndReconcile().catch((err) =>
-            log.error('instance.wanode.reconcile_failed', {
-              error: err instanceof Error ? err.message : String(err),
-            }))
-        }
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        wanodeHadError = true
-      }
-    })
+  subscribeNodeChannel()
+
+  // Realtime supervisor — self-probes the wa:node socket end-to-end and
+  // rebuilds every realtime channel if it goes deaf (see realtime-supervisor.ts).
+  startRealtimeSupervisor({ rebuild: rebuildRealtime })
 }
 
 export async function stopInstanceManager(): Promise<void> {
+  stopRealtimeSupervisor()
   if (renewTimer) {
     clearInterval(renewTimer)
     renewTimer = null

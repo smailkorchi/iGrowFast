@@ -2934,6 +2934,16 @@ export async function warmupPresenceChannels(instanceIds: string[]): Promise<voi
   }
 }
 
+/** Tears down every tracked presence channel (realtime-supervisor rebuild).
+ *  getPresenceChannel() recreates lazily on next use; loadAllAndReconcile()
+ *  re-warms via warmupPresenceChannels() right after a rebuild. */
+export function resetPresenceChannels(): void {
+  for (const ch of presenceChannels.values()) {
+    void supabase.removeChannel(ch).catch(() => undefined)
+  }
+  presenceChannels.clear()
+}
+
 // LID → phone-JID cache. Peer presence events arrive keyed by @lid after
 // WhatsApp's privacy migration; the frontend keys conversations by phone JID
 // (@s.whatsapp.net), so we resolve before broadcasting. 10-minute TTL — the

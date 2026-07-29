@@ -180,12 +180,16 @@ export function spawnDispatcher(instance: InstanceConfig): void {
     lifecycle: instance.lifecycleState,
   })
   // Kick off the loop without awaiting — fire and forget.
-  runLoop(r).catch((err) =>
+  runLoop(r).catch((err) => {
     log.error('dispatcher.loop.fatal', {
       number_id: instance.id,
       error: err instanceof Error ? err.message : String(err),
-    }),
-  )
+    })
+    // Drop the dead loop from the map so hasLoop() reads false and the
+    // owned-but-loopless backstop in renewLeases() can respawn it — otherwise
+    // a fatal rejection leaves a ghost entry that blinds every self-heal.
+    if (loops.get(instance.id) === r) loops.delete(instance.id)
+  })
 }
 
 /** Flag the loop to exit cleanly after the current dispatch (if any). */
@@ -199,6 +203,7 @@ export async function stopDispatcher(numberId: string): Promise<void> {
 }
 
 export function loopCount(): number { return loops.size }
+export function hasLoop(numberId: string): boolean { return loops.has(numberId) }
 export function inflightCount(): number {
   let n = 0
   for (const r of loops.values()) if (r.inflight) n++
