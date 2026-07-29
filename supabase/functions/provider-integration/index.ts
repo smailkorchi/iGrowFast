@@ -4346,7 +4346,8 @@ class DelvoExpressAdapter {
 // row (matched by tracking_code + provider_id) to belong to the caller's own
 // business ("DigiCom Business" on both users and company_parcels). Throws an
 // Error with status_code (401/403) — the callers' existing status_code catch
-// blocks already know how to turn that into a Response.
+// blocks already know how to turn that into a Response. Returns the resolved
+// { userId, businessId, parcelOrderId } for callers that persist a demand row.
 async function assertParcelChangeAccess(req, supabase, providerId, trackingCode) {
     const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
     if (!jwt) {
@@ -4367,7 +4368,7 @@ async function assertParcelChangeAccess(req, supabase, providerId, trackingCode)
         .maybeSingle();
     const { data: parcel } = await supabase
         .from('company_parcels')
-        .select('"DigiCom Business"')
+        .select('"DigiCom Business", order_id')
         .eq('provider_id', providerId)
         .eq('tracking_code', trackingCode)
         .maybeSingle();
@@ -4378,6 +4379,7 @@ async function assertParcelChangeAccess(req, supabase, providerId, trackingCode)
         err.status_code = 403;
         throw err;
     }
+    return { userId: user.id, businessId: callerBiz, parcelOrderId: parcel?.order_id ?? null };
 }
 
 Deno.serve(async (req) => {
@@ -4559,8 +4561,64 @@ Deno.serve(async (req) => {
                 }
                 console.log('Creating Coliaty parcel change demand:', data.tracking_code, data.request_type);
                 try {
-                    await assertParcelChangeAccess(req, supabase, provider_id, data.tracking_code);
+                    const access = await assertParcelChangeAccess(req, supabase, provider_id, data.tracking_code);
                     result = await adapter.createParcelChangeDemand(data.tracking_code, data);
+
+                    // Local demand persistence — FAIL-OPEN: the demand exists at Coliaty
+                    // regardless of whether we manage to record it here, so a failure
+                    // here must never turn a successful demand into a 400 response.
+                    try {
+                        let oldValues: Record<string, unknown> = {
+                            phone: null, receiver: null, price: null, city: null, address: null, note: null
+                        };
+                        if (access.parcelOrderId) {
+                            const { data: orderRow } = await supabase
+                                .from('orders')
+                                .select('phone, name, price, address, city:master_cities(name)')
+                                .eq('id', access.parcelOrderId)
+                                .maybeSingle();
+                            if (orderRow) {
+                                oldValues = {
+                                    phone: orderRow.phone ?? null,
+                                    receiver: orderRow.name ?? null,
+                                    price: orderRow.price ?? null,
+                                    city: (orderRow as any).city?.name ?? null,
+                                    address: orderRow.address ?? null,
+                                    note: null
+                                };
+                            }
+                        }
+                        const newValues: Record<string, unknown> = {
+                            phone: data.package_phone,
+                            receiver: data.package_reciever,
+                            price: data.package_price,
+                            note: data.package_note ?? null
+                        };
+                        if (data.request_type === 'CHANGE_DESTINATION') {
+                            // package_city may be a Coliaty city ID — store the human label
+                            // (sent by the dialog as package_city_label, never forwarded to Coliaty)
+                            // so the tracking-card diff reads « Casablanca », not « 152 ».
+                            newValues.city = data.package_city_label ?? data.package_city;
+                            newValues.address = data.package_address;
+                        }
+                        const { error: pcdErr } = await supabase
+                            .from('parcel_change_demands')
+                            .upsert({
+                                'DigiCom Business': access.businessId,
+                                order_id: access.parcelOrderId,
+                                provider_id,
+                                tracking_code: data.tracking_code,
+                                ref: result?.demand?.ref,
+                                request_type: data.request_type,
+                                old_values: oldValues,
+                                new_values: newValues,
+                                raw: result?.demand ?? null,
+                                created_by: access.userId
+                            }, { onConflict: 'provider_id,ref' });
+                        if (pcdErr) console.error('parcel_change_demands upsert failed:', pcdErr);
+                    } catch (persistErr) {
+                        console.error('parcel_change_demands persistence failed:', persistErr);
+                    }
                 } catch (err: any) {
                     if (typeof err?.status_code === 'number') {
                         return new Response(JSON.stringify({

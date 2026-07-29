@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { format, isValid } from 'date-fns';
-import { Loader2, Truck, SearchX, Hash, Phone, MapPin, CalendarClock, Info } from 'lucide-react';
+import { Loader2, Truck, SearchX, Hash, Phone, MapPin, CalendarClock, Info, PencilLine } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Dialog,
@@ -37,6 +37,72 @@ type PkgStatus = {
     delivery_service_statuses: string[] | null;
 };
 
+/** A parcel-change demand we filed with the provider (public.parcel_change_demands). */
+type ChangeDemand = {
+    id: string;
+    ref: string;
+    request_type: string;
+    status: string;
+    old_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+    created_at: string;
+    resolved_at: string | null;
+    created_by_user?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+const DEMAND_TYPE_LABEL: Record<string, string> = {
+    CORRECT_INFORMATION: "Correction d'informations",
+    CHANGE_DESTINATION: 'Changement de destination',
+};
+
+const DEMAND_STATUS_CHIP: Record<string, { label: string; className: string }> = {
+    PENDING: { label: 'En attente', className: 'border border-ant-line text-ant-mid' },
+    APPROVED: { label: 'Approuvée', className: 'bg-ant-green/10 text-ant-green' },
+    REJECTED: { label: 'Refusée', className: 'bg-ant-rose/10 text-ant-rose' },
+    UNKNOWN: { label: 'Mise à jour reçue', className: 'bg-ant-ink/5 text-ant-mid' },
+};
+
+/** Demand payload keys, in display order (written by the provider-integration edge fn). */
+const DEMAND_FIELDS: { key: string; label: string }[] = [
+    { key: 'phone', label: 'Téléphone' },
+    { key: 'receiver', label: 'Destinataire' },
+    { key: 'price', label: 'Prix' },
+    { key: 'note', label: 'Note' },
+    { key: 'city', label: 'Ville' },
+    { key: 'address', label: 'Adresse' },
+];
+
+const demandText = (v: unknown): string => {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'boolean') return v ? 'Oui' : 'Non';
+    if (typeof v === 'object') return '';
+    return String(v).trim();
+};
+
+/** Only the fields that actually changed — skip equal, both-empty, or absent-in-new. */
+const demandDiffs = (d: ChangeDemand) => {
+    const oldV = (d.old_values || {}) as Record<string, unknown>;
+    const newV = (d.new_values || {}) as Record<string, unknown>;
+    return DEMAND_FIELDS.flatMap(({ key, label }) => {
+        if (newV[key] === undefined) return [];
+        const next = demandText(newV[key]);
+        const prev = demandText(oldV[key]);
+        if (!next && !prev) return [];
+        // Numeric equality for the price only — a phone like 0612… must never be
+        // compared as a number (leading zero would make it equal to 612…).
+        const numeric = key === 'price' && prev !== '' && next !== ''
+            && Number.isFinite(Number(prev)) && Number.isFinite(Number(next));
+        if (numeric ? Number(prev) === Number(next) : prev === next) return [];
+        return [{ key, label, prev, next }];
+    });
+};
+
+const demandAuthor = (d: ChangeDemand): string => {
+    const u = d.created_by_user;
+    const row = Array.isArray(u) ? u[0] : u;
+    return (row?.name || '').trim();
+};
+
 export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrackingDialogProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -60,6 +126,26 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
         enabled: open,
         staleTime: 5 * 60 * 1000,
     });
+
+    // Parcel-change demands we filed for this parcel. Additive + silent: on error
+    // the timeline renders exactly as it does today.
+    const { data: demands } = useQuery({
+        queryKey: ['parcel-change-demands', orderId, trackingCode],
+        queryFn: async () => {
+            const { data } = await (supabase as any)
+                .from('parcel_change_demands')
+                .select('id, ref, request_type, status, old_values, new_values, created_at, resolved_at, created_by_user:users!parcel_change_demands_created_by_fkey(name)')
+                .eq('order_id', orderId as string)
+                .eq('tracking_code', trackingCode as string)
+                .order('created_at', { ascending: true });
+            return (data || []) as ChangeDemand[];
+        },
+        // OR-11: kept-mounted dialog — gate on `open` (see the comment above).
+        enabled: open && !!trackingCode,
+        staleTime: 60 * 1000,
+    });
+
+    const hasApprovedDemand = (demands ?? []).some(d => d.status === 'APPROVED');
 
     useEffect(() => {
         if (!open || !orderId) {
@@ -227,6 +313,11 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     </DialogTitle>
                     <DialogDescription className="font-bold text-ant-muted">
                         Code: <span className="text-ant-ink">{trackingCode || '—'}</span>
+                        {hasApprovedDemand && (
+                            <span className="ml-2 align-middle inline-flex items-center text-[10px] font-semibold bg-ant-ink/5 text-ant-ink rounded-md px-2 py-0.5">
+                                Infos modifiées
+                            </span>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -259,14 +350,100 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                 // Reverse: oldest first (top) → newest last (bottom)
                                 const sorted = [...events].reverse();
 
+                                // Interleave the change demands by created_at. Events keep
+                                // their relative order; an event with no parseable date
+                                // inherits the last known timestamp so it stays anchored
+                                // next to its neighbours.
+                                type TimelineItem =
+                                    | { kind: 'event'; ts: number; ord: number; event: Record<string, unknown> }
+                                    | { kind: 'demand'; ts: number; ord: number; demand: ChangeDemand };
+                                let carried = Number.NEGATIVE_INFINITY;
+                                const eventItems: TimelineItem[] = sorted.map((raw, i) => {
+                                    const ev = raw as Record<string, unknown>;
+                                    const d = ev.date ? new Date(ev.date as string) : null;
+                                    if (d && isValid(d)) carried = d.getTime();
+                                    return { kind: 'event', ts: carried, ord: i, event: ev };
+                                });
+                                const demandItems: TimelineItem[] = (demands ?? []).map((dm, i) => {
+                                    const d = new Date(dm.created_at);
+                                    return {
+                                        kind: 'demand',
+                                        ts: isValid(d) ? d.getTime() : Number.POSITIVE_INFINITY,
+                                        ord: sorted.length + i,
+                                        demand: dm,
+                                    };
+                                });
+                                const merged = [...eventItems, ...demandItems].sort((a, b) =>
+                                    a.ts === b.ts ? a.ord - b.ord : a.ts < b.ts ? -1 : 1,
+                                );
+                                const lastEventOrd = sorted.length - 1;
+
                                 return (
                                     <div className="relative pl-10">
                                         {/* Vertical line */}
                                         <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-ant-line via-ant-line to-ant-ink/30" />
 
                                         <div className="space-y-0">
-                                            {sorted.map((raw: unknown, idx: number) => {
-                                                const event = raw as Record<string, unknown>;
+                                            {merged.map((item: TimelineItem, idx: number) => {
+                                                if (item.kind === 'demand') {
+                                                    const dm = item.demand;
+                                                    const chip = DEMAND_STATUS_CHIP[dm.status] || DEMAND_STATUS_CHIP.UNKNOWN;
+                                                    const diffs = demandDiffs(dm);
+                                                    const author = demandAuthor(dm);
+                                                    const createdAt = new Date(dm.created_at);
+                                                    const resolvedAt = dm.resolved_at ? new Date(dm.resolved_at) : null;
+                                                    return (
+                                                        <div key={dm.id} className="relative pb-6 last:pb-0">
+                                                            {/* Timeline node */}
+                                                            <div className="absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white bg-ant-light text-ant-ink shadow-sm flex items-center justify-center z-10">
+                                                                {dm.request_type === 'CHANGE_DESTINATION' ? (
+                                                                    <MapPin className="w-3.5 h-3.5" />
+                                                                ) : (
+                                                                    <PencilLine className="w-3.5 h-3.5" />
+                                                                )}
+                                                            </div>
+
+                                                            <div className="rounded-xl border border-ant-line bg-ant-paper px-3.5 py-3 space-y-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-[12px] font-semibold text-ant-ink">
+                                                                        {DEMAND_TYPE_LABEL[dm.request_type] || 'Demande de modification'}
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${chip.className}`}>
+                                                                        {chip.label}
+                                                                    </span>
+                                                                    <span className="ml-auto text-[10px] tabular-nums text-ant-mid">{dm.ref}</span>
+                                                                </div>
+
+                                                                {diffs.length > 0 && (
+                                                                    <div className="space-y-1">
+                                                                        {diffs.map(diff => (
+                                                                            <div key={diff.key} className="flex items-start gap-2">
+                                                                                <span className="text-[10.5px] text-ant-mid w-24 shrink-0 pt-px">{diff.label}</span>
+                                                                                <span className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-1.5">
+                                                                                    {diff.prev && (
+                                                                                        <>
+                                                                                            <span className="text-[11px] text-ant-mid line-through break-words">{diff.prev}</span>
+                                                                                            <span className="text-[11px] text-ant-mid/60">→</span>
+                                                                                        </>
+                                                                                    )}
+                                                                                    <span className="text-[11px] text-ant-ink font-semibold break-words">{diff.next || '—'}</span>
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+
+                                                                <p className="text-[10.5px] text-ant-mid">
+                                                                    {author ? `Par ${author} · ` : ''}
+                                                                    {isValid(createdAt) ? format(createdAt, 'dd/MM/yyyy HH:mm') : '—'}
+                                                                    {resolvedAt && isValid(resolvedAt) ? ` · Mis à jour ${format(resolvedAt, 'dd/MM/yyyy HH:mm')}` : ''}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                const event = item.event;
                                                 const rawStatus = (event.status as string) || 'Nouveau';
                                                 const statusLabel = event.statusLabel as string | undefined;
                                                 const status = statusLabel || statusMap[rawStatus] || rawStatus;
@@ -290,7 +467,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                 const matched = matchPkgStatus(rawStatus, statusLabel);
                                                 const color = matched?.color || eventColor || '#94a3b8';
                                                 const iconName = matched?.icon;
-                                                const isLast = idx === sorted.length - 1;
+                                                const isLast = item.ord === lastEventOrd;
 
                                                 return (
                                                     <div key={idx} className="relative pb-6 last:pb-0 group">

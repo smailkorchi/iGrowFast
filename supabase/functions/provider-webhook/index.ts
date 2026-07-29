@@ -144,6 +144,143 @@ Deno.serve(async (req: Request) => {
             .update({ last_received_at: new Date().toISOString() })
             .eq('id', webhookConfig.id);
 
+        // ── 6b. Coliaty event classification (moved up ahead of the demand
+        // reconciliation branch below, which must run before the no-tracking-code
+        // and order-not-found exits further down) ───────────────────────
+        // Coliaty now distinguishes two events. PARCEL_STATUS_CHANGED is the live lifecycle
+        // event (delivered, picked_up, …). PARCEL_SITUATION_CHANGED fires later when the
+        // invoice for that parcel is settled — Coliaty re-attaches the final STATUS
+        // (DELIVERED / REFUSE) along with billing fields (INVOICE_REF, PRICE, FEES, NET).
+        // The two MUST be handled differently: a SITUATION=PAID event arrives days after the
+        // actual delivery and must NOT overwrite date_livraison.
+        const eventName: string = String(payload.EVENT || '').toUpperCase();
+        const situation: string = String(payload.SITUATION || '').toUpperCase();
+        const isSituationEvent = eventName === 'PARCEL_SITUATION_CHANGED';
+        const isPaidSituation = situation === 'PAID';
+
+        // Pre-extract the webhook's own DATE so we can use it for date_livraison (delivery day)
+        // when Coliaty includes it on the lifecycle event itself.
+        const coliatyDate = parseColiatyDate(payload.DATE);
+
+        // Multi-candidate status matching helpers — needed by the demand
+        // reconciliation branch below AND by the main statusCandidates list
+        // further down, so defined once here rather than duplicated.
+        // Sendit uses camelCase keys — `newStatus` for forward flow, `statusReturn` for returns.
+        // `statusReturn === 'NA'` means no return event; skip it (filter below drops literal 'NA' too).
+        const skipSenditNA = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'NA' ? null : v);
+        // PAID is not a real Coliaty status code (it's a SITUATION). Old Coliaty payloads
+        // briefly mis-shipped EVENT=PARCEL_STATUS_CHANGED, STATUS=PAID — those events should
+        // be treated as billing confirmations, not status changes. Drop "PAID" from the
+        // status-mapping candidates so we don't error or wrongly downgrade the order.
+        const dropPaid = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'PAID' ? null : v);
+
+        // ── Demand reconciliation (TKT-8b) ────────────────────────────────
+        // Coliaty documents NO webhook for parcel-change demands. Tolerantly
+        // treat any payload referencing a parcel_change_demands ref (PCD-...)
+        // — or an EVENT naming DEMAND/CHANGE_DEMAND even without a ref — as a
+        // reconciliation signal. Entirely fail-open: a bug here must never
+        // break the normal status pipeline below. Runs BEFORE the no-tracking-code
+        // and order-not-found exits: a demand-only webhook may carry no
+        // recognizable tracking field at all, or its `ref` field could otherwise
+        // be misread as a tracking code by the extractor above.
+        try {
+            const payloadStr = JSON.stringify(payload);
+            // No trailing hyphen in the capture; refs normalized uppercase so the
+            // case-sensitive .eq('ref', …) below always matches the stored form.
+            const demandRefs = Array.from(new Set(
+                (payloadStr.match(/PCD-\d+(?:-\d+)*/gi) || []).map((r) => r.toUpperCase())
+            ));
+            const eventIsDemand = /DEMAND/.test(eventName);
+            const isDemandSignal = demandRefs.length > 0 || eventIsDemand;
+
+            if (isDemandSignal) {
+                // Verdict from STATUS-ish fields first; whole-payload scan only as a
+                // fallback, so free-text like "client accepted delivery" in a comment
+                // can't force APPROVED when a real status field is present.
+                const verdictSource = String(
+                    payload.DEMAND_STATUS ?? payload.STATUS ?? payload.STATUT ??
+                    payload.SITUATION ?? forcelogData?.status ?? ''
+                ).toLowerCase();
+                const scan = verdictSource || payloadStr.toLowerCase();
+                // Reject class (including negated-acceptance forms) is tested FIRST so
+                // "NOT_ACCEPTED" / "NON_ACCEPTE" / "REJECTED_NOT_ACCEPTED" never fall
+                // into the accept class below (which would otherwise match "ACCEPT").
+                const verdict = /refus|reject|denied|not[_ ]?accept|non[_ ]?accept/.test(scan)
+                    ? 'REJECTED'
+                    : /approuv|approved|accept/.test(scan)
+                        ? 'APPROVED'
+                        : null;
+                const providerStatusRaw =
+                    payload.DEMAND_STATUS || payload.STATUS || payload.STATUT || payload.SITUATION ||
+                    forcelogData?.status || eventName || null;
+                const baseUpdate: any = {
+                    provider_status_raw: providerStatusRaw,
+                    resolved_at: new Date().toISOString(),
+                    webhook_log_id: logEntry?.id ?? null,
+                };
+
+                for (const ref of demandRefs) {
+                    if (verdict) {
+                        // First conclusion wins: a replayed/late webhook must never flip
+                        // an already-concluded verdict (REJECTED→APPROVED or vice versa).
+                        await supabase.from('parcel_change_demands')
+                            .update({ ...baseUpdate, status: verdict })
+                            .eq('ref', ref)
+                            .eq('DigiCom Business', businessId)
+                            .in('status', ['PENDING', 'UNKNOWN']);
+                        await supabase.from('parcel_change_demands')
+                            .update(baseUpdate)
+                            .eq('ref', ref)
+                            .eq('DigiCom Business', businessId)
+                            .in('status', ['APPROVED', 'REJECTED']);
+                    } else {
+                        // No recognizable verdict: only mark UNKNOWN if still PENDING —
+                        // never downgrade a demand already concluded APPROVED/REJECTED.
+                        await supabase.from('parcel_change_demands')
+                            .update({ ...baseUpdate, status: 'UNKNOWN' })
+                            .eq('ref', ref)
+                            .eq('DigiCom Business', businessId)
+                            .eq('status', 'PENDING');
+                        await supabase.from('parcel_change_demands')
+                            .update(baseUpdate)
+                            .eq('ref', ref)
+                            .eq('DigiCom Business', businessId)
+                            .neq('status', 'PENDING');
+                    }
+                }
+
+                // Reuse the same status-candidate extraction the normal pipeline
+                // builds below (statusCandidates) to decide whether this payload
+                // ALSO carries a real status update alongside the demand signal.
+                const demandStatusCandidates = [
+                    payload.STATUT_S,
+                    payload.STATUT,
+                    dropPaid(payload.STATUS),
+                    skipSenditNA(payload.statusReturn),
+                    payload.newStatus,
+                    payload.status,
+                    payload.status_return,
+                    forcelogData?.secondary_status,
+                    forcelogData?.status,
+                    forcelogData?.status_return,
+                    skipSenditNA(forcelogData?.statusReturn),
+                    forcelogData?.newStatus,
+                ].filter(Boolean);
+
+                // Explicit demand events (EVENT matches /DEMAND/) never carry a real
+                // parcel status — their STATUS field IS the demand verdict — so always
+                // stop here regardless of demandStatusCandidates. Ref-only signals (no
+                // demand-named EVENT) still fall through to the status pipeline when the
+                // payload also carries real status candidates.
+                if (eventIsDemand || demandStatusCandidates.length === 0) {
+                    if (logEntry) await supabase.from('webhook_logs').update({ processed: true, error_message: 'Demand reconciliation only' }).eq('id', logEntry.id);
+                    return json({ status: 'demand_reconciled', refs: demandRefs });
+                }
+            }
+        } catch (demandErr) {
+            console.error('[webhook] demand reconciliation failed:', demandErr);
+        }
+
         if (!trackingCode) {
             console.warn('[webhook] no tracking code in payload');
             if (logEntry) await supabase.from('webhook_logs').update({ error_message: 'No tracking code in payload' }).eq('id', logEntry.id);
@@ -193,32 +330,10 @@ Deno.serve(async (req: Request) => {
 
         console.log(`[webhook] orderId=${orderId}`);
 
-        // ── 7. Coliaty event classification ─────────────────────────────
-        // Coliaty now distinguishes two events. PARCEL_STATUS_CHANGED is the live lifecycle
-        // event (delivered, picked_up, …). PARCEL_SITUATION_CHANGED fires later when the
-        // invoice for that parcel is settled — Coliaty re-attaches the final STATUS
-        // (DELIVERED / REFUSE) along with billing fields (INVOICE_REF, PRICE, FEES, NET).
-        // The two MUST be handled differently: a SITUATION=PAID event arrives days after the
-        // actual delivery and must NOT overwrite date_livraison.
-        const eventName: string = String(payload.EVENT || '').toUpperCase();
-        const situation: string = String(payload.SITUATION || '').toUpperCase();
-        const isSituationEvent = eventName === 'PARCEL_SITUATION_CHANGED';
-        const isPaidSituation = situation === 'PAID';
-
-        // Pre-extract the webhook's own DATE so we can use it for date_livraison (delivery day)
-        // when Coliaty includes it on the lifecycle event itself.
-        const coliatyDate = parseColiatyDate(payload.DATE);
-
         // ── 8. Multi-candidate status matching ──────────────────────────
         // Priority: AMEEX sub-status > AMEEX/Coliaty main status > generic > Forcelog (data.secondary_status > data.status)
-        // Sendit uses camelCase keys — `newStatus` for forward flow, `statusReturn` for returns.
-        // `statusReturn === 'NA'` means no return event; skip it (filter below drops literal 'NA' too).
-        const skipSenditNA = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'NA' ? null : v);
-        // PAID is not a real Coliaty status code (it's a SITUATION). Old Coliaty payloads
-        // briefly mis-shipped EVENT=PARCEL_STATUS_CHANGED, STATUS=PAID — those events should
-        // be treated as billing confirmations, not status changes. Drop "PAID" from the
-        // status-mapping candidates so we don't error or wrongly downgrade the order.
-        const dropPaid = (v: unknown) => (typeof v === 'string' && v.toUpperCase() === 'PAID' ? null : v);
+        // (eventName/situation/coliatyDate and the skipSenditNA/dropPaid helpers used
+        // below are now defined earlier, above the demand-reconciliation branch.)
         const statusCandidates = [
             payload.STATUT_S,                         // AMEEX sub-status (most precise)
             payload.STATUT,                           // AMEEX main status

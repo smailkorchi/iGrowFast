@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     AlertCircle, ArrowLeft, ArrowRight, Check, ListChecks, Loader2, MapPin,
     PackageOpen, PencilLine, Send, type LucideIcon,
@@ -92,6 +92,7 @@ const FORBIDDEN_MSG =
 
 export function ParcelChangeDemandDialog({ open, onOpenChange, order, onSuccess }: Props) {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
 
     const [step, setStep] = useState<Step>(0);
     const [type, setType] = useState<DemandType | null>(null);
@@ -175,6 +176,9 @@ export function ParcelChangeDemandDialog({ open, onOpenChange, order, onSuccess 
                     (c) => String(c.id ?? c.name) === city,
                 );
                 payload.package_city = picked ? (picked.id ?? picked.name) : city;
+                // Human label for our own demand record (edge stores it in new_values.city
+                // so the tracking diff reads « Casablanca », not a city ID). Not sent to Coliaty.
+                payload.package_city_label = picked ? picked.name : city;
                 payload.package_address = address.trim();
             }
 
@@ -218,6 +222,9 @@ export function ParcelChangeDemandDialog({ open, onOpenChange, order, onSuccess 
                 description: `Réf ${res.ref}`,
                 variant: res.partial ? 'destructive' : undefined,
             });
+            // The tracking dialog reads the demand we just filed from its own query.
+            // Prefix match: the dialog's key is ['parcel-change-demands', orderId, trackingCode].
+            queryClient.invalidateQueries({ queryKey: ['parcel-change-demands', order.id] });
             onSuccess?.();
         },
         onError: (e: unknown) => {
