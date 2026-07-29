@@ -55,12 +55,17 @@ import {
 
 // Roles whose job has admin-configurable settings → get an Edit button.
 // super admin / courier / others have nothing to configure here (enable/disable + delete only).
+// Business-owner viewers get the Edit button on EVERY row — they also edit identity + role.
 const EDITABLE_ROLES = ['admin', 'commercial', 'mediabuyer'];
 const hasEditableConfig = (role: unknown) => EDITABLE_ROLES.includes(String(role || '').toLowerCase());
-const firstConfigTab = (role: unknown): 'permissions' | 'performance' | 'payment' => {
+type ConfigTab = 'permissions' | 'performance' | 'payment' | 'integrations' | 'courier' | 'none';
+// 'none' = super admin / business owner: unlimited access, nothing to configure.
+const firstConfigTab = (role: unknown): ConfigTab => {
     const r = String(role || '').toLowerCase();
     if (r === 'admin') return 'permissions';
     if (r === 'mediabuyer') return 'payment';
+    if (r === 'courier') return 'courier';
+    if (r === 'super admin' || r === 'business owner') return 'none';
     return 'performance'; // commercial
 };
 import { Button } from '@/components/ui/button';
@@ -90,6 +95,14 @@ import {
 } from '@/components/ui/form';
 
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/users/UserAvatar';
@@ -116,7 +129,9 @@ const userSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
-    role: z.enum(['super admin', 'admin', 'commercial', 'courier', 'mediabuyer']),
+    // 'business owner' is only selectable by a business-owner viewer, but it must be a
+    // valid value so their own peers' rows can be opened and saved.
+    role: z.enum(['business owner', 'super admin', 'admin', 'commercial', 'courier', 'mediabuyer']),
     commission_price: z.number().default(0),
     commission_basis: z.enum(['per_order', 'per_unit']).default('per_order'),
     payment_type: z.enum(['commission', 'salary']).default('commission'),
@@ -126,6 +141,10 @@ const userSchema = z.object({
     active: z.boolean().default(true),
     permissions: z.record(z.any()).default({}),
     avatar_url: z.string().optional().nullable(),
+    // Courier parcel handling — same keys the invite wizard sets.
+    courier_parcel_fragile: z.boolean().default(false),
+    courier_parcel_open: z.boolean().default(false),
+    courier_parcel_try_on: z.boolean().default(false),
     // Mediabuyer integration scoping — which GA properties / Meta ad accounts they may see.
     ga_access: z.object({
         mode: z.enum(['none', 'all', 'specific']).default('none'),
@@ -233,6 +252,10 @@ interface UserModalProps {
     loading?: boolean;
     title: string;
     activeBusinessId: string | null;
+    /** Viewer is a business owner — unlocks identity + role editing and every role's config. */
+    isBO?: boolean;
+    /** The six assignable tenant roles (business-owner viewers only). */
+    roleOptions?: RoleOption[];
 }
 
 const pages = [
@@ -485,6 +508,7 @@ const Users = () => {
         mutationFn: async ({ id, values }: { id: string, values: UserFormValues }) => {
             // Privacy: admins edit authorization & terms only — never identity/credentials
             // (name, username, email, password, avatar are owned by the user).
+            // Business owners are the exception: they manage identity too (block below).
             const userData: Record<string, unknown> = {
                 role: values.role,
                 'DigiCom Business': activeBusinessId,
@@ -501,6 +525,18 @@ const Users = () => {
                     ? { ...values.meta_access, business_id: activeBusinessId }
                     : { mode: 'none' },
             };
+            if (isBO) {
+                // Identity — email rides manage-users' authUpdates path (auth.users stays canonical).
+                userData.name = values.name;
+                userData.username = values.username;
+                userData.email = values.email;
+                if (values.role === 'courier') {
+                    userData.phone = values.phone || null;
+                    userData.courier_parcel_fragile = values.courier_parcel_fragile;
+                    userData.courier_parcel_open = values.courier_parcel_open;
+                    userData.courier_parcel_try_on = values.courier_parcel_try_on;
+                }
+            }
             const { data, error } = await supabase.functions.invoke('manage-users', {
                 body: { action: 'update', userId: id, userData }
             });
@@ -918,6 +954,7 @@ const Users = () => {
                     isOpen={isDirectCreateOpen}
                     onClose={() => setIsDirectCreateOpen(false)}
                     roleOptions={ASSIGNABLE_ROLES}
+                    activeBusinessId={activeBusinessId}
                 />
 
                 {/* New users are created via an invite link — admins set role + access, the
@@ -951,6 +988,8 @@ const Users = () => {
                         loading={updateUserMutation.isPending}
                         title={`Editing ${editingUser?.name}`}
                         activeBusinessId={activeBusinessId}
+                        isBO={isBO}
+                        roleOptions={ASSIGNABLE_ROLES}
                     />
                 )}
             </div>
@@ -981,7 +1020,8 @@ const UserCard = ({
     onSetPassword: () => void;
 }) => {
     const isActive = user.active;
-    const canEdit = hasEditableConfig(user.role);
+    // Business owners edit identity + role on every row, so the button is never hidden for them.
+    const canEdit = hasEditableConfig(user.role) || isBO;
 
     return (
         <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all">
@@ -1089,6 +1129,8 @@ const UserModal = ({
     loading,
     title,
     activeBusinessId,
+    isBO = false,
+    roleOptions = [],
 }: UserModalProps) => {
     const { toast } = useToast();
     const [avatar, setAvatar] = useState<File | null>(null);
@@ -1112,6 +1154,9 @@ const UserModal = ({
             permissions: {},
             ga_access: { mode: 'none', ids: [] },
             meta_access: { mode: 'none', ids: [] },
+            courier_parcel_fragile: false,
+            courier_parcel_open: false,
+            courier_parcel_try_on: false,
         }
     });
 
@@ -1190,7 +1235,7 @@ const UserModal = ({
         p.code.toLowerCase().includes(productSearch.toLowerCase())
     );
 
-    const [activeTab, setActiveTab] = useState<'permissions' | 'performance' | 'payment' | 'integrations'>('permissions');
+    const [activeTab, setActiveTab] = useState<ConfigTab>('permissions');
     useEffect(() => { if (isOpen) setActiveTab(firstConfigTab((initialData as any)?.role)); }, [isOpen, initialData]);
 
     useEffect(() => {
@@ -1209,6 +1254,9 @@ const UserModal = ({
                     permissions: initialData.permissions || {},
                     ga_access: existingGaAccess || { mode: 'none', ids: [] },
                     meta_access: existingMetaAccess || { mode: 'none', ids: [] },
+                    courier_parcel_fragile: !!raw.courier_parcel_fragile,
+                    courier_parcel_open: !!raw.courier_parcel_open,
+                    courier_parcel_try_on: !!raw.courier_parcel_try_on,
                 });
                 setAvatarPreview(initialData.avatar_url ?? null);
             } else {
@@ -1228,6 +1276,9 @@ const UserModal = ({
                     permissions: {},
                     ga_access: { mode: 'none', ids: [] },
                     meta_access: { mode: 'none', ids: [] },
+                    courier_parcel_fragile: false,
+                    courier_parcel_open: false,
+                    courier_parcel_try_on: false,
                 });
                 setAvatarPreview(null);
             }
@@ -1270,6 +1321,27 @@ const UserModal = ({
     };
 
     const currentRole = form.watch('role');
+    // super admin / business owner have unlimited access — no config tab to show.
+    const hasConfigTabs = firstConfigTab(currentRole) !== 'none';
+
+    /** BO role switch inside the modal: config never carries over — reset to the new role's defaults. */
+    const changeRole = (next: string) => {
+        form.setValue('role', next as UserFormValues['role'], { shouldDirty: true });
+        form.setValue('permissions', {}, { shouldDirty: true });
+        form.setValue('commission_price', 0, { shouldDirty: true });
+        form.setValue('commission_basis', 'per_order', { shouldDirty: true });
+        form.setValue('payment_type', 'commission', { shouldDirty: true });
+        form.setValue('salary_amount', 0, { shouldDirty: true });
+        form.setValue('products', [], { shouldDirty: true });
+        form.setValue('phone', '', { shouldDirty: true });
+        form.setValue('courier_parcel_fragile', false, { shouldDirty: true });
+        form.setValue('courier_parcel_open', false, { shouldDirty: true });
+        form.setValue('courier_parcel_try_on', false, { shouldDirty: true });
+        form.setValue('ga_access', { mode: 'none', ids: [] }, { shouldDirty: true });
+        form.setValue('meta_access', { mode: 'none', ids: [] }, { shouldDirty: true });
+        setActiveTab(firstConfigTab(next));
+    };
+
     const inputCls = 'h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40';
     const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid';
     const tabClass = 'text-[11px] h-8 px-3.5 rounded-full gap-1.5 data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid';
@@ -1292,7 +1364,8 @@ const UserModal = ({
                         {/* Editorial header */}
                         <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
                             <div className="flex items-center gap-4">
-                                {/* Identity is read-only — owned by the user, never edited by an admin */}
+                                {/* Identity is read-only for admin/super-admin viewers — owned by the user.
+                                    Business owners edit it in the identity section below. */}
                                 <UserAvatar
                                     url={(initialData as any)?.avatar_url}
                                     config={(initialData as any)?.avatar_config}
@@ -1312,8 +1385,85 @@ const UserModal = ({
                             </div>
                         </DialogHeader>
 
+                        {/* IDENTITY + ROLE — business-owner viewers only */}
+                        {isBO && (
+                            <div className="px-6 pt-5 space-y-4 border-b border-ant-line pb-5">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-blue" />
+                                    Identité
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="name"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className={labelCls}>Nom</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className={inputCls} placeholder="Ex. Yassine Alami" />
+                                                </FormControl>
+                                                <FormMessage className="text-ant-rose" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="username"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className={labelCls}>Nom d&rsquo;utilisateur</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className={inputCls} autoCapitalize="off" placeholder="Ex. yassine" />
+                                                </FormControl>
+                                                <FormMessage className="text-ant-rose" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className={labelCls}>Email</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} type="email" className={inputCls} autoComplete="off" autoCapitalize="off" placeholder="nom@email.com" />
+                                                </FormControl>
+                                                <FormMessage className="text-ant-rose" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="role"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className={labelCls}>Rôle</FormLabel>
+                                                <Select value={field.value} onValueChange={changeRole}>
+                                                    <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink focus:ring-1 focus:ring-ant-orange/40">
+                                                        <SelectValue placeholder="Choisir un rôle" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                                                        {roleOptions.map((r) => (
+                                                            <SelectItem key={r.value} value={r.value} className="text-[12px]">
+                                                                {r.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage className="text-ant-rose" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <p className="text-[11px] text-ant-mid leading-snug">
+                                    Le changement de rôle réinitialise la configuration à celle du nouveau rôle. Le mot de passe se définit via « Définir le mot de passe ».
+                                </p>
+                            </div>
+                        )}
+
                         {/* Tabs */}
                         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                            {hasConfigTabs ? (
                             <div className="px-6 pt-4">
                                 <TabsList className="h-10 rounded-full p-1 bg-ant-light border border-ant-line inline-flex w-auto">
                                     {currentRole === 'admin' && (
@@ -1342,8 +1492,22 @@ const UserModal = ({
                                             </TabsTrigger>
                                         </>
                                     )}
+                                    {currentRole === 'courier' && (
+                                        <TabsTrigger value="courier" className={tabClass}>
+                                            <Bike className="w-3 h-3" />
+                                            Livraison
+                                        </TabsTrigger>
+                                    )}
                                 </TabsList>
                             </div>
+                            ) : (
+                                <div className="px-6 pt-5">
+                                    <div className="rounded-2xl border border-ant-line bg-ant-light px-4 py-5 text-center">
+                                        <Crown className="w-5 h-5 text-ant-mid mx-auto mb-2" />
+                                        <p className="text-[12px] text-ant-mid">Accès illimité à l&rsquo;entreprise.</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Body */}
                             <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-6">
@@ -1527,6 +1691,46 @@ const UserModal = ({
                                             )}
                                         </div>
                                     </div>
+                                </TabsContent>
+
+                                {/* LIVRAISON (courier) — phone + parcel handling permissions */}
+                                <TabsContent value="courier" className="m-0 space-y-4 outline-none">
+                                    <FormField
+                                        control={form.control}
+                                        name="phone"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className={labelCls}>Téléphone</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} value={field.value ?? ''} className={inputCls} placeholder="+212 6 00 00 00 00" />
+                                                </FormControl>
+                                                <FormMessage className="text-ant-rose" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {([
+                                        ['courier_parcel_fragile', 'Colis fragiles'],
+                                        ['courier_parcel_open', 'Ouverture à la livraison'],
+                                        ['courier_parcel_try_on', 'Essayage autorisé'],
+                                    ] as const).map(([key, label]) => (
+                                        <FormField
+                                            key={key}
+                                            control={form.control}
+                                            name={key}
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center justify-between h-11 px-4 rounded-xl border border-ant-line bg-ant-paper space-y-0">
+                                                    <FormLabel className="text-[12px] font-semibold text-ant-ink">{label}</FormLabel>
+                                                    <FormControl>
+                                                        <Switch
+                                                            checked={!!field.value}
+                                                            onCheckedChange={field.onChange}
+                                                            className="data-[state=checked]:bg-ant-green"
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ))}
                                 </TabsContent>
 
                                 {/* INTEGRATIONS (mediabuyer) — which GA properties / Meta ad accounts they may see */}
