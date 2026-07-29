@@ -11,7 +11,7 @@
 // profile is the WA `Profile` row shape (whatsapp.profiles view contract),
 // mapped from public.users:
 //   full_name    <- users.name
-//   role         <- {'super admin','admin'} -> 'admin', else 'user'
+//   role         <- {'super admin','business owner','admin'} -> 'admin', else 'user'
 //                   (WA user_role value space; every UI gate compares === 'admin',
 //                    parity with public.current_user_is_business_admin())
 //   is_active    <- users.active
@@ -49,7 +49,7 @@ function mapUsersRow(row: {
     id: row.id,
     email: row.email ?? '',
     full_name: row.name,
-    role: row.role === 'super admin' || row.role === 'admin' ? 'admin' : 'user',
+    role: row.role === 'super admin' || row.role === 'business owner' || row.role === 'admin' ? 'admin' : 'user',
     is_active: row.active ?? true,
     avatar_config: (row.avatar_config ?? null) as Profile['avatar_config'],
     avatar_url: row.avatar_url ?? null,

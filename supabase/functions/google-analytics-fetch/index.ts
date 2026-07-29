@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
                 // already gates add-connection to non-mediabuyers).
                 const { data: prof } = await admin
                     .from('users').select('role').eq('id', userData.user.id).maybeSingle();
-                if (!prof || !['super admin', 'admin'].includes(prof.role)) {
+                if (!prof || !['super admin', 'business owner', 'admin'].includes(prof.role)) {
                     return jsonResponse({ ok: false, error: 'forbidden' }, 403);
                 }
                 const propertyId = normalizePropertyId(body.property_id);

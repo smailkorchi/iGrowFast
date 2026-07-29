@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     if (!biz) return json({ ok: false, reason: "business_not_found" }, 404);
     const businessName = biz.name || "votre entreprise";
     const { data: admins } = await service.from("users")
-      .select("name, email").eq("DigiCom Business", businessId).eq("role", "super admin");
+      .select("name, email").eq("DigiCom Business", businessId).in("role", ["super admin", "business owner"]);
     const recipients = (admins ?? []).filter((a: any) => a.email).map((a: any) => ({ name: a.name, email: a.email }));
 
     // Capture EVERY storage object for the business BEFORE the DB wipe — the random-path files

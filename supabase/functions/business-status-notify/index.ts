@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     // All super admins of this business (personalized recipient list).
     const { data: admins } = await service.from("users")
-      .select("name, email").eq("DigiCom Business", businessId).eq("role", "super admin");
+      .select("name, email").eq("DigiCom Business", businessId).in("role", ["super admin", "business owner"]);
 
     const origin = typeof body?.origin === "string" && /^https?:\/\//.test(body.origin)
       ? body.origin.replace(/\/$/, "") : (Deno.env.get("SITE_URL") || "https://igrowfast.com").replace(/\/$/, "");

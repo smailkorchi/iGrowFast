@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     // Roles that operate delivery notes (admins + sellers). Every path stays
     // identity-checked, tenant-scoped, and fail-closed regardless of role.
-    if (!me || !["super admin", "admin", "commercial"].includes(me.role) || !me["DigiCom Business"]) {
+    if (!me || !["super admin", "business owner", "admin", "commercial"].includes(me.role) || !me["DigiCom Business"]) {
       return new Response(JSON.stringify({ success: false, error: "forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

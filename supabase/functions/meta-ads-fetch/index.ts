@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
                 // a connection + Vault secret against any business_id).
                 const { data: prof } = await admin
                     .from('users').select('role, "DigiCom Business"').eq('id', userData.user.id).maybeSingle();
-                if (!prof || !['super admin', 'admin'].includes(prof.role)
+                if (!prof || !['super admin', 'business owner', 'admin'].includes(prof.role)
                     || !prof['DigiCom Business'] || prof['DigiCom Business'] !== business_id) {
                     return jsonResponse({ ok: false, error: 'forbidden' }, 403);
                 }

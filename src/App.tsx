@@ -306,7 +306,7 @@ const App = () => (
 
           {/* Admin Routes — per-business; owners are confined to /owner/* and cannot enter here */}
           <Route path="*" element={
-            <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <ProtectedRoute allowedRoles={['super admin', 'business owner', 'admin']}>
               <BusinessGuard>
                 <AppLayout>
                   <Routes>

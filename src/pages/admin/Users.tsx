@@ -41,6 +41,7 @@ import {
     UserPlus,
     Wallet,
     Crown,
+    Gem,
     Headphones,
     Bike,
     Sparkles,
@@ -310,6 +311,15 @@ const ROLE_META: Record<string, {
     stripe: string;
     icon: LucideIcon;
 }> = {
+    'business owner': {
+        label: 'Business owner',
+        plural: 'Business owners',
+        chapter: '00',
+        description: 'Founding authority for this business — protected from demotion or removal by peers.',
+        pill: { bg: 'bg-ant-blue/10', border: 'border-ant-blue/25', text: 'text-ant-blue', dot: 'bg-ant-blue' },
+        stripe: 'bg-ant-blue',
+        icon: Gem,
+    },
     'super admin': {
         label: 'Super admin',
         plural: 'Super admins',
@@ -366,7 +376,7 @@ const ROLE_META: Record<string, {
     },
 };
 
-const ROLE_ORDER = ['super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'] as const;
+const ROLE_ORDER = ['business owner', 'super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'] as const;
 
 const Users = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -521,6 +531,7 @@ const Users = () => {
 
     const getRoleBucket = (rawRole: any): typeof ROLE_ORDER[number] => {
         const r = String(rawRole || '').toLowerCase();
+        if (r === 'business owner') return 'business owner';
         if (r === 'super admin') return 'super admin';
         if (r === 'admin') return 'admin';
         if (r === 'commercial') return 'commercial';
@@ -548,7 +559,7 @@ const Users = () => {
         return {
             total: list.length,
             active: list.filter((u: any) => u.active).length,
-            admin: list.filter((u: any) => ['super admin', 'admin'].includes(String(u.role || '').toLowerCase())).length,
+            admin: list.filter((u: any) => ['super admin', 'business owner', 'admin'].includes(String(u.role || '').toLowerCase())).length,
             commercial: list.filter((u: any) => String(u.role || '').toLowerCase() === 'commercial').length,
             courier: list.filter((u: any) => String(u.role || '').toLowerCase() === 'courier').length,
         };

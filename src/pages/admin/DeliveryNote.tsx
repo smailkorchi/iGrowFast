@@ -1003,7 +1003,7 @@ const DeliveryNote = () => {
         : [{ value: 'all', label: 'All couriers' }, ...((businessUsers || []).filter((u: any) => u.role === 'courier').map((u: any) => ({ value: u.id, label: u.name || '—' })))];
     const createdByOptions: FilterOption[] = [
         { value: 'all', label: 'All creators' },
-        ...((businessUsers || []).filter((u: any) => ['super admin', 'admin', 'commercial'].includes(u.role)).map((u: any) => ({ value: u.id, label: u.name || '—' }))),
+        ...((businessUsers || []).filter((u: any) => ['super admin', 'business owner', 'admin', 'commercial'].includes(u.role)).map((u: any) => ({ value: u.id, label: u.name || '—' }))),
     ];
     const filtersActive = debouncedSearch.trim().length >= 2 || statusFilter !== 'all' || entityFilter !== 'all' || createdByFilter !== 'all' || !!dateFrom || !!dateTo;
     const activeFilterCount = [statusFilter !== 'all', entityFilter !== 'all', createdByFilter !== 'all', !!dateFrom || !!dateTo].filter(Boolean).length;

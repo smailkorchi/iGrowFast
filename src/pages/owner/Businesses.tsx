@@ -249,7 +249,7 @@ const Businesses = () => {
             if (result?.isNew && result.businessId) {
                 setNewBusinessId(result.businessId);
                 setIsCreateAdminOpen(true);
-                toast({ title: "Business created", description: "Now assign a Super Admin to this business." });
+                toast({ title: "Business created", description: "Now assign a Business Owner to this business." });
             } else {
                 toast({ title: "Success", description: "Business information updated." });
             }
@@ -342,7 +342,7 @@ const Businesses = () => {
             const { data, error } = await supabase.functions.invoke('manage-users', {
                 body: {
                     action: 'create',
-                    userData: { ...values, role: 'super admin', 'DigiCom Business': newBusinessId },
+                    userData: { ...values, role: 'business owner', 'DigiCom Business': newBusinessId },
                 },
             });
             if (error) throw new Error(await edgeFnErrorMessage(error, data));
@@ -353,7 +353,7 @@ const Businesses = () => {
             queryClient.invalidateQueries({ queryKey: ['businesses'] });
             setIsCreateAdminOpen(false);
             setNewBusinessId(null);
-            toast({ title: "Super Admin created", description: "The admin account has been provisioned and linked to the business." });
+            toast({ title: "Business owner created", description: "The account has been provisioned and linked to the business." });
         },
         onError: (err) => {
             toast({ title: "Error", description: errorMessage(err), variant: "destructive" });
@@ -580,7 +580,7 @@ const Businesses = () => {
                 setConfirmDeleteText={setConfirmDeleteText}
             />
 
-            {/* Create Super Admin Modal */}
+            {/* Create Business Owner Modal */}
             <CreateAdminModal
                 isOpen={isCreateAdminOpen}
                 onClose={() => { setIsCreateAdminOpen(false); setNewBusinessId(null); }}
@@ -1030,11 +1030,11 @@ const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: CreateAdminMod
                                     <div className="flex items-center gap-2">
                                         <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
                                         <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
-                                            Admin · Super Admin
+                                            Admin · Business Owner
                                         </span>
                                     </div>
                                     <DialogTitle className="font-display text-[20px] leading-[1.1] tracking-[-0.01em] text-ant-ink">
-                                        Assign super admin
+                                        Assign business owner
                                     </DialogTitle>
                                     <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
                                         Create the primary administrator for this business.

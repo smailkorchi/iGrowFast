@@ -26,6 +26,7 @@ const SITE_FALLBACK = "https://igrowfast.com";
 
 const ROLE_FR: Record<string, { label: string; desc: string }> = {
   "super admin": { label: "Super administrateur", desc: "Vous disposez d'un accès complet à l'espace de l'entreprise." },
+  "business owner": { label: "Propriétaire d'entreprise", desc: "Vous disposez d'un accès complet à l'espace de l'entreprise." },
   "admin": { label: "Administrateur", desc: "Vous gérez les opérations selon les accès qui vous sont attribués." },
   "commercial": { label: "Commercial", desc: "Vous vendez, échangez avec les clients et percevez vos commissions." },
   "courier": { label: "Livreur", desc: "Vous livrez les colis aux clients." },
@@ -155,7 +156,7 @@ Deno.serve(async (req) => {
     const { data: me } = await service.from("users").select('role, "DigiCom Business", active').eq("id", user.id).single();
     if (!me) return json({ ok: false, reason: "profile_not_found" }, 403);
     if (me.active === false) return json({ ok: false, reason: "account_disabled" }, 403);
-    if (!["super admin", "admin"].includes(String(me.role))) return json({ ok: false, reason: "forbidden" }, 403);
+    if (!["super admin", "business owner", "admin"].includes(String(me.role))) return json({ ok: false, reason: "forbidden" }, 403);
     const businessId = me["DigiCom Business"];
     if (!businessId) return json({ ok: false, reason: "no_business" }, 400);
 

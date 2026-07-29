@@ -196,7 +196,7 @@ async function handleStart(req: Request, admin: ReturnType<typeof createClient>)
     if (allowErr) return jsonResponse({ ok: false, error: `[oauth_v3] ${allowErr.message}` });
     const role = (allowed as any)?.role;
     const isOwner = role === 'owner';
-    const isAdmin = role === 'admin' || role === 'super admin';
+    const isAdmin = role === 'admin' || role === 'super admin' || role === 'business owner';
     const usersBiz = (allowed as any)?.['DigiCom Business'];
     // Only owners and admins connect Meta ad accounts. Mediabuyers (and other roles)
     // use only the accounts an admin assigns them — they cannot initiate a connection.

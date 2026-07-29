@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     if (!recipientUserId) return json({ ok: false, reason: "missing_recipient" }, 400);
 
     const isOwner = String(me.role) === "owner";
-    const isBizAdmin = ["admin", "super admin"].includes(String(me.role)) &&
+    const isBizAdmin = ["admin", "super admin", "business owner"].includes(String(me.role)) &&
       String(me["DigiCom Business"]) === businessId;
     if (!isOwner && !isBizAdmin) return json({ ok: false, reason: "forbidden" }, 403);
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
     // ── Super admins of the business → CC (dedupe + exclude the recipient) ──
     const { data: admins } = await service.from("users")
-      .select("email").eq("DigiCom Business", businessId).eq("role", "super admin").eq("active", true);
+      .select("email").eq("DigiCom Business", businessId).in("role", ["super admin", "business owner"]).eq("active", true);
     const cc = Array.from(new Set(
       (admins ?? [])
         .map((a: { email: string | null }) => (a.email ?? "").trim())

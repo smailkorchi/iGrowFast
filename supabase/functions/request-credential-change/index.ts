@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     const { data: me } = await service.from("users").select('role, "DigiCom Business", active').eq("id", user.id).single();
     if (!me) return json({ error: "Profile not found" }, 403);
     if (me.active === false) return json({ error: "Account disabled" }, 403);
-    if (!["super admin", "admin"].includes(String(me.role))) return json({ error: "Only admins can do this" }, 403);
+    if (!["super admin", "business owner", "admin"].includes(String(me.role))) return json({ error: "Only admins can do this" }, 403);
 
     const body = await req.json().catch(() => ({}));
     const userId = String(body?.user_id ?? "");

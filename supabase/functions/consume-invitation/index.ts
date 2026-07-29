@@ -21,6 +21,7 @@ const PAYLOAD_STRIP = new Set([
 // FR copy + post-registration landing path per role (matches Register.tsx routing) for the welcome email.
 const ROLE_FR: Record<string, { label: string; desc: string }> = {
   "super admin": { label: "Super administrateur", desc: "Vous disposez d'un accès complet à l'espace de l'entreprise." },
+  "business owner": { label: "Propriétaire d'entreprise", desc: "Vous disposez d'un accès complet à l'espace de l'entreprise." },
   "admin": { label: "Administrateur", desc: "Vous gérez les opérations selon les accès qui vous sont attribués." },
   "commercial": { label: "Commercial", desc: "Vous vendez, échangez avec les clients et percevez vos commissions." },
   "courier": { label: "Livreur", desc: "Vous livrez les colis aux clients." },

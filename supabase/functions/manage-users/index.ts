@@ -22,7 +22,12 @@ function json(body: unknown, status = 200): Response {
 // NULL (unscoped), so the create-time tenant-force below no-ops for it and the
 // owner supplies the target business explicitly; super-admin/admin callers are
 // pinned to their own business.
-const ADMIN_ROLES = ["super admin", "admin", "owner"];
+const ADMIN_ROLES = ["super admin", "business owner", "admin", "owner"];
+
+// Business owner is protected: only the platform owner may create, edit,
+// delete, or suspend a business-owner account. The DB trigger can't see the
+// real caller through these service-role writes, so this function enforces it.
+const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être modifié que par la plateforme.";
 
 // Map raw Postgres / GoTrue errors to messages a human can act on.
 // supabase-js AuthApiError can surface an opaque body whose .message is "{}"
@@ -214,6 +219,9 @@ Deno.serve(async (req) => {
       // never settable through the app. Destructuring strips both from `rest` so
       // they can't ride in via the service-role writes below.
       const { email, password, name, username, role, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
+      if (role === "business owner" && me.role !== "owner") {
+        return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+      }
       if (me.backup_root === true && typeof backup_admin === "boolean") {
         rest.backup_admin = backup_admin;
       }
@@ -279,6 +287,14 @@ Deno.serve(async (req) => {
       const { email, password, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
       if (me.backup_root === true && typeof backup_admin === "boolean") {
         rest.backup_admin = backup_admin;
+      }
+
+      if (me.role !== "owner") {
+        const { data: targetUser } = await supabaseClient
+          .from("users").select("role").eq("id", userId).maybeSingle();
+        if (targetUser?.role === "business owner" || rest.role === "business owner") {
+          return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+        }
       }
 
       // Read the current auth login email so we only touch GoTrue when something
@@ -348,6 +364,10 @@ Deno.serve(async (req) => {
       const { data: doomed } = await supabaseClient
         .from("users").select('name, email, role, "DigiCom Business"').eq("id", userId).maybeSingle();
 
+      if (doomed?.role === "business owner" && me.role !== "owner") {
+        return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+      }
+
       const { error: authError } = await supabaseClient.auth.admin.deleteUser(userId);
       if (authError) throw authError;
 
@@ -362,7 +382,7 @@ Deno.serve(async (req) => {
       try {
         if (doomed?.email) {
           const ROLE_FR: Record<string, string> = {
-            "super admin": "Super administrateur", "admin": "Administrateur", "commercial": "Commercial",
+            "super admin": "Super administrateur", "business owner": "Propriétaire d'entreprise", "admin": "Administrateur", "commercial": "Commercial",
             "courier": "Livreur", "mediabuyer": "Media buyer", "owner": "Propriétaire",
           };
           let businessName = "votre entreprise";

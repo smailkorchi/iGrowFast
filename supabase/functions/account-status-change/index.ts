@@ -14,9 +14,10 @@ const json = (o: unknown, s: number) =>
   new Response(JSON.stringify(o), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: s });
 
 const ROLE_FR: Record<string, string> = {
-  "super admin": "Super administrateur", "admin": "Administrateur", "commercial": "Commercial",
+  "super admin": "Super administrateur", "business owner": "Propriétaire d'entreprise", "admin": "Administrateur", "commercial": "Commercial",
   "courier": "Livreur", "mediabuyer": "Media buyer", "owner": "Propriétaire",
 };
+const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être modifié que par la plateforme.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -33,7 +34,7 @@ Deno.serve(async (req) => {
     const { data: me } = await service.from("users").select('role, "DigiCom Business", active').eq("id", user.id).single();
     if (!me) return json({ ok: false, reason: "profile_not_found" }, 403);
     if (me.active === false) return json({ ok: false, reason: "account_disabled" }, 403);
-    if (!["super admin", "admin"].includes(String(me.role))) return json({ ok: false, reason: "forbidden" }, 403);
+    if (!["super admin", "business owner", "admin"].includes(String(me.role))) return json({ ok: false, reason: "forbidden" }, 403);
     const businessId = me["DigiCom Business"];
     if (!businessId) return json({ ok: false, reason: "no_business" }, 400);
 
@@ -51,6 +52,9 @@ Deno.serve(async (req) => {
     if (!target) return json({ ok: false, reason: "not_found" }, 404);
     if (target["DigiCom Business"] !== businessId) return json({ ok: false, reason: "forbidden" }, 403);
     if (userId === user.id) return json({ ok: false, reason: "cannot_change_self" }, 400);
+    if (target.role === "business owner" && me.role !== "owner") {
+      return json({ ok: false, reason: "forbidden", error: BIZ_OWNER_PROTECTED_MSG }, 403);
+    }
 
     // Primary action: flip the status (mirrors the previous direct update, now server-side).
     const { error: updErr } = await service.from("users").update({ active }).eq("id", userId);

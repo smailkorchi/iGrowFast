@@ -1,0 +1,11 @@
+-- TKT-10: add 'business owner' to the user_role enum (spacing style matches
+-- the existing 'super admin' value).
+--
+-- MUST be its own migration file / own transaction: PostgreSQL forbids using
+-- a newly added enum value inside the SAME transaction that adds it (the
+-- value isn't fully committed/visible for comparisons/casts until that
+-- transaction commits — even the adding session can't use it earlier). Every
+-- policy/function/index/trigger that references 'business owner' therefore
+-- lives in the FOLLOWING migration (20260729150000_business_owner_parity.sql),
+-- which runs in its own later transaction after this one has committed.
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'business owner';

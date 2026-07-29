@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       .from("users").select('role, "DigiCom Business", active').eq("id", user.id).single();
     if (meErr || !me) return json({ error: "Profile not found" }, 403);
     if (me.active === false) return json({ error: "Account disabled" }, 403);
-    if (!["super admin", "admin"].includes(String(me.role))) {
+    if (!["super admin", "business owner", "admin"].includes(String(me.role))) {
       return json({ error: "Only admins can invite users" }, 403);
     }
     const businessId = me["DigiCom Business"];
@@ -149,6 +149,9 @@ Deno.serve(async (req) => {
 
     const targetRole = String(body?.target_role ?? "");
     if (!ALLOWED_TARGET_ROLES.includes(targetRole)) return json({ error: "Invalid target role" }, 400);
+    if (targetRole === "business owner") {
+      return json({ error: "Business owner cannot be invited" }, 403);
+    }
     if (me.role === "admin" && targetRole === "super admin") {
       return json({ error: "Admins cannot invite super admins" }, 403);
     }

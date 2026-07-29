@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: uErr } = await userClient.auth.getUser(bearer);
     if (uErr || !user) return json({ ok: false, error: 'unauthorized' }, 401);
     const { data: prof } = await admin.from('users').select('role').eq('id', user.id).maybeSingle();
-    if (!prof || !['super admin', 'admin'].includes(prof.role)) {
+    if (!prof || !['super admin', 'business owner', 'admin'].includes(prof.role)) {
       return json({ ok: false, error: 'forbidden' }, 403);
     }
   }
