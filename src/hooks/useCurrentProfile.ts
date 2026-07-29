@@ -14,7 +14,21 @@ import { supabase } from '@/lib/supabase';
 // select still enforces via the token, and supabase-js refreshes an expired token
 // on the call.
 const PROFILE_COLS =
-  'id, name, role, avatar_url, avatar_config, username, email, phone, backup_admin';
+  'id, name, role, avatar_url, avatar_config, username, email, phone, backup_admin, permissions';
+
+/** Shape the consumers rely on. `permissions.pages` gates the admin sidebar (see lib/permissions.ts). */
+export interface CurrentProfile {
+  id: string;
+  name: string | null;
+  role: string | null;
+  avatar_url: string | null;
+  avatar_config: unknown | null;
+  username: string | null;
+  email: string | null;
+  phone: string | null;
+  backup_admin: boolean | null;
+  permissions: { pages?: Record<string, boolean> | null } | null;
+}
 
 export function useCurrentProfile() {
   return useQuery({
@@ -30,7 +44,7 @@ export function useCurrentProfile() {
         .eq('id', uid)
         .single();
       if (error) return null;
-      return data as any;
+      return data as unknown as CurrentProfile;
     },
   });
 }

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import {
     createInvitation, checkInviteEmail, sendInvitationEmail, invitationReason,
-    USER_PAGES, type InviteRole,
+    USER_PAGES, USER_PAGE_GROUPS, allPagesGranted, type InviteRole,
 } from '@/lib/invitations';
 
 /** 'business owner' is invitable only by a business owner — hence not part of the base InviteRole union. */
@@ -75,7 +75,9 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId, allowBusin
     );
 
     // Authorization fields (admin-set; never the invitee's identity).
-    const [pages, setPages] = useState<Record<string, boolean>>({});
+    // Page access defaults to EVERY page granted — an all-unchecked map plus route enforcement
+    // would hand over a bricked admin account.
+    const [pages, setPages] = useState<Record<string, boolean>>(allPagesGranted);
     const [commissionPrice, setCommissionPrice] = useState(0);
     const [commissionBasis, setCommissionBasis] = useState<'per_order' | 'per_unit'>('per_order');
     const [paymentType, setPaymentType] = useState<'commission' | 'salary'>('commission');
@@ -108,7 +110,7 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId, allowBusin
     const [sendError, setSendError] = useState<string | null>(null);
 
     const reset = () => {
-        setStep(0); setRole(null); setPages({}); setCommissionPrice(0); setCommissionBasis('per_order');
+        setStep(0); setRole(null); setPages(allPagesGranted()); setCommissionPrice(0); setCommissionBasis('per_order');
         setPaymentType('commission'); setSalaryAmount(0); setProductIds([]); setProductSearch('');
         setParcelFragile(false); setParcelOpen(false);
         setParcelTryOn(false); setPhone(''); setLink(null); setToken(null); setCopied(false); setGenerating(false);
@@ -197,8 +199,24 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId, allowBusin
         return () => { active = false; window.clearTimeout(t); };
     }, [inviteEmail, emailFmtValid, step]);
 
+    // Default-allow semantics: a page counts as granted unless it is explicitly false.
+    const grantedCount = useMemo(() => USER_PAGES.filter((p) => pages[p.path] !== false).length, [pages]);
+    const setPagesGroup = (group: string, on: boolean) => setPages((s) => {
+        const next = { ...s };
+        for (const p of USER_PAGES) if (p.group === group) next[p.path] = on;
+        return next;
+    });
+
     const generate = async () => {
         if (!role) return;
+        if (role === 'admin' && grantedCount === 0) {
+            toast({
+                title: 'Sélectionnez au moins une page',
+                description: 'Un admin sans aucune page autorisée ne peut rien ouvrir.',
+                variant: 'destructive',
+            });
+            return;
+        }
         setGenerating(true);
         try {
             const res = await createInvitation({
@@ -411,24 +429,64 @@ export const InviteUserWizard = ({ isOpen, onClose, activeBusinessId, allowBusin
                             )}
 
                             {role === 'admin' && (
-                                <div className="rounded-2xl border border-ant-line p-4">
-                                    <SectionHeader icon={Shield} title="Page access" hint="Tick the pages this admin can open." />
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                        {USER_PAGES.map((p) => {
-                                            const on = !!pages[p.path];
-                                            return (
-                                                <button key={p.path} onClick={() => setPages((s) => ({ ...s, [p.path]: !on }))}
-                                                    className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer',
-                                                        on ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/20')}>
-                                                    <span className={cn('w-4 h-4 rounded-md flex items-center justify-center shrink-0 border',
-                                                        on ? 'bg-ant-ink border-ant-ink text-white' : 'border-ant-line')}>
-                                                        {on && <Check className="w-3 h-3" />}
-                                                    </span>
-                                                    <span className="text-[12px] text-ant-ink truncate">{p.label}</span>
-                                                </button>
-                                            );
-                                        })}
+                                <div className="rounded-2xl border border-ant-line p-4 space-y-3">
+                                    <SectionHeader icon={Shield} title="Page access" hint="Décochez les pages que cet admin ne doit pas ouvrir." />
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <p className="text-[12px] font-semibold text-ant-ink tabular-nums">
+                                            {grantedCount}/{USER_PAGES.length} pages autorisées
+                                        </p>
+                                        <div className="flex items-center gap-1.5">
+                                            <button type="button" onClick={() => setPages(allPagesGranted())}
+                                                className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-ink hover:border-ant-ink/30 transition cursor-pointer">
+                                                Tout autoriser
+                                            </button>
+                                            <button type="button" onClick={() => setPages(Object.fromEntries(USER_PAGES.map((p) => [p.path, false])))}
+                                                className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition cursor-pointer">
+                                                Tout retirer
+                                            </button>
+                                        </div>
                                     </div>
+                                    {USER_PAGE_GROUPS.map((g) => {
+                                        const items = USER_PAGES.filter((p) => p.group === g);
+                                        const onCount = items.filter((p) => pages[p.path] !== false).length;
+                                        const allOn = onCount === items.length;
+                                        return (
+                                            <div key={g} className="rounded-2xl border border-ant-line p-4 space-y-3">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className="text-[13px] font-semibold text-ant-ink flex items-center gap-2">
+                                                        {g}
+                                                        <span className={cn(
+                                                            'text-[10px] font-semibold tabular-nums px-1.5 h-[18px] rounded-full flex items-center border',
+                                                            onCount > 0 ? 'bg-ant-ink/5 text-ant-ink border-ant-ink/15' : 'text-ant-mid border-ant-line',
+                                                        )}>
+                                                            {onCount}/{items.length}
+                                                        </span>
+                                                    </p>
+                                                    <button type="button" onClick={() => setPagesGroup(g, !allOn)}
+                                                        className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition cursor-pointer">
+                                                        {allOn ? 'Tout retirer' : 'Tout sélectionner'}
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                    {items.map((p) => {
+                                                        // Absent key = allowed (default-allow semantics) → renders CHECKED.
+                                                        const on = pages[p.path] !== false;
+                                                        return (
+                                                            <button key={p.path} type="button" onClick={() => setPages((s) => ({ ...s, [p.path]: !on }))}
+                                                                className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer',
+                                                                    on ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/20')}>
+                                                                <span className={cn('w-4 h-4 rounded-md flex items-center justify-center shrink-0 border',
+                                                                    on ? 'bg-ant-ink border-ant-ink text-white' : 'border-ant-line')}>
+                                                                    {on && <Check className="w-3 h-3" />}
+                                                                </span>
+                                                                <span className="text-[12px] text-ant-ink truncate">{p.label}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
 

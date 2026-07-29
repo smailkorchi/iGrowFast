@@ -202,40 +202,85 @@ export function invitationReason(reason?: string): string {
     }
 }
 
-// Page list an admin can grant to an invited admin (mirrors src/pages/admin/Users.tsx `pages`).
-export const USER_PAGES: { label: string; path: string }[] = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Orders', path: '/orders' },
-    { label: 'Delivery Note', path: '/delivery-note' },
-    { label: 'Return Note', path: '/return-note' },
-    { label: 'Delivery Services', path: '/delivery-services' },
-    { label: 'Payments', path: '/payments' },
-    { label: 'Webhooks', path: '/webhooks' },
-    { label: 'Transactions', path: '/transactions' },
-    { label: 'Products', path: '/products' },
-    { label: 'Accessories', path: '/accessories' },
-    { label: 'Analytics', path: '/analytics' },
-    { label: 'Sales Channels', path: '/sales-channels' },
-    { label: 'Customers', path: '/customers' },
-    { label: 'Users', path: '/users' },
-    { label: 'Collaborators — Sellers', path: '/collaborators/sellers' },
-    { label: 'Collaborators — Couriers', path: '/collaborators/couriers' },
-    { label: 'Collaborators — Media Buyers', path: '/collaborators/mediabuyers' },
-    { label: 'Business — Overview', path: '/business' },
-    { label: 'Business — Payments', path: '/business/payments' },
-    { label: 'Demands', path: '/demands' },
-    { label: 'Salaries', path: '/salaries' },
-    { label: 'Product Ads', path: '/ads-history' },
-    { label: 'Global Ads', path: '/campaigns' },
-    { label: 'Expenses Details', path: '/expenses-details' },
-    { label: 'Expenses Types', path: '/expenses-types' },
-    { label: 'Import Orders', path: '/import-orders' },
-    { label: 'Import Products', path: '/import-products' },
-    { label: 'Import Accessories', path: '/import-accessories' },
-    { label: 'Import Customers', path: '/import-customers' },
-    { label: 'Profit Calculator', path: '/calculator' },
-    { label: 'Devis', path: '/devis' },
-    { label: 'Facture', path: '/facture' },
-    { label: 'Bon de commande', path: '/bon-de-commande' },
-    { label: 'Bon de livraison', path: '/bon-de-livraison' },
+export interface UserPage {
+    label: string;
+    path: string;
+    /** Section this page belongs to — mirrors the sidebar grouping; drives the checkbox grids. */
+    group: string;
+}
+
+// THE page registry — single source of truth for admin page permissions. Every consumer
+// (invite wizard grid, direct-create grid, Users permissions tab, Sidebar filter, route
+// gate) reads this list; `src/lib/permissions.ts` matches route paths against these keys.
+//
+// Covers all 43 gateable admin routes (src/App.tsx). /profile is deliberately ABSENT:
+// it is always accessible and must never be gated. Order matters — it is the order the
+// grids render AND the order `firstAllowedPath` picks a landing page in.
+export const USER_PAGES: UserPage[] = [
+    // Overview
+    { label: 'Dashboard', path: '/', group: 'Overview' },
+    { label: 'Analytics', path: '/analytics', group: 'Overview' },
+    { label: 'Google Analytics', path: '/google-analytics', group: 'Overview' },
+    { label: 'Meta Ads', path: '/meta-ads', group: 'Overview' },
+    // WhatsApp
+    { label: 'WhatsApp — Inbox', path: '/whatsapp/conversations', group: 'WhatsApp' },
+    { label: 'WhatsApp — Numéros', path: '/whatsapp/numbers', group: 'WhatsApp' },
+    { label: 'WhatsApp — Assignation', path: '/whatsapp/assignment', group: 'WhatsApp' },
+    { label: 'WhatsApp — Contacts', path: '/whatsapp/contacts', group: 'WhatsApp' },
+    // Orders
+    { label: 'Orders', path: '/orders', group: 'Orders' },
+    { label: 'Corbeille', path: '/trash', group: 'Orders' },
+    // Shipping
+    { label: 'Delivery Note', path: '/delivery-note', group: 'Shipping' },
+    { label: 'Return Note', path: '/return-note', group: 'Shipping' },
+    { label: 'Payments', path: '/payments', group: 'Shipping' },
+    { label: 'Delivery Services', path: '/delivery-services', group: 'Shipping' },
+    { label: 'Webhooks', path: '/webhooks', group: 'Shipping' },
+    // Inventory
+    { label: 'Transactions', path: '/transactions', group: 'Inventory' },
+    { label: 'Products', path: '/products', group: 'Inventory' },
+    { label: 'Accessories', path: '/accessories', group: 'Inventory' },
+    // Ads
+    { label: 'Global Ads', path: '/campaigns', group: 'Ads' },
+    { label: 'Product Ads', path: '/ads-history', group: 'Ads' },
+    // Integrations
+    { label: 'Sales Channels', path: '/sales-channels', group: 'Integrations' },
+    { label: 'Leads Review', path: '/sheet-review', group: 'Integrations' },
+    // Directory
+    { label: 'Customers', path: '/customers', group: 'Directory' },
+    { label: 'Users', path: '/users', group: 'Directory' },
+    // Teams
+    { label: 'Collaborators — Sellers', path: '/collaborators/sellers', group: 'Teams' },
+    { label: 'Collaborators — Couriers', path: '/collaborators/couriers', group: 'Teams' },
+    { label: 'Collaborators — Media Buyers', path: '/collaborators/mediabuyers', group: 'Teams' },
+    { label: 'Salaries', path: '/salaries', group: 'Teams' },
+    { label: 'Demands', path: '/demands', group: 'Teams' },
+    // Business
+    { label: 'Business — Overview', path: '/business', group: 'Business' },
+    { label: 'Business — Payments', path: '/business/payments', group: 'Business' },
+    // Expenses
+    { label: 'Expenses Details', path: '/expenses-details', group: 'Expenses' },
+    { label: 'Charges récurrentes', path: '/recurring-charges', group: 'Expenses' },
+    { label: 'Expenses Types', path: '/expenses-types', group: 'Expenses' },
+    // Tools
+    { label: 'Profit Calculator', path: '/calculator', group: 'Tools' },
+    { label: 'Devis', path: '/devis', group: 'Tools' },
+    { label: 'Facture', path: '/facture', group: 'Tools' },
+    { label: 'Bon de commande', path: '/bon-de-commande', group: 'Tools' },
+    { label: 'Bon de livraison', path: '/bon-de-livraison', group: 'Tools' },
+    // Imports
+    { label: 'Import Orders', path: '/import-orders', group: 'Imports' },
+    { label: 'Import Products', path: '/import-products', group: 'Imports' },
+    { label: 'Import Accessories', path: '/import-accessories', group: 'Imports' },
+    { label: 'Import Customers', path: '/import-customers', group: 'Imports' },
 ];
+
+/** Group names in registry order — the order the permission grids render sections in. */
+export const USER_PAGE_GROUPS: string[] = USER_PAGES.reduce<string[]>((acc, p) => {
+    if (!acc.includes(p.group)) acc.push(p.group);
+    return acc;
+}, []);
+
+/** Every registry page checked — the default for a NEW admin (all-unchecked would brick them). */
+export const allPagesGranted = (): Record<string, boolean> =>
+    Object.fromEntries(USER_PAGES.map((p) => [p.path, true]));

@@ -54,6 +54,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { supabase } from '@/lib/supabase';
 import { useCurrentProfile } from '@/hooks/useCurrentProfile';
+import { isPageAllowed } from '@/lib/permissions';
 
 type NavItem = {
     icon: LucideIcon | React.ComponentType<{ className?: string }>;
@@ -250,6 +251,21 @@ const Sidebar = () => {
 
     const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
 
+    // Page permissions gate role 'admin' ONLY — super admin / business owner keep the full nav
+    // (pageMap stays undefined for them, and isPageAllowed(_, undefined) is always true).
+    const pageMap = profile?.role === 'admin' ? profile?.permissions?.pages : undefined;
+    const allowPath = React.useCallback(
+        (path: string) => isPageAllowed(path, pageMap),
+        [pageMap],
+    );
+    // Sections whose every child is denied disappear — no empty headers.
+    const visibleNavigation = React.useMemo(() => {
+        if (!pageMap) return navigation;
+        return navigation
+            .map((section) => ({ ...section, items: section.items.filter((i) => isPageAllowed(i.path, pageMap)) }))
+            .filter((section) => section.items.length > 0);
+    }, [pageMap]);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         localStorage.removeItem('activeBusinessId');
@@ -301,7 +317,7 @@ const Sidebar = () => {
 
                     {/* Nav — no-scrollbar hides native scrollbar (collapsed-width horizontal-overflow bug) */}
                     <div className="flex-1 px-2 pt-2 space-y-0.5 overflow-y-auto overflow-x-hidden no-scrollbar pb-3 scroll-smooth">
-                        {navigation.map((section, idx) => (
+                        {visibleNavigation.map((section, idx) => (
                             <div key={idx} className="space-y-0.5">
                                 {section.label ? (
                                     <>
@@ -449,6 +465,7 @@ const Sidebar = () => {
                             </div>
                         ))}
 
+                        {allowPath('/trash') && (
                         <div className="mt-1 pt-1 border-t border-white/[0.05]">
                             <NavLink
                                 to="/trash"
@@ -487,6 +504,7 @@ const Sidebar = () => {
                                 )}
                             </NavLink>
                         </div>
+                        )}
                     </div>
 
                     {/* Profile */}

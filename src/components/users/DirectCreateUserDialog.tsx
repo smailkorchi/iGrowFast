@@ -13,7 +13,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
-import { USER_PAGES } from '@/lib/invitations';
+import { USER_PAGES, USER_PAGE_GROUPS, allPagesGranted } from '@/lib/invitations';
 import {
     AlertCircle, BarChart3, Bike, Check, Copy, Crown, Eye, EyeOff, Loader2, Megaphone,
     Package, RefreshCw, Search, Shield, UserPlus, Wallet, type LucideIcon,
@@ -170,7 +170,8 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
     const [serverError, setServerError] = useState<string | null>(null);
 
     // Per-role access & terms — the same fields the invite wizard sets (buildPayload).
-    const [pages, setPages] = useState<Record<string, boolean>>({});
+    // NEW admin = every page granted by default (an all-unchecked map would brick the account).
+    const [pages, setPages] = useState<Record<string, boolean>>(allPagesGranted);
     const [commissionPrice, setCommissionPrice] = useState(0);
     const [commissionBasis, setCommissionBasis] = useState<'per_order' | 'per_unit'>('per_order');
     const [paymentType, setPaymentType] = useState<'commission' | 'salary'>('commission');
@@ -195,7 +196,7 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
 
     // Config never carries across roles — a role switch starts from that role's defaults.
     useEffect(() => {
-        setPages({}); setCommissionPrice(0); setCommissionBasis('per_order');
+        setPages(allPagesGranted()); setCommissionPrice(0); setCommissionBasis('per_order');
         setPaymentType('commission'); setSalaryAmount(0); setProductIds([]); setProductSearch('');
         setGaMode('none'); setGaIds([]); setMetaMode('none'); setMetaIds([]);
         setPhone(''); setParcelFragile(false); setParcelOpen(false); setParcelTryOn(false);
@@ -292,6 +293,14 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
         onError: (e: any) => setServerError(e?.message || 'Création impossible.'),
     });
 
+    // Default-allow semantics: granted unless explicitly false.
+    const grantedPageCount = useMemo(() => USER_PAGES.filter((p) => pages[p.path] !== false).length, [pages]);
+    const setPagesGroup = (group: string, on: boolean) => setPages((s) => {
+        const next = { ...s };
+        for (const p of USER_PAGES) if (p.group === group) next[p.path] = on;
+        return next;
+    });
+
     const validate = () => {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Le nom est requis.';
@@ -301,6 +310,7 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
         if (!password) next.password = 'Le mot de passe est requis.';
         else if (password.length < 8) next.password = 'Au moins 8 caractères.';
         if (!role) next.role = 'Le rôle est requis.';
+        if (role === 'admin' && grantedPageCount === 0) next.pages = 'Autorisez au moins une page.';
         if (role === 'commercial' || role === 'mediabuyer') {
             if (!Number.isFinite(commissionPrice) || commissionPrice < 0) next.commission_price = 'Montant invalide.';
             if (!Number.isFinite(salaryAmount) || salaryAmount < 0) next.salary_amount = 'Montant invalide.';
@@ -331,19 +341,28 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
-            <DialogContent className="max-w-xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
+            <DialogContent className="max-w-xl p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
+                {/* Gradient hairline */}
+                <div className="h-[3px] w-full bg-gradient-to-r from-ant-orange via-ant-orange/60 to-transparent" />
                 <form onSubmit={submit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
-                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                            Création directe
+                    <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
+                        <div className="flex items-start gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-ant-ink text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <UserPlus className="w-5 h-5" strokeWidth={1.75} />
+                            </div>
+                            <div className="min-w-0">
+                                <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    Création directe
+                                </div>
+                                <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
+                                    Créer un utilisateur
+                                </DialogTitle>
+                                <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
+                                    Vous choisissez l&rsquo;identité et le mot de passe. Le compte est actif immédiatement, sans confirmation par email.
+                                </DialogDescription>
+                            </div>
                         </div>
-                        <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
-                            Créer un utilisateur
-                        </DialogTitle>
-                        <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                            Vous choisissez l&rsquo;identité et le mot de passe. Le compte est actif immédiatement, sans confirmation par email.
-                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
@@ -428,25 +447,66 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
                         )}
 
                         {role === 'admin' && (
-                            <ConfigSection icon={Shield} title="Accès aux pages" hint="Cochez les pages que cet admin peut ouvrir.">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                    {USER_PAGES.map((p) => {
-                                        const on = !!pages[p.path];
-                                        return (
-                                            <button
-                                                key={p.path}
-                                                type="button"
-                                                disabled={busy}
-                                                onClick={() => setPages((s) => ({ ...s, [p.path]: !on }))}
-                                                className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60',
-                                                    on ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/20')}
-                                            >
-                                                <span className={checkBox(on, 'ink')}>{on && <Check className="w-3 h-3" />}</span>
-                                                <span className="text-[12px] text-ant-ink truncate">{p.label}</span>
-                                            </button>
-                                        );
-                                    })}
+                            <ConfigSection icon={Shield} title="Accès aux pages" hint="Décochez les pages que cet admin ne doit pas ouvrir.">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <p className="text-[12px] font-semibold text-ant-ink tabular-nums">
+                                        {grantedPageCount}/{USER_PAGES.length} pages autorisées
+                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                        <button type="button" disabled={busy} onClick={() => setPages(allPagesGranted())}
+                                            className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-ink hover:border-ant-ink/30 transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60">
+                                            Tout autoriser
+                                        </button>
+                                        <button type="button" disabled={busy} onClick={() => setPages(Object.fromEntries(USER_PAGES.map((p) => [p.path, false])))}
+                                            className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60">
+                                            Tout retirer
+                                        </button>
+                                    </div>
                                 </div>
+                                {errors.pages && <p className={errCls}>{errors.pages}</p>}
+                                {USER_PAGE_GROUPS.map((g) => {
+                                    const items = USER_PAGES.filter((p) => p.group === g);
+                                    const onCount = items.filter((p) => pages[p.path] !== false).length;
+                                    const allOn = onCount === items.length;
+                                    return (
+                                        <div key={g} className="rounded-2xl border border-ant-line p-4 space-y-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-[13px] font-semibold text-ant-ink flex items-center gap-2">
+                                                    {g}
+                                                    <span className={cn(
+                                                        'text-[10px] font-semibold tabular-nums px-1.5 h-[18px] rounded-full flex items-center border',
+                                                        onCount > 0 ? 'bg-ant-ink/5 text-ant-ink border-ant-ink/15' : 'text-ant-mid border-ant-line',
+                                                    )}>
+                                                        {onCount}/{items.length}
+                                                    </span>
+                                                </p>
+                                                <button type="button" disabled={busy} onClick={() => setPagesGroup(g, !allOn)}
+                                                    className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60">
+                                                    {allOn ? 'Tout retirer' : 'Tout sélectionner'}
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                {items.map((p) => {
+                                                    // Absent key = allowed (default-allow semantics) → renders CHECKED.
+                                                    const on = pages[p.path] !== false;
+                                                    return (
+                                                        <button
+                                                            key={p.path}
+                                                            type="button"
+                                                            disabled={busy}
+                                                            onClick={() => { setPages((s) => ({ ...s, [p.path]: !on })); setErrors((s) => ({ ...s, pages: '' })); }}
+                                                            className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60',
+                                                                on ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/20')}
+                                                        >
+                                                            <span className={checkBox(on, 'ink')}>{on && <Check className="w-3 h-3" />}</span>
+                                                            <span className="text-[12px] text-ant-ink truncate">{p.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </ConfigSection>
                         )}
 

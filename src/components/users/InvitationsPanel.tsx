@@ -63,23 +63,34 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
 
     return (
         <Dialog open onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl overflow-hidden">
-                <div className="h-[3px] w-full bg-ant-orange" />
-                <DialogHeader className="px-6 pt-5 pb-4 border-b border-ant-line space-y-1.5">
-                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
-                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" /> {mode === 'remind' ? 'Send reminder' : 'Revoke invitation'}
+            <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
+                {/* Gradient hairline — contextual hue: orange relance / rose révocation */}
+                <div className={cn('h-[3px] w-full bg-gradient-to-r to-transparent',
+                    mode === 'remind' ? 'from-ant-orange via-ant-orange/60' : 'from-ant-rose via-ant-rose/60')} />
+                <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
+                    <div className="flex items-start gap-3">
+                        <div className={cn('w-11 h-11 rounded-2xl text-white flex items-center justify-center shrink-0 shadow-sm',
+                            mode === 'remind' ? 'bg-ant-ink' : 'bg-ant-rose')}>
+                            <Mail className="w-5 h-5" strokeWidth={1.75} />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
+                                <span className={cn('h-1.5 w-1.5 rounded-full', mode === 'remind' ? 'bg-ant-orange' : 'bg-ant-rose')} />
+                                {mode === 'remind' ? 'Relance' : 'Révocation'}
+                            </div>
+                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
+                                {mode === 'remind' ? 'Qui faut-il relancer ?' : 'Prévenir la personne invitée ?'}
+                            </DialogTitle>
+                            <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
+                                Cette invitation n&rsquo;a aucun email enregistré. {mode === 'remind'
+                                    ? 'Indiquez où envoyer la relance.'
+                                    : 'Indiquez un email pour envoyer l’avis d’annulation — ou révoquez sans prévenir.'}
+                            </DialogDescription>
+                        </div>
                     </div>
-                    <DialogTitle className="font-display text-[18px] tracking-tight text-ant-ink">
-                        {mode === 'remind' ? 'Who should we remind?' : 'Notify the invitee?'}
-                    </DialogTitle>
-                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid">
-                        This invite has no email on file. {mode === 'remind'
-                            ? 'Enter where to send the invitation reminder.'
-                            : 'Enter an email to send the cancellation notice — or revoke without notifying.'}
-                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="px-6 py-5 space-y-3">
+                <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-3">
                     <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ant-mid" />
                         <Input
@@ -97,13 +108,13 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
                             {invitationReason(check.reason)}
                             {check.reason === 'typo' && check.suggestion && (
                                 <button type="button" onClick={() => setEmail(check.suggestion!)} className="font-semibold text-ant-orange hover:underline">
-                                    Use {check.suggestion}
+                                    Utiliser {check.suggestion}
                                 </button>
                             )}
                         </p>
                     )}
                     {check.status === 'unknown' && (
-                        <p className="text-[11px] font-medium text-ant-mid">Couldn’t verify right now — you can still send it.</p>
+                        <p className="text-[11px] font-medium text-ant-mid">Vérification impossible pour l’instant — vous pouvez quand même envoyer.</p>
                     )}
                 </div>
 
@@ -111,7 +122,7 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
                     {mode === 'revoke' ? (
                         <Button variant="ghost" disabled={busy} onClick={() => onSubmit(null)}
                             className="h-10 px-3 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-rose gap-1.5">
-                            <Ban className="w-4 h-4" /> Revoke without notifying
+                            <Ban className="w-4 h-4" /> Révoquer sans prévenir
                         </Button>
                     ) : <span />}
                     <Button
@@ -122,7 +133,7 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
                     >
                         {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             : mode === 'remind' ? <BellRing className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
-                        {mode === 'remind' ? 'Send reminder' : 'Revoke & notify'}
+                        {mode === 'remind' ? 'Envoyer la relance' : 'Révoquer et notifier'}
                     </Button>
                 </div>
             </DialogContent>

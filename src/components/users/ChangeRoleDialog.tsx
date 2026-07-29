@@ -11,7 +11,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
 import { fieldLabelCls, ServerErrorPanel, type RoleOption } from '@/components/users/DirectCreateUserDialog';
-import { Loader2, Shield } from 'lucide-react';
+import { Loader2, Shield, ShieldCheck } from 'lucide-react';
 
 interface ChangeRoleDialogProps {
     isOpen: boolean;
@@ -65,22 +65,31 @@ export const ChangeRoleDialog = ({ isOpen, onClose, user, roleOptions }: ChangeR
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
-            <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
-                <form onSubmit={submit}>
-                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
-                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
-                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
-                            Autorisation
+            <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
+                {/* Gradient hairline */}
+                <div className="h-[3px] w-full bg-gradient-to-r from-ant-orange via-ant-orange/60 to-transparent" />
+                <form onSubmit={submit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
+                        <div className="flex items-start gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-ant-ink text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <ShieldCheck className="w-5 h-5" strokeWidth={1.75} />
+                            </div>
+                            <div className="min-w-0">
+                                <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    Autorisation
+                                </div>
+                                <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
+                                    Changer le rôle
+                                </DialogTitle>
+                                <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
+                                    <span className="not-italic font-semibold text-ant-ink">« {user?.name} »</span> — le nouveau rôle s&rsquo;applique dès la confirmation.
+                                </DialogDescription>
+                            </div>
                         </div>
-                        <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
-                            Changer le rôle
-                        </DialogTitle>
-                        <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
-                            <span className="not-italic font-semibold text-ant-ink">&ldquo;{user?.name}&rdquo;</span> — le nouveau rôle s&rsquo;applique dès la confirmation.
-                        </DialogDescription>
                     </DialogHeader>
 
-                    <div className="px-6 py-5 space-y-4">
+                    <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-4">
                         <div className="space-y-1.5">
                             <span className={fieldLabelCls}>Rôle actuel</span>
                             <div>
