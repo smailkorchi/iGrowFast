@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { format, isValid } from 'date-fns';
-import { Loader2, Truck, SearchX, Hash, Phone, MapPin, CalendarClock, Info, PencilLine } from 'lucide-react';
+import { Loader2, Truck, SearchX, Hash, Phone, MapPin, CalendarClock, Info, PencilLine, AlertCircle } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Dialog,
@@ -108,6 +108,10 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
     const queryClient = useQueryClient();
     const [trackingCode, setTrackingCode] = useState<string | null>(null);
     const [trackingHistory, setTrackingHistory] = useState<unknown>(null);
+    // Set when the live provider fetch failed and we rendered from our own
+    // persisted data instead (parcel_tracking_snapshots or package_status_history).
+    const [offlineSource, setOfflineSource] = useState<'snapshot' | 'history' | null>(null);
+    const [offlineAt, setOfflineAt] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     // Load all package_statuses for icon/color matching
@@ -151,6 +155,8 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
         if (!open || !orderId) {
             setTrackingCode(null);
             setTrackingHistory(null);
+            setOfflineSource(null);
+            setOfflineAt(null);
             setIsLoading(false);
             return;
         }
@@ -161,6 +167,8 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
             setIsLoading(true);
             setTrackingHistory(null);
             setTrackingCode(null);
+            setOfflineSource(null);
+            setOfflineAt(null);
 
             try {
                 const { data: parcel, error } = await supabase
@@ -226,12 +234,74 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     return;
                 }
 
-                const data = await trackParcelWithFallback({
-                    id: parcel.id,
-                    provider_id: parcel.provider_id,
-                    tracking_code: String(parcel.tracking_code).trim(),
-                    external_id: parcel.external_id,
-                });
+                let data: Record<string, unknown>;
+                try {
+                    data = await trackParcelWithFallback({
+                        id: parcel.id,
+                        provider_id: parcel.provider_id,
+                        tracking_code: String(parcel.tracking_code).trim(),
+                        external_id: parcel.external_id,
+                    });
+                } catch (trackErr) {
+                    if (cancelled) return;
+
+                    // Live provider fetch failed — fall back to our own persisted
+                    // data before giving up. 1) last-known rich snapshot, 2) our
+                    // own transition log, 3) today's behavior (toast + close).
+                    const codeTrimmed = String(parcel.tracking_code).trim();
+
+                    const { data: snapshot } = await (supabase as any)
+                        .from('parcel_tracking_snapshots')
+                        .select('status, status_label, history, fetched_at')
+                        .eq('provider_id', parcel.provider_id)
+                        .eq('tracking_code', codeTrimmed)
+                        .maybeSingle();
+
+                    if (cancelled) return;
+
+                    if (snapshot && Array.isArray(snapshot.history) && snapshot.history.length > 0) {
+                        setTrackingHistory({
+                            status: snapshot.status,
+                            statusLabel: snapshot.status_label,
+                            history: snapshot.history,
+                        });
+                        setOfflineSource('snapshot');
+                        setOfflineAt(snapshot.fetched_at);
+                        return;
+                    }
+
+                    const { data: historyRows } = await (supabase as any)
+                        .from('package_status_history')
+                        .select('new_status_label, new_status_color, created_at, is_baseline')
+                        .eq('tracking_code', codeTrimmed)
+                        .eq('provider_id', parcel.provider_id)
+                        .eq('source', 'company_parcel')
+                        .order('created_at', { ascending: true })
+                        .limit(100);
+
+                    if (cancelled) return;
+
+                    if (historyRows && historyRows.length > 0) {
+                        // Provider-history convention is newest-first (the render
+                        // layer reverses it back to oldest-first for display) —
+                        // reverse our ascending-by-time query to match.
+                        const mapped = historyRows
+                            .map((row: { new_status_label: string | null; new_status_color: string | null; created_at: string; is_baseline: boolean }) => ({
+                                status: row.new_status_label ?? 'Statut retiré',
+                                statusLabel: row.new_status_label ?? 'Statut retiré',
+                                date: row.created_at,
+                                comment: row.is_baseline ? 'Statut observé à cette date' : '',
+                                color: row.new_status_color,
+                            }))
+                            .reverse();
+                        setTrackingHistory({ history: mapped });
+                        setOfflineSource('history');
+                        setOfflineAt(historyRows[historyRows.length - 1].created_at);
+                        return;
+                    }
+
+                    throw trackErr;
+                }
 
                 if (cancelled) return;
                 setTrackingHistory(data);
@@ -329,6 +399,15 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                         </div>
                     ) : trackingHistory ? (
                         <div className="relative">
+                            {offlineSource && (
+                                <div className="mb-6 flex items-start gap-2 rounded-xl border border-ant-orange/30 bg-ant-orange/10 px-3 py-2.5">
+                                    <AlertCircle className="w-3.5 h-3.5 text-ant-orange shrink-0 mt-px" />
+                                    <p className="text-[11.5px] font-semibold text-ant-ink">
+                                        Historique fournisseur indisponible — données enregistrées le{' '}
+                                        {offlineAt && isValid(new Date(offlineAt)) ? format(new Date(offlineAt), 'dd/MM/yyyy HH:mm') : '—'}
+                                    </p>
+                                </div>
+                            )}
                             {(() => {
                                 const th = trackingHistory as Record<string, unknown> | unknown[] | null;
                                 let events: unknown[] = Array.isArray(th)

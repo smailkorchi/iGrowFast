@@ -4428,6 +4428,37 @@ Deno.serve(async (req) => {
             case 'track_parcel':
                 console.log('Tracking parcel:', data.tracking_code);
                 result = await adapter.trackParcel(data.tracking_code, data.external_id, supabase);
+                if (result && Array.isArray(result.history) && result.history.length > 0) {
+                    try {
+                        const { data: parcelRow } = await supabase
+                            .from('company_parcels')
+                            .select('"DigiCom Business", order_id')
+                            .eq('provider_id', provider_id)
+                            .eq('tracking_code', data.tracking_code)
+                            .maybeSingle();
+                        if (parcelRow) {
+                            const trimmedHistory = result.history.slice(-200).map((event: any) => {
+                                const { _original, ...rest } = event;
+                                return rest;
+                            });
+                            const { error: snapshotErr } = await supabase
+                                .from('parcel_tracking_snapshots')
+                                .upsert({
+                                    provider_id,
+                                    tracking_code: data.tracking_code,
+                                    'DigiCom Business': parcelRow['DigiCom Business'],
+                                    order_id: parcelRow.order_id,
+                                    status: result.status ?? null,
+                                    status_label: result.statusLabel ?? null,
+                                    history: trimmedHistory,
+                                    fetched_at: new Date().toISOString(),
+                                }, { onConflict: 'provider_id,tracking_code' });
+                            if (snapshotErr) console.error('parcel_tracking_snapshots upsert failed:', snapshotErr.message);
+                        }
+                    } catch (snapshotEx) {
+                        console.error('parcel_tracking_snapshots persistence failed:', snapshotEx);
+                    }
+                }
                 break;
             case 'get_parcel_info':
                 console.log('Getting parcel info:', data.tracking_code);
