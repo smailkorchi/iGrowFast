@@ -1,0 +1,2615 @@
+-- current_user_is_business_admin
+CREATE OR REPLACE FUNCTION public.current_user_is_business_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users u
+    WHERE u.id = auth.uid() AND u.role IN ('super admin','admin','business owner')
+  );
+$function$;
+
+-- admin_analytics_stats
+CREATE OR REPLACE FUNCTION public.admin_analytics_stats(p_business uuid, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date, p_sections text[] DEFAULT NULL::text[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
+declare
+    v_now       timestamptz := now();
+    v_today     date := (now() at time zone 'Africa/Casablanca')::date;
+    v_start     timestamptz := case when p_from is not null
+                                    then p_from::timestamp at time zone 'Africa/Casablanca' end;
+    v_end_excl  timestamptz := case when p_to is not null
+                                    then (p_to + 1)::timestamp at time zone 'Africa/Casablanca' end;
+    v_has_win   boolean := (p_from is not null or p_to is not null);
+    v_from_day  date := coalesce(p_from, date '1970-01-01');
+    v_to_day    date;  -- assigned below (declare-order limitation safety)
+    v_profitability jsonb;
+    v_health    jsonb;
+    v_orders    jsonb;
+    v_ads       jsonb;
+    v_shipping  jsonb;
+    v_inventory jsonb;
+    v_channels  jsonb;
+    v_customers jsonb;
+    v_sellers   jsonb;
+    v_couriers  jsonb;
+    v_mediabuyers jsonb;
+    v_users     jsonb;
+    v_all       boolean := (p_sections is null);
+    v_out       jsonb := '{}'::jsonb;
+begin
+    -- ADMIN GATE (D3 review — corrects the design contract's "no scope guard"
+    -- lock): this payload aggregates business-wide P&L, ad spend, ROAS and
+    -- per-collaborator performance. SECURITY INVOKER + RLS already prevents
+    -- privilege escalation (payments tables are own-rows-or-admin scoped), but
+    -- campaign_daily_entries/orders carry tenant-wide RLS, so an authenticated
+    -- non-admin could otherwise call this RPC directly and receive a
+    -- pre-aggregated spend/ROAS/profit payload the MB-facing data rule forbids.
+    -- The consumer page is admin-only, so this regresses no legitimate caller.
+    if not (select public.current_user_is_business_admin()) then
+        raise exception 'admin_analytics_stats: admin only' using errcode = '42501';
+    end if;
+
+    v_to_day := coalesce(p_to, v_today);
+
+    if v_all or 'profitability' = any(p_sections) then
+    -- ───────────────────── profitability (recon 02 §1 / 03 §1) ─────────────
+    -- Pool: replace-excluded. Per-stream window anchors are NOT unified
+    -- (contract rule): revenue/COGS/shipping/provisional anchor on
+    -- coalesce(date_livraison, updated_at); return fees on updated_at;
+    -- expenses cash-basis on expenses.date; seller salaries on sde.date;
+    -- MB payouts pro-rated by payout-month overlap; product ads pro-rated by
+    -- inclusive-day range overlap; campaign entries on entry_date; the
+    -- Conversion denominator alone anchors on placement.
+    -- Trend = per-day component arrays (product-ads per day = amount ÷
+    -- total_days over range ∩ window; MB salary per day = total ÷
+    -- days-in-month over payout month ∩ window — exact day-bucket equivalents
+    -- of overlapFraction/payoutMonthOverlap; recon 03 §1 RPC shape).
+    with pool as (
+        select o.id, o.date, o.price, o.raw_price, o.shipping_cost,
+               o.include_delivery_in_total, o.courier_id, o.company_id,
+               o.master_city_id, o.updated_at,
+               coalesce(o.date_livraison, o.updated_at) as delivery_ts,
+               coalesce(ps.is_delivered, false) as is_delivered,
+               coalesce(os.is_paid, false)      as is_paid,
+               coalesce(os.is_unpaid, false)    as is_unpaid,
+               coalesce(ps.is_returned, false)  as is_returned
+        from public.orders o
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+    ),
+    -- delivered rows with delivery anchor in window: the revenue (paid) and
+    -- provisional (unpaid) universes. FULL pureRevenue chain + cogsForOrder
+    -- (accessory part INDEPENDENT of product qty — no `continue`, unlike the
+    -- D2 sellers-fin replication).
+    fin_orders as (
+        select p.id, p.is_paid, p.is_unpaid, p.shipping_cost, p.delivery_ts,
+               (case when coalesce(li.line_sum, 0) > 0 then li.line_sum
+                     when coalesce(p.raw_price, 0) > 0 then p.raw_price
+                     else case when p.include_delivery_in_total is false
+                               then coalesce(p.price, 0)
+                               else greatest(0, coalesce(p.price, 0) - coalesce(p.shipping_cost, 0)) end end)
+             + (case when p.include_delivery_in_total is true then coalesce(p.shipping_cost, 0) else 0 end)
+                 as revenue,
+               coalesce(li.cogs, 0) as cogs
+        from pool p
+        left join lateral (
+            select
+                sum(case when coalesce(oi.total_price, 0) > 0 then oi.total_price
+                         else coalesce(oi.unit_price, 0) * oi.quantity end)
+                    filter (where oi.product_id is not null and coalesce(oi.quantity, 0) > 0) as line_sum,
+                sum(
+                    coalesce(case when oi.product_id is not null and coalesce(oi.quantity, 0) > 0 then
+                        (case when coalesce(oi.product_unit_cost_snapshot, 0) > 0
+                              then oi.product_unit_cost_snapshot
+                              else coalesce(pr.cost_price, 0) end) * oi.quantity end, 0)
+                  + coalesce(case when oi.accessory_id is not null and coalesce(oi.accessory_quantity, 0) > 0 then
+                        (case when coalesce(oi.accessory_unit_price, 0) > 0
+                              then oi.accessory_unit_price
+                              else coalesce(ac.cost_price, 0) end) * oi.accessory_quantity end, 0)
+                ) as cogs
+            from public.order_items oi
+            left join public.products pr on pr.id = oi.product_id
+            left join public.accessories ac on ac.id = oi.accessory_id
+            where oi.order_id = p.id
+        ) li on true
+        where p.is_delivered
+          and p.delivery_ts is not null
+          and (v_start is null or p.delivery_ts >= v_start)
+          and (case when v_end_excl is not null then p.delivery_ts < v_end_excl else p.delivery_ts <= v_now end)
+    ),
+    -- returned orders anchored on updated_at; fee lookup = courier PRECEDENCE
+    -- (courier_id set → courier_fees hit or 0, company NEVER consulted), else
+    -- company_fees, 0 without a city. Uniq (entity, city, biz) index → the
+    -- scalar subqueries are single-row.
+    ret as (
+        select p.updated_at,
+               case when p.master_city_id is null then 0
+                    when p.courier_id is not null then
+                        coalesce((select coalesce(cf.return_fee, 0)
+                                  from public.courier_fees cf
+                                  where cf."DigiCom Business" = p_business
+                                    and cf.courier_id = p.courier_id
+                                    and cf.master_city_id = p.master_city_id
+                                  limit 1), 0)
+                    when p.company_id is not null then
+                        coalesce((select coalesce(cof.return_fee, 0)
+                                  from public.company_fees cof
+                                  where cof."DigiCom Business" = p_business
+                                    and cof.company_id = p.company_id
+                                    and cof.master_city_id = p.master_city_id
+                                  limit 1), 0)
+                    else 0 end as return_fee
+        from pool p
+        where p.is_returned
+          and p.updated_at is not null
+          and (v_start is null or p.updated_at >= v_start)
+          and (case when v_end_excl is not null then p.updated_at < v_end_excl else p.updated_at <= v_now end)
+    ),
+    placed as (
+        select count(*)::int as placed_count,
+               (count(*) filter (where is_delivered and is_paid))::int as converted_count
+        from pool p
+        where p.date is not null
+          and (v_start is null or p.date >= v_start)
+          and (case when v_end_excl is not null then p.date < v_end_excl else p.date <= v_now end)
+    ),
+    exp_rows as (  -- strict cash basis: amount > 0, expenses.date (timestamptz) in window
+        select e.amount, e.date,
+               coalesce(nullif(btrim(et.name), ''), 'Uncategorized') as type_name
+        from public.expenses e
+        left join public.expense_types et on et.id = e.type_id
+        where e."DigiCom Business" = p_business
+          and coalesce(e.amount, 0) > 0
+          and e.date is not null
+          and (v_start is null or e.date >= v_start)
+          and (case when v_end_excl is not null then e.date < v_end_excl else e.date <= v_now end)
+    ),
+    sde_rows as (
+        select s.date, coalesce(s.total_earned, 0) as total_earned
+        from public.seller_daily_earnings s
+        where s."DigiCom Business" = p_business
+          and s.date is not null
+          and s.date >= v_from_day and s.date <= v_to_day
+    ),
+    mbp_rows as (  -- payoutMonthOverlap: calendar-month overlap fraction
+        select coalesce(mp.total_amount, 0) as total_amount, f.m_start, f.m_end,
+               (f.m_end - f.m_start + 1) as days_in_month,
+               greatest(f.m_start, v_from_day) as ov_start,
+               least(f.m_end, v_to_day) as ov_end
+        from public.mediabuyer_payments mp
+        cross join lateral (
+            select to_date(left(mp.payout_month, 7) || '-01', 'YYYY-MM-DD') as m_start,
+                   (to_date(left(mp.payout_month, 7) || '-01', 'YYYY-MM-DD')
+                       + interval '1 month' - interval '1 day')::date as m_end
+        ) f
+        where mp."DigiCom Business" = p_business
+          and mp.payout_month is not null
+          and left(mp.payout_month, 7) ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'
+    ),
+    ads_rows as (  -- overlapFraction sorts its endpoints; end null → start
+        select coalesce(ah.amount, 0) as amount,
+               least(ah.start_date, coalesce(ah.end_date, ah.start_date))    as s,
+               greatest(ah.start_date, coalesce(ah.end_date, ah.start_date)) as e
+        from public.ads_history ah
+        where ah."DigiCom Business" = p_business
+          and ah.start_date is not null
+    ),
+    cde_rows as (
+        select c.entry_date, coalesce(c.spend, 0) as spend
+        from public.campaign_daily_entries c
+        where c."DigiCom Business" = p_business
+          and c.entry_date >= v_from_day and c.entry_date <= v_to_day
+    ),
+    sums as (
+        select
+            (select placed_count from placed)    as placed_count,
+            (select converted_count from placed) as converted_count,
+            (select count(*)::int from fin_orders where is_paid) as revenue_order_count,
+            coalesce((select sum(revenue) from fin_orders where is_paid), 0)::numeric as total_revenue,
+            coalesce((select sum(cogs) from fin_orders where is_paid), 0)::numeric as total_cogs,
+            coalesce((select sum(coalesce(shipping_cost, 0)) from fin_orders where is_paid), 0)::numeric as total_shipping_cost,
+            coalesce((select sum(return_fee) from ret), 0)::numeric as total_return_fees,
+            coalesce((select sum(amount) from exp_rows), 0)::numeric as total_expenses,
+            coalesce((select sum(total_earned) from sde_rows), 0)::numeric as total_seller_salaries,
+            coalesce((select sum(total_amount * least(1, greatest(0,
+                          (ov_end - ov_start + 1)::numeric / days_in_month)))
+                      from mbp_rows where ov_end >= ov_start), 0)::numeric as total_mediabuyer_salaries,
+            coalesce((select sum(amount * least(1, greatest(0,
+                          (least(e, v_to_day) - greatest(s, v_from_day) + 1)::numeric / (e - s + 1))))
+                      from ads_rows where least(e, v_to_day) >= greatest(s, v_from_day)), 0)::numeric as spend_product_ads,
+            coalesce((select sum(spend) from cde_rows), 0)::numeric as spend_global_ads,
+            (select count(*)::int from fin_orders where is_unpaid) as provisional_count,
+            coalesce((select sum(revenue) from fin_orders where is_unpaid), 0)::numeric as provisional_revenue,
+            coalesce((select sum(revenue - cogs - coalesce(shipping_cost, 0))
+                      from fin_orders where is_unpaid), 0)::numeric as provisional_profit
+    ),
+    -- per-day trend components (Casablanca days; client re-buckets)
+    t_rev as (
+        select (delivery_ts at time zone 'Africa/Casablanca')::date as d,
+               sum(revenue)::numeric as revenue,
+               sum(cogs)::numeric as cogs,
+               sum(coalesce(shipping_cost, 0))::numeric as shipping
+        from fin_orders where is_paid group by 1
+    ),
+    t_prov as (
+        select (delivery_ts at time zone 'Africa/Casablanca')::date as d,
+               sum(revenue - cogs - coalesce(shipping_cost, 0))::numeric as provisional
+        from fin_orders where is_unpaid group by 1
+    ),
+    t_ret as (
+        select (updated_at at time zone 'Africa/Casablanca')::date as d,
+               sum(return_fee)::numeric as return_fees
+        from ret group by 1
+    ),
+    t_exp as (
+        select (date at time zone 'Africa/Casablanca')::date as d,
+               sum(amount)::numeric as expenses
+        from exp_rows group by 1
+    ),
+    t_cde as (
+        select entry_date as d, sum(spend)::numeric as global_ads from cde_rows group by 1
+    ),
+    t_sde as (
+        select date as d, sum(total_earned)::numeric as seller_salaries from sde_rows group by 1
+    ),
+    t_adp as (
+        select (a.s + g.i)::date as d,
+               sum(a.amount / (a.e - a.s + 1))::numeric as product_ads
+        from ads_rows a
+        cross join lateral generate_series(greatest(a.s, v_from_day) - a.s,
+                                           least(a.e, v_to_day) - a.s) g(i)
+        group by 1
+    ),
+    t_mbp as (
+        select (m.ov_start + g.i)::date as d,
+               sum(m.total_amount / m.days_in_month)::numeric as mb_salaries
+        from mbp_rows m
+        cross join lateral generate_series(0, m.ov_end - m.ov_start) g(i)
+        where m.ov_end >= m.ov_start
+        group by 1
+    ),
+    t_days as (
+        select d from t_rev union select d from t_prov union select d from t_ret
+        union select d from t_exp union select d from t_cde union select d from t_sde
+        union select d from t_adp union select d from t_mbp
+    ),
+    trend as (
+        select td.d,
+               coalesce(r.revenue, 0)  as revenue,
+               coalesce(r.cogs, 0)     as cogs,
+               coalesce(r.shipping, 0) as shipping,
+               coalesce(rt.return_fees, 0) as return_fees,
+               coalesce(ex.expenses, 0) as expenses,
+               coalesce(ap.product_ads, 0) as product_ads,
+               coalesce(cd.global_ads, 0) as global_ads,
+               coalesce(sd.seller_salaries, 0) as seller_salaries,
+               coalesce(mb.mb_salaries, 0) as mb_salaries,
+               coalesce(pv.provisional, 0) as provisional
+        from t_days td
+        left join t_rev r  on r.d = td.d
+        left join t_ret rt on rt.d = td.d
+        left join t_exp ex on ex.d = td.d
+        left join t_adp ap on ap.d = td.d
+        left join t_cde cd on cd.d = td.d
+        left join t_sde sd on sd.d = td.d
+        left join t_mbp mb on mb.d = td.d
+        left join t_prov pv on pv.d = td.d
+    )
+    select jsonb_build_object(
+        'placed_count', s.placed_count,
+        'converted_count', s.converted_count,
+        'revenue_order_count', s.revenue_order_count,
+        'total_revenue', s.total_revenue,
+        'total_cogs', s.total_cogs,
+        'total_shipping_cost', s.total_shipping_cost,
+        'total_return_fees', s.total_return_fees,
+        'total_expenses', s.total_expenses,
+        'total_seller_salaries', s.total_seller_salaries,
+        'total_mediabuyer_salaries', s.total_mediabuyer_salaries,
+        'spend_product_ads', s.spend_product_ads,
+        'spend_global_ads', s.spend_global_ads,
+        'all_expenses',
+            s.total_cogs + s.total_shipping_cost + s.total_return_fees + s.total_expenses
+          + s.total_seller_salaries + s.total_mediabuyer_salaries
+          + s.spend_product_ads + s.spend_global_ads,
+        'net_profit',
+            s.total_revenue - (s.total_cogs + s.total_shipping_cost + s.total_return_fees
+          + s.total_expenses + s.total_seller_salaries + s.total_mediabuyer_salaries
+          + s.spend_product_ads + s.spend_global_ads),
+        'profit_margin', case when s.total_revenue > 0
+            then (s.total_revenue - (s.total_cogs + s.total_shipping_cost + s.total_return_fees
+                  + s.total_expenses + s.total_seller_salaries + s.total_mediabuyer_salaries
+                  + s.spend_product_ads + s.spend_global_ads)) * 100 / s.total_revenue
+            else 0 end,
+        'roi', case when (s.total_cogs + s.total_shipping_cost + s.total_return_fees
+                  + s.total_expenses + s.total_seller_salaries + s.total_mediabuyer_salaries
+                  + s.spend_product_ads + s.spend_global_ads) > 0
+            then (s.total_revenue - (s.total_cogs + s.total_shipping_cost + s.total_return_fees
+                  + s.total_expenses + s.total_seller_salaries + s.total_mediabuyer_salaries
+                  + s.spend_product_ads + s.spend_global_ads)) * 100
+                 / (s.total_cogs + s.total_shipping_cost + s.total_return_fees
+                  + s.total_expenses + s.total_seller_salaries + s.total_mediabuyer_salaries
+                  + s.spend_product_ads + s.spend_global_ads)
+            else 0 end,
+        'provisional_count', s.provisional_count,
+        'provisional_revenue', s.provisional_revenue,
+        'provisional_profit', s.provisional_profit,
+        'expense_by_type', coalesce((
+            select jsonb_agg(jsonb_build_object('name', t.type_name, 'amount', t.amount)
+                             order by t.amount desc, t.type_name)
+            from (select type_name, sum(amount)::numeric as amount from exp_rows group by 1) t
+        ), '[]'::jsonb),
+        -- all-time trend anchor: earliest placement-or-delivery over the pool
+        'earliest_day', (
+            select min(least((p.date at time zone 'Africa/Casablanca')::date,
+                             (p.delivery_ts at time zone 'Africa/Casablanca')::date))
+            from pool p
+        ),
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t.d, 'revenue', t.revenue, 'cogs', t.cogs, 'shipping', t.shipping,
+                'return_fees', t.return_fees, 'expenses', t.expenses,
+                'product_ads', t.product_ads, 'global_ads', t.global_ads,
+                'seller_salaries', t.seller_salaries, 'mb_salaries', t.mb_salaries,
+                'provisional', t.provisional
+            ) order by t.d)
+            from trend t
+        ), '[]'::jsonb)
+    )
+    into v_profitability
+    from sums s;
+    end if;
+
+    if v_all or 'health' = any(p_sections) then
+    -- ───────────────────── health (recon 01 §2 / 03 §2) ────────────────────
+    -- Pool: replace legs KEPT (rates count real parcels), STRICT placement
+    -- window. Revenue re-excludes replace inline and is paid-gated AND
+    -- PLACEMENT-windowed/bucketed (deviates from P&L's delivery anchor —
+    -- deliberate, recon 01 §2). Rates unclamped. avg_confirm_hours = mean of
+    -- max(0, confirmation_date − date) over rows having both. Velocity span:
+    -- explicit window → (to − from) + 1; All-Time → min..max placement day
+    -- span (+1, min 1); no data → 1.
+    with tracked as (
+        select cp.order_id
+        from public.company_parcels cp
+        where cp."DigiCom Business" = p_business
+          and cp.order_id is not null
+          and nullif(btrim(cp.tracking_code), '') is not null
+        union
+        select crp.order_id
+        from public.courier_parcels crp
+        where crp."DigiCom Business" = p_business
+          and crp.order_id is not null
+          and nullif(btrim(crp.tracking_code), '') is not null
+    ),
+    pending_flag as (
+        select exists (select 1 from public.order_statuses where pending_confirmation) as ready
+    ),
+    pool as (
+        select o.id, o.date, o.price, o.raw_price, o.shipping_cost,
+               o.include_delivery_in_total, o.replace, o.confirmation_date,
+               o.order_status_id,
+               coalesce(os.pending_confirmation, false) as pending_status,
+               coalesce(os.is_cancelled, false)         as cancelled_flag,
+               coalesce(os.is_paid, false)              as is_paid,
+               (coalesce(os.excluded_from_delivery_rate, false)
+                 or coalesce(ps.excluded_from_delivery_rate, false)) as pullback_flag,
+               coalesce(ps.is_delivered, false)         as is_delivered,
+               (t.order_id is not null)                 as has_tracking,
+               ((t.order_id is not null)
+                 or (pf.ready and o.order_status_id is not null
+                     and not coalesce(os.pending_confirmation, false))) as confirmed_calc
+        from public.orders o
+        cross join pending_flag pf
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        left join tracked t on t.order_id = o.id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.date is not null
+          and (v_start is null or o.date >= v_start)
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+    ),
+    rev as (  -- FULL pureRevenue chain (this section selects items + raw_price)
+        select (p.date at time zone 'Africa/Casablanca')::date as d,
+               (case when coalesce(li.line_sum, 0) > 0 then li.line_sum
+                     when coalesce(p.raw_price, 0) > 0 then p.raw_price
+                     else case when p.include_delivery_in_total is false
+                               then coalesce(p.price, 0)
+                               else greatest(0, coalesce(p.price, 0) - coalesce(p.shipping_cost, 0)) end end)
+             + (case when p.include_delivery_in_total is true then coalesce(p.shipping_cost, 0) else 0 end)
+                 as revenue
+        from pool p
+        left join lateral (
+            select sum(case when coalesce(oi.total_price, 0) > 0 then oi.total_price
+                            else coalesce(oi.unit_price, 0) * oi.quantity end)
+                       filter (where oi.product_id is not null and coalesce(oi.quantity, 0) > 0) as line_sum
+            from public.order_items oi where oi.order_id = p.id
+        ) li on true
+        where p.replace is distinct from true and p.is_delivered and p.is_paid
+    ),
+    agg as (
+        select count(*)::int as total,
+               (count(*) filter (where confirmed_calc))::int as confirmed,
+               (count(*) filter (where is_delivered))::int as delivered,
+               (count(*) filter (where cancelled_flag))::int as failed,
+               (count(*) filter (where has_tracking))::int as tracked,
+               (count(*) filter (where has_tracking and pullback_flag))::int as pullback,
+               avg(greatest(0, extract(epoch from (confirmation_date - date)) / 3600.0))
+                   filter (where confirmation_date is not null) as avg_confirm_hours,
+               (count(*) filter (where confirmation_date is not null))::int as confirm_time_count,
+               min((date at time zone 'Africa/Casablanca')::date) as min_day,
+               max((date at time zone 'Africa/Casablanca')::date) as max_day
+        from pool
+    ),
+    t as (
+        select (p.date at time zone 'Africa/Casablanca')::date as d,
+               count(*)::int as total,
+               (count(*) filter (where confirmed_calc))::int as confirmed,
+               (count(*) filter (where is_delivered))::int as delivered,
+               ((count(*) filter (where has_tracking))
+                 - (count(*) filter (where has_tracking and pullback_flag)))::int as denom
+        from pool p group by 1
+    ),
+    t_rev as (select d, sum(revenue)::numeric as revenue from rev group by 1)
+    select jsonb_build_object(
+        'total', a.total,
+        'confirmed', a.confirmed,
+        'delivered', a.delivered,
+        'failed', a.failed,
+        'confirm_rate', case when a.total > 0 then a.confirmed::numeric * 100 / a.total else 0 end,
+        'delivery_denom', a.tracked - a.pullback,
+        'delivery_rate', case when (a.tracked - a.pullback) > 0
+            then a.delivered::numeric * 100 / (a.tracked - a.pullback) else 0 end,
+        'avg_confirm_hours', a.avg_confirm_hours,
+        'confirm_time_count', a.confirm_time_count,
+        'total_revenue', coalesce((select sum(revenue) from rev), 0),
+        'velocity_day_span', case
+            when v_has_win then greatest(1, (v_to_day - v_from_day) + 1)
+            when a.min_day is not null then greatest(1, (a.max_day - a.min_day) + 1)
+            else 1 end,
+        'min_day', a.min_day,
+        'max_day', a.max_day,
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t.d, 'total', t.total, 'confirmed', t.confirmed,
+                'delivered', t.delivered, 'denom', t.denom,
+                'revenue', coalesce(tr.revenue, 0)
+            ) order by t.d)
+            from t left join t_rev tr on tr.d = t.d
+        ), '[]'::jsonb)
+    )
+    into v_health
+    from agg a;
+    end if;
+
+    if v_all or 'orders' = any(p_sections) then
+    -- ───────────────────── orders (recon 01 §1 / 03 §3) ────────────────────
+    -- Pool: replace-excluded, STRICT placement window. avg_order_value = mean
+    -- of raw orders.price (customer-paid total — deliberately NOT pureRevenue,
+    -- volume metric). Today/This-week chips are WINDOW-INDEPENDENT: computed
+    -- over the unwindowed replace-excluded pool (today = Casablanca day;
+    -- week = last-7-days timestamp interval, inclusive). Cities: orders with
+    -- no master_cities.name are SKIPPED (no 'Unknown' bucket — deviates from
+    -- Customers, deliberate). Rates unclamped.
+    with tracked as (
+        select cp.order_id
+        from public.company_parcels cp
+        where cp."DigiCom Business" = p_business
+          and cp.order_id is not null
+          and nullif(btrim(cp.tracking_code), '') is not null
+        union
+        select crp.order_id
+        from public.courier_parcels crp
+        where crp."DigiCom Business" = p_business
+          and crp.order_id is not null
+          and nullif(btrim(crp.tracking_code), '') is not null
+    ),
+    pending_flag as (
+        select exists (select 1 from public.order_statuses where pending_confirmation) as ready
+    ),
+    base as (  -- unwindowed (for the absolute chips)
+        select o.id, o.date, o.price,
+               mc.name as city,
+               coalesce(os.pending_confirmation, false) as pending_status,
+               coalesce(os.is_cancelled, false)         as cancelled_flag,
+               (coalesce(os.excluded_from_delivery_rate, false)
+                 or coalesce(ps.excluded_from_delivery_rate, false)) as pullback_flag,
+               coalesce(ps.is_delivered, false)         as is_delivered,
+               (t.order_id is not null)                 as has_tracking,
+               ((t.order_id is not null)
+                 or (pf.ready and o.order_status_id is not null
+                     and not coalesce(os.pending_confirmation, false))) as confirmed_calc
+        from public.orders o
+        cross join pending_flag pf
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        left join public.master_cities mc on mc.id = o.master_city_id
+        left join tracked t on t.order_id = o.id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+    ),
+    pool as (
+        select * from base
+        where date is not null
+          and (v_start is null or date >= v_start)
+          and (case when v_end_excl is not null then date < v_end_excl else date <= v_now end)
+    ),
+    agg as (
+        select count(*)::int as total,
+               (count(*) filter (where confirmed_calc))::int as confirmed,
+               (count(*) filter (where is_delivered))::int as delivered,
+               (count(*) filter (where cancelled_flag))::int as failed,
+               (count(*) filter (where has_tracking))::int as tracked,
+               (count(*) filter (where has_tracking and pullback_flag))::int as pullback,
+               coalesce(sum(coalesce(price, 0)), 0)::numeric as price_sum
+        from pool
+    ),
+    chips as (
+        select (count(*) filter (where date is not null
+                    and (date at time zone 'Africa/Casablanca')::date = v_today))::int as today_orders,
+               (count(*) filter (where date is not null
+                    and date >= v_now - interval '7 days' and date <= v_now))::int as week_orders
+        from base
+    ),
+    cities as (
+        select city, count(*)::int as n
+        from pool
+        where city is not null and city <> ''
+        group by city
+        order by n desc, city
+        limit 10
+    ),
+    t as (
+        select (date at time zone 'Africa/Casablanca')::date as d, count(*)::int as n
+        from pool group by 1
+    )
+    select jsonb_build_object(
+        'total', a.total,
+        'confirmed', a.confirmed,
+        'delivered', a.delivered,
+        'failed', a.failed,
+        'confirm_rate', case when a.total > 0 then a.confirmed::numeric * 100 / a.total else 0 end,
+        'delivery_denom', a.tracked - a.pullback,
+        'delivery_rate', case when (a.tracked - a.pullback) > 0
+            then a.delivered::numeric * 100 / (a.tracked - a.pullback) else 0 end,
+        'failed_rate', case when a.total > 0 then a.failed::numeric * 100 / a.total else 0 end,
+        'avg_order_value', case when a.total > 0 then a.price_sum / a.total else 0 end,
+        'today_orders', c.today_orders,
+        'week_orders', c.week_orders,
+        'top_cities', coalesce((
+            select jsonb_agg(jsonb_build_object('city', city, 'count', n))
+            from cities), '[]'::jsonb),
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object('d', d, 'orders', n) order by d)
+            from t), '[]'::jsonb)
+    )
+    into v_orders
+    from agg a, chips c;
+    end if;
+
+    if v_all or 'ads' = any(p_sections) then
+    -- ───────────────────── ads (recon 02 §3 / 03 §4) ───────────────────────
+    -- Two spend sources: ads_history pro-rated by inclusive-day overlap;
+    -- campaign_daily_entries by entry_date. Attribution ports the client
+    -- matchers exactly: product ad = normalized-source equality (empty never
+    -- matches) + placement within ad-range ∩ user window + (product_id set ⇒
+    -- order carries that product); global entry = normalized-source equality
+    -- + placement day = entry_date (Casablanca — the client compared the raw
+    -- UTC string slice; accepted D3 delta). Orders deduped GLOBALLY for the
+    -- top-line; per-platform buckets dedupe within the bucket only (an order
+    -- CAN appear under two platforms — replicated). Platform key = RAW
+    -- method/platform string ('Other' when empty). Revenue = the AdsSection
+    -- collapsed chain (see header). ads_history_metrics is NOT reused (5
+    -- semantic gaps, recon 02 §3).
+    with tracked as (
+        select cp.order_id
+        from public.company_parcels cp
+        where cp."DigiCom Business" = p_business
+          and cp.order_id is not null
+          and nullif(btrim(cp.tracking_code), '') is not null
+        union
+        select crp.order_id
+        from public.courier_parcels crp
+        where crp."DigiCom Business" = p_business
+          and crp.order_id is not null
+          and nullif(btrim(crp.tracking_code), '') is not null
+    ),
+    pending_flag as (
+        select exists (select 1 from public.order_statuses where pending_confirmation) as ready
+    ),
+    pool as (  -- all-time replace-excluded; the matchers confine to the window
+        select o.id, o.date, o.price, o.shipping_cost, o.order_status_id,
+               public.normalize_ad_source(o.source_name) as src,
+               (o.date at time zone 'Africa/Casablanca')::date as place_day,
+               coalesce(os.pending_confirmation, false) as pending_status,
+               coalesce(ps.is_delivered, false)         as is_delivered,
+               (t.order_id is not null)                 as has_tracking,
+               pf.ready
+        from public.orders o
+        cross join pending_flag pf
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        left join tracked t on t.order_id = o.id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+          and o.date is not null
+    ),
+    ads_win as (  -- kept when range (sorted, end null → start) touches the window
+        select ah.id, ah.product_id, coalesce(ah.amount, 0) as amount,
+               ah.start_date, ah.end_date,
+               coalesce(nullif(ah.method, ''), 'Other') as platform,
+               public.normalize_ad_source(ah.method) as src,
+               least(ah.start_date, coalesce(ah.end_date, ah.start_date))    as s,
+               greatest(ah.start_date, coalesce(ah.end_date, ah.start_date)) as e
+        from public.ads_history ah
+        where ah."DigiCom Business" = p_business
+          and ah.start_date is not null
+          and least(ah.start_date, coalesce(ah.end_date, ah.start_date)) <= v_to_day
+          and greatest(ah.start_date, coalesce(ah.end_date, ah.start_date)) >= v_from_day
+    ),
+    ads_attr as (  -- attribution-capable ads: end_date set + non-empty match interval
+        select * from ads_win
+        where end_date is not null
+          and greatest(start_date, v_from_day) <= least(end_date, v_to_day)
+    ),
+    entries_win as (
+        select c.id, c.campaign_id, coalesce(c.spend, 0) as spend, c.entry_date,
+               coalesce(nullif(c.platform, ''), 'Other') as platform,
+               public.normalize_ad_source(c.platform) as src
+        from public.campaign_daily_entries c
+        where c."DigiCom Business" = p_business
+          and c.entry_date >= v_from_day and c.entry_date <= v_to_day
+    ),
+    prod_pairs as (  -- (platform, order) matched via a product ad
+        select distinct a.platform, o.id
+        from ads_attr a
+        join pool o on a.src <> '' and o.src = a.src
+          and o.date >= greatest(a.start_date::timestamp at time zone 'Africa/Casablanca',
+                                 coalesce(v_start, '-infinity'::timestamptz))
+          and o.date < ((a.end_date + 1)::timestamp at time zone 'Africa/Casablanca')
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+        where a.product_id is null
+           or exists (select 1 from public.order_items oi
+                      where oi.order_id = o.id and oi.product_id = a.product_id)
+    ),
+    glob_pairs as (  -- (platform, order) matched via a campaign entry
+        select distinct e.platform, o.id
+        from entries_win e
+        join pool o on e.src <> '' and o.src = e.src and o.place_day = e.entry_date
+    ),
+    matched as (
+        select id from prod_pairs union select id from glob_pairs
+    ),
+    mo as (  -- matched orders + flags + AdsSection collapsed revenue
+        select p.id, p.place_day, p.is_delivered,
+               (p.has_tracking or (p.ready and p.order_status_id is not null
+                                   and not p.pending_status)) as confirmed_calc,
+               case when p.is_delivered then
+                   (case when coalesce(li.line_sum, 0) > 0 then li.line_sum
+                         else greatest(0, coalesce(p.price, 0) - coalesce(p.shipping_cost, 0)) end)
+               else 0 end as revenue
+        from pool p
+        join matched m on m.id = p.id
+        left join lateral (
+            select sum(coalesce(oi.unit_price, 0) * oi.quantity)
+                       filter (where oi.product_id is not null and coalesce(oi.quantity, 0) > 0) as line_sum
+            from public.order_items oi where oi.order_id = p.id
+        ) li on true
+    ),
+    top_line as (
+        select count(*)::int as total_orders,
+               (count(*) filter (where confirmed_calc))::int as total_confirmed,
+               (count(*) filter (where is_delivered))::int as total_delivered,
+               coalesce(sum(revenue), 0)::numeric as total_gross_revenue
+        from mo
+    ),
+    spend_line as (
+        select coalesce((select sum(a.amount * least(1, greatest(0,
+                    (least(a.e, v_to_day) - greatest(a.s, v_from_day) + 1)::numeric / (a.e - a.s + 1))))
+                from ads_win a), 0)::numeric as spend_product_ads,
+               coalesce((select sum(spend) from entries_win), 0)::numeric as spend_global_ads,
+               (select count(*)::int from ads_win) as product_campaign_count,
+               (select count(distinct campaign_id)::int from entries_win
+                where campaign_id is not null) as global_campaign_count
+    ),
+    plat_ads as (  -- platform spend/count: attribution-capable ads only (client early-return)
+        select platform,
+               sum(amount * least(1, greatest(0,
+                   (least(e, v_to_day) - greatest(s, v_from_day) + 1)::numeric / (e - s + 1))))::numeric as spend,
+               count(*)::int as product_count
+        from ads_attr group by 1
+    ),
+    plat_entries as (
+        select platform, sum(spend)::numeric as spend from entries_win group by 1
+    ),
+    plat_campaigns as (  -- deterministic: campaign → platform of its earliest windowed entry
+        select platform, count(*)::int as global_count
+        from (
+            select distinct on (campaign_id) campaign_id, platform
+            from entries_win where campaign_id is not null
+            order by campaign_id, entry_date, id
+        ) x group by 1
+    ),
+    plat_pairs as (
+        select platform, id from prod_pairs union select platform, id from glob_pairs
+    ),
+    plat_orders as (
+        select pr.platform,
+               count(*)::int as orders,
+               (count(*) filter (where mo.is_delivered))::int as delivered,
+               coalesce(sum(mo.revenue), 0)::numeric as revenue
+        from plat_pairs pr join mo on mo.id = pr.id
+        group by pr.platform
+    ),
+    plat_keys as (
+        select platform from plat_ads union select platform from plat_entries
+        union select platform from plat_orders
+    ),
+    platforms as (
+        select k.platform,
+               coalesce(pa.spend, 0) + coalesce(pe.spend, 0) as spend,
+               coalesce(po.orders, 0) as orders,
+               coalesce(po.delivered, 0) as delivered,
+               coalesce(po.revenue, 0) as revenue,
+               coalesce(pa.product_count, 0) as product_count,
+               coalesce(pc.global_count, 0) as global_count
+        from plat_keys k
+        left join plat_ads pa on pa.platform = k.platform
+        left join plat_entries pe on pe.platform = k.platform
+        left join plat_campaigns pc on pc.platform = k.platform
+        left join plat_orders po on po.platform = k.platform
+    ),
+    t_ads as (  -- per-day product-ad spend: amount/total_days on each covered day
+        select (a.s + g.i)::date as d,
+               sum(a.amount / (a.e - a.s + 1))::numeric as spend
+        from ads_win a
+        cross join lateral generate_series(greatest(a.s, v_from_day) - a.s,
+                                           least(a.e, v_to_day) - a.s) g(i)
+        group by 1
+    ),
+    t_entries as (
+        select entry_date as d, sum(spend)::numeric as spend from entries_win group by 1
+    ),
+    t_rev as (  -- per-day deduped delivered revenue (order lands on its placement day)
+        select place_day as d, sum(revenue)::numeric as revenue
+        from mo where is_delivered group by 1
+    ),
+    t_days as (
+        select d from t_ads union select d from t_entries union select d from t_rev
+    ),
+    trend as (
+        select td.d,
+               coalesce(ta.spend, 0) + coalesce(te.spend, 0) as spend,
+               coalesce(tr.revenue, 0) as revenue
+        from t_days td
+        left join t_ads ta on ta.d = td.d
+        left join t_entries te on te.d = td.d
+        left join t_rev tr on tr.d = td.d
+    )
+    select jsonb_build_object(
+        'spend_product_ads', s.spend_product_ads,
+        'spend_global_ads', s.spend_global_ads,
+        'product_campaign_count', s.product_campaign_count,
+        'global_campaign_count', s.global_campaign_count,
+        'total_orders', tl.total_orders,
+        'total_confirmed', tl.total_confirmed,
+        'total_delivered', tl.total_delivered,
+        'total_gross_revenue', tl.total_gross_revenue,
+        'platforms', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'platform', p.platform, 'spend', p.spend, 'orders', p.orders,
+                'delivered', p.delivered, 'revenue', p.revenue,
+                'product_count', p.product_count, 'global_count', p.global_count
+            ) order by p.spend desc, p.platform)
+            from platforms p
+        ), '[]'::jsonb),
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t.d, 'spend', t.spend, 'revenue', t.revenue
+            ) order by t.d)
+            from trend t
+        ), '[]'::jsonb)
+    )
+    into v_ads
+    from spend_line s, top_line tl;
+    end if;
+
+    if v_all or 'shipping' = any(p_sections) then
+    -- ───────────────────── shipping (recon 01 §3 / 03 §5) ──────────────────
+    -- Pool: NO replace exclusion (real parcels), STRICT placement window.
+    -- shipped = tracked set (NOT lifecycle statuses — deviates from the D2
+    -- dashboard pipeline, deliberate). delivered/returned counted over the
+    -- FULL filtered pool (not just shipped). Rate = delivered ÷ (shipped −
+    -- pullback), UNCLAMPED. Shipping cost = Σ shipping_cost over delivered.
+    -- Stuck measured vs NOW (> 5 days since placement). Fulfillers over ALL
+    -- assigned (company precedence); names/logos stay client-side.
+    with tracked as (
+        select cp.order_id
+        from public.company_parcels cp
+        where cp."DigiCom Business" = p_business
+          and cp.order_id is not null
+          and nullif(btrim(cp.tracking_code), '') is not null
+        union
+        select crp.order_id
+        from public.courier_parcels crp
+        where crp."DigiCom Business" = p_business
+          and crp.order_id is not null
+          and nullif(btrim(crp.tracking_code), '') is not null
+    ),
+    pool as (
+        select o.id, o.date, o.shipping_cost, o.company_id, o.courier_id,
+               coalesce(o.date_livraison, o.updated_at) as delivery_ts,
+               coalesce(ps.is_delivered, false) as is_delivered,
+               coalesce(ps.is_returned, false)  as is_returned,
+               (coalesce(os.excluded_from_delivery_rate, false)
+                 or coalesce(ps.excluded_from_delivery_rate, false)) as pullback_flag,
+               (t.order_id is not null) as has_tracking
+        from public.orders o
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        left join tracked t on t.order_id = o.id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.date is not null
+          and (v_start is null or o.date >= v_start)
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+    ),
+    agg as (
+        select
+            (count(*) filter (where has_tracking))::int as total_shipments,
+            (count(*) filter (where is_delivered))::int as delivered,
+            (count(*) filter (where is_returned))::int as returned,
+            ((count(*) filter (where has_tracking))
+              - (count(*) filter (where has_tracking and pullback_flag)))::int as denom,
+            coalesce(sum(coalesce(shipping_cost, 0)) filter (where is_delivered), 0)::numeric as shipping_cost,
+            coalesce(avg(trunc(extract(epoch from (delivery_ts - date)) / 86400.0))
+                filter (where is_delivered and delivery_ts is not null), 0)::numeric as avg_delivery_days,
+            (count(*) filter (where has_tracking and not is_delivered and not is_returned
+                and trunc(extract(epoch from (v_now - date)) / 86400.0) > 5))::int as stuck_count
+        from pool
+    ),
+    ful as (
+        select coalesce(company_id, courier_id) as fid,
+               case when company_id is not null then 'provider' else 'courier' end as kind,
+               count(*)::int as total,
+               (count(*) filter (where is_delivered))::int as delivered,
+               (count(*) filter (where has_tracking))::int as tracked,
+               (count(*) filter (where has_tracking and pullback_flag))::int as pullback
+        from pool
+        where company_id is not null or courier_id is not null
+        group by 1, 2
+    ),
+    t as (
+        select (date at time zone 'Africa/Casablanca')::date as d,
+               count(*)::int as shipped,
+               (count(*) filter (where is_delivered))::int as delivered,
+               coalesce(sum(coalesce(shipping_cost, 0)) filter (where is_delivered), 0)::numeric as cost
+        from pool where has_tracking group by 1
+    )
+    select jsonb_build_object(
+        'total_shipments', a.total_shipments,
+        'delivered', a.delivered,
+        'returned', a.returned,
+        'delivery_denom', a.denom,
+        'delivery_rate', case when a.denom > 0
+            then a.delivered::numeric * 100 / a.denom else 0 end,
+        'return_rate', case when a.total_shipments > 0
+            then a.returned::numeric * 100 / a.total_shipments else 0 end,
+        'total_shipping_cost', a.shipping_cost,
+        'avg_delivery_days', a.avg_delivery_days,
+        'stuck_count', a.stuck_count,
+        'fulfillers', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'id', f.fid, 'kind', f.kind, 'total', f.total, 'delivered', f.delivered,
+                'tracked', f.tracked, 'pullback', f.pullback
+            ) order by f.total desc, f.fid)
+            from ful f
+        ), '[]'::jsonb),
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t.d, 'shipped', t.shipped, 'delivered', t.delivered, 'cost', t.cost
+            ) order by t.d)
+            from t
+        ), '[]'::jsonb)
+    )
+    into v_shipping
+    from agg a;
+    end if;
+
+    if v_all or 'inventory' = any(p_sections) then
+    -- ───────────────────── inventory (recon 02 §2 / 03 §6) ─────────────────
+    -- Catalog scalars + per-item low-stock rows (stock < 10 STRICT AND active
+    -- — NOT catalog_totals' <= 10, threshold drift replicated on the client
+    -- side of the drift). "Sold": order_items ↔ parent orders windowed on
+    -- placement (All-Time passes NULL dates, explicit excludes), replace legs
+    -- skipped per-item, delivered-category strict, product must still exist;
+    -- revenue = qty × unit_price ONLY (no total_price preference, no
+    -- fallbacks); COGS snapshot-preferred. Parent-order predicate gap
+    -- (date_deleted / source_review_status NOT applied) REPLICATED — see
+    -- header. Transactions windowed by t.date; unpaid = Σtotal − Σpaid
+    -- (aggregate diff, may go negative on overpayment — deliberately NOT
+    -- transactions_totals' per-row clamp).
+    with prod as (
+        select id, name, code, image_url,
+               coalesce(stock, 0) as stock,
+               coalesce(cost_price, 0) as cost_price,
+               coalesce(selling_price, 0) as selling_price,
+               coalesce(active, false) as active
+        from public.products where "DigiCom Business" = p_business
+    ),
+    acc as (
+        select id, name, code,
+               coalesce(stock, 0) as stock,
+               coalesce(cost_price, 0) as cost_price,
+               coalesce(active, false) as active
+        from public.accessories where "DigiCom Business" = p_business
+    ),
+    sold as (
+        select oi.product_id,
+               sum(coalesce(oi.quantity, 0))::numeric as sold,
+               sum(coalesce(oi.quantity, 0) * coalesce(oi.unit_price, 0))::numeric as revenue,
+               sum(coalesce(oi.quantity, 0)
+                   * (case when coalesce(oi.product_unit_cost_snapshot, 0) > 0
+                           then oi.product_unit_cost_snapshot
+                           else p.cost_price end))::numeric as cost
+        from public.order_items oi
+        join public.orders o on o.id = oi.order_id
+        join prod p on p.id = oi.product_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        where oi."DigiCom Business" = p_business
+          and o.replace is distinct from true
+          and coalesce(ps.is_delivered, false)
+          and ((not v_has_win) or (o.date is not null
+                and (v_start is null or o.date >= v_start)
+                and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)))
+        group by oi.product_id
+    ),
+    tx as (
+        select coalesce(sum(coalesce(total_price, 0)), 0)::numeric as value,
+               coalesce(sum(coalesce(paid_price, 0)), 0)::numeric as paid
+        from public.transactions t
+        where t."DigiCom Business" = p_business
+          and ((not v_has_win) or (t.date is not null
+                and (p_from is null or t.date >= p_from)
+                and t.date <= v_to_day))
+    )
+    select jsonb_build_object(
+        'total_products', (select count(*)::int from prod),
+        'active_products', (select count(*)::int from prod where active),
+        'total_accessories', (select count(*)::int from acc),
+        'stock_value_at_cost',
+            coalesce((select sum(stock * cost_price) from prod), 0)::numeric
+          + coalesce((select sum(stock * cost_price) from acc), 0)::numeric,
+        'stock_value_at_selling',
+            coalesce((select sum(stock * selling_price) from prod), 0)::numeric,
+        'low_stock', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'kind', r.kind, 'id', r.id, 'name', r.name,
+                'stock', r.stock, 'cost_price', r.cost_price
+            ) order by r.stock asc, r.kind desc, r.name)
+            from (
+                select 'product' as kind, id, name, stock, cost_price
+                from prod where stock < 10 and active
+                union all
+                select 'accessory', id, name, stock, cost_price
+                from acc where stock < 10 and active
+            ) r
+        ), '[]'::jsonb),
+        'units_sold', coalesce((select sum(sold) from sold), 0)::numeric,
+        'product_sales', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'product_id', s.product_id, 'name', p.name, 'image_url', p.image_url,
+                'sold', s.sold, 'revenue', s.revenue, 'cost', s.cost
+            ) order by s.sold desc, p.name, s.product_id)
+            from sold s join prod p on p.id = s.product_id
+        ), '[]'::jsonb),
+        'transactions_value', (select value from tx),
+        'transactions_paid', (select paid from tx),
+        'unpaid_amount', (select value - paid from tx)
+    )
+    into v_inventory;
+    end if;
+
+    if v_all or 'channels' = any(p_sections) then
+    -- ───────────────────── channels (recon 01 §5 / 03 §7) ──────────────────
+    -- Pool: replace-excluded, STRICT placement window. Channel key =
+    -- normalize_ad_source(source_name || sales_channels[source_id].name),
+    -- empty raw → 'direct' (whitespace-only raw keeps its '' key — client
+    -- quirk replicated). converted = paid+delivered; revenue = FULL
+    -- pureRevenue chain over converted. Trend = per-day counts for the top-5
+    -- channels by window orders (server ranks — top-5 is window-dependent).
+    with pool as (
+        select o.id, o.price, o.raw_price, o.shipping_cost, o.include_delivery_in_total,
+               (o.date at time zone 'Africa/Casablanca')::date as place_day,
+               coalesce(ps.is_delivered, false) as is_delivered,
+               coalesce(os.is_paid, false)      as is_paid,
+               case when coalesce(nullif(o.source_name, ''), nullif(sc.name, ''), '') = ''
+                    then 'direct'
+                    else public.normalize_ad_source(coalesce(nullif(o.source_name, ''), nullif(sc.name, ''))) end
+                   as ckey
+        from public.orders o
+        left join public.sales_channels sc
+          on sc.id = o.source_id and sc."DigiCom Business" = p_business
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+          and o.date is not null
+          and (v_start is null or o.date >= v_start)
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+    ),
+    conv as (
+        select p.ckey,
+               (case when coalesce(li.line_sum, 0) > 0 then li.line_sum
+                     when coalesce(p.raw_price, 0) > 0 then p.raw_price
+                     else case when p.include_delivery_in_total is false
+                               then coalesce(p.price, 0)
+                               else greatest(0, coalesce(p.price, 0) - coalesce(p.shipping_cost, 0)) end end)
+             + (case when p.include_delivery_in_total is true then coalesce(p.shipping_cost, 0) else 0 end)
+                 as revenue
+        from pool p
+        left join lateral (
+            select sum(case when coalesce(oi.total_price, 0) > 0 then oi.total_price
+                            else coalesce(oi.unit_price, 0) * oi.quantity end)
+                       filter (where oi.product_id is not null and coalesce(oi.quantity, 0) > 0) as line_sum
+            from public.order_items oi where oi.order_id = p.id
+        ) li on true
+        where p.is_delivered and p.is_paid
+    ),
+    per_channel as (
+        select p.ckey,
+               count(*)::int as orders,
+               coalesce(c.converted, 0)::int as converted,
+               coalesce(c.revenue, 0)::numeric as revenue
+        from (select ckey, count(*)::int as cnt from pool group by 1) x
+        join lateral (select x.ckey) p on true
+        left join lateral (
+            select count(*)::int as converted, coalesce(sum(revenue), 0)::numeric as revenue
+            from conv where conv.ckey = x.ckey
+        ) c on true
+        cross join lateral (select x.cnt as cnt2) y
+        group by p.ckey, c.converted, c.revenue, x.cnt
+        -- (structural no-op grouping; orders taken from the pre-count)
+        , x.ckey
+        having x.ckey = p.ckey
+    ),
+    channels as (
+        select oc.ckey, oc.orders, coalesce(cv.converted, 0) as converted,
+               coalesce(cv.revenue, 0) as revenue
+        from (select ckey, count(*)::int as orders from pool group by 1) oc
+        left join (select ckey, count(*)::int as converted,
+                          coalesce(sum(revenue), 0)::numeric as revenue
+                   from conv group by 1) cv on cv.ckey = oc.ckey
+    ),
+    top5 as (
+        select ckey from channels order by orders desc, ckey limit 5
+    ),
+    t as (
+        select p.place_day as d, p.ckey, count(*)::int as orders
+        from pool p
+        where p.ckey in (select ckey from top5)
+        group by 1, 2
+    )
+    select jsonb_build_object(
+        'total_orders', (select count(*)::int from pool),
+        'channels', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'key', c.ckey, 'orders', c.orders, 'converted', c.converted, 'revenue', c.revenue
+            ) order by c.orders desc, c.ckey)
+            from channels c
+        ), '[]'::jsonb),
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t.d, 'key', t.ckey, 'orders', t.orders
+            ) order by t.d, t.ckey)
+            from t
+        ), '[]'::jsonb)
+    )
+    into v_channels;
+    end if;
+
+    if v_all or 'customers' = any(p_sections) then
+    -- ───────────────────── customers (recon 01 §4 / 03 §8) ─────────────────
+    -- Pool: replace-excluded. Customer key = normalize_phone_for_customer
+    -- (live fn, verified byte-identical to the client normalizePhone; NULL =
+    -- skipped). "Seen before" scans the FULL history (< window start) — the
+    -- reason the section can't be windowed naively. Revenue = the LIVE
+    -- collapsed formula greatest(0, price) on paid+delivered (see header).
+    -- Cities over ALL windowed orders (incl. phone-less), 'Unknown city'
+    -- bucket, top 8. Trend: per-day distinct customers, new on their first
+    -- in-window day when not seen before (day-buckets re-group cleanly).
+    with base as (
+        select o.id, o.date, o.price,
+               public.normalize_phone_for_customer(o.phone) as ckey,
+               (o.date at time zone 'Africa/Casablanca')::date as place_day,
+               mc.name as city_raw,
+               coalesce(ps.is_delivered, false) as is_delivered,
+               coalesce(os.is_paid, false)      as is_paid
+        from public.orders o
+        left join public.master_cities mc on mc.id = o.master_city_id
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+    ),
+    seen_before as (
+        select distinct ckey from base
+        where ckey is not null
+          and v_start is not null
+          and date is not null and date < v_start
+    ),
+    pool as (
+        select * from base
+        where date is not null
+          and (v_start is null or date >= v_start)
+          and (case when v_end_excl is not null then date < v_end_excl else date <= v_now end)
+    ),
+    cust as (
+        select ckey,
+               count(*)::int as orders,
+               coalesce(sum(greatest(0, coalesce(price, 0)))
+                   filter (where is_delivered and is_paid), 0)::numeric as revenue
+        from pool where ckey is not null
+        group by ckey
+    ),
+    hdr as (
+        select count(*)::int as total_customers,
+               (count(*) filter (where c.orders > 1))::int as repeat_customers,
+               coalesce(sum(c.orders), 0)::numeric as orders_sum,
+               coalesce(sum(c.revenue), 0)::numeric as revenue_sum,
+               (count(*) filter (where sb.ckey is null))::int as new_customers
+        from cust c
+        left join seen_before sb on sb.ckey = c.ckey
+    ),
+    cities as (
+        select coalesce(nullif(btrim(city_raw), ''), 'Unknown city') as city,
+               count(*)::int as n
+        from pool
+        group by 1
+        order by n desc, city
+        limit 8
+    ),
+    cust_days as (
+        select ckey, place_day as d from pool where ckey is not null group by 1, 2
+    ),
+    firsts as (
+        select ckey, min(d) as first_d from cust_days group by 1
+    ),
+    -- D3 REVIEW FIX — the server owns the grain. A distinct-customer count is
+    -- NOT additive across days: summing day rows into a week/month re-counts a
+    -- customer once per extra order-day (measured up to 2x on the returning
+    -- band). No client-side re-bucketing can recover bucket-level distinctness,
+    -- so one PRE-DEDUPED series is emitted per client grain (ladder: <=31d
+    -- daily, <=120d weekly Monday-start, else monthly). Within a bucket each
+    -- customer counts ONCE: `new` iff not seen before the window AND the bucket
+    -- holds their first in-window day, else `returning` — exactly the old
+    -- client's forward walk + cumulative seen-set (git HEAD CustomersSection
+    -- `bucketCustomers`). date_trunc('week') is Monday-start = date-fns
+    -- startOfWeek({weekStartsOn:1}). Buckets need no window clamping: cust_days
+    -- only holds in-window days, so a partial week/month aggregates in-window
+    -- days only.
+    t as (
+        select cd.d,
+               (count(*) filter (where f.first_d = cd.d and sb.ckey is null))::int as new,
+               (count(*) filter (where not (f.first_d = cd.d and sb.ckey is null)))::int as returning
+        from cust_days cd
+        join firsts f on f.ckey = cd.ckey
+        left join seen_before sb on sb.ckey = cd.ckey
+        group by cd.d
+    ),
+    cust_weeks as (
+        select ckey, date_trunc('week', d)::date as b from cust_days group by 1, 2
+    ),
+    t_week as (
+        select cw.b,
+               (count(*) filter (where date_trunc('week', f.first_d)::date = cw.b
+                                   and sb.ckey is null))::int as new,
+               (count(*) filter (where not (date_trunc('week', f.first_d)::date = cw.b
+                                        and sb.ckey is null)))::int as returning
+        from cust_weeks cw
+        join firsts f on f.ckey = cw.ckey
+        left join seen_before sb on sb.ckey = cw.ckey
+        group by cw.b
+    ),
+    cust_months as (
+        select ckey, date_trunc('month', d)::date as b from cust_days group by 1, 2
+    ),
+    t_month as (
+        select cm.b,
+               (count(*) filter (where date_trunc('month', f.first_d)::date = cm.b
+                                   and sb.ckey is null))::int as new,
+               (count(*) filter (where not (date_trunc('month', f.first_d)::date = cm.b
+                                        and sb.ckey is null)))::int as returning
+        from cust_months cm
+        join firsts f on f.ckey = cm.ckey
+        left join seen_before sb on sb.ckey = cm.ckey
+        group by cm.b
+    )
+    select jsonb_build_object(
+        'total_customers', h.total_customers,
+        'repeat_customers', h.repeat_customers,
+        'repeat_rate', case when h.total_customers > 0
+            then h.repeat_customers::numeric * 100 / h.total_customers else 0 end,
+        'new_customers', h.new_customers,
+        'returning_customers', h.total_customers - h.new_customers,
+        'avg_orders_per_customer', case when h.total_customers > 0
+            then h.orders_sum / h.total_customers else 0 end,
+        'avg_customer_value', case when h.total_customers > 0
+            then h.revenue_sum / h.total_customers else 0 end,
+        'total_customer_revenue', h.revenue_sum,
+        'top_cities', coalesce((
+            select jsonb_agg(jsonb_build_object('city', city, 'count', n))
+            from cities), '[]'::jsonb),
+        'trend', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t.d, 'new', t.new, 'returning', t.returning
+            ) order by t.d)
+            from t), '[]'::jsonb),
+        'trend_week', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t_week.b, 'new', t_week.new, 'returning', t_week.returning
+            ) order by t_week.b)
+            from t_week), '[]'::jsonb),
+        'trend_month', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'd', t_month.b, 'new', t_month.new, 'returning', t_month.returning
+            ) order by t_month.b)
+            from t_month), '[]'::jsonb)
+    )
+    into v_customers
+    from hdr h;
+    end if;
+
+    if v_all or 'sellers' = any(p_sections) then
+    -- ───────────────────── sellers (recon 02 §4 / 03 §9) ───────────────────
+    -- Volume anchor = placement (replace-excluded pool, STRICT window);
+    -- commission anchor = seller_daily_earnings.date (view = source of truth,
+    -- never re-derived). Paid = Σ paid_amount over ALL payout rows (lifetime,
+    -- partials counted); Pending = Σ max(0, total − paid) over
+    -- period_state='open' rows ONLY (rolling ledger). Attendance = presences
+    -- in window ÷ (active sellers × Mon–Sat working days; explicit window
+    -- needs BOTH bounds, otherwise earliest-presence → today). Per-seller
+    -- success rate = deliveredAny ÷ (tracked − pullback), UNCLAMPED, with the
+    -- numerator over ALL own orders (recon 02 §4 deviation, replicated).
+    -- Rows for the whole roster (client renders top-10 AFTER totals).
+    with tracked as (
+        select cp.order_id
+        from public.company_parcels cp
+        where cp."DigiCom Business" = p_business
+          and cp.order_id is not null
+          and nullif(btrim(cp.tracking_code), '') is not null
+        union
+        select crp.order_id
+        from public.courier_parcels crp
+        where crp."DigiCom Business" = p_business
+          and crp.order_id is not null
+          and nullif(btrim(crp.tracking_code), '') is not null
+    ),
+    roster as (
+        select u.id, u.name, coalesce(u.active, false) as active
+        from public.users u
+        where u."DigiCom Business" = p_business and u.role = 'commercial'
+    ),
+    pool as (
+        select o.id, o.seller_id, o.price, o.raw_price, o.shipping_cost,
+               o.include_delivery_in_total,
+               coalesce(ps.is_delivered, false) as is_delivered,
+               coalesce(os.is_paid, false)      as is_paid,
+               (coalesce(os.excluded_from_delivery_rate, false)
+                 or coalesce(ps.excluded_from_delivery_rate, false)) as pullback_flag,
+               (t.order_id is not null) as has_tracking
+        from public.orders o
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        left join tracked t on t.order_id = o.id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+          and o.date is not null
+          and (v_start is null or o.date >= v_start)
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+    ),
+    counts as (
+        select p.seller_id,
+               count(*)::int as orders,
+               (count(*) filter (where is_delivered))::int as delivered,
+               (count(*) filter (where is_delivered and is_paid))::int as delivered_paid,
+               (count(*) filter (where has_tracking))::int as tracked,
+               (count(*) filter (where has_tracking and pullback_flag))::int as pullback
+        from pool p group by 1
+    ),
+    fin as (  -- FULL pureRevenue chain over paid+delivered own orders
+        select p.seller_id,
+               sum(
+                   (case when coalesce(li.line_sum, 0) > 0 then li.line_sum
+                         when coalesce(p.raw_price, 0) > 0 then p.raw_price
+                         else case when p.include_delivery_in_total is false
+                                   then coalesce(p.price, 0)
+                                   else greatest(0, coalesce(p.price, 0) - coalesce(p.shipping_cost, 0)) end end)
+                 + (case when p.include_delivery_in_total is true then coalesce(p.shipping_cost, 0) else 0 end)
+               )::numeric as revenue
+        from pool p
+        left join lateral (
+            select sum(case when coalesce(oi.total_price, 0) > 0 then oi.total_price
+                            else coalesce(oi.unit_price, 0) * oi.quantity end)
+                       filter (where oi.product_id is not null and coalesce(oi.quantity, 0) > 0) as line_sum
+            from public.order_items oi where oi.order_id = p.id
+        ) li on true
+        where p.is_delivered and p.is_paid
+        group by 1
+    ),
+    comm as (
+        select sde.seller_id, sum(coalesce(sde.commission_earned, 0))::numeric as commission
+        from public.seller_daily_earnings sde
+        where sde."DigiCom Business" = p_business
+          and sde.date is not null
+          and sde.date >= v_from_day and sde.date <= v_to_day
+        group by 1
+    ),
+    pres as (
+        select sp.seller_id, count(*)::int as n
+        from public.seller_presences sp
+        where sp."DigiCom Business" = p_business
+          and sp.date is not null
+          and sp.date >= v_from_day and sp.date <= v_to_day
+        group by 1
+    ),
+    pay as (
+        select coalesce(sum(coalesce(paid_amount, 0)), 0)::numeric as paid,
+               coalesce(sum(greatest(0, coalesce(total_amount, 0) - coalesce(paid_amount, 0)))
+                   filter (where period_state = 'open'), 0)::numeric as pending
+        from public.seller_payments sp
+        where sp."DigiCom Business" = p_business
+    ),
+    pres_min as (
+        select min(sp.date) as d0
+        from public.seller_presences sp
+        where sp."DigiCom Business" = p_business and sp.date is not null
+    ),
+    wd as (
+        select case
+            when p_from is not null and p_to is not null then
+                (select count(*)::int
+                 from generate_series(p_from::timestamp, p_to::timestamp, interval '1 day') g
+                 where extract(dow from g) <> 0)
+            when (select d0 from pres_min) is not null then
+                (select count(*)::int
+                 from generate_series((select d0 from pres_min)::timestamp,
+                                      v_today::timestamp, interval '1 day') g
+                 where extract(dow from g) <> 0)
+            else 0 end as working_days
+    )
+    select jsonb_build_object(
+        'total_sellers', (select count(*)::int from roster),
+        'active_sellers', (select count(*)::int from roster where active),
+        'total_commission', coalesce((
+            select sum(c.commission) from roster r join comm c on c.seller_id = r.id), 0)::numeric,
+        'total_paid', (select paid from pay),
+        'total_pending', (select pending from pay),
+        'presence_total', coalesce((select sum(n) from pres), 0)::int,
+        'working_days', (select working_days from wd),
+        'attendance_rate', case
+            when (select count(*) from roster where active) * (select working_days from wd) > 0
+            then coalesce((select sum(n) from pres), 0)::numeric * 100
+                 / ((select count(*) from roster where active) * (select working_days from wd))
+            else 0 end,
+        'sellers', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'seller_id', r.id,
+                'orders', coalesce(ct.orders, 0),
+                'delivered', coalesce(ct.delivered, 0),
+                'delivered_paid', coalesce(ct.delivered_paid, 0),
+                'tracked', coalesce(ct.tracked, 0),
+                'pullback', coalesce(ct.pullback, 0),
+                'revenue', coalesce(f.revenue, 0),
+                'presences', coalesce(pr.n, 0),
+                'commission', coalesce(c.commission, 0)
+            ) order by coalesce(ct.delivered, 0) desc, r.name, r.id)
+            from roster r
+            left join counts ct on ct.seller_id = r.id
+            left join fin f on f.seller_id = r.id
+            left join comm c on c.seller_id = r.id
+            left join pres pr on pr.seller_id = r.id
+        ), '[]'::jsonb)
+    )
+    into v_sellers;
+    end if;
+
+    if v_all or 'couriers' = any(p_sections) then
+    -- ───────────────────── couriers (recon 02 §5 / 03 §10) ─────────────────
+    -- Pool: courier-assigned orders ONLY (courier_id IS NOT NULL), NO replace
+    -- exclusion, STRICT placement window. Pending payouts LIFETIME = Σ
+    -- total_shipping_fees where status <> 'paid' (NULL status counts unpaid —
+    -- deliberately NOT payment_notes_unpaid_total's net_amount/'unpaid').
+    -- total_pending sums ALL couriers in the notes (roster or not) — client
+    -- parity. Per-courier rows for the roster; rates unclamped, derived
+    -- client-side from denom columns.
+    with tracked as (
+        select cp.order_id
+        from public.company_parcels cp
+        where cp."DigiCom Business" = p_business
+          and cp.order_id is not null
+          and nullif(btrim(cp.tracking_code), '') is not null
+        union
+        select crp.order_id
+        from public.courier_parcels crp
+        where crp."DigiCom Business" = p_business
+          and crp.order_id is not null
+          and nullif(btrim(crp.tracking_code), '') is not null
+    ),
+    roster as (
+        select u.id, u.name, (u.active is distinct from false) as active_calc
+        from public.users u
+        where u."DigiCom Business" = p_business and u.role = 'courier'
+    ),
+    pool as (
+        select o.id, o.courier_id,
+               coalesce(ps.is_delivered, false) as is_delivered,
+               coalesce(ps.is_returned, false)  as is_returned,
+               (coalesce(os.excluded_from_delivery_rate, false)
+                 or coalesce(ps.excluded_from_delivery_rate, false)) as pullback_flag,
+               (t.order_id is not null) as has_tracking
+        from public.orders o
+        left join public.order_statuses os on os.id = o.order_status_id
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        left join tracked t on t.order_id = o.id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.courier_id is not null
+          and o.date is not null
+          and (v_start is null or o.date >= v_start)
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+    ),
+    notes as (
+        select n.courier_id,
+               coalesce(sum(coalesce(n.total_shipping_fees, 0)), 0)::numeric as pending
+        from public.courier_payment_notes n
+        where n."DigiCom Business" = p_business
+          and n.courier_id is not null
+          and n.status is distinct from 'paid'
+        group by 1
+    ),
+    per as (
+        select p.courier_id,
+               count(*)::int as total,
+               (count(*) filter (where has_tracking))::int as tracked,
+               (count(*) filter (where has_tracking and pullback_flag))::int as pullback,
+               (count(*) filter (where is_delivered))::int as delivered,
+               (count(*) filter (where is_returned))::int as returned
+        from pool p group by 1
+    ),
+    hdr as (
+        select count(*)::int as total_shipments,
+               ((count(*) filter (where has_tracking))
+                 - (count(*) filter (where has_tracking and pullback_flag)))::int as denom,
+               (count(*) filter (where is_delivered))::int as delivered
+        from pool
+    )
+    select jsonb_build_object(
+        'total_couriers', (select count(*)::int from roster),
+        'active_couriers', (select count(*)::int from roster where active_calc),
+        'total_shipments', h.total_shipments,
+        'overall_denom', h.denom,
+        'total_delivered', h.delivered,
+        'overall_rate', case when h.denom > 0
+            then h.delivered::numeric * 100 / h.denom else 0 end,
+        'total_pending', coalesce((select sum(pending) from notes), 0)::numeric,
+        'couriers', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'courier_id', r.id,
+                'total', coalesce(p.total, 0),
+                'tracked', coalesce(p.tracked, 0),
+                'pullback', coalesce(p.pullback, 0),
+                'denom', coalesce(p.tracked, 0) - coalesce(p.pullback, 0),
+                'delivered', coalesce(p.delivered, 0),
+                'returned', coalesce(p.returned, 0),
+                'pending', coalesce(n.pending, 0)
+            ) order by coalesce(p.delivered, 0) desc, r.name, r.id)
+            from roster r
+            left join per p on p.courier_id = r.id
+            left join notes n on n.courier_id = r.id
+        ), '[]'::jsonb)
+    )
+    into v_couriers
+    from hdr h;
+    end if;
+
+    if v_all or 'mediabuyers' = any(p_sections) then
+    -- ───────────────────── mediabuyers (recon 02 §6 / 03 §11) ──────────────
+    -- Admin-facing full-money surface. Buckets keyed (Casablanca placement
+    -- day, normalized source) over windowed replace-excluded orders with a
+    -- non-empty source; per bucket: leads, delivered, revenue (FULL chain,
+    -- delivered — NOT paid-gated), COGS (product part = CURRENT cost_price
+    -- ONLY — no snapshot, replicated deviation; accessory part snapshot-else-
+    -- current), shipping, seller commission (STRICT per_unit: empty
+    -- users.products ⇒ 0). Attribution key = campaign_daily_entries.created_by
+    -- (standing rule); a (day, platform) bucket claimed by N roster MBs is
+    -- split 1/N. MB cost: commission type → attributed delivered × rate;
+    -- salaried → salary × window_days/30. Entries all-time lower bound
+    -- '2020-01-01' replicated. net/roas derivable; net returned for sorting.
+    with roster as (
+        select u.id, u.payment_type,
+               coalesce(u.commission_price, 0)::numeric as commission_price,
+               coalesce(u.salary_amount, 0)::numeric as salary_amount
+        from public.users u
+        where u."DigiCom Business" = p_business and u.role = 'mediabuyer'
+    ),
+    sellers_x as (
+        select u.id, coalesce(u.commission_price, 0)::numeric as rate,
+               case when u.commission_basis = 'per_unit' then 'per_unit' else 'per_order' end as basis,
+               case when jsonb_typeof(u.products) = 'array'
+                    then coalesce((select array_agg(x) from jsonb_array_elements_text(u.products) x where x <> ''), '{}'::text[])
+                    else '{}'::text[] end as prod_ids
+        from public.users u
+        where u."DigiCom Business" = p_business and u.role = 'commercial'
+    ),
+    pool as (
+        select o.id, o.seller_id, o.price, o.raw_price, o.shipping_cost,
+               o.include_delivery_in_total,
+               (o.date at time zone 'Africa/Casablanca')::date as place_day,
+               public.normalize_ad_source(o.source_name) as src,
+               coalesce(ps.is_delivered, false) as is_delivered
+        from public.orders o
+        left join public.package_statuses ps on ps.id = o.package_status_id
+        where o."DigiCom Business" = p_business
+          and o.date_deleted is null
+          and o.source_review_status <> 'pending'
+          and o.replace is distinct from true
+          and nullif(o.source_name, '') is not null
+          and public.normalize_ad_source(o.source_name) <> ''
+          and o.date is not null
+          and (v_start is null or o.date >= v_start)
+          and (case when v_end_excl is not null then o.date < v_end_excl else o.date <= v_now end)
+    ),
+    pool_fin as (
+        select p.*,
+               case when p.is_delivered then
+                   (case when coalesce(li.line_sum, 0) > 0 then li.line_sum
+                         when coalesce(p.raw_price, 0) > 0 then p.raw_price
+                         else case when p.include_delivery_in_total is false
+                                   then coalesce(p.price, 0)
+                                   else greatest(0, coalesce(p.price, 0) - coalesce(p.shipping_cost, 0)) end end)
+                 + (case when p.include_delivery_in_total is true then coalesce(p.shipping_cost, 0) else 0 end)
+               else 0 end as revenue,
+               case when p.is_delivered then coalesce(li.cogs_cur, 0) else 0 end as cogs,
+               case when p.is_delivered and sx.id is not null and sx.rate > 0 then
+                   case when sx.basis = 'per_unit' then
+                       case when cardinality(sx.prod_ids) = 0 then 0
+                            else coalesce(un.units, 0) * sx.rate end
+                        else sx.rate end
+               else 0 end as seller_commission
+        from pool p
+        left join sellers_x sx on sx.id = p.seller_id
+        left join lateral (
+            select
+                sum(case when coalesce(oi.total_price, 0) > 0 then oi.total_price
+                         else coalesce(oi.unit_price, 0) * oi.quantity end)
+                    filter (where oi.product_id is not null and coalesce(oi.quantity, 0) > 0) as line_sum,
+                sum(
+                    coalesce(case when oi.product_id is not null and coalesce(oi.quantity, 0) > 0
+                                  then coalesce(pr.cost_price, 0) * oi.quantity end, 0)
+                  + coalesce(case when oi.accessory_id is not null and coalesce(oi.accessory_quantity, 0) > 0 then
+                        (case when coalesce(oi.accessory_unit_price, 0) > 0
+                              then oi.accessory_unit_price
+                              else coalesce(ac.cost_price, 0) end) * oi.accessory_quantity end, 0)
+                ) as cogs_cur
+            from public.order_items oi
+            left join public.products pr on pr.id = oi.product_id
+            left join public.accessories ac on ac.id = oi.accessory_id
+            where oi.order_id = p.id
+        ) li on true
+        left join lateral (
+            select sum(coalesce(oi.quantity, 0)) as units
+            from public.order_items oi
+            where oi.order_id = p.id
+              and oi.product_id is not null
+              and sx.id is not null
+              and cardinality(sx.prod_ids) > 0
+              and oi.product_id::text = any(sx.prod_ids)
+        ) un on true
+    ),
+    buckets as (
+        select place_day as d, src,
+               count(*)::int as leads,
+               (count(*) filter (where is_delivered))::int as delivered,
+               coalesce(sum(revenue), 0)::numeric as revenue,
+               coalesce(sum(cogs), 0)::numeric as cogs,
+               coalesce(sum(coalesce(shipping_cost, 0)) filter (where is_delivered), 0)::numeric as shipping,
+               coalesce(sum(seller_commission), 0)::numeric as seller_commission
+        from pool_fin
+        group by 1, 2
+    ),
+    entries_w as (
+        select e.created_by, e.entry_date, coalesce(e.spend, 0) as spend,
+               public.normalize_ad_source(e.platform) as src
+        from public.campaign_daily_entries e
+        where e."DigiCom Business" = p_business
+          and e.entry_date >= coalesce(p_from, date '2020-01-01')
+          and e.entry_date <= v_to_day
+    ),
+    mb_keys as (  -- distinct (MB, day, source) claims — roster MBs only
+        select distinct e.created_by, e.entry_date, e.src
+        from entries_w e
+        join roster r on r.id = e.created_by
+        where e.src <> '' and e.entry_date is not null
+    ),
+    claims as (
+        select entry_date, src, count(*)::int as n from mb_keys group by 1, 2
+    ),
+    attr as (
+        select mk.created_by,
+               sum(b.leads::numeric / c.n)     as orders,
+               sum(b.delivered::numeric / c.n) as delivered,
+               sum(b.revenue / c.n)            as revenue,
+               sum(b.cogs / c.n)               as cogs,
+               sum(b.shipping / c.n)           as shipping,
+               sum(b.seller_commission / c.n)  as seller_commission
+        from mb_keys mk
+        join claims c on c.entry_date = mk.entry_date and c.src = mk.src
+        join buckets b on b.d = mk.entry_date and b.src = mk.src
+        group by 1
+    ),
+    spend as (
+        select created_by, sum(spend)::numeric as spend from entries_w group by 1
+    ),
+    wdays as (
+        select case
+            when p_from is not null and p_to is not null then greatest(1, (p_to - p_from) + 1)
+            else coalesce((
+                select greatest(1, (v_today - min(x.d)) + 1)
+                from (
+                    select min(entry_date) as d from entries_w
+                    union all
+                    select min((o.date at time zone 'Africa/Casablanca')::date)
+                    from public.orders o
+                    where o."DigiCom Business" = p_business
+                      and o.date_deleted is null
+                      and o.source_review_status <> 'pending'
+                      and o.replace is distinct from true
+                      and o.date is not null
+                ) x where x.d is not null
+            ), 30)
+        end as wd
+    ),
+    rows_mb as (
+        select r.id,
+               coalesce(s.spend, 0)::numeric as spend,
+               coalesce(a.orders, 0)::numeric as orders,
+               coalesce(a.delivered, 0)::numeric as delivered,
+               coalesce(a.revenue, 0)::numeric as revenue,
+               coalesce(a.cogs, 0)::numeric as cogs,
+               coalesce(a.shipping, 0)::numeric as shipping,
+               coalesce(a.seller_commission, 0)::numeric as seller_commission,
+               case when r.payment_type = 'commission'
+                        then coalesce(a.delivered, 0) * r.commission_price
+                    when r.salary_amount > 0
+                        then r.salary_amount * (select wd from wdays) / 30.0
+                    else 0 end::numeric as mb_cost
+        from roster r
+        left join spend s on s.created_by = r.id
+        left join attr a on a.created_by = r.id
+    )
+    select jsonb_build_object(
+        'window_days', (select wd from wdays),
+        'mediabuyers', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'mb_id', m.id, 'spend', m.spend, 'orders', m.orders,
+                'delivered', m.delivered, 'revenue', m.revenue, 'cogs', m.cogs,
+                'shipping', m.shipping, 'seller_commission', m.seller_commission,
+                'mb_cost', m.mb_cost,
+                'net_profit', m.revenue - m.cogs - m.shipping - m.seller_commission
+                            - m.mb_cost - m.spend
+            ) order by (m.revenue - m.cogs - m.shipping - m.seller_commission
+                        - m.mb_cost - m.spend) desc, m.id)
+            from rows_mb m
+        ), '[]'::jsonb)
+    )
+    into v_mediabuyers;
+    end if;
+
+    if v_all or 'users' = any(p_sections) then
+    -- ───────────────────── users (recon 03 §12) ────────────────────────────
+    -- Window-INDEPENDENT (fixed 30-day activity rule computed here on
+    -- now()/v_today). truly_active = active flag AND (owner/admin/super admin
+    -- exempt OR appeared as seller/courier on an order touched in the last 30
+    -- days OR authored a campaign entry in the last 30 days). The orders
+    -- activity scan deliberately omits date_deleted (client parity).
+    with u as (
+        select u.id, coalesce(u.role::text, 'unknown') as role,
+               coalesce(u.active, false) as active_flag
+        from public.users u
+        where u."DigiCom Business" = p_business
+    ),
+    act as (
+        select distinct uid from (
+            select o.seller_id as uid
+            from public.orders o
+            where o."DigiCom Business" = p_business
+              and o.source_review_status <> 'pending'
+              and o.updated_at >= v_now - interval '30 days'
+              and o.seller_id is not null
+            union all
+            select o.courier_id
+            from public.orders o
+            where o."DigiCom Business" = p_business
+              and o.source_review_status <> 'pending'
+              and o.updated_at >= v_now - interval '30 days'
+              and o.courier_id is not null
+            union all
+            select e.created_by
+            from public.campaign_daily_entries e
+            where e."DigiCom Business" = p_business
+              and e.entry_date >= v_today - 30
+              and e.created_by is not null
+        ) s
+    ),
+    flags as (
+        select u.id, u.role,
+               (u.active_flag and (u.role in ('owner', 'admin', 'super admin', 'business owner')
+                                   or a.uid is not null)) as truly_active
+        from u
+        left join act a on a.uid = u.id
+    )
+    select jsonb_build_object(
+        'total_users', (select count(*)::int from flags),
+        'active_users', (select count(*)::int from flags where truly_active),
+        'inactive_users', (select count(*)::int from flags where not truly_active),
+        'roles', coalesce((
+            select jsonb_agg(jsonb_build_object(
+                'role', r.role, 'total', r.total, 'active', r.active
+            ) order by r.total desc, r.role)
+            from (
+                select role, count(*)::int as total,
+                       (count(*) filter (where truly_active))::int as active
+                from flags group by role
+            ) r
+        ), '[]'::jsonb)
+    )
+    into v_users;
+    end if;
+
+        -- Only computed sections are present; default (null) returns all 12.
+    if v_profitability is not null then v_out := v_out || jsonb_build_object('profitability', v_profitability); end if;
+    if v_health is not null then v_out := v_out || jsonb_build_object('health', v_health); end if;
+    if v_orders is not null then v_out := v_out || jsonb_build_object('orders', v_orders); end if;
+    if v_ads is not null then v_out := v_out || jsonb_build_object('ads', v_ads); end if;
+    if v_shipping is not null then v_out := v_out || jsonb_build_object('shipping', v_shipping); end if;
+    if v_inventory is not null then v_out := v_out || jsonb_build_object('inventory', v_inventory); end if;
+    if v_channels is not null then v_out := v_out || jsonb_build_object('channels', v_channels); end if;
+    if v_customers is not null then v_out := v_out || jsonb_build_object('customers', v_customers); end if;
+    if v_sellers is not null then v_out := v_out || jsonb_build_object('sellers', v_sellers); end if;
+    if v_couriers is not null then v_out := v_out || jsonb_build_object('couriers', v_couriers); end if;
+    if v_mediabuyers is not null then v_out := v_out || jsonb_build_object('mediabuyers', v_mediabuyers); end if;
+    if v_users is not null then v_out := v_out || jsonb_build_object('users', v_users); end if;
+    return v_out;
+end;
+$function$;
+
+-- approve_sheet_order
+CREATE OR REPLACE FUNCTION public.approve_sheet_order(p_order_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_catalog'
+AS $function$
+DECLARE
+  v_caller_biz uuid := current_user_digicom_business_id();
+  v_biz uuid; v_review text; v_name text; v_phone text; v_city uuid; v_status uuid; v_new_status uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'forbidden: authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT "DigiCom Business", source_review_status, name, phone, master_city_id, order_status_id
+    INTO v_biz, v_review, v_name, v_phone, v_city, v_status
+    FROM public.orders WHERE id = p_order_id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'error', 'order not found'); END IF;
+
+  -- AUTHZ: super-admin of the order's OWN business only. NOT owner (per-business op, /owner/*-confined).
+  IF NOT (public.check_user_role(auth.uid(), ARRAY['super admin','admin','business owner'])
+          AND v_caller_biz IS NOT NULL AND v_biz = v_caller_biz) THEN
+    RAISE EXCEPTION 'forbidden: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  IF v_review IS DISTINCT FROM 'pending' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'order is not pending');
+  END IF;
+
+  IF COALESCE(btrim(v_name), '') = '' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'name required'); END IF;
+  IF length(regexp_replace(COALESCE(v_phone, ''), '[^0-9]', '', 'g')) < 9 THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'valid phone required'); END IF;
+  IF v_city IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'city required'); END IF;
+
+  IF v_status IS NOT NULL THEN
+    v_new_status := v_status;
+  ELSE
+    SELECT id INTO v_new_status FROM public.order_statuses WHERE is_new LIMIT 1;
+  END IF;
+  IF v_new_status IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'no entry status available'); END IF;
+
+  INSERT INTO public.order_status_history (order_id, status_id, "DigiCom Business", changed_by, comment)
+  VALUES (p_order_id, v_new_status, v_biz, auth.uid(), 'Approved from sheet sync');
+
+  UPDATE public.orders
+  SET source_review_status = 'approved', order_status_id = v_new_status, updated_at = now()
+  WHERE id = p_order_id;
+
+  PERFORM public.sync_imported_orders(v_biz);
+
+  RETURN jsonb_build_object('ok', true, 'order_id', p_order_id, 'seller_id', NULL, 'status_id', v_new_status);
+END;
+$function$;
+
+-- chat_customer_orders_count
+CREATE OR REPLACE FUNCTION public.chat_customer_orders_count(p_phone text)
+ RETURNS integer
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select case when exists (
+      select 1 from public.users u
+      where u.id = (select auth.uid())
+        and u.role in ('super admin', 'admin', 'commercial', 'business owner')
+    )
+    then (
+      select count(*)::int
+      from public.orders o
+      where o."DigiCom Business" = public.current_user_digicom_business_id()
+        and public.normalize_phone_for_customer(o.phone)
+              = public.normalize_phone_for_customer(p_phone)
+        and o.date_deleted is null
+    )
+    else 0
+  end;
+$function$;
+
+-- chat_customer_orders_page
+CREATE OR REPLACE FUNCTION public.chat_customer_orders_page(p_phone text, p_limit integer DEFAULT 20, p_offset integer DEFAULT 0)
+ RETURNS TABLE(id uuid, name text, price numeric, order_date timestamp with time zone, order_status_label text, order_status_color text, order_status_icon text, package_status_label text, package_status_color text, package_status_icon text, product_name text, product_image text, extra_items integer, seller_id uuid)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select o.id, o.name, o.price, o.date,
+         os.label, os.color, os.icon,
+         ps.label, ps.color, ps.icon,
+         pi.product_name, pi.image_url, coalesce(pi.extra, 0),
+         o.seller_id
+  from public.orders o
+  left join public.order_statuses   os on os.id = o.order_status_id
+  left join public.package_statuses ps on ps.id = o.package_status_id
+  left join lateral (
+    select p.name as product_name, p.image_url,
+           (select count(*)::int - 1
+              from public.order_items oi2
+             where oi2.order_id = o.id and oi2.product_id is not null) as extra
+    from public.order_items oi
+    join public.products p on p.id = oi.product_id
+    where oi.order_id = o.id and oi.product_id is not null
+    order by oi.created_at
+    limit 1
+  ) pi on true
+  where exists (
+      select 1 from public.users u
+      where u.id = (select auth.uid())
+        and u.role in ('super admin', 'admin', 'commercial', 'business owner')
+    )
+    and o."DigiCom Business" = public.current_user_digicom_business_id()
+    and public.normalize_phone_for_customer(o.phone)
+          = public.normalize_phone_for_customer(p_phone)
+    and o.date_deleted is null
+  order by o.date desc nulls last, o.id desc
+  limit least(greatest(p_limit, 1), 50)
+  offset greatest(p_offset, 0);
+$function$;
+
+-- close_mediabuyer_month
+CREATE OR REPLACE FUNCTION public.close_mediabuyer_month(p_close_month date DEFAULT ((date_trunc('month'::text, now()) - '1 mon'::interval))::date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_close date := date_trunc('month', p_close_month)::date;
+  v_close_txt text := to_char(v_close, 'YYYY-MM-01');
+  v_next date := (v_close + interval '1 month')::date;
+  v_next_txt text := to_char(v_next, 'YYYY-MM-01');
+  r record; v_earned numeric; v_del int; v_spend numeric; v_camps int; v_carry_in numeric; v_paid numeric;
+  v_total numeric; v_carry_out numeric; v_state text; v_nxt_earned numeric; v_nxt_del int; v_nxt_spend numeric; v_nxt_camps int; v_pt text;
+begin
+  if auth.uid() is not null and not public.is_owner() and not public.check_user_role(auth.uid(), array['super admin','admin','business owner']) then
+    raise exception 'forbidden: admin only'; end if;
+  for r in
+    select distinct mb_id, biz from (
+      select created_by as mb_id, "DigiCom Business" as biz from public.campaign_daily_entries where date_trunc('month', entry_date)::date = v_close
+      union
+      select mediabuyer_id, "DigiCom Business" from public.mediabuyer_payments where payout_month=v_close_txt and period_state='open'
+    ) s where mb_id is not null and biz is not null
+  loop
+    perform pg_advisory_xact_lock(hashtextextended(r.mb_id::text || r.biz::text, 0));
+    select e.earned, e.delivered, e.spend, e.campaigns into v_earned, v_del, v_spend, v_camps from public.mb_month_earned(r.mb_id, r.biz, v_close) e;
+    select payment_type into v_pt from public.users where id=r.mb_id;
+    select carried_in, paid_amount, period_state into v_carry_in, v_paid, v_state
+      from public.mediabuyer_payments where mediabuyer_id=r.mb_id and "DigiCom Business"=r.biz and payout_month=v_close_txt;
+    if not found then
+      v_carry_in := coalesce((select carried_out from public.mediabuyer_payments
+          where mediabuyer_id=r.mb_id and "DigiCom Business"=r.biz
+            and period_state='closed' and payout_month < v_close_txt
+          order by payout_month desc limit 1), 0);
+      if v_earned = 0 and v_carry_in = 0 then continue; end if;
+      v_carry_out := v_carry_in + v_earned;
+      insert into public.mediabuyer_payments
+        (mediabuyer_id,"DigiCom Business",payout_month,payment_type,carried_in,month_earned,delivered_orders,total_spend,campaigns_count,commission_earned,salary_earned,total_amount,period_state,earned_frozen,closed_at,carried_out,status)
+      values (r.mb_id,r.biz,v_close_txt,coalesce(v_pt,'commission'),v_carry_in,v_earned,v_del,v_spend,v_camps,
+              case when v_pt='salary' then 0 else v_earned end, case when v_pt='salary' then v_earned else 0 end,
+              v_carry_in + v_earned,'closed',true,now(),v_carry_out,'pending');
+    elsif v_state = 'open' then
+      if v_earned = 0 and coalesce(v_carry_in,0)=0 and coalesce(v_paid,0)=0 then continue; end if;
+      v_total := coalesce(v_carry_in,0) + v_earned;
+      v_carry_out := v_total - coalesce(v_paid,0);
+      update public.mediabuyer_payments
+         set month_earned=v_earned, delivered_orders=v_del, total_spend=v_spend, campaigns_count=v_camps,
+             commission_earned=case when v_pt='salary' then 0 else v_earned end, salary_earned=case when v_pt='salary' then v_earned else 0 end,
+             total_amount=v_total, period_state='closed', earned_frozen=true, closed_at=now(), carried_out=v_carry_out
+       where mediabuyer_id=r.mb_id and "DigiCom Business"=r.biz and payout_month=v_close_txt and period_state='open';
+    else
+      select carried_out into v_carry_out from public.mediabuyer_payments where mediabuyer_id=r.mb_id and "DigiCom Business"=r.biz and payout_month=v_close_txt;
+      v_carry_out := coalesce(v_carry_out,0);
+    end if;
+    select e.earned, e.delivered, e.spend, e.campaigns into v_nxt_earned, v_nxt_del, v_nxt_spend, v_nxt_camps from public.mb_month_earned(r.mb_id, r.biz, v_next) e;
+    insert into public.mediabuyer_payments
+      (mediabuyer_id,"DigiCom Business",payout_month,payment_type,carried_in,month_earned,delivered_orders,total_spend,campaigns_count,commission_earned,salary_earned,total_amount,period_state,earned_frozen,status)
+    values (r.mb_id,r.biz,v_next_txt,coalesce(v_pt,'commission'),v_carry_out,v_nxt_earned,v_nxt_del,v_nxt_spend,v_nxt_camps,
+            case when v_pt='salary' then 0 else v_nxt_earned end, case when v_pt='salary' then v_nxt_earned else 0 end,
+            v_carry_out + v_nxt_earned,'open',false,'pending')
+    on conflict (mediabuyer_id,payout_month,"DigiCom Business") do update
+       set carried_in=excluded.carried_in, month_earned=excluded.month_earned, delivered_orders=excluded.delivered_orders,
+           total_spend=excluded.total_spend, campaigns_count=excluded.campaigns_count, commission_earned=excluded.commission_earned,
+           salary_earned=excluded.salary_earned, total_amount=excluded.carried_in+excluded.month_earned
+     where public.mediabuyer_payments.period_state='open';
+    perform public.refresh_mediabuyer_payment_balance(mp.id) from public.mediabuyer_payments mp
+     where mp.mediabuyer_id=r.mb_id and mp."DigiCom Business"=r.biz and mp.payout_month in (v_close_txt, v_next_txt);
+  end loop;
+end;
+$function$;
+
+-- close_seller_month
+CREATE OR REPLACE FUNCTION public.close_seller_month(p_close_month date DEFAULT ((date_trunc('month'::text, now()) - '1 mon'::interval))::date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_close date := date_trunc('month', p_close_month)::date;
+    v_close_txt text := to_char(v_close, 'YYYY-MM-01');
+    v_next date := (v_close + interval '1 month')::date;
+    v_next_txt text := to_char(v_next, 'YYYY-MM-01');
+    r record;
+    v_earned numeric;
+    v_units int;
+    v_carry_in numeric;
+    v_paid numeric;
+    v_total numeric;
+    v_carry_out numeric;
+    v_state text;
+    v_nxt_earned numeric;
+    v_nxt_units int;
+BEGIN
+    IF auth.uid() IS NOT NULL AND NOT public.is_owner() AND NOT public.check_user_role(auth.uid(), ARRAY['super admin','admin','business owner']) THEN
+        RAISE EXCEPTION 'forbidden: admin only';
+    END IF;
+    FOR r IN
+        SELECT DISTINCT seller_id, "DigiCom Business" AS biz FROM (
+            SELECT seller_id, "DigiCom Business" FROM public.seller_daily_earnings WHERE date_trunc('month', date)::date = v_close
+            UNION
+            SELECT seller_id, "DigiCom Business" FROM public.seller_payments WHERE payout_month = v_close_txt AND period_state = 'open'
+        ) s
+        WHERE seller_id IS NOT NULL AND "DigiCom Business" IS NOT NULL
+    LOOP
+        PERFORM pg_advisory_xact_lock(hashtextextended(r.seller_id::text || r.biz::text, 0));
+        SELECT COALESCE(SUM(commission_earned),0), COALESCE(SUM(delivered_count),0)
+          INTO v_earned, v_units
+          FROM public.seller_daily_earnings
+         WHERE seller_id=r.seller_id AND "DigiCom Business"=r.biz AND date_trunc('month', date)::date = v_close;
+        SELECT carried_in, paid_amount, period_state INTO v_carry_in, v_paid, v_state
+          FROM public.seller_payments
+         WHERE seller_id=r.seller_id AND "DigiCom Business"=r.biz AND payout_month=v_close_txt;
+        IF NOT FOUND THEN
+            v_carry_in := COALESCE((SELECT carried_out FROM public.seller_payments
+                WHERE seller_id=r.seller_id AND "DigiCom Business"=r.biz
+                  AND period_state='closed' AND payout_month < v_close_txt
+                ORDER BY payout_month DESC LIMIT 1), 0);
+            IF v_earned = 0 AND v_carry_in = 0 THEN CONTINUE; END IF;
+            v_carry_out := v_carry_in + v_earned;
+            INSERT INTO public.seller_payments
+                (seller_id,"DigiCom Business",payout_month,carried_in,month_earned,delivered_orders,total_amount,period_state,earned_frozen,closed_at,carried_out)
+            VALUES (r.seller_id,r.biz,v_close_txt,v_carry_in,v_earned,v_units,v_carry_in + v_earned,'closed',true,now(),v_carry_out);
+        ELSIF v_state = 'open' THEN
+            IF v_earned = 0 AND COALESCE(v_carry_in,0)=0 AND COALESCE(v_paid,0)=0 THEN CONTINUE; END IF;
+            v_total := COALESCE(v_carry_in,0) + v_earned;
+            v_carry_out := v_total - COALESCE(v_paid,0);
+            UPDATE public.seller_payments
+               SET month_earned=v_earned, delivered_orders=v_units, total_amount=v_total, period_state='closed', earned_frozen=true, closed_at=now(), carried_out=v_carry_out
+             WHERE seller_id=r.seller_id AND "DigiCom Business"=r.biz AND payout_month=v_close_txt AND period_state='open';
+        ELSE
+            SELECT carried_out INTO v_carry_out FROM public.seller_payments
+             WHERE seller_id=r.seller_id AND "DigiCom Business"=r.biz AND payout_month=v_close_txt;
+            v_carry_out := COALESCE(v_carry_out,0);
+        END IF;
+        SELECT COALESCE(SUM(commission_earned),0), COALESCE(SUM(delivered_count),0)
+          INTO v_nxt_earned, v_nxt_units
+          FROM public.seller_daily_earnings
+         WHERE seller_id=r.seller_id AND "DigiCom Business"=r.biz AND date_trunc('month', date)::date = v_next;
+        INSERT INTO public.seller_payments
+            (seller_id,"DigiCom Business",payout_month,carried_in,month_earned,delivered_orders,total_amount,period_state,earned_frozen)
+        VALUES (r.seller_id,r.biz,v_next_txt,v_carry_out,v_nxt_earned,v_nxt_units,v_carry_out + v_nxt_earned,'open',false)
+        ON CONFLICT (seller_id,payout_month,"DigiCom Business") DO UPDATE
+           SET carried_in=EXCLUDED.carried_in, month_earned=EXCLUDED.month_earned, delivered_orders=EXCLUDED.delivered_orders, total_amount=EXCLUDED.carried_in + EXCLUDED.month_earned
+         WHERE public.seller_payments.period_state='open';
+        PERFORM public.refresh_seller_payment_balance(sp.id) FROM public.seller_payments sp
+         WHERE sp.seller_id=r.seller_id AND sp."DigiCom Business"=r.biz AND sp.payout_month IN (v_close_txt, v_next_txt);
+    END LOOP;
+END;
+$function$;
+
+-- mediabuyer_month_orders
+CREATE OR REPLACE FUNCTION public.mediabuyer_month_orders(p_mb uuid, p_business uuid, p_month date)
+ RETURNS TABLE(order_id uuid, client text, phone text, tracking text, bucket_date date, source text, delivered_at timestamp with time zone, units integer, commission numeric)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT
+    o.id, o.name, o.phone,
+    COALESCE(
+      (SELECT cp.tracking_code FROM courier_parcels cp WHERE cp.order_id = o.id AND NULLIF(btrim(cp.tracking_code), '') IS NOT NULL ORDER BY cp.created_at DESC LIMIT 1),
+      (SELECT pp.tracking_code FROM company_parcels pp WHERE pp.order_id = o.id AND NULLIF(btrim(pp.tracking_code), '') IS NOT NULL ORDER BY pp.created_at DESC LIMIT 1)
+    ),
+    (o.date AT TIME ZONE 'Africa/Casablanca')::date,
+    lower(o.source_name),
+    COALESCE(o.date_livraison, o.updated_at),
+    COALESCE((SELECT sum(oi.quantity)::int FROM order_items oi WHERE oi.order_id = o.id), 0),
+    COALESCE(u.commission_price, 0)
+  FROM orders o
+    JOIN users u ON u.id = p_mb
+    JOIN package_statuses ps ON ps.id = o.package_status_id
+  WHERE o."DigiCom Business" IS NOT DISTINCT FROM p_business
+    AND ps.is_delivered
+    AND o.date_deleted IS NULL
+    AND o.source_review_status IS DISTINCT FROM 'pending'
+    AND COALESCE(o.swap_only, false) = false
+    AND EXISTS (
+      SELECT 1 FROM campaign_daily_entries e
+      WHERE e.created_by = p_mb AND e."DigiCom Business" = p_business
+        AND date_trunc('month', e.entry_date)::date = date_trunc('month', p_month)::date
+        AND e.entry_date = (o.date AT TIME ZONE 'Africa/Casablanca')::date
+        AND lower(o.source_name) = CASE lower(e.platform)
+            WHEN 'whatsapp ads' THEN 'whatsapp'  WHEN 'messenger ads' THEN 'messenger'
+            WHEN 'instagram ads' THEN 'instagram' WHEN 'facebook ads' THEN 'facebook'
+            WHEN 'google ads' THEN 'google'       WHEN 'tiktok ads' THEN 'tiktok'
+            WHEN 'native ads' THEN 'native'       WHEN 'snapchat ads' THEN 'snapchat'
+            WHEN 'twitter ads' THEN 'twitter'     WHEN 'bing ads' THEN 'bing'
+            WHEN 'pinterest ads' THEN 'pinterest' WHEN 'reddit ads' THEN 'reddit'
+            ELSE '' END
+    )
+    AND (auth.uid() = p_mb
+         OR (public.current_user_digicom_business_id() = p_business
+             AND check_user_role(auth.uid(), ARRAY['super admin','admin','business owner'])))
+  ORDER BY COALESCE(o.date_livraison, o.updated_at) ASC;
+$function$;
+
+-- pay_mediabuyer
+CREATE OR REPLACE FUNCTION public.pay_mediabuyer(p_mb uuid, p_business_id uuid, p_amount numeric, p_paid_at timestamp with time zone DEFAULT now(), p_note text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_month date := date_trunc('month', now())::date;
+  v_month_txt text := to_char(v_month, 'YYYY-MM-01');
+  v_ticket uuid; v_txn uuid; v_carry numeric;
+    v_remaining numeric; v_pt text;
+begin
+  if not (public.check_user_role(auth.uid(), array['super admin','admin','business owner'])
+          and public.current_user_digicom_business_id() is not null
+          and public.current_user_digicom_business_id() = p_business_id) then
+    raise exception 'forbidden: admin only'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'amount must be > 0'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_mb::text || p_business_id::text, 0));
+  select id into v_ticket from public.mediabuyer_payments
+   where mediabuyer_id=p_mb and "DigiCom Business"=p_business_id and payout_month=v_month_txt and period_state='open';
+  if v_ticket is null then
+    v_carry := coalesce((select carried_out from public.mediabuyer_payments
+       where mediabuyer_id=p_mb and "DigiCom Business"=p_business_id and period_state='closed'
+       order by payout_month desc limit 1),0);
+    select payment_type into v_pt from public.users where id=p_mb;
+    insert into public.mediabuyer_payments
+      (mediabuyer_id,"DigiCom Business",payout_month,payment_type,carried_in,month_earned,delivered_orders,total_amount,period_state,earned_frozen,status)
+    values (p_mb,p_business_id,v_month_txt,coalesce(v_pt,'commission'),v_carry,0,0,v_carry,'open',false,'pending')
+    returning id into v_ticket;
+  end if;
+  perform public.refresh_open_mediabuyer_ticket(p_mb, p_business_id, v_month);
+
+  -- ── OVERPAY GUARD (owner ruling 2026-07-15: NO advances) ──────────────────
+  -- AFTER refresh, so `remaining` reflects the just-synced live earned.
+  -- Nothing anywhere rejected an overpayment: refresh_*_balance uses `>=` and
+  -- merely LABELS paid_amount > total_amount as 'paid'; the excess then rolls
+  -- into a negative carried_out -> negative next-month carried_in (the -280
+  -- incident shape). This makes "no advances" true in the DB, not by convention.
+  -- Tolerance 0.005 (half a centime): money columns are `numeric` = exact, and
+  -- 0 live tickets carry a remaining beyond 2dp (measured), so the only dust is
+  -- the client computing remaining in float64 then .toFixed(2). 0.005 absorbs
+  -- that rounding and still rejects every real overpay.
+  -- ERRCODE 23514 = a DEFINITIVE server rejection, distinguishable from a
+  -- transport failure of unknown outcome.
+  select total_amount - paid_amount into v_remaining
+    from public.mediabuyer_payments where id = v_ticket;
+  if p_amount > coalesce(v_remaining, 0) + 0.005 then
+    raise exception 'pay_mediabuyer: montant % superieur au reste du % (aucune avance autorisee)',
+      p_amount, coalesce(v_remaining, 0) using errcode = '23514';
+  end if;
+
+  insert into public.mediabuyer_payment_txns (mediabuyer_payment_id, amount, paid_at, note, created_by, "DigiCom Business")
+  values (v_ticket, p_amount, p_paid_at, p_note, auth.uid(), p_business_id)
+  returning id into v_txn;
+  return v_txn;
+end;
+$function$;
+
+-- pay_seller
+CREATE OR REPLACE FUNCTION public.pay_seller(p_seller_id uuid, p_business_id uuid, p_amount numeric, p_paid_at timestamp with time zone DEFAULT now(), p_note text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_month date := date_trunc('month', now())::date;
+    v_month_txt text := to_char(v_month, 'YYYY-MM-01');
+    v_ticket uuid;
+    v_txn uuid;
+    v_carry numeric;
+    v_remaining numeric;
+BEGIN
+    IF NOT (public.check_user_role(auth.uid(), ARRAY['super admin','admin','business owner'])
+            AND public.current_user_digicom_business_id() IS NOT NULL
+            AND public.current_user_digicom_business_id() = p_business_id) THEN
+        RAISE EXCEPTION 'forbidden: admin only';
+    END IF;
+    IF p_amount IS NULL OR p_amount <= 0 THEN
+        RAISE EXCEPTION 'amount must be > 0';
+    END IF;
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_seller_id::text || p_business_id::text, 0));
+    SELECT id INTO v_ticket FROM public.seller_payments
+     WHERE seller_id=p_seller_id AND "DigiCom Business"=p_business_id AND payout_month=v_month_txt AND period_state='open';
+    IF v_ticket IS NULL THEN
+        v_carry := COALESCE((SELECT carried_out FROM public.seller_payments
+            WHERE seller_id=p_seller_id AND "DigiCom Business"=p_business_id AND period_state='closed'
+            ORDER BY payout_month DESC LIMIT 1),0);
+        INSERT INTO public.seller_payments
+            (seller_id,"DigiCom Business",payout_month,carried_in,month_earned,delivered_orders,total_amount,period_state,earned_frozen)
+        VALUES (p_seller_id,p_business_id,v_month_txt,v_carry,0,0,v_carry,'open',false)
+        RETURNING id INTO v_ticket;
+    END IF;
+    PERFORM public.refresh_open_seller_ticket(p_seller_id, p_business_id, v_month);
+
+  -- ── OVERPAY GUARD (owner ruling 2026-07-15: NO advances) ──────────────────
+  -- AFTER refresh, so `remaining` reflects the just-synced live earned.
+  -- Nothing anywhere rejected an overpayment: refresh_*_balance uses `>=` and
+  -- merely LABELS paid_amount > total_amount as 'paid'; the excess then rolls
+  -- into a negative carried_out -> negative next-month carried_in (the -280
+  -- incident shape). This makes "no advances" true in the DB, not by convention.
+  -- Tolerance 0.005 (half a centime): money columns are `numeric` = exact, and
+  -- 0 live tickets carry a remaining beyond 2dp (measured), so the only dust is
+  -- the client computing remaining in float64 then .toFixed(2). 0.005 absorbs
+  -- that rounding and still rejects every real overpay.
+  -- ERRCODE 23514 = a DEFINITIVE server rejection, distinguishable from a
+  -- transport failure of unknown outcome.
+  select total_amount - paid_amount into v_remaining
+    from public.seller_payments where id = v_ticket;
+  if p_amount > coalesce(v_remaining, 0) + 0.005 then
+    raise exception 'pay_seller: montant % superieur au reste du % (aucune avance autorisee)',
+      p_amount, coalesce(v_remaining, 0) using errcode = '23514';
+  end if;
+
+    INSERT INTO public.seller_payment_txns (seller_payment_id, amount, paid_at, note, created_by, "DigiCom Business")
+    VALUES (v_ticket, p_amount, p_paid_at, p_note, auth.uid(), p_business_id)
+    RETURNING id INTO v_txn;
+    RETURN v_txn;
+END;
+$function$;
+
+-- refresh_all_open_seller_tickets
+CREATE OR REPLACE FUNCTION public.refresh_all_open_seller_tickets()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_month     date    := date_trunc('month', now())::date;
+  v_month_txt text    := to_char(v_month, 'YYYY-MM-01');
+  v_id        uuid;
+  v_n         integer := 0;
+begin
+  -- Identical gate to refresh_open_seller_ticket. auth.uid() is NULL under cron.
+  if auth.uid() is not null
+     and not public.is_owner()
+     and not public.check_user_role(auth.uid(), array['super admin','admin','business owner']) then
+    raise exception 'forbidden: admin only' using errcode = '42501';
+  end if;
+
+  for v_id in
+    with earned as (
+      -- ONE pass over the view for every seller in every business.
+      select sde.seller_id,
+             sde."DigiCom Business"                     as biz,
+             coalesce(sum(sde.commission_earned), 0)    as earned,
+             coalesce(sum(sde.delivered_count), 0)::int as units
+        from public.seller_daily_earnings sde
+       where date_trunc('month', sde.date)::date = v_month
+       group by 1, 2
+    ),
+    tgt as (
+      -- LEFT JOIN: an open ticket with no earnings rows this month resolves to
+      -- 0, exactly as the per-row COALESCE(SUM(...),0) does.
+      select sp.id,
+             coalesce(e.earned, 0)     as new_earned,
+             coalesce(e.units, 0)::int as new_units
+        from public.seller_payments sp
+        left join earned e
+          on e.seller_id = sp.seller_id
+         and e.biz       = sp."DigiCom Business"
+       where sp.period_state = 'open'
+         and sp.payout_month = v_month_txt
+    ),
+    upd as (
+      update public.seller_payments sp
+         set month_earned     = t.new_earned,
+             delivered_orders = t.new_units,
+             total_amount     = sp.carried_in + t.new_earned
+        from tgt t
+       where sp.id = t.id
+         and (sp.month_earned     is distinct from t.new_earned
+           or sp.delivered_orders is distinct from t.new_units)
+      returning sp.id
+    )
+    select id from upd
+  loop
+    -- Reuse the trusted balance/status function for the FEW changed rows.
+    -- total_amount just moved, so status ('paid'/'partial'/'pending') and
+    -- paid_at must be re-derived. paid_amount itself is already kept in lockstep
+    -- by trg_seller_payment_txns_aiud.
+    perform public.refresh_seller_payment_balance(v_id);
+    v_n := v_n + 1;
+  end loop;
+
+  return v_n;
+end;
+$function$;
+
+-- refresh_open_mediabuyer_ticket
+CREATE OR REPLACE FUNCTION public.refresh_open_mediabuyer_ticket(p_mb uuid, p_business_id uuid, p_month date DEFAULT (date_trunc('month'::text, now()))::date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_month_txt text := to_char(date_trunc('month', p_month), 'YYYY-MM-01'); v_earned numeric; v_del int; v_spend numeric; v_camps int; v_id uuid; v_pt text;
+begin
+  if auth.uid() is not null and not public.is_owner() and not public.check_user_role(auth.uid(), array['super admin','admin','business owner']) then
+    raise exception 'forbidden: admin only'; end if;
+  select e.earned, e.delivered, e.spend, e.campaigns into v_earned, v_del, v_spend, v_camps from public.mb_month_earned(p_mb, p_business_id, p_month) e;
+  select payment_type into v_pt from public.users where id = p_mb;
+  update public.mediabuyer_payments mp
+     set month_earned=v_earned, delivered_orders=v_del, total_spend=v_spend, campaigns_count=v_camps,
+         commission_earned = case when v_pt='salary' then 0 else v_earned end,
+         salary_earned = case when v_pt='salary' then v_earned else 0 end,
+         total_amount = mp.carried_in + v_earned
+   where mp.mediabuyer_id=p_mb and mp."DigiCom Business"=p_business_id and mp.payout_month=v_month_txt and mp.period_state='open'
+     and (mp.month_earned is distinct from v_earned or mp.total_spend is distinct from v_spend or mp.campaigns_count is distinct from v_camps or mp.delivered_orders is distinct from v_del)
+   returning mp.id into v_id;
+  if v_id is not null then perform public.refresh_mediabuyer_payment_balance(v_id); end if;
+end;
+$function$;
+
+-- refresh_open_seller_ticket
+CREATE OR REPLACE FUNCTION public.refresh_open_seller_ticket(p_seller_id uuid, p_business_id uuid, p_month date DEFAULT (date_trunc('month'::text, now()))::date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_month_txt text := to_char(date_trunc('month', p_month), 'YYYY-MM-01');
+    v_earned numeric;
+    v_units int;
+    v_id uuid;
+BEGIN
+    IF auth.uid() IS NOT NULL AND NOT public.is_owner() AND NOT public.check_user_role(auth.uid(), ARRAY['super admin','admin','business owner']) THEN
+        RAISE EXCEPTION 'forbidden: admin only';
+    END IF;
+    SELECT COALESCE(SUM(commission_earned),0), COALESCE(SUM(delivered_count),0)
+      INTO v_earned, v_units
+      FROM public.seller_daily_earnings
+     WHERE seller_id=p_seller_id AND "DigiCom Business"=p_business_id
+       AND date_trunc('month', date)::date = date_trunc('month', p_month)::date;
+    UPDATE public.seller_payments sp
+       SET month_earned=v_earned, delivered_orders=v_units, total_amount = sp.carried_in + v_earned
+     WHERE sp.seller_id=p_seller_id AND sp."DigiCom Business"=p_business_id AND sp.payout_month=v_month_txt
+       AND sp.period_state='open' AND (sp.month_earned IS DISTINCT FROM v_earned OR sp.delivered_orders IS DISTINCT FROM v_units)
+     RETURNING sp.id INTO v_id;
+    IF v_id IS NOT NULL THEN
+        PERFORM public.refresh_seller_payment_balance(v_id);
+    END IF;
+END;
+$function$;
+
+-- seller_month_orders
+CREATE OR REPLACE FUNCTION public.seller_month_orders(p_seller uuid, p_business uuid, p_month date)
+ RETURNS TABLE(order_id uuid, client text, phone text, tracking text, delivered_at timestamp with time zone, units integer, commission numeric)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    SELECT
+        o.id, o.name, o.phone,
+        COALESCE(
+            (SELECT cp.tracking_code FROM courier_parcels cp WHERE cp.order_id = o.id AND NULLIF(btrim(cp.tracking_code), '') IS NOT NULL ORDER BY cp.created_at DESC LIMIT 1),
+            (SELECT pp.tracking_code FROM company_parcels pp WHERE pp.order_id = o.id AND NULLIF(btrim(pp.tracking_code), '') IS NOT NULL ORDER BY pp.created_at DESC LIMIT 1)
+        ),
+        COALESCE(o.date_livraison, o.updated_at),
+        CASE WHEN COALESCE(u.commission_basis, 'per_order') = 'per_unit'
+             THEN sum_order_units_for_seller_products(o.id, o.seller_id)
+             ELSE 1 END::integer,
+        CASE WHEN COALESCE(u.commission_basis, 'per_order') = 'per_unit'
+             THEN COALESCE(u.commission_price, 0) * sum_order_units_for_seller_products(o.id, o.seller_id)::numeric
+             ELSE COALESCE(u.commission_price, 0) END
+    FROM orders o
+        JOIN users u ON u.id = o.seller_id
+        JOIN package_statuses ps ON ps.id = o.package_status_id
+    WHERE o.seller_id = p_seller
+      AND o."DigiCom Business" IS NOT DISTINCT FROM p_business
+      AND ps.is_delivered
+      AND o.date_deleted IS NULL
+      AND o.source_review_status IS DISTINCT FROM 'pending'
+      AND COALESCE(o.swap_only, false) = false
+      AND date_trunc('month', COALESCE(o.date_livraison, o.updated_at)) = date_trunc('month', p_month::timestamptz)
+      AND (auth.uid() = p_seller
+           OR (public.current_user_digicom_business_id() = p_business
+               AND check_user_role(auth.uid(), ARRAY['super admin','admin','business owner'])))
+    ORDER BY 5 DESC, 1;
+$function$;
+
+-- sync_imported_orders
+CREATE OR REPLACE FUNCTION public.sync_imported_orders(p_business_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_catalog'
+AS $function$
+DECLARE
+  v_accessories_synced int := 0;
+  v_providers_synced int := 0;
+  v_rec record;
+  v_best_provider_id uuid;
+  v_best_provider_type text;
+  v_best_fee numeric;
+  v_zone_id uuid;
+  v_fee_rec record;
+  v_pa record;
+  v_first_done boolean;
+BEGIN
+  -- AUTHZ: caller must operate on their OWN business. NOT owner (per-business op, owner is /owner/*-confined).
+  IF NOT (public.check_user_role(auth.uid(), ARRAY['super admin','admin','business owner'])
+          AND public.current_user_digicom_business_id() IS NOT NULL
+          AND p_business_id = public.current_user_digicom_business_id()) THEN
+    RAISE EXCEPTION 'forbidden: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  FOR v_rec IN
+    SELECT oi.id AS item_id, oi.order_id, oi.product_id, oi."DigiCom Business"
+    FROM order_items oi
+    WHERE oi."DigiCom Business" = p_business_id
+      AND oi.product_id IS NOT NULL
+      AND oi.accessory_id IS NULL
+      AND EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.id = oi.order_id
+          AND o.source_review_status IS DISTINCT FROM 'pending'
+      )
+      AND EXISTS (
+        SELECT 1 FROM product_accessories pa
+        WHERE pa.product_id = oi.product_id
+          AND pa."DigiCom Business" = p_business_id
+      )
+  LOOP
+    v_first_done := false;
+    FOR v_pa IN
+      SELECT pa.accessory_id, pa.default_quantity,
+             COALESCE(a.cost_price, 0) AS cost_price
+      FROM product_accessories pa
+      JOIN accessories a ON a.id = pa.accessory_id
+      WHERE pa.product_id = v_rec.product_id
+        AND pa."DigiCom Business" = p_business_id
+      ORDER BY pa.created_at
+    LOOP
+      IF NOT v_first_done THEN
+        UPDATE order_items
+        SET accessory_id = v_pa.accessory_id,
+            accessory_quantity = v_pa.default_quantity,
+            accessory_unit_price = v_pa.cost_price,
+            updated_at = now()
+        WHERE id = v_rec.item_id;
+        v_first_done := true;
+        v_accessories_synced := v_accessories_synced + 1;
+      ELSE
+        INSERT INTO order_items (
+          order_id, product_id, quantity, unit_price,
+          accessory_id, accessory_quantity, accessory_unit_price,
+          "DigiCom Business"
+        ) VALUES (
+          v_rec.order_id, v_rec.product_id, 0, 0,
+          v_pa.accessory_id, v_pa.default_quantity, v_pa.cost_price,
+          p_business_id
+        );
+        v_accessories_synced := v_accessories_synced + 1;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  FOR v_rec IN
+    SELECT o.id, o.master_city_id, o.shipping_cost
+    FROM orders o
+    WHERE o."DigiCom Business" = p_business_id
+      AND o.master_city_id IS NOT NULL
+      AND o.company_id IS NULL
+      AND o.courier_id IS NULL
+      AND o.source_review_status IS DISTINCT FROM 'pending'
+  LOOP
+    v_best_provider_id := NULL;
+    v_best_provider_type := NULL;
+    v_best_fee := NULL;
+
+    SELECT mc.zone_id INTO v_zone_id
+    FROM master_cities mc
+    WHERE mc.id = v_rec.master_city_id;
+
+    FOR v_fee_rec IN
+      SELECT cf.company_id AS provider_id, 'company' AS provider_type, cf.fee
+      FROM company_fees cf
+      WHERE cf."DigiCom Business" = p_business_id
+        AND (cf.master_city_id = v_rec.master_city_id
+             OR (v_zone_id IS NOT NULL AND cf.master_city_id IN (
+               SELECT mc2.id FROM master_cities mc2
+               WHERE mc2.zone_id = v_zone_id
+             )))
+        AND EXISTS (
+          SELECT 1 FROM providers p
+          WHERE p.id = cf.company_id AND p.active = true
+        )
+      UNION ALL
+      SELECT crf.courier_id AS provider_id, 'courier' AS provider_type, crf.fee
+      FROM courier_fees crf
+      WHERE crf."DigiCom Business" = p_business_id
+        AND (crf.master_city_id = v_rec.master_city_id
+             OR (v_zone_id IS NOT NULL AND crf.master_city_id IN (
+               SELECT mc3.id FROM master_cities mc3
+               WHERE mc3.zone_id = v_zone_id
+             )))
+        AND EXISTS (
+          SELECT 1 FROM users u
+          WHERE u.id = crf.courier_id AND u.active = true AND u.role = 'courier'
+        )
+      ORDER BY fee ASC
+      LIMIT 1
+    LOOP
+      v_best_provider_id := v_fee_rec.provider_id;
+      v_best_provider_type := v_fee_rec.provider_type;
+      v_best_fee := v_fee_rec.fee;
+    END LOOP;
+
+    IF v_best_provider_id IS NOT NULL THEN
+      UPDATE orders
+      SET company_id = CASE WHEN v_best_provider_type = 'company' THEN v_best_provider_id ELSE NULL END,
+          courier_id = CASE WHEN v_best_provider_type = 'courier' THEN v_best_provider_id ELSE NULL END,
+          shipping_cost = CASE WHEN COALESCE(shipping_cost, 0) = 0 THEN v_best_fee ELSE shipping_cost END,
+          price = CASE WHEN COALESCE(shipping_cost, 0) = 0 THEN COALESCE(raw_price, 0) + v_best_fee ELSE price END,
+          updated_at = now()
+      WHERE id = v_rec.id;
+      v_providers_synced := v_providers_synced + 1;
+    END IF;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'accessories_synced', v_accessories_synced,
+    'providers_synced', v_providers_synced
+  );
+END;
+$function$;
+
+-- update_business_profile_fields
+CREATE OR REPLACE FUNCTION public.update_business_profile_fields(p_business_id uuid, p_name text, p_logo text, p_ice text, p_rc text, p_identifiant_fiscal text, p_patente text, p_cnss text, p_legal_form text, p_capital_social text, p_legal_address text, p_legal_city text, p_postal_code text, p_business_phone text, p_business_email text, p_website text, p_cachet_url text, p_signature_url text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_ok boolean;
+BEGIN
+  -- AUTHZ: super-admin of THIS business only. NOT owner, NOT non-admin members.
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.users u
+    WHERE u.id = auth.uid()
+      AND u.role::text IN ('super admin','admin','business owner')
+      AND u."DigiCom Business" = p_business_id
+  ) INTO v_ok;
+
+  IF NOT v_ok THEN
+    RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_name IS NULL OR length(trim(p_name)) < 2 THEN
+    RAISE EXCEPTION 'invalid name' USING ERRCODE = '23514';
+  END IF;
+
+  UPDATE public.businesses SET
+    name = trim(p_name),
+    logo = NULLIF(btrim(COALESCE(p_logo, '')), ''),
+    ice = NULLIF(btrim(COALESCE(p_ice, '')), ''),
+    rc = NULLIF(btrim(COALESCE(p_rc, '')), ''),
+    identifiant_fiscal = NULLIF(btrim(COALESCE(p_identifiant_fiscal, '')), ''),
+    patente = NULLIF(btrim(COALESCE(p_patente, '')), ''),
+    cnss = NULLIF(btrim(COALESCE(p_cnss, '')), ''),
+    legal_form = NULLIF(btrim(COALESCE(p_legal_form, '')), ''),
+    capital_social = NULLIF(btrim(COALESCE(p_capital_social, '')), ''),
+    legal_address = NULLIF(btrim(COALESCE(p_legal_address, '')), ''),
+    legal_city = NULLIF(btrim(COALESCE(p_legal_city, '')), ''),
+    postal_code = NULLIF(btrim(COALESCE(p_postal_code, '')), ''),
+    business_phone = NULLIF(btrim(COALESCE(p_business_phone, '')), ''),
+    business_email = NULLIF(btrim(COALESCE(p_business_email, '')), ''),
+    website = NULLIF(btrim(COALESCE(p_website, '')), ''),
+    cachet_url = NULLIF(btrim(COALESCE(p_cachet_url, '')), ''),
+    signature_url = NULLIF(btrim(COALESCE(p_signature_url, '')), ''),
+    updated_at = now()
+  WHERE id = p_business_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'business not found' USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN jsonb_build_object('ok', true);
+END;
+$function$;

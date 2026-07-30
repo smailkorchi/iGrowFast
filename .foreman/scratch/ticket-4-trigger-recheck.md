@@ -1,0 +1,7 @@
+TASK: Re-review the REVISED migration supabase/migrations/20260726190000_order_provider_coverage_guard.sql (read the file fresh). Your previous review (of the prior version) raised: (1) UPDATE OF fires on unchanged values sent by full-payload edits — legacy violating row would brick; (2) no business-identity check — cross-tenant provider assignment possible. The revision adds an IS NOT DISTINCT FROM short-circuit for UPDDATEs where neither guarded column changed, and a provider-business == order-business check gated on new."DigiCom Business" IS NOT NULL.
+
+Verify ONLY: (a) both prior blockers are actually fixed as written (trace the exact branches, including INSERT vs UPDATE paths and NULL cases); (b) the revision introduces no NEW defect (e.g. the short-circuit accidentally skipping enforcement on INSERT, quoting of the "DigiCom Business" identifier, plpgsql syntax); (c) accepted-residual items (stale-coverage on company_zones deletion, TOCTOU race, retro-validity of old orders) remain merely residual — the trigger must not make them worse.
+
+Context unchanged from before: PG17 self-hosted Supabase, applied as table-owner postgres, orders/providers/company_zones/master_cities as previously described, unique index company_zones(company_id, zone_id, "DigiCom Business") exists.
+
+OUTPUT: first line VERDICT: PASS / FAIL / PASS_WITH_NOTES, numbered findings, <=20 lines. Read-only; no agents.

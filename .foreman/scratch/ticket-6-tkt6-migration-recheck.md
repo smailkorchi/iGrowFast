@@ -1,0 +1,7 @@
+TASK: Final re-review of the REVISED supabase/migrations/20260726210000_unmatched_provider_status_queue.sql (read fresh from disk). Prior review findings that were ACCEPTED and should now be fixed: (1) cross-master duplicate mapping — resolver must refuse when the normalized raw already lives on a DIFFERENT package_statuses row (raise naming the conflicting label); (2) reopen-on-conflict must also null resolved_by; (3) retro-apply should skip parcels already on the target status (is distinct from guard); (4) blank provider_type/raw_status must not insert. Findings ACCEPTED AS RESIDUAL (do not re-raise): webhook TOCTOU race around resolution; accent-variant queue rows (benign given fix 1); non-rerunnable CREATE POLICY; seq-scan retro-apply at ~3k rows.
+
+Verify: (a) the four fixes are correctly implemented (trace exact plpgsql/sql paths incl. the new v_conflict_label block placement and declare section); (b) NO new defect introduced by the revision — pay special attention to plpgsql syntax validity of the resolve function as a whole (the file was hand-edited between reviews; check for stray/duplicated statements, balanced blocks, valid INSERT...SELECT...ON CONFLICT in the sql-language log function); (c) semantics unchanged elsewhere.
+
+Context: PG17 self-hosted Supabase, applied as table-owner postgres inside BEGIN/COMMIT with ON_ERROR_STOP. extensions.unaccent exists; is_owner()/auth.uid() exist.
+
+OUTPUT: first line VERDICT: PASS / FAIL / PASS_WITH_NOTES, numbered findings <=15 lines. Read-only; no agents.

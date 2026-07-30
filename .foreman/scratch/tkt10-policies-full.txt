@@ -1,0 +1,212 @@
+=== public.campaign_source_locks :: lock_select (SELECT) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT users."DigiCom Business"
+   FROM users
+  WHERE (users.id = ( SELECT auth.uid() AS uid)))) OR ( SELECT is_owner() AS is_owner) OR ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: None
+
+=== public.courier_payment_note_orders :: courier_payment_note_orders_admin_write (ALL) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(auth.uid(), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(auth.uid(), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.courier_payment_notes :: courier_payment_notes_admin_write (ALL) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(auth.uid(), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(auth.uid(), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.google_analytics_connections :: ga_connections_delete_own_business (DELETE) roles={authenticated} ===
+QUAL: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = google_analytics_connections."DigiCom Business")))))
+WITH_CHECK: None
+
+=== public.google_analytics_connections :: ga_connections_insert_own_business (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = google_analytics_connections."DigiCom Business")))))
+
+=== public.google_analytics_connections :: ga_connections_update_own_business (UPDATE) roles={authenticated} ===
+QUAL: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = google_analytics_connections."DigiCom Business")))))
+WITH_CHECK: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = google_analytics_connections."DigiCom Business")))))
+
+=== public.mediabuyer_demands :: mediabuyer_demands_delete_admin_same_business (DELETE) roles={authenticated} ===
+QUAL: (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)))
+WITH_CHECK: None
+
+=== public.mediabuyer_demands :: mediabuyer_demands_select_scoped (SELECT) roles={authenticated} ===
+QUAL: ((mediabuyer_id = ( SELECT auth.uid() AS uid)) OR (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id))))
+WITH_CHECK: None
+
+=== public.mediabuyer_demands :: mediabuyer_demands_update_admin_same_business (UPDATE) roles={authenticated} ===
+QUAL: (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)))
+WITH_CHECK: (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)))
+
+=== public.mediabuyer_ga_access :: mb_ga_access_select (SELECT) roles={authenticated} ===
+QUAL: ((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = mediabuyer_ga_access.business_id)))))
+WITH_CHECK: None
+
+=== public.mediabuyer_meta_access :: mb_meta_access_select (SELECT) roles={authenticated} ===
+QUAL: ((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = mediabuyer_meta_access.business_id)))))
+WITH_CHECK: None
+
+=== public.mediabuyer_payment_txns :: mediabuyer_payment_txns_select (SELECT) roles={public} ===
+QUAL: ((EXISTS ( SELECT 1
+   FROM mediabuyer_payments mp
+  WHERE ((mp.id = mediabuyer_payment_txns.mediabuyer_payment_id) AND (mp.mediabuyer_id = ( SELECT auth.uid() AS uid))))) OR (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role)))
+WITH_CHECK: None
+
+=== public.mediabuyer_payment_txns :: mediabuyer_payment_txns_tenant_delete (DELETE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: None
+
+=== public.mediabuyer_payment_txns :: mediabuyer_payment_txns_tenant_insert (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.mediabuyer_payment_txns :: mediabuyer_payment_txns_tenant_update (UPDATE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.mediabuyer_payments :: mediabuyer_payments_delete_admin (DELETE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: None
+
+=== public.mediabuyer_payments :: mediabuyer_payments_insert_admin (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.mediabuyer_payments :: mediabuyer_payments_select_scoped (SELECT) roles={authenticated} ===
+QUAL: ((mediabuyer_id = ( SELECT auth.uid() AS uid)) OR (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role)))
+WITH_CHECK: None
+
+=== public.mediabuyer_payments :: mediabuyer_payments_update_admin (UPDATE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.meta_ads_connections :: meta_ads_connections_delete_own_business (DELETE) roles={authenticated} ===
+QUAL: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = meta_ads_connections."DigiCom Business")))))
+WITH_CHECK: None
+
+=== public.meta_ads_connections :: meta_ads_connections_insert_own_business (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = meta_ads_connections."DigiCom Business")))))
+
+=== public.meta_ads_connections :: meta_ads_connections_update_own_business (UPDATE) roles={authenticated} ===
+QUAL: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = meta_ads_connections."DigiCom Business")))))
+WITH_CHECK: (( SELECT is_owner() AS is_owner) OR (EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['admin'::text, 'super admin'::text])) AND (u."DigiCom Business" = meta_ads_connections."DigiCom Business")))))
+
+=== public.seller_demands :: seller_demands_delete_admin_same_business (DELETE) roles={authenticated} ===
+QUAL: (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)))
+WITH_CHECK: None
+
+=== public.seller_demands :: seller_demands_select_scoped (SELECT) roles={authenticated} ===
+QUAL: ((seller_id = ( SELECT auth.uid() AS uid)) OR (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id))))
+WITH_CHECK: None
+
+=== public.seller_demands :: seller_demands_update_admin_same_business (UPDATE) roles={authenticated} ===
+QUAL: (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)))
+WITH_CHECK: (( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AS check_user_role) AND ("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)))
+
+=== public.seller_payment_txns :: seller_payment_txns_select (SELECT) roles={public} ===
+QUAL: ((EXISTS ( SELECT 1
+   FROM seller_payments sp
+  WHERE ((sp.id = seller_payment_txns.seller_payment_id) AND (sp.seller_id = ( SELECT auth.uid() AS uid))))) OR (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role)))
+WITH_CHECK: None
+
+=== public.seller_payment_txns :: seller_payment_txns_tenant_delete (DELETE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: None
+
+=== public.seller_payment_txns :: seller_payment_txns_tenant_insert (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.seller_payment_txns :: seller_payment_txns_tenant_update (UPDATE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.seller_payments :: seller_payments_delete_admin (DELETE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: None
+
+=== public.seller_payments :: seller_payments_insert_admin (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.seller_payments :: seller_payments_select_scoped (SELECT) roles={authenticated} ===
+QUAL: ((seller_id = ( SELECT auth.uid() AS uid)) OR (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role)))
+WITH_CHECK: None
+
+=== public.seller_payments :: seller_payments_update_admin (UPDATE) roles={authenticated} ===
+QUAL: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: (("DigiCom Business" = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.user_invitations :: user_invitations_admin_revoke (UPDATE) roles={authenticated} ===
+QUAL: ((business_id = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role) AND (consumed_at IS NULL) AND (revoked_at IS NULL))
+WITH_CHECK: ((business_id = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== public.user_invitations :: user_invitations_admin_select (SELECT) roles={authenticated} ===
+QUAL: ((business_id = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: None
+
+=== public.users :: Admins can delete users (DELETE) roles={authenticated} ===
+QUAL: ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role)
+WITH_CHECK: None
+
+=== public.users :: Admins can insert users (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role)
+
+=== public.users :: Users can update themselves or admins can update anyone (UPDATE) roles={authenticated} ===
+QUAL: ((id = ( SELECT auth.uid() AS uid)) OR ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+WITH_CHECK: ((id = ( SELECT auth.uid() AS uid)) OR ( SELECT check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]) AS check_user_role))
+
+=== storage.objects :: demand_media_delete_scoped (DELETE) roles={authenticated} ===
+QUAL: ((bucket_id = 'demand-media'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (check_user_role(auth.uid(), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AND (EXISTS ( SELECT 1
+   FROM users u
+  WHERE (((u.id)::text = (storage.foldername(objects.name))[1]) AND (u."DigiCom Business" = current_user_digicom_business_id()))))) OR (((storage.foldername(name))[1] = 'responses'::text) AND check_user_role(auth.uid(), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AND (EXISTS ( SELECT 1
+   FROM seller_demands sd
+  WHERE (((sd.id)::text = (storage.foldername(objects.name))[2]) AND (sd."DigiCom Business" = current_user_digicom_business_id())))))))
+WITH_CHECK: None
+
+=== storage.objects :: demand_media_insert_scoped (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: ((bucket_id = 'demand-media'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (((storage.foldername(name))[1] = 'responses'::text) AND check_user_role(auth.uid(), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AND (EXISTS ( SELECT 1
+   FROM seller_demands sd
+  WHERE (((sd.id)::text = (storage.foldername(objects.name))[2]) AND (sd."DigiCom Business" = current_user_digicom_business_id())))))))
+
+=== storage.objects :: demand_media_select_scoped (SELECT) roles={authenticated} ===
+QUAL: ((bucket_id = 'demand-media'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (check_user_role(auth.uid(), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AND (EXISTS ( SELECT 1
+   FROM users u
+  WHERE (((u.id)::text = (storage.foldername(objects.name))[1]) AND (u."DigiCom Business" = current_user_digicom_business_id()))))) OR (((storage.foldername(name))[1] = 'responses'::text) AND (EXISTS ( SELECT 1
+   FROM seller_demands sd
+  WHERE (((sd.id)::text = (storage.foldername(objects.name))[2]) AND ((sd.seller_id = auth.uid()) OR (check_user_role(auth.uid(), ARRAY['admin'::text, 'super admin'::text, 'owner'::text]) AND (sd."DigiCom Business" = current_user_digicom_business_id())))))))))
+WITH_CHECK: None
+
+=== storage.objects :: stamps_delete_business_admins (DELETE) roles={authenticated} ===
+QUAL: ((bucket_id = 'business-stamps'::text) AND (name ~ '^profile/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/'::text) AND (( SELECT is_owner() AS is_owner) OR (((split_part(name, '/'::text, 2))::uuid = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]))))
+WITH_CHECK: None
+
+=== storage.objects :: stamps_update_business_admins (UPDATE) roles={authenticated} ===
+QUAL: ((bucket_id = 'business-stamps'::text) AND (name ~ '^profile/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/'::text) AND (( SELECT is_owner() AS is_owner) OR (((split_part(name, '/'::text, 2))::uuid = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]))))
+WITH_CHECK: None
+
+=== storage.objects :: stamps_write_business_admins (INSERT) roles={authenticated} ===
+QUAL: None
+WITH_CHECK: ((bucket_id = 'business-stamps'::text) AND (name ~ '^profile/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/'::text) AND (( SELECT is_owner() AS is_owner) OR (((split_part(name, '/'::text, 2))::uuid = ( SELECT current_user_digicom_business_id() AS current_user_digicom_business_id)) AND check_user_role(( SELECT auth.uid() AS uid), ARRAY['super admin'::text, 'admin'::text]))))
+

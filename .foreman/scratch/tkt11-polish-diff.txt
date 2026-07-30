@@ -1,0 +1,812 @@
+diff --git a/src/components/users/DirectCreateUserDialog.tsx b/src/components/users/DirectCreateUserDialog.tsx
+index a8ed380..ffa0552 100644
+--- a/src/components/users/DirectCreateUserDialog.tsx
++++ b/src/components/users/DirectCreateUserDialog.tsx
+@@ -13,7 +13,7 @@ import {
+ import { useToast } from '@/hooks/use-toast';
+ import { cn } from '@/lib/utils';
+ import { edgeFnErrorMessage } from '@/lib/edgeError';
+-import { USER_PAGES } from '@/lib/invitations';
++import { USER_PAGES, USER_PAGE_GROUPS, allPagesGranted } from '@/lib/invitations';
+ import {
+     AlertCircle, BarChart3, Bike, Check, Copy, Crown, Eye, EyeOff, Loader2, Megaphone,
+     Package, RefreshCw, Search, Shield, UserPlus, Wallet, type LucideIcon,
+@@ -170,7 +170,8 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
+     const [serverError, setServerError] = useState<string | null>(null);
+ 
+     // Per-role access & terms — the same fields the invite wizard sets (buildPayload).
+-    const [pages, setPages] = useState<Record<string, boolean>>({});
++    // NEW admin = every page granted by default (an all-unchecked map would brick the account).
++    const [pages, setPages] = useState<Record<string, boolean>>(allPagesGranted);
+     const [commissionPrice, setCommissionPrice] = useState(0);
+     const [commissionBasis, setCommissionBasis] = useState<'per_order' | 'per_unit'>('per_order');
+     const [paymentType, setPaymentType] = useState<'commission' | 'salary'>('commission');
+@@ -195,7 +196,7 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
+ 
+     // Config never carries across roles — a role switch starts from that role's defaults.
+     useEffect(() => {
+-        setPages({}); setCommissionPrice(0); setCommissionBasis('per_order');
++        setPages(allPagesGranted()); setCommissionPrice(0); setCommissionBasis('per_order');
+         setPaymentType('commission'); setSalaryAmount(0); setProductIds([]); setProductSearch('');
+         setGaMode('none'); setGaIds([]); setMetaMode('none'); setMetaIds([]);
+         setPhone(''); setParcelFragile(false); setParcelOpen(false); setParcelTryOn(false);
+@@ -292,6 +293,14 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
+         onError: (e: any) => setServerError(e?.message || 'Création impossible.'),
+     });
+ 
++    // Default-allow semantics: granted unless explicitly false.
++    const grantedPageCount = useMemo(() => USER_PAGES.filter((p) => pages[p.path] !== false).length, [pages]);
++    const setPagesGroup = (group: string, on: boolean) => setPages((s) => {
++        const next = { ...s };
++        for (const p of USER_PAGES) if (p.group === group) next[p.path] = on;
++        return next;
++    });
++
+     const validate = () => {
+         const next: Record<string, string> = {};
+         if (!name.trim()) next.name = 'Le nom est requis.';
+@@ -301,6 +310,7 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
+         if (!password) next.password = 'Le mot de passe est requis.';
+         else if (password.length < 8) next.password = 'Au moins 8 caractères.';
+         if (!role) next.role = 'Le rôle est requis.';
++        if (role === 'admin' && grantedPageCount === 0) next.pages = 'Autorisez au moins une page.';
+         if (role === 'commercial' || role === 'mediabuyer') {
+             if (!Number.isFinite(commissionPrice) || commissionPrice < 0) next.commission_price = 'Montant invalide.';
+             if (!Number.isFinite(salaryAmount) || salaryAmount < 0) next.salary_amount = 'Montant invalide.';
+@@ -331,19 +341,28 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
+ 
+     return (
+         <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
+-            <DialogContent className="max-w-xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
++            <DialogContent className="max-w-xl p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
++                {/* Gradient hairline */}
++                <div className="h-[3px] w-full bg-gradient-to-r from-ant-orange via-ant-orange/60 to-transparent" />
+                 <form onSubmit={submit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+-                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+-                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+-                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+-                            Création directe
++                    <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
++                        <div className="flex items-start gap-3">
++                            <div className="w-11 h-11 rounded-2xl bg-ant-ink text-white flex items-center justify-center shrink-0 shadow-sm">
++                                <UserPlus className="w-5 h-5" strokeWidth={1.75} />
++                            </div>
++                            <div className="min-w-0">
++                                <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
++                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
++                                    Création directe
++                                </div>
++                                <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
++                                    Créer un utilisateur
++                                </DialogTitle>
++                                <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
++                                    Vous choisissez l&rsquo;identité et le mot de passe. Le compte est actif immédiatement, sans confirmation par email.
++                                </DialogDescription>
++                            </div>
+                         </div>
+-                        <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+-                            Créer un utilisateur
+-                        </DialogTitle>
+-                        <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+-                            Vous choisissez l&rsquo;identité et le mot de passe. Le compte est actif immédiatement, sans confirmation par email.
+-                        </DialogDescription>
+                     </DialogHeader>
+ 
+                     <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
+@@ -428,25 +447,66 @@ export const DirectCreateUserDialog = ({ isOpen, onClose, roleOptions, activeBus
+                         )}
+ 
+                         {role === 'admin' && (
+-                            <ConfigSection icon={Shield} title="Accès aux pages" hint="Cochez les pages que cet admin peut ouvrir.">
+-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+-                                    {USER_PAGES.map((p) => {
+-                                        const on = !!pages[p.path];
+-                                        return (
+-                                            <button
+-                                                key={p.path}
+-                                                type="button"
+-                                                disabled={busy}
+-                                                onClick={() => setPages((s) => ({ ...s, [p.path]: !on }))}
+-                                                className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60',
+-                                                    on ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/20')}
+-                                            >
+-                                                <span className={checkBox(on, 'ink')}>{on && <Check className="w-3 h-3" />}</span>
+-                                                <span className="text-[12px] text-ant-ink truncate">{p.label}</span>
+-                                            </button>
+-                                        );
+-                                    })}
++                            <ConfigSection icon={Shield} title="Accès aux pages" hint="Décochez les pages que cet admin ne doit pas ouvrir.">
++                                <div className="flex items-center justify-between gap-2 flex-wrap">
++                                    <p className="text-[12px] font-semibold text-ant-ink tabular-nums">
++                                        {grantedPageCount}/{USER_PAGES.length} pages autorisées
++                                    </p>
++                                    <div className="flex items-center gap-1.5">
++                                        <button type="button" disabled={busy} onClick={() => setPages(allPagesGranted())}
++                                            className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-ink hover:border-ant-ink/30 transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60">
++                                            Tout autoriser
++                                        </button>
++                                        <button type="button" disabled={busy} onClick={() => setPages(Object.fromEntries(USER_PAGES.map((p) => [p.path, false])))}
++                                            className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60">
++                                            Tout retirer
++                                        </button>
++                                    </div>
+                                 </div>
++                                {errors.pages && <p className={errCls}>{errors.pages}</p>}
++                                {USER_PAGE_GROUPS.map((g) => {
++                                    const items = USER_PAGES.filter((p) => p.group === g);
++                                    const onCount = items.filter((p) => pages[p.path] !== false).length;
++                                    const allOn = onCount === items.length;
++                                    return (
++                                        <div key={g} className="rounded-2xl border border-ant-line p-4 space-y-3">
++                                            <div className="flex items-center justify-between gap-2">
++                                                <p className="text-[13px] font-semibold text-ant-ink flex items-center gap-2">
++                                                    {g}
++                                                    <span className={cn(
++                                                        'text-[10px] font-semibold tabular-nums px-1.5 h-[18px] rounded-full flex items-center border',
++                                                        onCount > 0 ? 'bg-ant-ink/5 text-ant-ink border-ant-ink/15' : 'text-ant-mid border-ant-line',
++                                                    )}>
++                                                        {onCount}/{items.length}
++                                                    </span>
++                                                </p>
++                                                <button type="button" disabled={busy} onClick={() => setPagesGroup(g, !allOn)}
++                                                    className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60">
++                                                    {allOn ? 'Tout retirer' : 'Tout sélectionner'}
++                                                </button>
++                                            </div>
++                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
++                                                {items.map((p) => {
++                                                    // Absent key = allowed (default-allow semantics) → renders CHECKED.
++                                                    const on = pages[p.path] !== false;
++                                                    return (
++                                                        <button
++                                                            key={p.path}
++                                                            type="button"
++                                                            disabled={busy}
++                                                            onClick={() => { setPages((s) => ({ ...s, [p.path]: !on })); setErrors((s) => ({ ...s, pages: '' })); }}
++                                                            className={cn('flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors duration-200 motion-reduce:transition-none cursor-pointer disabled:opacity-60',
++                                                                on ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/20')}
++                                                        >
++                                                            <span className={checkBox(on, 'ink')}>{on && <Check className="w-3 h-3" />}</span>
++                                                            <span className="text-[12px] text-ant-ink truncate">{p.label}</span>
++                                                        </button>
++                                                    );
++                                                })}
++                                            </div>
++                                        </div>
++                                    );
++                                })}
+                             </ConfigSection>
+                         )}
+ 
+diff --git a/src/components/users/InvitationsPanel.tsx b/src/components/users/InvitationsPanel.tsx
+index 1353b20..69f6bec 100644
+--- a/src/components/users/InvitationsPanel.tsx
++++ b/src/components/users/InvitationsPanel.tsx
+@@ -63,23 +63,34 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
+ 
+     return (
+         <Dialog open onOpenChange={(o) => !o && onClose()}>
+-            <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl overflow-hidden">
+-                <div className="h-[3px] w-full bg-ant-orange" />
+-                <DialogHeader className="px-6 pt-5 pb-4 border-b border-ant-line space-y-1.5">
+-                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+-                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" /> {mode === 'remind' ? 'Send reminder' : 'Revoke invitation'}
++            <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
++                {/* Gradient hairline — contextual hue: orange relance / rose révocation */}
++                <div className={cn('h-[3px] w-full bg-gradient-to-r to-transparent',
++                    mode === 'remind' ? 'from-ant-orange via-ant-orange/60' : 'from-ant-rose via-ant-rose/60')} />
++                <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
++                    <div className="flex items-start gap-3">
++                        <div className={cn('w-11 h-11 rounded-2xl text-white flex items-center justify-center shrink-0 shadow-sm',
++                            mode === 'remind' ? 'bg-ant-ink' : 'bg-ant-rose')}>
++                            <Mail className="w-5 h-5" strokeWidth={1.75} />
++                        </div>
++                        <div className="min-w-0">
++                            <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
++                                <span className={cn('h-1.5 w-1.5 rounded-full', mode === 'remind' ? 'bg-ant-orange' : 'bg-ant-rose')} />
++                                {mode === 'remind' ? 'Relance' : 'Révocation'}
++                            </div>
++                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
++                                {mode === 'remind' ? 'Qui faut-il relancer ?' : 'Prévenir la personne invitée ?'}
++                            </DialogTitle>
++                            <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
++                                Cette invitation n&rsquo;a aucun email enregistré. {mode === 'remind'
++                                    ? 'Indiquez où envoyer la relance.'
++                                    : 'Indiquez un email pour envoyer l’avis d’annulation — ou révoquez sans prévenir.'}
++                            </DialogDescription>
++                        </div>
+                     </div>
+-                    <DialogTitle className="font-display text-[18px] tracking-tight text-ant-ink">
+-                        {mode === 'remind' ? 'Who should we remind?' : 'Notify the invitee?'}
+-                    </DialogTitle>
+-                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid">
+-                        This invite has no email on file. {mode === 'remind'
+-                            ? 'Enter where to send the invitation reminder.'
+-                            : 'Enter an email to send the cancellation notice — or revoke without notifying.'}
+-                    </DialogDescription>
+                 </DialogHeader>
+ 
+-                <div className="px-6 py-5 space-y-3">
++                <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-3">
+                     <div className="relative">
+                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ant-mid" />
+                         <Input
+@@ -97,13 +108,13 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
+                             {invitationReason(check.reason)}
+                             {check.reason === 'typo' && check.suggestion && (
+                                 <button type="button" onClick={() => setEmail(check.suggestion!)} className="font-semibold text-ant-orange hover:underline">
+-                                    Use {check.suggestion}
++                                    Utiliser {check.suggestion}
+                                 </button>
+                             )}
+                         </p>
+                     )}
+                     {check.status === 'unknown' && (
+-                        <p className="text-[11px] font-medium text-ant-mid">Couldn’t verify right now — you can still send it.</p>
++                        <p className="text-[11px] font-medium text-ant-mid">Vérification impossible pour l’instant — vous pouvez quand même envoyer.</p>
+                     )}
+                 </div>
+ 
+@@ -111,7 +122,7 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
+                     {mode === 'revoke' ? (
+                         <Button variant="ghost" disabled={busy} onClick={() => onSubmit(null)}
+                             className="h-10 px-3 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-rose gap-1.5">
+-                            <Ban className="w-4 h-4" /> Revoke without notifying
++                            <Ban className="w-4 h-4" /> Révoquer sans prévenir
+                         </Button>
+                     ) : <span />}
+                     <Button
+@@ -122,7 +133,7 @@ function EmailPromptDialog({ mode, busy, onSubmit, onClose }: {
+                     >
+                         {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                             : mode === 'remind' ? <BellRing className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+-                        {mode === 'remind' ? 'Send reminder' : 'Revoke & notify'}
++                        {mode === 'remind' ? 'Envoyer la relance' : 'Révoquer et notifier'}
+                     </Button>
+                 </div>
+             </DialogContent>
+diff --git a/src/pages/admin/Users.tsx b/src/pages/admin/Users.tsx
+index b75f324..713ca5f 100755
+--- a/src/pages/admin/Users.tsx
++++ b/src/pages/admin/Users.tsx
+@@ -11,35 +11,11 @@ import {
+     User as UserIcon,
+     Check,
+     Loader2,
+-    Upload,
+-    Home,
+-    ShoppingBag,
+-    FileText,
+-    Repeat,
+-    Globe,
+-    CreditCard,
+     BarChart2,
+-    Megaphone,
+     Users as UsersGroupIcon,
+-    Zap,
+     Target,
+-    Building2,
+-    Calculator,
+-    FileSpreadsheet,
+-    Receipt,
+-    ClipboardList,
+-    PackageCheck,
+-    MessageSquare,
+     DollarSign,
+-    Store,
+-    Puzzle,
+-    LayoutDashboard,
+-    List,
+-    Tag,
+-    ArrowRightLeft,
+-    Box,
+     UserPlus,
+-    Wallet,
+     Crown,
+     Gem,
+     Headphones,
+@@ -50,6 +26,8 @@ import {
+     KeyRound,
+     Lock,
+     Send,
++    Ban,
++    CircleCheck,
+     type LucideIcon,
+ } from 'lucide-react';
+ 
+@@ -123,6 +101,7 @@ import { DirectCreateUserDialog, type RoleOption } from '@/components/users/Dire
+ import { ChangeRoleDialog } from '@/components/users/ChangeRoleDialog';
+ import { SetPasswordDialog } from '@/components/users/SetPasswordDialog';
+ import { requestCredentialChange } from '@/lib/credentialChange';
++import { USER_PAGES, USER_PAGE_GROUPS } from '@/lib/invitations';
+ 
+ const userSchema = z.object({
+     name: z.string().min(2, "Name must be at least 2 characters"),
+@@ -258,43 +237,8 @@ interface UserModalProps {
+     roleOptions?: RoleOption[];
+ }
+ 
+-const pages = [
+-    { label: 'Dashboard', path: '/', icon: Home },
+-    { label: 'Orders', path: '/orders', icon: ShoppingBag },
+-    { label: 'Delivery Note', path: '/delivery-note', icon: FileText },
+-    { label: 'Return Note', path: '/return-note', icon: Repeat },
+-    { label: 'Delivery Services', path: '/delivery-services', icon: Globe },
+-    { label: 'Payments', path: '/payments', icon: CreditCard },
+-    { label: 'Webhooks', path: '/webhooks', icon: Zap },
+-    { label: 'Transactions', path: '/transactions', icon: ArrowRightLeft },
+-    { label: 'Products', path: '/products', icon: Box },
+-    { label: 'Accessories', path: '/accessories', icon: Puzzle },
+-    { label: 'Analytics', path: '/analytics', icon: BarChart2 },
+-    { label: 'Sales Channels', path: '/sales-channels', icon: Megaphone },
+-    { label: 'Customers', path: '/customers', icon: UsersGroupIcon },
+-    { label: 'Users', path: '/users', icon: UserPlus },
+-    { label: 'Collaborators — Sellers', path: '/collaborators/sellers', icon: Store },
+-    { label: 'Collaborators — Couriers', path: '/collaborators/couriers', icon: Store },
+-    { label: 'Collaborators — Media Buyers', path: '/collaborators/mediabuyers', icon: Store },
+-    { label: 'Business — Overview', path: '/business', icon: LayoutDashboard },
+-    { label: 'Business — Payments', path: '/business/payments', icon: Wallet },
+-    { label: 'Demands', path: '/demands', icon: MessageSquare },
+-    { label: 'Salaries', path: '/salaries', icon: DollarSign },
+-    { label: 'Product Ads', path: '/ads-history', icon: Target },
+-    { label: 'Global Ads', path: '/campaigns', icon: Megaphone },
+-    { label: 'Expenses Details', path: '/expenses-details', icon: List },
+-    { label: 'Expenses Types', path: '/expenses-types', icon: Tag },
+-    { label: 'Businesses', path: '/businesses', icon: Building2 },
+-    { label: 'Import Orders', path: '/import-orders', icon: Upload },
+-    { label: 'Import Products', path: '/import-products', icon: Upload },
+-    { label: 'Import Accessories', path: '/import-accessories', icon: Upload },
+-    { label: 'Import Customers', path: '/import-customers', icon: Upload },
+-    { label: 'Profit Calculator', path: '/calculator', icon: Calculator },
+-    { label: 'Devis', path: '/devis', icon: FileSpreadsheet },
+-    { label: 'Facture', path: '/facture', icon: Receipt },
+-    { label: 'Bon de commande', path: '/bon-de-commande', icon: ClipboardList },
+-    { label: 'Bon de livraison', path: '/bon-de-livraison', icon: PackageCheck },
+-];
++// Page list for the permissions tab = THE registry (src/lib/invitations.ts USER_PAGES),
++// the same source the sidebar filter and the route gate read.
+ 
+ const KPI_ACCENTS = {
+     ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+@@ -817,24 +761,35 @@ const Users = () => {
+ 
+                 {/* Delete confirmation */}
+                 <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+-                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+-                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+-                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+-                                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+-                                Destructive action
++                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
++                        {/* Gradient hairline — rose: destructive */}
++                        <div className="h-[3px] w-full bg-gradient-to-r from-ant-rose via-ant-rose/60 to-transparent" />
++                        <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
++                            <div className="flex items-start gap-3">
++                                <div className="w-11 h-11 rounded-2xl bg-ant-rose text-white flex items-center justify-center shrink-0 shadow-sm">
++                                    <Trash2 className="w-5 h-5" strokeWidth={1.75} />
++                                </div>
++                                <div className="min-w-0">
++                                    <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
++                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
++                                        Action irréversible
++                                    </div>
++                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
++                                        Supprimer cet utilisateur&nbsp;?
++                                    </DialogTitle>
++                                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
++                                        <span className="not-italic font-semibold text-ant-ink">« {userToDelete?.name} »</span> sera retiré de l&rsquo;authentification et de la base. Les commandes et l&rsquo;activité passées sont conservées.
++                                    </DialogDescription>
++                                </div>
+                             </div>
+-                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Delete this user?</DialogTitle>
+-                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+-                                <span className="not-italic font-semibold text-ant-ink">&ldquo;{userToDelete?.name}&rdquo;</span> will be removed from Auth and the database. Past orders and activity stay.
+-                            </DialogDescription>
+                         </DialogHeader>
+-                        <DialogFooter className="px-6 py-4 gap-2">
++                        <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
+                             <Button
+                                 variant="ghost"
+                                 onClick={() => setUserToDelete(null)}
+                                 className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                             >
+-                                Cancel
++                                Annuler
+                             </Button>
+                             <Button
+                                 onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
+@@ -843,7 +798,7 @@ const Users = () => {
+                             >
+                                 {deleteUserMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                 <Trash2 className="w-3.5 h-3.5" />
+-                                Confirm delete
++                                Supprimer définitivement
+                             </Button>
+                         </DialogFooter>
+                     </DialogContent>
+@@ -851,26 +806,36 @@ const Users = () => {
+ 
+                 {/* Suspend / reactivate — capture an optional reason fed into the email notice */}
+                 <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !toggleActiveMutation.isPending) { setStatusTarget(null); setStatusReason(''); } }}>
+-                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+-                        <div className={cn('h-[3px] w-full', statusTarget?.active ? 'bg-ant-green' : 'bg-ant-rose')} />
+-                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+-                            <div className={cn('inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em]', statusTarget?.active ? 'text-ant-green' : 'text-ant-rose')}>
+-                                <span className={cn('h-1.5 w-1.5 rounded-full', statusTarget?.active ? 'bg-ant-green' : 'bg-ant-rose')} />
+-                                {statusTarget?.active ? 'Réactivation' : 'Suspension'}
++                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
++                        {/* Gradient hairline — contextual hue: green reactivate / rose suspend */}
++                        <div className={cn('h-[3px] w-full bg-gradient-to-r to-transparent', statusTarget?.active ? 'from-ant-green via-ant-green/60' : 'from-ant-rose via-ant-rose/60')} />
++                        <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
++                            <div className="flex items-start gap-3">
++                                <div className={cn('w-11 h-11 rounded-2xl text-white flex items-center justify-center shrink-0 shadow-sm', statusTarget?.active ? 'bg-ant-green' : 'bg-ant-rose')}>
++                                    {statusTarget?.active
++                                        ? <CircleCheck className="w-5 h-5" strokeWidth={1.75} />
++                                        : <Ban className="w-5 h-5" strokeWidth={1.75} />}
++                                </div>
++                                <div className="min-w-0">
++                                    <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
++                                        <span className={cn('h-1.5 w-1.5 rounded-full', statusTarget?.active ? 'bg-ant-green' : 'bg-ant-rose')} />
++                                        {statusTarget?.active ? 'Réactivation' : 'Suspension'}
++                                    </div>
++                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
++                                        {statusTarget?.active ? 'Réactiver ce compte ?' : 'Suspendre ce compte ?'}
++                                    </DialogTitle>
++                                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
++                                        <span className="not-italic font-semibold text-ant-ink">« {statusTarget?.user?.name} »</span>{' '}
++                                        {statusTarget?.active
++                                            ? 'retrouve son accès et reçoit un email de réactivation.'
++                                            : 'perd son accès et reçoit un email de suspension.'}
++                                    </DialogDescription>
++                                </div>
+                             </div>
+-                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+-                                {statusTarget?.active ? 'Reactivate this account?' : 'Suspend this account?'}
+-                            </DialogTitle>
+-                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+-                                <span className="not-italic font-semibold text-ant-ink">&ldquo;{statusTarget?.user?.name}&rdquo;</span>{' '}
+-                                {statusTarget?.active
+-                                    ? 'will regain access and be emailed a reactivation notice.'
+-                                    : 'will lose access and be emailed a suspension notice.'}
+-                            </DialogDescription>
+                         </DialogHeader>
+-                        <div className="px-6 py-5 space-y-2">
++                        <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-2">
+                             <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+-                                {statusTarget?.active ? 'Note (optional)' : 'Reason (optional)'}
++                                {statusTarget?.active ? 'Note (facultative)' : 'Motif (facultatif)'}
+                             </label>
+                             <Textarea
+                                 value={statusReason}
+@@ -880,16 +845,16 @@ const Users = () => {
+                                 placeholder={statusTarget?.active ? 'Ex. Problème résolu — accès rétabli.' : 'Ex. Paiement en retard / non-respect des règles…'}
+                                 className="rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink resize-none focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                             />
+-                            <p className="text-[11px] text-ant-mid">Shown to the user in the email. Leave blank to use a default message.</p>
++                            <p className="text-[11px] text-ant-mid">Affiché à l&rsquo;utilisateur dans l&rsquo;email. Laissez vide pour le message par défaut.</p>
+                         </div>
+-                        <DialogFooter className="px-6 py-4 gap-2">
++                        <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
+                             <Button
+                                 variant="ghost"
+                                 onClick={() => { setStatusTarget(null); setStatusReason(''); }}
+                                 disabled={toggleActiveMutation.isPending}
+                                 className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                             >
+-                                Cancel
++                                Annuler
+                             </Button>
+                             <Button
+                                 onClick={() => statusTarget && toggleActiveMutation.mutate({ id: statusTarget.user.id, active: statusTarget.active, reason: statusReason })}
+@@ -898,7 +863,7 @@ const Users = () => {
+                                     statusTarget?.active ? 'bg-ant-green hover:bg-ant-green/90' : 'bg-ant-rose hover:bg-ant-rose/90')}
+                             >
+                                 {toggleActiveMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+-                                {statusTarget?.active ? 'Reactivate & notify' : 'Suspend & notify'}
++                                {statusTarget?.active ? 'Réactiver et notifier' : 'Suspendre et notifier'}
+                             </Button>
+                         </DialogFooter>
+                     </DialogContent>
+@@ -906,45 +871,58 @@ const Users = () => {
+ 
+                 {/* Business owners pick the path first: full identity now, or an invite link. */}
+                 <Dialog open={isAddChooserOpen} onOpenChange={(open) => !open && setIsAddChooserOpen(false)}>
+-                    <DialogContent className="max-w-lg p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+-                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+-                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+-                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+-                                Nouvel utilisateur
++                    <DialogContent className="max-w-lg p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
++                        {/* Gradient hairline */}
++                        <div className="h-[3px] w-full bg-gradient-to-r from-ant-orange via-ant-orange/60 to-transparent" />
++                        <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
++                            <div className="flex items-start gap-3">
++                                <div className="w-11 h-11 rounded-2xl bg-ant-ink text-white flex items-center justify-center shrink-0 shadow-sm">
++                                    <UserPlus className="w-5 h-5" strokeWidth={1.75} />
++                                </div>
++                                <div className="min-w-0">
++                                    <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
++                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
++                                        Nouvel utilisateur
++                                    </div>
++                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
++                                        Comment voulez-vous procéder&nbsp;?
++                                    </DialogTitle>
++                                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
++                                        Créez le compte vous-même, ou laissez la personne définir sa propre identité via un lien.
++                                    </DialogDescription>
++                                </div>
+                             </div>
+-                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+-                                Comment voulez-vous procéder&nbsp;?
+-                            </DialogTitle>
+-                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+-                                Créez le compte vous-même, ou laissez la personne définir sa propre identité via un lien.
+-                            </DialogDescription>
+                         </DialogHeader>
+-                        <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
++                        <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                             <button
+                                 type="button"
+                                 onClick={() => { setIsAddChooserOpen(false); setIsDirectCreateOpen(true); }}
+-                                className="text-left p-4 rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/30 hover:shadow-sm transition-all duration-200 motion-reduce:transition-none cursor-pointer"
++                                className="group text-left p-4 rounded-2xl border border-ant-line bg-ant-paper flex items-start gap-3.5 hover:border-ant-ink/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ant-ink/25 focus-visible:border-ant-ink/30 transition-all duration-200 motion-reduce:transition-none cursor-pointer"
+                             >
+-                                <div className="w-10 h-10 rounded-xl border bg-ant-ink/6 border-ant-ink/20 text-ant-ink flex items-center justify-center mb-3">
+-                                    <UserPlus className="w-4 h-4" strokeWidth={1.75} />
++                                <div className="w-11 h-11 rounded-xl border bg-ant-ink/6 border-ant-ink/20 text-ant-ink flex items-center justify-center shrink-0">
++                                    <UserPlus className="w-5 h-5" strokeWidth={1.75} />
++                                </div>
++                                <div className="min-w-0">
++                                    <p className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight">Créer directement</p>
++                                    <p className="text-[11.5px] text-ant-mid leading-snug mt-0.5">
++                                        Vous saisissez l&rsquo;identité et le mot de passe. Compte actif immédiatement.
++                                    </p>
+                                 </div>
+-                                <p className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight">Créer directement</p>
+-                                <p className="text-[11.5px] text-ant-mid leading-snug mt-1">
+-                                    Vous saisissez l&rsquo;identité et le mot de passe. Compte actif immédiatement.
+-                                </p>
+                             </button>
+                             <button
+                                 type="button"
+                                 onClick={() => { setIsAddChooserOpen(false); setIsAddModalOpen(true); }}
+-                                className="text-left p-4 rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/30 hover:shadow-sm transition-all duration-200 motion-reduce:transition-none cursor-pointer"
++                                className="group text-left p-4 rounded-2xl border border-ant-line bg-ant-paper flex items-start gap-3.5 hover:border-ant-ink/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ant-ink/25 focus-visible:border-ant-ink/30 transition-all duration-200 motion-reduce:transition-none cursor-pointer"
+                             >
+-                                <div className="w-10 h-10 rounded-xl border bg-ant-orange/10 border-ant-orange/25 text-ant-orange flex items-center justify-center mb-3">
+-                                    <Send className="w-4 h-4" strokeWidth={1.75} />
++                                <div className="w-11 h-11 rounded-xl border bg-ant-orange/10 border-ant-orange/25 text-ant-orange flex items-center justify-center shrink-0">
++                                    <Send className="w-5 h-5" strokeWidth={1.75} />
++                                </div>
++                                <div className="min-w-0">
++                                    <p className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight">Envoyer une invitation</p>
++                                    <p className="text-[11.5px] text-ant-mid leading-snug mt-0.5">
++                                        La personne choisit son nom, son email, son mot de passe et son avatar.
++                                    </p>
+                                 </div>
+-                                <p className="font-display text-[14.5px] font-semibold text-ant-ink leading-tight">Envoyer une invitation</p>
+-                                <p className="text-[11.5px] text-ant-mid leading-snug mt-1">
+-                                    La personne choisit son nom, son email, son mot de passe et son avatar.
+-                                </p>
+                             </button>
+                         </div>
+                     </DialogContent>
+@@ -1297,7 +1275,35 @@ const UserModal = ({
+         multiple: false
+     });
+ 
++    // Page-permission helpers — default-allow semantics: a page is granted unless it is
++    // explicitly false, so a stored map written before a page existed keeps it CHECKED.
++    const watchedPages = (form.watch('permissions.pages') || {}) as Record<string, boolean>;
++    const isPageChecked = (path: string) => watchedPages[path] !== false;
++    const grantedPageCount = USER_PAGES.filter((p) => isPageChecked(p.path)).length;
++    const setPageFlag = (path: string, on: boolean) => {
++        const current = (form.getValues('permissions.pages') || {}) as Record<string, boolean>;
++        form.setValue('permissions.pages', { ...current, [path]: on }, { shouldDirty: true });
++    };
++    const setPagesGroup = (group: string, on: boolean) => {
++        const current = (form.getValues('permissions.pages') || {}) as Record<string, boolean>;
++        const next = { ...current };
++        for (const p of USER_PAGES) if (p.group === group) next[p.path] = on;
++        form.setValue('permissions.pages', next, { shouldDirty: true });
++    };
++    const setAllPages = (on: boolean) =>
++        form.setValue('permissions.pages', Object.fromEntries(USER_PAGES.map((p) => [p.path, on])), { shouldDirty: true });
++
+     const handleFormSubmit = async (values: UserFormValues) => {
++        // An admin with every page denied could not open anything — block the save.
++        if (values.role === 'admin' && grantedPageCount === 0) {
++            toast({
++                title: 'Autorisez au moins une page',
++                description: 'Un admin sans aucune page autorisée ne peut rien ouvrir.',
++                variant: 'destructive',
++            });
++            return;
++        }
++
+         const finalValues = { ...values };
+ 
+         if (avatar) {
+@@ -1348,7 +1354,9 @@ const UserModal = ({
+ 
+     return (
+         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+-            <DialogContent className="max-w-3xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
++            <DialogContent className="max-w-3xl p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
++                {/* Gradient hairline */}
++                <div className="h-[3px] w-full bg-gradient-to-r from-ant-orange via-ant-orange/60 to-transparent" />
+                 <Form {...form}>
+                     <form
+                         onSubmit={form.handleSubmit(handleFormSubmit, (errors) => {
+@@ -1362,7 +1370,7 @@ const UserModal = ({
+                         className="flex flex-col flex-1 min-h-0 overflow-hidden"
+                     >
+                         {/* Editorial header */}
+-                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
++                        <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
+                             <div className="flex items-center gap-4">
+                                 {/* Identity is read-only for admin/super-admin viewers — owned by the user.
+                                     Business owners edit it in the identity section below. */}
+@@ -1372,13 +1380,13 @@ const UserModal = ({
+                                     name={(initialData as any)?.name}
+                                     className="w-16 h-16 rounded-2xl border border-ant-line text-[18px]"
+                                 />
+-                                <div className="flex-1 min-w-0 space-y-1.5">
+-                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
++                                <div className="flex-1 min-w-0">
++                                    <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
+                                         <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+-                                        Edit · Access &amp; terms
++                                        Modification · accès et conditions
+                                     </div>
+-                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink truncate">{title}</DialogTitle>
+-                                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid truncate">
++                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink truncate mt-1">{title}</DialogTitle>
++                                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid truncate mt-0.5">
+                                         @{(initialData as any)?.username} · {(initialData as any)?.email}
+                                     </DialogDescription>
+                                 </div>
+@@ -1469,18 +1477,18 @@ const UserModal = ({
+                                     {currentRole === 'admin' && (
+                                         <TabsTrigger value="permissions" className={tabClass}>
+                                             <Shield className="w-3 h-3" />
+-                                            Page access
++                                            Accès aux pages
+                                         </TabsTrigger>
+                                     )}
+                                     {currentRole === 'mediabuyer' && (
+                                         <>
+                                             <TabsTrigger value="payment" className={tabClass}>
+                                                 <DollarSign className="w-3 h-3" />
+-                                                Payment
++                                                Paiement
+                                             </TabsTrigger>
+                                             <TabsTrigger value="integrations" className={tabClass}>
+                                                 <BarChart2 className="w-3 h-3" />
+-                                                Integrations
++                                                Intégrations
+                                             </TabsTrigger>
+                                         </>
+                                     )}
+@@ -1513,39 +1521,71 @@ const UserModal = ({
+                             <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-6">
+                                 {/* PAGE ACCESS */}
+                                 <TabsContent value="permissions" className="m-0 outline-none">
+-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+-                                        {pages.map((page) => {
+-                                            const isChecked = form.watch('permissions.pages')?.[page.path];
++                                    <div className="space-y-4">
++                                        <div className="flex items-center justify-between gap-2 flex-wrap">
++                                            <p className="text-[12px] font-semibold text-ant-ink tabular-nums">
++                                                {grantedPageCount}/{USER_PAGES.length} pages autorisées
++                                            </p>
++                                            <div className="flex items-center gap-1.5">
++                                                <button type="button" onClick={() => setAllPages(true)}
++                                                    className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-ink hover:border-ant-ink/30 transition cursor-pointer">
++                                                    Tout autoriser
++                                                </button>
++                                                <button type="button" onClick={() => setAllPages(false)}
++                                                    className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition cursor-pointer">
++                                                    Tout retirer
++                                                </button>
++                                            </div>
++                                        </div>
++                                        {USER_PAGE_GROUPS.map((g) => {
++                                            const items = USER_PAGES.filter((p) => p.group === g);
++                                            const onCount = items.filter((p) => isPageChecked(p.path)).length;
++                                            const allOn = onCount === items.length;
+                                             return (
+-                                                <div
+-                                                    key={page.path}
+-                                                    className={cn(
+-                                                        'flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group border',
+-                                                        isChecked
+-                                                            ? 'bg-ant-ink border-ant-ink text-white'
+-                                                            : 'bg-ant-paper border-ant-line hover:border-ant-ink/30'
+-                                                    )}
+-                                                    onClick={(e) => {
+-                                                        e.preventDefault();
+-                                                        const current = form.getValues('permissions.pages') || {};
+-                                                        form.setValue('permissions.pages', {
+-                                                            ...current,
+-                                                            [page.path]: !current[page.path]
+-                                                        }, { shouldDirty: true });
+-                                                    }}
+-                                                >
+-                                                    <div className={cn(
+-                                                        'w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0',
+-                                                        isChecked ? 'bg-white/10' : 'bg-ant-light border border-ant-line text-ant-ink'
+-                                                    )}>
+-                                                        <page.icon className="w-3.5 h-3.5" strokeWidth={1.75} />
++                                                <div key={g} className="rounded-2xl border border-ant-line p-4 space-y-3">
++                                                    <div className="flex items-center justify-between gap-2">
++                                                        <p className="text-[13px] font-semibold text-ant-ink flex items-center gap-2">
++                                                            {g}
++                                                            <span className={cn(
++                                                                'text-[10px] font-semibold tabular-nums px-1.5 h-[18px] rounded-full flex items-center border',
++                                                                onCount > 0 ? 'bg-ant-ink/5 text-ant-ink border-ant-ink/15' : 'text-ant-mid border-ant-line',
++                                                            )}>
++                                                                {onCount}/{items.length}
++                                                            </span>
++                                                        </p>
++                                                        <button type="button" onClick={() => setPagesGroup(g, !allOn)}
++                                                            className="h-7 px-2.5 rounded-full border border-ant-line text-[10px] font-semibold text-ant-mid hover:text-ant-ink hover:border-ant-ink/30 transition cursor-pointer">
++                                                            {allOn ? 'Tout retirer' : 'Tout sélectionner'}
++                                                        </button>
+                                                     </div>
+-                                                    <span className="text-[12px] font-semibold flex-1 truncate">{page.label}</span>
+-                                                    <div className={cn(
+-                                                        'w-5 h-5 rounded-full flex items-center justify-center border transition-all shrink-0',
+-                                                        isChecked ? 'bg-white border-white text-ant-ink' : 'border-ant-line text-transparent'
+-                                                    )}>
+-                                                        <Check className="w-3 h-3" />
++                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
++                                                        {items.map((page) => {
++                                                            // Absent key = allowed (default-allow semantics) → renders CHECKED.
++                                                            const isChecked = isPageChecked(page.path);
++                                                            return (
++                                                                <div
++                                                                    key={page.path}
++                                                                    className={cn(
++                                                                        'flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group border',
++                                                                        isChecked
++                                                                            ? 'bg-ant-ink border-ant-ink text-white'
++                                                                            : 'bg-ant-paper border-ant-line hover:border-ant-ink/30'
++                                                                    )}
++                                                                    onClick={(e) => {
++                                                                        e.preventDefault();
++                                                                        setPageFlag(page.path, !isChecked);
++                                                                    }}
++                                                                >
++                                                                    <span className="text-[12px] font-semibold flex-1 truncate">{page.label}</span>
++                                                                    <div className={cn(
++                                                                        'w-5 h-5 rounded-full flex items-center justify-center border transition-all shrink-0',
++                                                                        isChecked ? 'bg-white border-white text-ant-ink' : 'border-ant-line text-transparent'
++                                                                    )}>
++                                                                        <Check className="w-3 h-3" />
++                                                                    </div>
++                                                                </div>
++                                                            );
++                                                        })}
+                                                     </div>
+                                                 </div>
+                                             );
+@@ -1832,7 +1872,7 @@ const UserModal = ({
+                                 onClick={onClose}
+                                 className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                             >
+-                                Discard
++                                Annuler
+                             </Button>
+                             <Button
+                                 type="submit"
+@@ -1840,7 +1880,7 @@ const UserModal = ({
+                                 className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
+                             >
+                                 {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+-                                {initialData ? 'Save changes' : 'Create user'}
++                                {initialData ? 'Enregistrer les modifications' : 'Créer l’utilisateur'}
+                             </Button>
+                         </DialogFooter>
+                     </form>
