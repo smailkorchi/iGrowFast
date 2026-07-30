@@ -31,6 +31,21 @@ const ADMIN_ROLES = ["super admin", "business owner", "admin", "owner"];
 const BIZ_OWNER_PROTECTED_MSG = "Le propriétaire de l'entreprise ne peut être géré que par un propriétaire ou la plateforme.";
 const LAST_BIZ_OWNER_MSG = "Impossible de retirer le dernier propriétaire de l'entreprise.";
 
+// Central tenant guard for every target-bearing action (update, delete,
+// archive, set_password): a non-owner caller and the target must both have a
+// business set, and it must be the SAME business. Previously only business-owner
+// targets got a tenant check — an admin of business X could otherwise manage
+// an ordinary user of business Y by UUID.
+function requireSameTenant(me: any, target: any): Response | null {
+  if (me.role === "owner") return null;
+  const meBiz = me["DigiCom Business"];
+  const targetBiz = target?.["DigiCom Business"];
+  if (!meBiz || !targetBiz || meBiz !== targetBiz) {
+    return json({ error: "Accès refusé — utilisateur d'une autre entreprise." }, 403);
+  }
+  return null;
+}
+
 // Map raw Postgres / GoTrue errors to messages a human can act on.
 // supabase-js AuthApiError can surface an opaque body whose .message is "{}"
 // with no usable .code, so regex-parsing alone is unreliable — the caller passes
@@ -209,13 +224,25 @@ Deno.serve(async (req) => {
     if (callerErr || !callerUser) return json({ error: "unauthorized" }, 401);
     const { data: me } = await supabaseClient
       .from("users")
-      .select('role, "DigiCom Business", backup_root')
+      .select('role, "DigiCom Business", backup_root, active, archived_at')
       .eq("id", callerUser.id)
       .maybeSingle();
     if (!me || !ADMIN_ROLES.includes(me.role)) return json({ error: "forbidden" }, 403);
+    // Liveness gate: an archived/suspended admin's still-valid JWT must be
+    // useless here — the DB row is the source of truth, re-checked every call.
+    if (me.active !== true || me.archived_at) return json({ error: "Compte désactivé." }, 403);
 
     const body = await req.json();
     const { action, userData, userId } = body;
+
+    // userId feeds PostgREST filters below — validate the shape up front so
+    // filter injection is structurally impossible, not merely unprofitable.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const cand of [userId, body.user_id]) {
+      if (cand !== undefined && !UUID_RE.test(String(cand))) {
+        return json({ error: "userId invalide." }, 400);
+      }
+    }
 
     if (action === "create") {
       // backup_admin is grantable ONLY by the backup_root account; backup_root is
@@ -297,6 +324,11 @@ Deno.serve(async (req) => {
       // Same rule as create: only the backup_root caller may set backup_admin;
       // backup_root itself is never accepted from the client.
       const { email, password, whatsapp_access, ga_access, meta_access, backup_admin, backup_root: _backupRootIgnored, ...rest } = userData;
+      // System-managed columns: archived_at is written only by archive_user_checked
+      // / hard_delete_user_checked; active is owned by account-status-change. Strip
+      // both from the update payload for every caller, including the owner.
+      delete rest.archived_at;
+      delete rest.active;
       // Business moves are PLATFORM-OWNER-ONLY. Without this strip, a BO could
       // relocate himself (or a peer) into another business through this
       // service-role write — the DB trigger cannot see the real caller here
@@ -308,14 +340,23 @@ Deno.serve(async (req) => {
         rest.backup_admin = backup_admin;
       }
 
+      // Archived-user guard: fetch the target once (role/business for the
+      // ownership checks below, archived_at for the stale-flow refusal) and
+      // reuse it — an archived target may never be edited, by any caller.
+      const { data: targetUser } = await supabaseClient
+        .from("users").select('role, "DigiCom Business", archived_at').eq("id", userId).maybeSingle();
+      const tenantErr = requireSameTenant(me, targetUser);
+      if (tenantErr) return tenantErr;
+      if (targetUser?.archived_at) {
+        return json({ error: "Utilisateur archivé — aucune modification possible." }, 403);
+      }
+
       if (me.role !== "owner") {
         // Platform-owner boundary: no non-owner caller may set (or strip) the
         // platform 'owner' role — mirrors the DB trigger's boundary guard.
         if (rest.role === "owner") {
           return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
         }
-        const { data: targetUser } = await supabaseClient
-          .from("users").select('role, "DigiCom Business"').eq("id", userId).maybeSingle();
         if (targetUser?.role === "owner") {
           return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
         }
@@ -332,6 +373,8 @@ Deno.serve(async (req) => {
             .select("id", { count: "exact", head: true })
             .eq("role", "business owner")
             .eq("DigiCom Business", targetUser["DigiCom Business"])
+            .eq("active", true)
+            .is("archived_at", null)
             .neq("id", userId);
           if (!count) {
             return json({ error: LAST_BIZ_OWNER_MSG }, 403);
@@ -378,10 +421,19 @@ Deno.serve(async (req) => {
         .from("users")
         .update(profilePatch)
         .eq("id", userId)
+        .is("archived_at", null)
         .select()
         .single();
 
-      if (profileError) throw friendlyError(profileError);
+      if (profileError) {
+        // 0-row update (race with a concurrent archive between our read above
+        // and this write) makes .single() report "no rows" — surface that as
+        // the same archived refusal instead of a generic error.
+        if (profileError.code === "PGRST116") {
+          return json({ error: "Utilisateur archivé — aucune modification possible." }, 409);
+        }
+        throw friendlyError(profileError);
+      }
 
       try {
         await applyWhatsappAccess(supabaseClient, userId, whatsapp_access);
@@ -405,6 +457,16 @@ Deno.serve(async (req) => {
       // Capture identity BEFORE deletion so the notice can be emailed afterwards.
       const { data: doomed } = await supabaseClient
         .from("users").select('name, email, role, "DigiCom Business"').eq("id", userId).maybeSingle();
+      if (!doomed) return json({ error: "Utilisateur introuvable." }, 404);
+
+      const tenantErr = requireSameTenant(me, doomed);
+      if (tenantErr) return tenantErr;
+
+      // Platform-owner boundary: service-role writes bypass the DB trigger, so
+      // the edge must refuse — only the platform deletes a platform owner.
+      if (doomed.role === "owner" && me.role !== "owner") {
+        return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
+      }
 
       if (doomed?.role === "business owner") {
         const sameBiz = me.role === "business owner" &&
@@ -420,6 +482,8 @@ Deno.serve(async (req) => {
             .select("id", { count: "exact", head: true })
             .eq("role", "business owner")
             .eq("DigiCom Business", doomed["DigiCom Business"])
+            .eq("active", true)
+            .is("archived_at", null)
             .neq("id", userId);
           if (!count) {
             return json({ error: LAST_BIZ_OWNER_MSG }, 403);
@@ -427,15 +491,39 @@ Deno.serve(async (req) => {
         }
       }
 
+      // (a) Soft-delete auth FIRST: kills login/sessions immediately and is
+      // reversible. If it fails, abort — nothing else has happened yet.
+      const { error: softAuthError } = await supabaseClient.auth.admin.deleteUser(userId, true);
+      if (softAuthError) {
+        console.error("delete: soft auth delete failed", userId, softAuthError);
+        return json({ error: "Suppression échouée — réessayez." }, 500);
+      }
+
+      // (b) Atomic eligibility check + profile delete inside the DB: the RPC
+      // locks the user row, recounts references, and deletes in the same
+      // transaction — no TOCTOU window for a fresh reference to slip in. On
+      // failure here the soft-deleted auth row is the only residue —
+      // login-dead but recoverable (the profile row still exists).
+      const { error: rpcError } = await supabaseClient
+        .rpc("hard_delete_user_checked", { p_user_id: userId });
+      if (rpcError) {
+        const msg = String(rpcError.message || "");
+        if (/historique d'activité/.test(msg)) {
+          return json({ error: msg }, 403);
+        }
+        if (/introuvable/.test(msg)) {
+          return json({ error: msg }, 404);
+        }
+        console.error("delete: hard_delete_user_checked failed", userId, rpcError);
+        return json({ error: msg || "Suppression échouée." }, 500);
+      }
+
+      // (c) Hard-delete the auth row. Failure here is harmless residue (the
+      // account is already soft-deleted — login-dead) — document and succeed.
       const { error: authError } = await supabaseClient.auth.admin.deleteUser(userId);
-      if (authError) throw authError;
-
-      const { error: profileError } = await supabaseClient
-        .from("users")
-        .delete()
-        .eq("id", userId);
-
-      if (profileError) throw profileError;
+      if (authError) {
+        console.error("delete: hard auth cleanup failed after profile delete succeeded — auth residue", userId, authError);
+      }
 
       // Best-effort "Compte supprimé" email — never affects the deletion result.
       try {
@@ -472,10 +560,59 @@ Deno.serve(async (req) => {
         console.error("account_deleted email failed:", e);
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, ...(authError ? { auth_residual: true } : {}) }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
+    }
+
+    if (action === "archive") {
+      const { data: target } = await supabaseClient
+        .from("users").select('role, "DigiCom Business"').eq("id", userId).maybeSingle();
+      if (!target) return json({ error: "Utilisateur introuvable." }, 404);
+
+      const tenantErr = requireSameTenant(me, target);
+      if (tenantErr) return tenantErr;
+
+      // Platform-owner boundary: only the platform can archive a platform owner.
+      if (target.role === "owner" && me.role !== "owner") {
+        return json({ error: "Seule la plateforme peut gérer le rôle propriétaire de la plateforme." }, 403);
+      }
+
+      if (target.role === "business owner") {
+        const sameBiz = me.role === "business owner" &&
+          target["DigiCom Business"] === me["DigiCom Business"];
+        if (me.role !== "owner" && !sameBiz) {
+          return json({ error: BIZ_OWNER_PROTECTED_MSG }, 403);
+        }
+      }
+
+      // Atomic archive: locks the business row and recounts active,
+      // non-archived business owners INSIDE the same transaction (no TOCTOU
+      // window for a concurrent archive of the last two owners), then flips
+      // the row. Also rejects an already-archived target.
+      const { error: rpcError } = await supabaseClient
+        .rpc("archive_user_checked", { p_user_id: userId, p_enforce_last_bo: me.role !== "owner" });
+      if (rpcError) {
+        const msg = String(rpcError.message || "");
+        if (/déjà archivé/.test(msg)) return json({ error: msg }, 409);
+        if (/dernier propriétaire/.test(msg)) return json({ error: LAST_BIZ_OWNER_MSG }, 403);
+        if (/introuvable/.test(msg)) return json({ error: msg }, 404);
+        console.error("archive: archive_user_checked failed", userId, rpcError);
+        return json({ error: msg || "Archivage échoué." }, 500);
+      }
+
+      // Soft delete (second arg true): kills sessions + blocks login, keeps the
+      // auth row and reserves the email. If it fails after the public archive
+      // already succeeded, no revert is needed — active=false already blocks
+      // the app via the existing suspension handling, so it's fail-safe.
+      const { error: authError } = await supabaseClient.auth.admin.deleteUser(userId, true);
+      if (authError) {
+        console.error("archive: soft auth delete failed after public archive succeeded", userId, authError);
+        return json({ success: true, auth_soft_delete: false });
+      }
+
+      return json({ success: true });
     }
 
     if (action === "set_password") {
@@ -483,9 +620,14 @@ Deno.serve(async (req) => {
       if (typeof new_password !== "string" || new_password.length < 8) {
         return json({ error: "Mot de passe trop court (8 caractères minimum)." }, 400);
       }
+      const { data: targetUser } = await supabaseClient
+        .from("users").select('"DigiCom Business", archived_at').eq("id", user_id).maybeSingle();
+      const tenantErr = requireSameTenant(me, targetUser);
+      if (tenantErr) return tenantErr;
+      if (targetUser?.archived_at) {
+        return json({ error: "Utilisateur archivé — aucune modification possible." }, 403);
+      }
       if (me.role !== "owner") {
-        const { data: targetUser } = await supabaseClient
-          .from("users").select('"DigiCom Business"').eq("id", user_id).maybeSingle();
         const sameBiz = me.role === "business owner" &&
           targetUser?.["DigiCom Business"] === me["DigiCom Business"];
         if (!sameBiz) return json({ error: "forbidden" }, 403);

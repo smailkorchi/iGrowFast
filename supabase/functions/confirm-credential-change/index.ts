@@ -64,9 +64,14 @@ Deno.serve(async (req) => {
       return json({ ok: false, reason: "otp_invalid" }, 400);
     }
 
-    const { data: u } = await service.from("users").select("email, name").eq("id", row.user_id).single();
+    const { data: u } = await service.from("users").select("email, name, active, archived_at").eq("id", row.user_id).single();
     const oldEmail = u?.email ?? null;
     const name = u?.name || "";
+    // Refuse an archived/suspended target: an outstanding pre-archive link
+    // must die here, not just at request time.
+    if (u?.archived_at || u?.active === false) {
+      return json({ ok: false, reason: "account_disabled", error: "Compte désactivé." }, 403);
+    }
 
     // Apply via GoTrue admin
     const updates: Record<string, unknown> = {};

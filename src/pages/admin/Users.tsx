@@ -6,6 +6,7 @@ import {
     MoreVertical,
     Edit2,
     Trash2,
+    Archive,
     Shield,
     Mail,
     User as UserIcon,
@@ -100,6 +101,7 @@ import { InvitationsPanel } from '@/components/users/InvitationsPanel';
 import { DirectCreateUserDialog, type RoleOption } from '@/components/users/DirectCreateUserDialog';
 import { ChangeRoleDialog } from '@/components/users/ChangeRoleDialog';
 import { SetPasswordDialog } from '@/components/users/SetPasswordDialog';
+import { DeleteOrArchiveUserDialog } from '@/components/users/DeleteOrArchiveUserDialog';
 import { requestCredentialChange } from '@/lib/credentialChange';
 import { USER_PAGES, USER_PAGE_GROUPS } from '@/lib/invitations';
 
@@ -369,6 +371,8 @@ const Users = () => {
     const [statusReason, setStatusReason] = useState('');
     const [searchQuery, setSearchQuery] = useState("");
     const [roleFilter, setRoleFilter] = useState<'all' | typeof ROLE_ORDER[number]>('all');
+    // Archived users (users.archived_at) are tombstones: hidden by default, view-only when shown.
+    const [showArchived, setShowArchived] = useState(false);
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
@@ -400,14 +404,18 @@ const Users = () => {
     const openAddFlow = () => (isBO ? setIsAddChooserOpen(true) : setIsAddModalOpen(true));
 
     const { data: users, isLoading } = useQuery({
-        queryKey: ['users', activeBusinessId],
+        queryKey: ['users', activeBusinessId, showArchived],
         staleTime: 5 * 60 * 1000, // Users audit: reference data; mutations invalidate
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await supabase
+            // `select('*')` carries archived_at; `archived_at` is newer than the
+            // generated types, so the filter rides an untyped builder cast.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const base: any = supabase
                 .from('users')
                 .select('*')
-                .eq('DigiCom Business', activeBusinessId)
+                .eq('DigiCom Business', activeBusinessId);
+            const { data, error } = await (showArchived ? base : base.is('archived_at', null))
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -510,10 +518,29 @@ const Users = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
             setUserToDelete(null);
-            toast({ title: "User deleted", description: "The user has been successfully removed from Auth and Database." });
+            toast({ title: 'Utilisateur supprimé', description: "Le compte a été retiré de l'authentification et de la base." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    // Load-bearing users can't be hard-deleted (payment ledgers cascade) → archive:
+    // active=false + archived_at + GoTrue soft delete, history untouched.
+    const archiveUserMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const { data, error } = await supabase.functions.invoke('manage-users', {
+                body: { action: 'archive', userId: id }
+            });
+            if (error) throw new Error(await edgeFnErrorMessage(error, data));
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            setUserToDelete(null);
+            toast({ title: 'Utilisateur archivé', description: "Le compte et la connexion sont désactivés — l'historique reste intact." });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
         }
     });
 
@@ -677,14 +704,31 @@ const Users = () => {
                         })}
                     </div>
 
-                    <div className="relative flex-1 md:max-w-[360px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
-                        <Input
-                            placeholder="Search name, username or email..."
-                            className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+                    <div className="flex items-center gap-2 flex-1 md:justify-end">
+                        {/* Tombstones stay out of the roster unless explicitly asked for. */}
+                        <button
+                            type="button"
+                            onClick={() => setShowArchived((v) => !v)}
+                            aria-pressed={showArchived}
+                            className={cn(
+                                'inline-flex items-center gap-2 rounded-full border px-3.5 h-9 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap shrink-0',
+                                showArchived
+                                    ? 'bg-ant-ink text-white border-ant-ink shadow-sm'
+                                    : 'border-ant-line bg-ant-paper text-ant-mid hover:text-ant-ink hover:border-ant-ink/30',
+                            )}
+                        >
+                            <Archive className="w-3.5 h-3.5" strokeWidth={1.75} />
+                            Afficher les archivés
+                        </button>
+                        <div className="relative flex-1 md:max-w-[360px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                            <Input
+                                placeholder="Search name, username or email..."
+                                className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -759,50 +803,16 @@ const Users = () => {
                     </div>
                 )}
 
-                {/* Delete confirmation */}
-                <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-[20px] shadow-[0_32px_90px_-28px_rgba(20,20,19,0.4)] overflow-hidden max-h-[92vh] flex flex-col">
-                        {/* Gradient hairline — rose: destructive */}
-                        <div className="h-[3px] w-full bg-gradient-to-r from-ant-rose via-ant-rose/60 to-transparent" />
-                        <DialogHeader className="px-6 pt-5 pb-5 border-b border-ant-line space-y-4">
-                            <div className="flex items-start gap-3">
-                                <div className="w-11 h-11 rounded-2xl bg-ant-rose text-white flex items-center justify-center shrink-0 shadow-sm">
-                                    <Trash2 className="w-5 h-5" strokeWidth={1.75} />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="inline-flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.28em] text-ant-mid">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
-                                        Action irréversible
-                                    </div>
-                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink mt-1">
-                                        Supprimer cet utilisateur&nbsp;?
-                                    </DialogTitle>
-                                    <DialogDescription className="font-serif italic text-[12.5px] text-ant-mid mt-0.5">
-                                        <span className="not-italic font-semibold text-ant-ink">« {userToDelete?.name} »</span> sera retiré de l&rsquo;authentification et de la base. Les commandes et l&rsquo;activité passées sont conservées.
-                                    </DialogDescription>
-                                </div>
-                            </div>
-                        </DialogHeader>
-                        <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
-                            <Button
-                                variant="ghost"
-                                onClick={() => setUserToDelete(null)}
-                                className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
-                            >
-                                Annuler
-                            </Button>
-                            <Button
-                                onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
-                                disabled={deleteUserMutation.isPending}
-                                className="h-10 px-5 rounded-full text-[12px] font-semibold bg-ant-rose hover:bg-ant-rose/90 text-white gap-2 cursor-pointer"
-                            >
-                                {deleteUserMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Supprimer définitivement
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                {/* Adaptive suppression — the server's reference profile picks the face:
+                    hard delete (zero references) or archive with receipts. */}
+                <DeleteOrArchiveUserDialog
+                    user={userToDelete}
+                    onClose={() => setUserToDelete(null)}
+                    onHardDelete={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
+                    hardDeletePending={deleteUserMutation.isPending}
+                    onArchive={() => userToDelete && archiveUserMutation.mutate(userToDelete.id)}
+                    archivePending={archiveUserMutation.isPending}
+                />
 
                 {/* Suspend / reactivate — capture an optional reason fed into the email notice */}
                 <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open && !toggleActiveMutation.isPending) { setStatusTarget(null); setStatusReason(''); } }}>
@@ -998,11 +1008,16 @@ const UserCard = ({
     onSetPassword: () => void;
 }) => {
     const isActive = user.active;
+    // Archived = tombstone: muted card, « Archivé » badge instead of Live/Off, zero actions.
+    const isArchived = !!user.archived_at;
     // Business owners edit identity + role on every row, so the button is never hidden for them.
     const canEdit = hasEditableConfig(user.role) || isBO;
 
     return (
-        <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all">
+        <div className={cn(
+            'relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper transition-all',
+            isArchived ? 'opacity-70' : 'hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)]',
+        )}>
             <div className={cn('h-[3px] w-full', meta.stripe)} />
             <div className="p-4 flex items-center gap-4">
                 <UserAvatar
@@ -1043,16 +1058,27 @@ const UserCard = ({
                 </div>
 
                 <div className="shrink-0 flex items-center gap-1">
-                    <span
-                        className={cn(
-                            'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-                            isActive ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-light border-ant-line text-ant-mid'
-                        )}
-                        title={isActive ? 'Active' : 'Inactive'}
-                    >
-                        <span className={cn('h-1.5 w-1.5 rounded-full', isActive ? 'bg-ant-green' : 'bg-ant-mid')} />
-                        {isActive ? 'Live' : 'Off'}
-                    </span>
+                    {isArchived ? (
+                        <span
+                            className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-ink/5 text-ant-mid px-2 py-0.5 text-[10px] font-semibold"
+                            title="Compte archivé — lecture seule"
+                        >
+                            <Archive className="h-3 w-3" strokeWidth={1.75} />
+                            Archivé
+                        </span>
+                    ) : (
+                        <span
+                            className={cn(
+                                'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                                isActive ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-light border-ant-line text-ant-mid'
+                            )}
+                            title={isActive ? 'Active' : 'Inactive'}
+                        >
+                            <span className={cn('h-1.5 w-1.5 rounded-full', isActive ? 'bg-ant-green' : 'bg-ant-mid')} />
+                            {isActive ? 'Live' : 'Off'}
+                        </span>
+                    )}
+                    {!isArchived && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-ant-ink/5 text-ant-mid cursor-pointer">
@@ -1093,6 +1119,7 @@ const UserCard = ({
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    )}
                 </div>
             </div>
         </div>

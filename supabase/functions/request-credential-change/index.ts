@@ -51,10 +51,11 @@ Deno.serve(async (req) => {
     const userId = String(body?.user_id ?? "");
     if (!userId) return json({ error: "user_id required" }, 400);
 
-    const { data: target } = await service.from("users").select('id, email, name, role, "DigiCom Business"').eq("id", userId).single();
+    const { data: target } = await service.from("users").select('id, email, name, role, "DigiCom Business", active, archived_at').eq("id", userId).single();
     if (!target) return json({ error: "User not found" }, 404);
     if (String(target.role) === "owner") return json({ error: "Owners are not managed here" }, 403);
     if (target["DigiCom Business"] !== me["DigiCom Business"]) return json({ error: "User is not in your business" }, 403);
+    if (target.archived_at || target.active === false) return json({ error: "Compte désactivé." }, 403);
     if (!target.email) return json({ error: "User has no email on file" }, 400);
 
     const origin = typeof body?.origin === "string" && /^https?:\/\//.test(body.origin)

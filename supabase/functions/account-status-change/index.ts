@@ -31,9 +31,13 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await service.auth.getUser(jwt);
     if (userErr || !user) return json({ ok: false, reason: "not_authenticated" }, 401);
 
-    const { data: me } = await service.from("users").select('role, "DigiCom Business", active').eq("id", user.id).single();
+    const { data: me } = await service.from("users").select('role, "DigiCom Business", active, archived_at').eq("id", user.id).single();
     if (!me) return json({ ok: false, reason: "profile_not_found" }, 403);
-    if (me.active === false) return json({ ok: false, reason: "account_disabled" }, 403);
+    // Liveness gate: an archived/suspended admin's still-valid JWT must be
+    // useless here — the DB row is the source of truth, re-checked every call.
+    if (me.active !== true || me.archived_at) {
+      return json({ ok: false, reason: "account_disabled", error: "Compte désactivé." }, 403);
+    }
     if (!["super admin", "business owner", "admin"].includes(String(me.role))) return json({ ok: false, reason: "forbidden" }, 403);
     const businessId = me["DigiCom Business"];
     if (!businessId) return json({ ok: false, reason: "no_business" }, 400);
@@ -48,10 +52,13 @@ Deno.serve(async (req) => {
 
     // Target must belong to the caller's business.
     const { data: target } = await service.from("users")
-      .select('id, name, email, role, "DigiCom Business"').eq("id", userId).maybeSingle();
+      .select('id, name, email, role, "DigiCom Business", archived_at').eq("id", userId).maybeSingle();
     if (!target) return json({ ok: false, reason: "not_found" }, 404);
     if (target["DigiCom Business"] !== businessId) return json({ ok: false, reason: "forbidden" }, 403);
     if (userId === user.id) return json({ ok: false, reason: "cannot_change_self" }, 400);
+    if (target.archived_at) {
+      return json({ ok: false, reason: "archived", error: "Utilisateur archivé — aucune modification possible." }, 403);
+    }
     // Target already verified same-business above. No last-BO check —
     // suspension is reversible.
     if (target.role === "business owner" && me.role !== "owner" && me.role !== "business owner") {
@@ -59,8 +66,19 @@ Deno.serve(async (req) => {
     }
 
     // Primary action: flip the status (mirrors the previous direct update, now server-side).
-    const { error: updErr } = await service.from("users").update({ active }).eq("id", userId);
+    // .is('archived_at', null) + 0-row check: belt to the CHECK constraint's
+    // braces — an archived row must never be silently no-op'd or reactivated
+    // by a stale/racing request.
+    const { data: updRows, error: updErr } = await service
+      .from("users")
+      .update({ active })
+      .eq("id", userId)
+      .is("archived_at", null)
+      .select("id");
     if (updErr) return json({ ok: false, reason: "update_failed", detail: updErr.message }, 400);
+    if (!updRows || updRows.length === 0) {
+      return json({ ok: false, reason: "archived", error: "Utilisateur archivé — aucune modification possible." }, 409);
+    }
 
     // Best-effort notification.
     let emailWarning: string | null = null;
