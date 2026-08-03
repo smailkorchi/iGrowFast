@@ -115,6 +115,10 @@ async function isValidHybridJWT(jwt: string): Promise<boolean> {
 // performs its own admin-role + tenant authorization on top.
 const PUBLIC_FUNCTIONS = new Set([
   'provider-webhook',
+  // mail-events: Stalwart posts its delivery webhooks with no Supabase JWT to present
+  // (same reasoning as provider-webhook above). The function's own MAIL_EVENTS_SECRET
+  // shared-secret / HMAC check is what actually protects it, not this allowlist.
+  'mail-events',
   'send-courier-push',
   'google-analytics-fetch',
   'meta-ads-fetch',
