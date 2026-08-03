@@ -770,3 +770,89 @@ All requests must include:
 Authorization: Bearer {public_key}:{secret_key}
 Content-Type: application/json
 ```
+
+---
+
+## 📦 PARCEL CHANGE DEMANDS
+
+> Added 2026-08-03 — these endpoints were missing from the original export.
+> ⚠️ Coliaty does NOT publish which parcel statuses allow modification. Allowance is decided PER PARCEL,
+> server-side: the parcel's current status must allow the request type, the parcel must not be with a
+> livreur, and (CHANGE_DESTINATION only) the city must belong to an allowed destination hub for that
+> parcel's flow. The only reliable pre-check is `GET /parcel/{parcel_code}/allowed-destination-cities`
+> (`details.can_change_destination` + French `details.reason`). Never hardcode a status list client-side —
+> e.g. cancelled (Annulé) parcels CAN be eligible for destination change (owner-verified in the Coliaty
+> dashboard, 2026-08-03).
+
+### 1. Allowed Destination Cities
+**GET** `/api/client/parcel/{parcel_code}/allowed-destination-cities`
+
+Per-parcel oracle for destination changes. Live-verified shape (2026-07-28):
+
+```json
+{
+  "success": true,
+  "data": {
+    "package_code": "DMT01261918KH",
+    "package_id": 646970,
+    "details": {
+      "can_change_destination": true,
+      "reason": "French; present EVEN when allowed (e.g. « autorisé uniquement dans le hub actuel »)",
+      "allowed_hubs": [],
+      "allowed_cities": [ { "id": 123, "name": "Ain Aouda" } ]
+    }
+  }
+}
+```
+
+- `reason` is present even when `can_change_destination` is `true`. With-livreur and status-refusal produce distinct reasons.
+
+### 2. Create Parcel Change Demand
+**POST** `/api/client/parcel-change-demand/create`
+
+Two `request_type` values — choose based on intent:
+- `CORRECT_INFORMATION` — fix parcel info (phone, receiver, price, note). `package_city` / `package_address` NOT required. Validation only checks that the parcel status allows information correction.
+- `CHANGE_DESTINATION` — move delivery to another city/address. Required: `package_city` + `package_address`. `package_city` must be valid AND in the allowed list for this parcel's hub flow (city ID integer or exact name string). Extra checks: status must allow destination change, parcel not with a livreur, city belongs to an allowed destination hub. Call allowed-destination-cities first to avoid `city_not_allowed` errors.
+- `package_reciever` is Coliaty's own spelling — send verbatim.
+
+**Request:**
+```json
+{
+  "package_code": "DMT01261918KH",
+  "request_type": "CHANGE_DESTINATION",
+  "package_phone": "0677667766",
+  "package_price": 22,
+  "package_reciever": "Brahim najji",
+  "package_note": "",
+  "package_city": "Ain Aouda",
+  "package_address": "azdazdazdazd"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "code": 200,
+  "message": "Demande de modification de colis créée avec succès",
+  "data": {
+    "package_code": "DMT01261918KH",
+    "package_id": 646970,
+    "details": {
+      "id": 2307,
+      "ref": "PCD-1775309183-9358",
+      "status": "PENDING",
+      "request_type": "CHANGE_DESTINATION",
+      "created_at": "2026-04-04 14:26:23"
+    }
+  }
+}
+```
+
+**Error responses:**
+- `400` City Not Found — « Ville introuvable »
+- `400` City Not Allowed — « Cette ville n'est pas autorisée pour le changement de destination »
+- `400` Destination Change Not Allowed — "Parcel is with livreur - destination change not allowed"
+- `403` Permission Denied — "This API key does not have permission to create parcel change demands"
+- `404` Parcel Not Found — « Colis non trouvé »
+- `422` — status refuses the request type; clean French message (live-verified 2026-07-28)

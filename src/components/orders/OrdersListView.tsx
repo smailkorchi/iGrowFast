@@ -38,7 +38,7 @@ interface OrdersListViewProps {
   onStockAlert?: (order: any) => void;
   /** Coliaty parcel-change demand — host owns the dialog's open state. */
   onModifyParcel?: (order: any) => void;
-  getModifyParcelGate?: (order: any) => { visible: boolean; disabled: boolean };
+  getModifyParcelGate?: (order: any) => { visible: boolean };
   isOrderCategory: (statusId: string | null | undefined, cat: string) => boolean;
   getCourierPackageStatus: (order: any) => { label: string; color: string | null } | null;
 }
@@ -427,8 +427,7 @@ export default function OrdersListView({
                           </DropdownMenuItem>
                           {modifyParcelGate?.visible && (
                             <DropdownMenuItem
-                              disabled={modifyParcelGate.disabled}
-                              onClick={() => { if (!modifyParcelGate.disabled) onModifyParcel?.(order); }}
+                              onClick={() => onModifyParcel?.(order)}
                               className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold"
                             >
                               <PackageOpen className="w-3.5 h-3.5" /> Modify Parcel

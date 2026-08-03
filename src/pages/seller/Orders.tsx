@@ -612,11 +612,6 @@ const Orders = () => {
     const reportedStatusRevertRef = useRef<string | null>(null);
 
     const statusCats = useStatusCategories();
-    // Parcel statuses a Coliaty change demand can no longer act on (master flags).
-    const closedPackageStatusIds = useMemo(
-        () => new Set(statusCats.packageStatuses.filter((s) => s.is_terminal || s.is_returned).map((s) => s.id)),
-        [statusCats.packageStatuses],
-    );
     const REPORTED_STATUS_ID = statusCats.getOrderByCategory('postponed')?.id;
     const defaultNewOrderStatusId = statusCats.getOrderByCategory('new')?.id ?? '';
 
@@ -826,8 +821,11 @@ const Orders = () => {
     // Coliaty change-demand gate — tracking/provider read exclusively from the
     // raw `can_track` lateral (never adaptRpcRow's synthetic `parcels` array,
     // whose tracking_code can belong to a COURIER parcel on mixed-parcel
-    // orders), disabled once the package status is terminal/returned. Shared
-    // by the card menu and the list-view row menu so gating never diverges.
+    // orders). No local status gate — Coliaty's per-parcel oracle decides;
+    // the dialog pre-flights allowed-destination-cities and shows Coliaty's
+    // refusal reason (TKT-8 residual removed 2026-08-03: local terminal flags
+    // wrongly grayed Annulé parcels Coliaty accepts). Shared by the card menu
+    // and the list-view row menu so gating never diverges.
     const getParcelChangeGate = (order: any) => {
         const tracking = String(
             order.can_track?.provider_id ? (order.can_track.tracking_code || order.latest_tracking_code || '') : ''
@@ -836,7 +834,6 @@ const Orders = () => {
             tracking,
             providerId: order.can_track?.provider_id ? String(order.can_track.provider_id) : '',
             visible: !!tracking && orderCompanyIsColiaty(companies, order.can_track?.provider_id),
-            disabled: !!order.package_status_id && closedPackageStatusIds.has(order.package_status_id),
         };
     };
 
@@ -3064,7 +3061,6 @@ const Orders = () => {
                             const canTrackParcel = !!companyParcel || hasTrackableCourierParcel;
                             const parcelChangeGate = getParcelChangeGate(order);
                             const canDemandChange = parcelChangeGate.visible;
-                            const parcelStatusClosed = parcelChangeGate.disabled;
                             const cardFirstItem = (Array.isArray(order.items) ? order.items : [])
                                 .find((it: any) => it?.product?.image_url || it?.accessory?.image_url);
                             const cardProductThumb: string | null =
@@ -3149,9 +3145,7 @@ const Orders = () => {
                                                     </DropdownMenuItem>
                                                     {canDemandChange && (
                                                         <DropdownMenuItem
-                                                            disabled={parcelStatusClosed}
                                                             onClick={() => {
-                                                                if (parcelStatusClosed) return;
                                                                 const rp = resolveById(order.package_status_id);
                                                                 setParcelChangeOrder({
                                                                     id: order.id,
