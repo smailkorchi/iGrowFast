@@ -26,39 +26,46 @@ selector into Cloudflare. Deployed to `/opt/igf-mail/dkim-dns-sync.py`, run dail
 - Credentials: Stalwart admin from `/opt/igf-mail/.env` (`STALWART_RECOVERY_ADMIN`,
   formatted `user:pass`), Cloudflare token from `/root/.cf-dns-token` (chmod 600).
 
-## The Cloudflare token — read before installing one
+## The Cloudflare token
 
 **Never put a multi-zone or account-wide token on this host.** It is a mail server
-exposed on ports 25/465/587/993; a token that reaches every zone turns a mail-server
-compromise into control of DNS for every domain on the account — MX records, TLS
-validation, the lot. The owner's general token reaches three zones plus account
-resources and was deliberately removed from here on 2026-08-03.
+exposed on 25/465/587/993; a token reaching every zone turns a mail compromise into
+DNS control over every domain on the account. The owner's general token reaches three
+zones plus account resources and must never live here.
 
-The token this job needs, and nothing more:
+Installed token: **`igf-toolbox-dkim-dns`** (id `077096877d8dadf898f437db6ac4e1b6`) —
+DNS:Write + Zone:Read on igrowfast.com only, IP-conditioned to 37.60.250.211.
+Verified confinement: sees 1 zone, 404 on other zones, 404 on token creation, and
+403 when used from any other IP.
 
-| Setting | Value |
-|---|---|
-| Permissions | Zone → **DNS** → **Edit** (that one row only) |
-| Zone Resources | Include → Specific zone → **igrowfast.com** |
-| Client IP Filtering | Is in → **37.60.250.211** (the toolbox's egress IP) |
-| TTL | leave unset |
+### Minting a scoped token from the API
 
-Create it at Cloudflare → My Profile → API Tokens → Create Token → *Edit zone DNS*.
-Cloudflare will not mint tokens over the API (it needs user-level auth), so this step
-is manual by design. Install it without the value passing through anything else:
+Cloudflare's `/user/tokens/*` endpoints reject API tokens outright ("Valid user-level
+authentication not found", code 9109) — that is not a permissions problem and no amount
+of scope fixes it. **Account-owned tokens are created under `/accounts/{account_id}/tokens`,
+and that works with the general token.**
 
 ```
-ssh igf-tools 'umask 077; cat > /root/.cf-dns-token'   # paste the token, then Ctrl-D
-ssh igf-tools 'chmod 600 /root/.cf-dns-token && /opt/igf-mail/dkim-dns-sync.py'
+ACC=$(curl -s -H "Authorization: Bearer $CF" \
+      https://api.cloudflare.com/client/v4/accounts | jq -r .result[0].id)
+# permission group ids (stable): DNS Write 4755a26eedb94da69e1066d98aa820be
+#                                Zone Read c8fed203ed3043cba015a93ad1616f1f
+curl -X POST -H "Authorization: Bearer $CF" -H "Content-Type: application/json" \
+  "https://api.cloudflare.com/client/v4/accounts/$ACC/tokens" -d '{
+    "name": "igf-toolbox-dkim-dns",
+    "policies": [{ "effect": "allow",
+      "resources": { "com.cloudflare.api.account.zone.<ZONE_ID>": "*" },
+      "permission_groups": [{"id":"4755a26eedb94da69e1066d98aa820be"},
+                            {"id":"c8fed203ed3043cba015a93ad1616f1f"}] }],
+    "condition": { "request.ip": { "in": ["37.60.250.211/32"] } } }'
 ```
 
-Until a token is present the job exits non-zero every day with instructions in
-`/var/log/igf-dkim-sync.log`. That is intentional: silence would be indistinguishable
-from success, which is the exact failure this whole job exists to prevent.
+The value is returned **once**, in `result.value`. Write it straight to the host:
+`ssh igf-tools 'umask 077; cat > /root/.cf-dns-token'`.
 
-Next scheduled rotation: **2026-10-16** (`nextTransitionAt` on the active signers).
-That is the date this job earns its keep — check the log around then.
+### IPv6 trap
 
-Verification: `dig +short TXT <selector>._domainkey.igrowfast.com`, or send yourself
-mail and use Gmail's "Show original" (DKIM should PASS on the rsa selector). Google
-Postmaster's Authentication tab is the external canary, roughly a day behind.
+An IP-conditioned token fails with a bare **403** if the host reaches Cloudflare over
+IPv6 — the toolbox prefers IPv6 (`2a02:c207:...`) and only matches the IPv4 condition
+when forced. The script pins itself to IPv4 for this reason; keep that, rather than
+widening the token to a /64. When debugging by hand, use `curl -4`.

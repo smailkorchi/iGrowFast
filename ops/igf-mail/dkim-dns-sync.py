@@ -21,9 +21,17 @@ Exit codes: 0 = in sync (with or without changes), 1 = something failed.
 Cron: /etc/cron.d/igf-dkim-sync
 """
 import json
-import subprocess
+import socket
 import sys
 import urllib.request
+
+# The Cloudflare token is pinned to this host's IPv4 address. The toolbox prefers
+# IPv6 for outbound HTTPS (2a02:c207:...), which does not match that condition and
+# comes back as a bare 403 — so force IPv4 for every request this script makes.
+# Pinning here, rather than widening the token to a /64, keeps the credential's
+# blast radius to exactly one address.
+_getaddrinfo = socket.getaddrinfo
+socket.getaddrinfo = lambda *a, **kw: [ai for ai in _getaddrinfo(*a, **kw) if ai[0] == socket.AF_INET]
 
 STALWART_URL = "http://127.0.0.1:8080"
 ENV_FILE = "/opt/igf-mail/.env"
@@ -83,8 +91,14 @@ def cf(token, method, path, payload=None):
         data=json.dumps(payload).encode() if payload is not None else None,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = json.load(resp)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = json.load(resp)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403:
+            fail(f"cloudflare {method} {path}: 403 — the token is IP-conditioned; check this "
+                 "host still egresses from the allowed address (`curl -s -4 https://api.ipify.org`)")
+        fail(f"cloudflare {method} {path}: HTTP {exc.code}")
     if not body.get("success"):
         fail(f"cloudflare {method} {path}: {body.get('errors')}")
     return body
