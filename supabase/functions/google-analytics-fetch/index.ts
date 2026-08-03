@@ -39,8 +39,8 @@ const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 // granting Viewer access. Hardcoded to skip a vault round-trip on the cheap
 // onboarding lookup; the private_key (which IS sensitive) still comes from
 // vault on the actual API actions.
-const SERVICE_ACCOUNT_EMAIL = 'analytics@digicom-493314.iam.gserviceaccount.com';
-const PROJECT_ID = 'digicom-493314';
+const SERVICE_ACCOUNT_EMAIL = 'analytics@igrowfast.iam.gserviceaccount.com';
+const PROJECT_ID = 'igrowfast';
 
 const CORS_HEADERS: HeadersInit = {
     'Access-Control-Allow-Origin': '*',
@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
                 ok: true,
                 email: SERVICE_ACCOUNT_EMAIL,
                 project_id: PROJECT_ID,
-                deploy_version: 7,
+                deploy_version: 8,
             });
         }
 
