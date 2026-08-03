@@ -25,7 +25,36 @@ selector into Cloudflare. Deployed to `/opt/igf-mail/dkim-dns-sync.py`, run dail
   active, it exits non-zero rather than touching DNS.
 - Credentials: Stalwart admin from `/opt/igf-mail/.env` (`STALWART_RECOVERY_ADMIN`,
   formatted `user:pass`), Cloudflare token from `/root/.cf-dns-token` (chmod 600).
-  Consider narrowing that token to Zone:DNS:Edit on igrowfast.com only.
+
+## The Cloudflare token — read before installing one
+
+**Never put a multi-zone or account-wide token on this host.** It is a mail server
+exposed on ports 25/465/587/993; a token that reaches every zone turns a mail-server
+compromise into control of DNS for every domain on the account — MX records, TLS
+validation, the lot. The owner's general token reaches three zones plus account
+resources and was deliberately removed from here on 2026-08-03.
+
+The token this job needs, and nothing more:
+
+| Setting | Value |
+|---|---|
+| Permissions | Zone → **DNS** → **Edit** (that one row only) |
+| Zone Resources | Include → Specific zone → **igrowfast.com** |
+| Client IP Filtering | Is in → **37.60.250.211** (the toolbox's egress IP) |
+| TTL | leave unset |
+
+Create it at Cloudflare → My Profile → API Tokens → Create Token → *Edit zone DNS*.
+Cloudflare will not mint tokens over the API (it needs user-level auth), so this step
+is manual by design. Install it without the value passing through anything else:
+
+```
+ssh igf-tools 'umask 077; cat > /root/.cf-dns-token'   # paste the token, then Ctrl-D
+ssh igf-tools 'chmod 600 /root/.cf-dns-token && /opt/igf-mail/dkim-dns-sync.py'
+```
+
+Until a token is present the job exits non-zero every day with instructions in
+`/var/log/igf-dkim-sync.log`. That is intentional: silence would be indistinguishable
+from success, which is the exact failure this whole job exists to prevent.
 
 Next scheduled rotation: **2026-10-16** (`nextTransitionAt` on the active signers).
 That is the date this job earns its keep — check the log around then.

@@ -44,6 +44,17 @@ def read_secret(path, prefix=None):
         with open(path) as fh:
             body = fh.read()
     except OSError as exc:
+        if path == CF_TOKEN_FILE:
+            fail(
+                f"cannot read {path}: {exc}\n"
+                "  This host must hold a Cloudflare token scoped to DNS:Edit on igrowfast.com\n"
+                "  ONLY (never a multi-zone or account-wide token — this is a mail server).\n"
+                "  Create it at Cloudflare > My Profile > API Tokens > Create Token >\n"
+                "  Edit zone DNS, Zone Resources = Include > Specific zone > igrowfast.com,\n"
+                "  Client IP Address Filtering = Is in > 37.60.250.211, then:\n"
+                "    ssh igf-tools 'umask 077; cat > /root/.cf-dns-token'   # paste, then Ctrl-D\n"
+                "  Until then DKIM DNS is NOT being kept in sync with key rotation."
+            )
         fail(f"cannot read {path}: {exc}")
     if prefix is None:
         return body.strip()
