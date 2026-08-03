@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import {
     MessageSquare,
@@ -155,6 +156,7 @@ const priorityTheme = (priority: string) => {
 
 const Demands = () => {
     const { toast } = useToast();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [role, setRole] = useState<DemandRole>('seller');
     const [demands, setDemands] = useState<DemandWithCollaborator[]>([]);
     const [loading, setLoading] = useState(true);
@@ -206,6 +208,55 @@ const Demands = () => {
             setLoading(false);
         }
     };
+
+    // ?id=<demandId> — deep link from the demand_received/demand_resolved emails. Sellers'
+    // and media buyers' demands live in different tables (TABLE_FOR), and this page shows
+    // one role at a time, so first work out which table the id belongs to and switch `role`
+    // to match before looking it up in the loaded list.
+    const idParamHandledRef = useRef<string | null>(null);
+    useEffect(() => {
+        const requestedId = searchParams.get('id');
+        if (!requestedId || idParamHandledRef.current === requestedId) return;
+
+        let cancelled = false;
+        (async () => {
+            const { data } = await (supabase as any)
+                .from(TABLE_FOR[role])
+                .select('id')
+                .eq('id', requestedId)
+                .maybeSingle();
+            if (cancelled) return;
+            if (data) return; // already the right role — the list-lookup effect below handles it
+            const otherRole: DemandRole = role === 'seller' ? 'mediabuyer' : 'seller';
+            const { data: other } = await (supabase as any)
+                .from(TABLE_FOR[otherRole])
+                .select('id')
+                .eq('id', requestedId)
+                .maybeSingle();
+            if (!cancelled && other) setRole(otherRole);
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
+
+    useEffect(() => {
+        const requestedId = searchParams.get('id');
+        if (!requestedId || loading) return;
+        if (idParamHandledRef.current === requestedId) return;
+
+        const found = demands.find((d) => d.id === requestedId);
+        if (!found) return;
+        idParamHandledRef.current = requestedId;
+
+        setSelectedDemand(found);
+        setNewStatus(found.status);
+        setAdminResponse(found.admin_response || '');
+        setIsResponseModalOpen(true);
+
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams, demands, loading]);
 
     useEffect(() => {
         let cancelled = false;

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import {
     Plus,
@@ -96,6 +97,7 @@ const CATEGORY_CFG: Record<string, { label: string; icon: typeof HelpCircle }> =
 
 const MediaBuyerDemands = () => {
     const { toast } = useToast();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [demands, setDemands] = useState<MediaBuyerDemand[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -146,6 +148,26 @@ const MediaBuyerDemands = () => {
     useEffect(() => {
         fetchDemands();
     }, []);
+
+    // ?id=<demandId> — deep link from the demand_received/demand_resolved emails. Opens the
+    // matching demand's view modal once the list has loaded, then clears the param.
+    const idParamHandledRef = useRef<string | null>(null);
+    useEffect(() => {
+        const requestedId = searchParams.get('id');
+        if (!requestedId || loading) return;
+        if (idParamHandledRef.current === requestedId) return;
+
+        const found = demands.find((d) => d.id === requestedId);
+        if (!found) return;
+        idParamHandledRef.current = requestedId;
+
+        setSelectedDemand(found);
+        setIsViewModalOpen(true);
+
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams, demands, loading]);
 
     const fetchDemands = async () => {
         try {
