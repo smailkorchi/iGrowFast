@@ -125,7 +125,12 @@ Deno.serve(async (req: Request) => {
     // wrapped into one synthetic event so it still gets recorded, never thrown on.
     let events: unknown[];
     try {
-        const parsed = rawBody ? JSON.parse(rawBody) : null;
+        // Stalwart sends queueId as a JSON NUMBER holding a u64 (e.g. 321922498845670912).
+        // JSON.parse turns that into a double and silently rounds it (…912 -> …900), which
+        // would never match the exact id we captured at submission. Quote those numbers in
+        // the RAW text first so they survive as exact strings.
+        const safeText = rawBody.replace(/("(?:queueId|queue_id|spanId)"\s*:\s*)(\d{15,})/g, '$1"$2"');
+        const parsed = safeText ? JSON.parse(safeText) : null;
         if (Array.isArray(parsed)) {
             events = parsed;
         } else if (parsed && typeof parsed === 'object' && Array.isArray((parsed as Record<string, unknown>).events)) {
@@ -158,10 +163,24 @@ Deno.serve(async (req: Request) => {
 
             // ── Match against email_log: queue_id first (the primary join key per Stalwart's
             // DATA ack), message_id as fallback (bounce DSNs quote the original Message-ID). ──
-            let logRow: { id: string; status: string } | null = null;
+            // Stalwart reports the SAME queue id in two bases: its SMTP ack (what send-email
+            // stored) is HEXADECIMAL — "477b2ce9ce6fe00" — while the webhook event carries the
+            // DECIMAL form — 321922498845670912. Try both, converting via BigInt so no
+            // precision is lost on the way.
+            const queueIdCandidates: string[] = [];
             if (queueId) {
-                const { data } = await supabase.from('email_log').select('id, status').eq('queue_id', queueId).maybeSingle();
-                logRow = data ?? null;
+                queueIdCandidates.push(queueId);
+                if (/^\d+$/.test(queueId)) {
+                    try { queueIdCandidates.push(BigInt(queueId).toString(16)); } catch { /* not a bigint */ }
+                } else if (/^[0-9a-f]+$/i.test(queueId)) {
+                    try { queueIdCandidates.push(BigInt('0x' + queueId).toString(10)); } catch { /* not hex */ }
+                }
+            }
+
+            let logRow: { id: string; status: string } | null = null;
+            for (const candidate of queueIdCandidates) {
+                const { data } = await supabase.from('email_log').select('id, status').eq('queue_id', candidate).maybeSingle();
+                if (data) { logRow = data; break; }
             }
             if (!logRow && messageId) {
                 const { data } = await supabase.from('email_log').select('id, status').eq('message_id', messageId).maybeSingle();
