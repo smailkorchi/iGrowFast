@@ -108,7 +108,7 @@ export async function sendSellerPayoutEmail(params: {
   // Open ticket (current month) for carried_in / month_earned / period label.
   const { data: openTicket } = await (supabase as any)
     .from('seller_ledger')
-    .select('payout_month, carried_in, month_earned, delivered_orders')
+    .select('payout_month, carried_in, month_earned, delivered_orders, paid_amount')
     .eq('seller_id', sellerId).eq('DigiCom Business', businessId).eq('period_state', 'open')
     .order('payout_month', { ascending: false }).limit(1).maybeSingle();
 
@@ -153,13 +153,23 @@ export async function sendSellerPayoutEmail(params: {
   const reference = `VC-${(month || '').replace('-', '').slice(0, 6) || 'NA'}-${sellerId.slice(0, 6).toUpperCase()}`;
 
   // FIFO: this payment settles the OLDEST still-unpaid orders. Its money window runs from
-  // what was paid before it (paidBefore) to what is paid after it; carried-in (prior-month
-  // debt) is settled first. Only the orders inside that window appear on this statement.
+  // what was paid before it to what is paid after it; carried-in (prior-month debt) is
+  // settled first. Only the orders inside that window appear on this statement.
+  //
+  // The window MUST be measured on the ticket's own money axis: attributePaymentOrders lays
+  // the open month's orders on [carried_in, carried_in + Σ commissions]. `paidBefore` is a
+  // LIFETIME total (Σ paid across every ticket this seller ever had), so using it here put
+  // the window far past the end of that axis and matched zero orders — the statement listed
+  // no orders and claimed 0 remaining while still showing a balance owed. seller_ledger is
+  // read after the payment commits, so paid_amount already includes this disbursement (same
+  // convention as the media-buyer path). Lifetime figures stay lifetime: the money block is
+  // labelled "cumul" and ties out against accruedTotal.
   const carriedInNum = Number(openTicket?.carried_in || 0);
-  const paidBeforeNum = Number(paidBefore || 0);
-  const slice = attributePaymentOrders(orders, carriedInNum, paidBeforeNum, paidBeforeNum + Number(amountPaid || 0));
+  const ticketPaidAfter = Number(openTicket?.paid_amount || 0);
+  const ticketPaidBefore = Math.max(0, ticketPaidAfter - Number(amountPaid || 0));
+  const slice = attributePaymentOrders(orders, carriedInNum, ticketPaidBefore, ticketPaidAfter);
   // Delivered orders still awaiting settlement after this payment (the "(restant)" counterpart).
-  const settledCumulative = attributePaymentOrders(orders, carriedInNum, 0, alreadyPaid).orders.length;
+  const settledCumulative = attributePaymentOrders(orders, carriedInNum, 0, ticketPaidAfter).orders.length;
   const remainingOrders = Math.max(0, orders.length - settledCumulative);
 
   const pdfInput: SellerPayoutPdfInput = {
