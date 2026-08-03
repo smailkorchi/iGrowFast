@@ -1,0 +1,52 @@
+# T18 — the /_svc/* additions to /opt/igf-frontend/nginx/default.conf on the
+# toolbox (37.60.250.211). This file is the SOURCE OF TRUTH for those blocks;
+# the deployed default.conf is that file plus these, with __SVC_TOKEN__ replaced
+# by the real token from /opt/igf-services/.env.
+#
+# TRAP: default.conf is a single-file read-only bind mount. `sed -i` on the host
+# writes a NEW inode and the container keeps serving the old content. Edit via
+#   cp default.conf /tmp/x && <edit /tmp/x> && cat /tmp/x > default.conf
+# (rewrites through the same inode), then `nginx -t` and `nginx -s reload`.
+
+# --- top of file, BEFORE the first map (64-hex keys overflow the 64-byte default) ---
+map_hash_bucket_size 128;
+
+# --- http-level, alongside the existing $spa_cache map ---
+# Requests arrive via cloudflared, so $binary_remote_addr is the tunnel container:
+# these limits are effectively GLOBAL, which is exactly what we want — they bound
+# total live SMTP probe volume leaving this VPS, which shares its IP with the
+# production Stalwart mail server. Legitimate use is a few checks per signup.
+map $http_x_svc_token $svc_bad {
+    default          1;
+    "__SVC_TOKEN__"  0;
+}
+limit_req_zone  $binary_remote_addr zone=svc_verify:1m rate=20r/m;
+limit_req_zone  $binary_remote_addr zone=svc_geo:1m    rate=120r/m;
+limit_conn_zone $binary_remote_addr zone=svc_conn:1m;
+
+# --- inside the app (default_server) block, ABOVE `location /` ---
+# Both proxies target igf-svc: it serves GeoIP directly and wraps Reacher,
+# which is NOT on this network. The docker resolver keeps container restarts
+# from leaving a stale upstream IP cached.
+location /_svc/geo/ {
+    if ($svc_bad) { return 403; }
+    limit_req zone=svc_geo burst=20 nodelay;
+    limit_conn svc_conn 8;
+    client_max_body_size 2k;
+    resolver 127.0.0.11 valid=30s;
+    set $up_svc igf-svc;
+    rewrite ^/_svc/geo/(.*)$ /$1 break;
+    proxy_pass http://$up_svc:8080;
+    proxy_read_timeout 10s;
+}
+location /_svc/verify/ {
+    if ($svc_bad) { return 403; }
+    limit_req zone=svc_verify burst=5 nodelay;
+    limit_conn svc_conn 4;
+    client_max_body_size 2k;
+    resolver 127.0.0.11 valid=30s;
+    set $up_svc_v igf-svc;
+    rewrite ^/_svc/verify/(.*)$ /$1 break;
+    proxy_pass http://$up_svc_v:8080;
+    proxy_read_timeout 30s;
+}

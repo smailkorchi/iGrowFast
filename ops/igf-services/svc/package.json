@@ -1,0 +1,8 @@
+{
+  "name": "igf-svc",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "maxmind": "4.3.11"
+  }
+}

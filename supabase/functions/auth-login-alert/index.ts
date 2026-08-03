@@ -36,20 +36,22 @@ function deviceFromUA(ua: string): string {
   return os ? `${browser} sur ${os}` : browser;
 }
 
-// Short address via ipgeolocation.io — the SAME keyed provider the audit-log geo cron uses
-// (Vault key fetched through get_ipgeo_api_key). Falls back gracefully if the key/lookup fails.
-async function geo(ip: string, apiKey: string | null): Promise<string> {
-  if (!ip || !apiKey) return "Localisation inconnue";
+// Short address via our self-hosted geo endpoint. Fail-open (unconfigured/HTTP error/timeout)
+// to "Localisation inconnue".
+async function geo(ip: string): Promise<string> {
+  const base = Deno.env.get("SVC_BASE_URL");
+  const token = Deno.env.get("SVC_TOKEN");
+  if (!ip || !base || !token) return "Localisation inconnue";
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 3500);
   try {
     const r = await fetch(
-      `https://api.ipgeolocation.io/ipgeo?apiKey=${encodeURIComponent(apiKey)}&ip=${encodeURIComponent(ip)}`,
-      { headers: { accept: "application/json" }, signal: ac.signal },
+      `${base}/geo/lookup?ip=${encodeURIComponent(ip)}`,
+      { headers: { "X-Svc-Token": token }, signal: ac.signal },
     );
     if (!r.ok) return "Localisation inconnue";
     const j = await r.json();
-    const parts = [j.city, j.state_prov, j.country_name].filter((p) => p && String(p).trim());
+    const parts = [j.city, j.region, j.country_name].filter((p) => p && String(p).trim());
     return parts.length ? parts.join(", ") : "Localisation inconnue";
   } catch { return "Localisation inconnue"; } finally { clearTimeout(t); }
 }
@@ -77,9 +79,6 @@ Deno.serve(async (req) => {
     const { data: u } = await service.from("users").select("name, email").eq("id", userId).maybeSingle();
     if (!u?.email) return json({ ok: true, skipped: "no_email" }, 200);
 
-    // Reuse the app's keyed ipgeolocation.io provider (Vault) instead of a throwaway free API.
-    const { data: ipgeoKey } = await service.rpc("get_ipgeo_api_key");
-
     const origin = (Deno.env.get("SITE_URL") || "https://igrowfast.com").replace(/\/$/, "");
     let loginTime = createdAt;
     try { loginTime = new Date(createdAt).toLocaleString("fr-FR", { timeZone: "Africa/Casablanca", dateStyle: "long", timeStyle: "short" }); } catch { /* keep iso */ }
@@ -92,7 +91,7 @@ Deno.serve(async (req) => {
         vars: {
           user_name: u.name || "",
           device: deviceFromUA(ua),
-          location: await geo(ip, ipgeoKey ?? null),
+          location: await geo(ip),
           ip_address: ip || "Inconnue",
           login_time: loginTime,
           secure_url: `${origin}/auth`,

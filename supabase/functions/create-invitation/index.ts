@@ -50,49 +50,30 @@ function preValidate(emailRaw) {
   return { ok: true, email };
 }
 
-const DNS_TYPE = { MX: 15, A: 1, AAAA: 28 };
-async function dohHas(domain, type) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 2500);
-  try {
-    const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`,
-      { headers: { accept: "application/dns-json" }, signal: ac.signal });
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (j.Status === 3) return false;
-    if (j.Status !== 0) return null;
-    return Array.isArray(j.Answer) && j.Answer.some((a) => a.type === DNS_TYPE[type]);
-  } catch { return null; } finally { clearTimeout(t); }
-}
-async function verifaliaClassify(email) {
-  const u = Deno.env.get("VERIFALIA_USERNAME");
-  const p = Deno.env.get("VERIFALIA_PASSWORD");
-  if (!u || !p) return null;
-  const quality = Deno.env.get("VERIFALIA_QUALITY") || "Standard";
+// Mailbox-level verification via our self-hosted Reacher endpoint.
+// Returns "safe"|"invalid"|"risky"|"unknown"|null (null = unconfigured/HTTP error/timeout).
+async function reacherClassify(email) {
+  const base = Deno.env.get("SVC_BASE_URL");
+  const token = Deno.env.get("SVC_TOKEN");
+  if (!base || !token) return null;
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 20000);
   try {
-    const r = await fetch("https://api.verifalia.com/v2.7/email-validations?waitTime=15000", {
+    const r = await fetch(`${base}/verify/v0/check_email`, {
       method: "POST",
-      headers: { "Authorization": "Basic " + btoa(`${u}:${p}`), "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ entries: [{ inputData: email }], quality }),
+      headers: { "Content-Type": "application/json", "X-Svc-Token": token },
+      body: JSON.stringify({ to_email: email }),
       signal: ac.signal,
     });
-    if (r.status !== 200) { if (r.status !== 202) console.error("verifalia status", r.status); return "Unknown"; }
+    if (!r.ok) { console.error("reacher status", r.status); return null; }
     const j = await r.json();
-    const arr = Array.isArray(j?.entries) ? j.entries : (j?.entries?.data ?? []);
-    return arr[0]?.classification || "Unknown";
-  } catch (e) { console.error("verifalia error:", e); return "Unknown"; } finally { clearTimeout(t); }
+    return j?.is_reachable ?? null;
+  } catch (e) { console.error("reacher error:", e); return null; } finally { clearTimeout(t); }
 }
 async function verifyDeliverable(email) {
-  const cls = await verifaliaClassify(email);
-  if (cls !== null) return cls === "Undeliverable" ? { ok: false, reason: "undeliverable" } : { ok: true, email };
-  const domain = email.split("@")[1];
-  for (const type of ["MX", "A", "AAAA"]) {
-    const has = await dohHas(domain, type);
-    if (has === true || has === null) return { ok: true, email };
-  }
-  return { ok: false, reason: "no_mx" };
+  const verdict = await reacherClassify(email);
+  if (verdict === "invalid") return { ok: false, reason: "undeliverable" };
+  return { ok: true, email };
 }
 
 function json(obj, status) {

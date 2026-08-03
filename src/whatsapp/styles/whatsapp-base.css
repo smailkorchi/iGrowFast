@@ -6,9 +6,8 @@
  *              authored against this same donor element base + tokens
  * Class-based sheets (app.css, Assignment.css) ride these tokens. Token hex
  * values are identical to IGF's tailwind `ant.*` palette — this IS the IGF
- * look. Font @import stays global (harmless).
+ * look. Fonts come from the bundled @fontsource imports in src/main.tsx (T18).
  * ------------------------------------------------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap');
 
 .wa-root,
 .wa-mgmt {

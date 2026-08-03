@@ -2,14 +2,13 @@
 // Pre-account email gate for invitation registration.
 //  action "check": validate the email is real & working — syntax, common-typo
 //    detection (gmail.con -> gmail.com), disposable-domain block, then a
-//    MAILBOX-LEVEL check via Verifalia (detects nonexistent mailboxes like
-//    gibberish@gmail.com, not just bad domains). No OTP side effect.
+//    MAILBOX-LEVEL check via our self-hosted Reacher endpoint (detects nonexistent
+//    mailboxes like gibberish@gmail.com, not just bad domains). No OTP side effect.
 //  action "send": same validation, then issue a 6-digit OTP, store its hash on
 //    the invitation row (keyed by token_hash) and email it via the otp_code template.
 // Both actions require a still-valid invitation token, so the public anon key can't
-// burn Verifalia credits. Verifalia is fail-open (if it's down/unauthorized/over
-// quota we allow and rely on the OTP) and only a hard "Undeliverable" verdict blocks.
-// If VERIFALIA_USERNAME/PASSWORD are unset, falls back to a DNS-over-HTTPS MX/A check.
+// burn verification credits. Reacher is fail-open (if it's down/unconfigured/timed out
+// we allow and rely on the OTP) and only a hard "invalid" verdict blocks.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -26,7 +25,7 @@ const clientIp = (req) => (req.headers.get("x-forwarded-for") || "").split(",")[
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,80}$/;
 
-// Known disposable / throwaway domains — blocked outright (Verifalia also flags these as Risky).
+// Known disposable / throwaway domains — blocked outright (Reacher also flags these via is_disposable).
 const DISPOSABLE = new Set([
   "mailinator.com", "10minutemail.com", "10minutemail.net", "guerrillamail.com", "guerrillamail.info", "grr.la",
   "yopmail.com", "yopmail.fr", "temp-mail.org", "tempmail.com", "tempmailo.com", "throwawaymail.com",
@@ -61,71 +60,38 @@ function preValidate(emailRaw) {
   return { ok: true, email };
 }
 
-const DNS_TYPE = { MX: 15, A: 1, AAAA: 28 };
-async function dohHas(domain, type) {
-  // true = records exist, false = authoritatively absent (NOERROR/NXDOMAIN), null = inconclusive.
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 2500);
-  try {
-    const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`,
-      { headers: { accept: "application/dns-json" }, signal: ac.signal });
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (j.Status === 3) return false;       // NXDOMAIN — authoritatively no such domain
-    if (j.Status !== 0) return null;         // SERVFAIL/REFUSED/etc — inconclusive, fail open
-    return Array.isArray(j.Answer) && j.Answer.some((a) => a.type === DNS_TYPE[type]);
-  } catch { return null; } finally { clearTimeout(t); }
-}
-
-// Mailbox-level verification via Verifalia. Returns one of:
-//   "Deliverable" | "Risky" | "Undeliverable" | "Unknown" | null (not configured).
-async function verifaliaClassify(email) {
-  const u = Deno.env.get("VERIFALIA_USERNAME");
-  const p = Deno.env.get("VERIFALIA_PASSWORD");
-  if (!u || !p) return null;
-  const quality = Deno.env.get("VERIFALIA_QUALITY") || "Standard";
+// Mailbox-level verification via our self-hosted Reacher endpoint.
+// Returns "safe"|"invalid"|"risky"|"unknown"|null (null = unconfigured/HTTP error/timeout).
+async function reacherClassify(email) {
+  const base = Deno.env.get("SVC_BASE_URL");
+  const token = Deno.env.get("SVC_TOKEN");
+  if (!base || !token) return null;
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 20000);
   try {
-    const r = await fetch("https://api.verifalia.com/v2.7/email-validations?waitTime=15000", {
+    const r = await fetch(`${base}/verify/v0/check_email`, {
       method: "POST",
       headers: {
-        "Authorization": "Basic " + btoa(`${u}:${p}`),
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        "X-Svc-Token": token,
       },
-      body: JSON.stringify({ entries: [{ inputData: email }], quality }),
+      body: JSON.stringify({ to_email: email }),
       signal: ac.signal,
     });
-    // 200 Completed, 202 still InProgress (treat as Unknown -> allow), other = error -> Unknown.
-    if (r.status !== 200) { if (r.status !== 202) console.error("verifalia status", r.status); return "Unknown"; }
+    if (!r.ok) { console.error("reacher status", r.status); return null; }
     const j = await r.json();
-    const arr = Array.isArray(j?.entries) ? j.entries : (j?.entries?.data ?? []);
-    return arr[0]?.classification || "Unknown";
+    return j?.is_reachable ?? null;
   } catch (e) {
-    console.error("verifalia error:", e);
-    return "Unknown";
+    console.error("reacher error:", e);
+    return null;
   } finally { clearTimeout(t); }
 }
 
-// Full deliverability decision (mailbox-level when Verifalia is configured, else domain MX/A).
-// Returns { ok:true, email } or { ok:false, reason }.
+// Full deliverability decision. Returns { ok:true, email } or { ok:false, reason }.
 async function verifyDeliverable(email) {
-  const cls = await verifaliaClassify(email);
-  if (cls !== null) {
-    // Only a hard Undeliverable blocks; Deliverable/Risky/Unknown pass (the OTP is the real proof).
-    if (cls === "Undeliverable") return { ok: false, reason: "undeliverable" };
-    return { ok: true, email };
-  }
-  // Fallback: domain-level MX/A/AAAA via DNS-over-HTTPS, fail-open on inconclusive DNS.
-  const domain = email.split("@")[1];
-  const mx = await dohHas(domain, "MX");
-  if (mx === true || mx === null) return { ok: true, email };
-  const a = await dohHas(domain, "A");
-  if (a === true || a === null) return { ok: true, email };
-  const aaaa = await dohHas(domain, "AAAA");
-  if (aaaa === true || aaaa === null) return { ok: true, email };
-  return { ok: false, reason: "no_mx" };
+  const verdict = await reacherClassify(email);
+  if (verdict === "invalid") return { ok: false, reason: "undeliverable" };
+  return { ok: true, email };
 }
 
 const MAX_OTP_SENDS = 6;            // hard cap of OTP emails per invite (anti-mailbomb + bounds guesses)
@@ -154,7 +120,7 @@ Deno.serve(async (req) => {
     if (!pre.ok) return json(pre, 400);
 
     // 2) Both actions require a still-valid invitation, so the public anon key
-    //    can't be used to burn Verifalia credits or spam OTP emails.
+    //    can't be used to burn verification capacity or spam OTP emails.
     const token = String(body?.token ?? "");
     if (!TOKEN_RE.test(token)) return json({ ok: false, reason: "invalid_token" }, 400);
 

@@ -1,0 +1,41 @@
+# igf-services — self-hosted email verification + GeoIP for the app (T18, Notion Ref 12).
+# Replaces paid APIs: Verifalia -> Reacher, ipgeolocation.io -> DB-IP City Lite.
+#
+# NO published host ports. Only `svc` touches the web-facing network; nginx
+# (igf-frontend) proxies app.igrowfast.com/_svc/{geo,verify}/ to it behind an
+# X-Svc-Token gate. Reacher stays on the internal network so nothing outside can
+# reach its raw API — `svc` is the only client, and it forwards a single field.
+name: igf-services
+services:
+  svc:
+    build: ./svc
+    container_name: igf-svc
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REACHER_URL=http://igf-reacher:8080
+      - MAX_INFLIGHT=2
+    volumes:
+      - ./data:/data:ro
+    networks: [internal, frontweb]
+    security_opt:
+      - no-new-privileges:true
+  reacher:
+    image: reacherhq/backend@sha256:9ad938a0c50c95f19b769b7dcbf0714446ea1d9b13294d5b1c3b873cee48b203
+    container_name: igf-reacher
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - RUST_LOG=info
+      - RCH_HTTP_HOST=0.0.0.0
+      - RCH_HEADER_SECRET=${SVC_TOKEN}
+      - RCH_FROM_EMAIL=verify@igrowfast.com
+      - RCH_HELLO_NAME=mail.igrowfast.com
+    networks: [internal]
+    security_opt:
+      - no-new-privileges:true
+networks:
+  internal: {}
+  frontweb:
+    external: true
+    name: igf-frontend_web

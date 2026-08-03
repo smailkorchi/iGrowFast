@@ -1,9 +1,9 @@
 // @ts-nocheck
 // Shared email-deliverability checks used by the invitation flow.
 //  preValidate: cheap, free, no-network (syntax + common-typo + disposable-domain).
-//  verifyDeliverable: mailbox-level via Verifalia when VERIFALIA_USERNAME/PASSWORD are set
-//    (only a hard "Undeliverable" blocks; Deliverable/Risky/Unknown pass), else falls back to
-//    a DNS-over-HTTPS MX/A/AAAA domain check (fail-open on inconclusive DNS).
+//  verifyDeliverable: mailbox-level via our self-hosted Reacher endpoint (SVC_BASE_URL/SVC_TOKEN);
+//    only a hard "invalid" verdict blocks — "safe"/"risky"/"unknown"/HTTP error/timeout/unconfigured
+//    all fail open. Reacher performs its own MX checks, so there is no separate DNS fallback layer.
 // Used by signup-email (registrant OTP gate) and create-invitation (admin-typed invitee email),
 // so both flows share one source of truth.
 
@@ -44,64 +44,36 @@ export function preValidate(emailRaw) {
   return { ok: true, email };
 }
 
-const DNS_TYPE = { MX: 15, A: 1, AAAA: 28 };
-async function dohHas(domain, type) {
-  // true = records exist, false = authoritatively absent, null = inconclusive.
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 2500);
-  try {
-    const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`,
-      { headers: { accept: "application/dns-json" }, signal: ac.signal });
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (j.Status === 3) return false;       // NXDOMAIN
-    if (j.Status !== 0) return null;         // SERVFAIL/REFUSED/etc — inconclusive
-    return Array.isArray(j.Answer) && j.Answer.some((a) => a.type === DNS_TYPE[type]);
-  } catch { return null; } finally { clearTimeout(t); }
-}
-
-// Mailbox-level verification via Verifalia. Returns "Deliverable"|"Risky"|"Undeliverable"|"Unknown"|null.
-async function verifaliaClassify(email) {
-  const u = Deno.env.get("VERIFALIA_USERNAME");
-  const p = Deno.env.get("VERIFALIA_PASSWORD");
-  if (!u || !p) return null;
-  const quality = Deno.env.get("VERIFALIA_QUALITY") || "Standard";
+// Mailbox-level verification via our self-hosted Reacher endpoint.
+// Returns "safe"|"invalid"|"risky"|"unknown"|null (null = unconfigured/HTTP error/timeout).
+async function reacherClassify(email) {
+  const base = Deno.env.get("SVC_BASE_URL");
+  const token = Deno.env.get("SVC_TOKEN");
+  if (!base || !token) return null;
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 20000);
   try {
-    const r = await fetch("https://api.verifalia.com/v2.7/email-validations?waitTime=15000", {
+    const r = await fetch(`${base}/verify/v0/check_email`, {
       method: "POST",
       headers: {
-        "Authorization": "Basic " + btoa(`${u}:${p}`),
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        "X-Svc-Token": token,
       },
-      body: JSON.stringify({ entries: [{ inputData: email }], quality }),
+      body: JSON.stringify({ to_email: email }),
       signal: ac.signal,
     });
-    if (r.status !== 200) { if (r.status !== 202) console.error("verifalia status", r.status); return "Unknown"; }
+    if (!r.ok) { console.error("reacher status", r.status); return null; }
     const j = await r.json();
-    const arr = Array.isArray(j?.entries) ? j.entries : (j?.entries?.data ?? []);
-    return arr[0]?.classification || "Unknown";
+    return j?.is_reachable ?? null;
   } catch (e) {
-    console.error("verifalia error:", e);
-    return "Unknown";
+    console.error("reacher error:", e);
+    return null;
   } finally { clearTimeout(t); }
 }
 
 // Full deliverability decision. Returns { ok:true, email } or { ok:false, reason }.
 export async function verifyDeliverable(email) {
-  const cls = await verifaliaClassify(email);
-  if (cls !== null) {
-    if (cls === "Undeliverable") return { ok: false, reason: "undeliverable" };
-    return { ok: true, email };
-  }
-  const domain = email.split("@")[1];
-  const mx = await dohHas(domain, "MX");
-  if (mx === true || mx === null) return { ok: true, email };
-  const a = await dohHas(domain, "A");
-  if (a === true || a === null) return { ok: true, email };
-  const aaaa = await dohHas(domain, "AAAA");
-  if (aaaa === true || aaaa === null) return { ok: true, email };
-  return { ok: false, reason: "no_mx" };
+  const verdict = await reacherClassify(email);
+  if (verdict === "invalid") return { ok: false, reason: "undeliverable" };
+  return { ok: true, email };
 }
