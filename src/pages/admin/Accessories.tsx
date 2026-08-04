@@ -64,6 +64,7 @@ import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { compressImage, validateImageFile } from '@/lib/imageCompress';
 import { imageUrl } from '@/lib/imageUrl';
+import { cleanupReplacedProductImage } from '@/lib/productImageCleanup';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -306,6 +307,7 @@ const Accessories = () => {
             let accessoryId: string;
 
             if (editingAccessory) {
+                const previousImage = editingAccessory.image_url;
                 const { data, error } = await supabase
                     .from('accessories')
                     .update(payload)
@@ -314,6 +316,10 @@ const Accessories = () => {
                     .single();
                 if (error) throw error;
                 accessoryId = data.id;
+                // The row now points at the new object, so the old one is unreachable —
+                // remove it here rather than leaking it. Only runs after the update
+                // succeeded, and never surfaces its own failure as a failed save.
+                await cleanupReplacedProductImage(previousImage, payload.image_url);
             } else {
                 const { data, error } = await supabase
                     .from('accessories')
