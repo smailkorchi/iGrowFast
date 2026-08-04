@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Package } from 'lucide-react';
+import { imageUrl as sizedImageUrl } from '@/lib/imageUrl';
 
 interface ImageHoverPreviewProps {
     imageUrl: string | null | undefined;
@@ -87,7 +88,7 @@ export function ImageHoverPreview({
                             <div className="h-[3px] w-full bg-ant-orange" />
                             {imageUrl ? (
                                 <img
-                                    src={imageUrl}
+                                    src={sizedImageUrl(imageUrl, 'full')}
                                     alt={name}
                                     className="w-full object-contain bg-ant-light"
                                     style={{ maxHeight: '70vh' }}

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { AvatarEditDialog } from '@/components/profile/AvatarEditDialog';
 import { SecuritySection } from '@/components/profile/SecuritySection';
@@ -229,7 +230,7 @@ const Profile = () => {
                             <div className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-3 flex items-center gap-3 max-w-[260px]">
                                 <div className="h-9 w-9 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 p-1">
                                     {business.logo ? (
-                                        <img src={business.logo} alt="" className="max-w-full max-h-full object-contain" />
+                                        <img src={imageUrl(business.logo, 'logo')} alt="" className="max-w-full max-h-full object-contain" />
                                     ) : (
                                         <Building2 className="w-4 h-4 text-white/50" strokeWidth={1.75} />
                                     )}

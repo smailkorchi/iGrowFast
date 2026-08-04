@@ -19,14 +19,40 @@ export function stampStoragePath(value: string | null | undefined): string | nul
   return m ? decodeURIComponent(m[1]) : null;
 }
 
+/**
+ * Optional server-side resize for a signed stamp URL. The image renderer works
+ * on PRIVATE buckets too (`/storage/v1/render/image/sign/...`), so a signed URL
+ * can be sized down the same way a public one is.
+ *
+ * DELIBERATELY OPT-IN, and no caller passes it today. Every existing consumer of
+ * resolveStampUrl feeds react-pdf (src/lib/documentPdf/embedRemoteImages.ts and
+ * the facture / devis / bon-livraison / bon-commande documents), where the cachet
+ * and signature are printed on a legal document and fidelity is the whole point.
+ * The only on-screen consumers are two ~56px previews on the business Overview
+ * page, and the entire business-stamps bucket is 474 KB across 10 objects — so
+ * transforming there would trade a real fidelity risk for an unmeasurable win.
+ * Pass this only from a screen-only call site.
+ */
+export interface StampTransform {
+  width?: number;
+  height?: number;
+  resize?: 'cover' | 'contain' | 'fill';
+  quality?: number;
+}
+
 /** Resolve a stored cachet/signature value to something fetchable/renderable. */
-export async function resolveStampUrl(value: string | null | undefined): Promise<string | null> {
+export async function resolveStampUrl(
+  value: string | null | undefined,
+  transform?: StampTransform,
+): Promise<string | null> {
   const v = (value || '').trim();
   if (!v) return null;
   if (v.startsWith('data:')) return v;
   const path = stampStoragePath(v);
   if (!path) return /^https?:\/\//i.test(v) ? v : null;
-  const { data, error } = await supabase.storage.from(STAMPS_BUCKET).createSignedUrl(path, SIGNED_TTL_S);
+  // An SVG stamp (one exists in the bucket) must never be rasterised.
+  const opts = transform && !/\.svg$/i.test(path) ? { transform } : undefined;
+  const { data, error } = await supabase.storage.from(STAMPS_BUCKET).createSignedUrl(path, SIGNED_TTL_S, opts);
   if (error || !data?.signedUrl) return /^https?:\/\//i.test(v) ? v : null;
   return data.signedUrl;
 }

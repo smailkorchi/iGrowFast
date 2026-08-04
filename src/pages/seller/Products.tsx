@@ -17,6 +17,7 @@ import { TruncatedText } from '@/components/ui/truncated-text';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     ProductPreviewDialog,
@@ -235,7 +236,7 @@ const Products = () => {
                                         title={`${p.name}: ${Number(p.stock ?? 0)} units`}
                                     >
                                         {p.image_url ? (
-                                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                            <img src={imageUrl(p.image_url, 'thumb')} alt={p.name} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full bg-ant-light flex items-center justify-center">
                                                 <Package className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
@@ -318,7 +319,7 @@ const Products = () => {
                                         <div className="relative aspect-square overflow-hidden bg-ant-light">
                                             {product.image_url ? (
                                                 <img
-                                                    src={product.image_url}
+                                                    src={imageUrl(product.image_url, 'card')}
                                                     alt={product.name}
                                                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                                                 />
@@ -393,7 +394,7 @@ const Products = () => {
                                     <ImageHoverPreview imageUrl={product.image_url} name={product.name} code={product.code}>
                                         <div className="relative h-14 w-14 shrink-0 rounded-xl overflow-hidden border border-ant-line bg-ant-light">
                                             {product.image_url ? (
-                                                <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                                                <img src={imageUrl(product.image_url, 'thumb')} alt={product.name} className="h-full w-full object-cover" />
                                             ) : (
                                                 <div className="flex items-center justify-center h-full w-full text-ant-mid">
                                                     <ImageIcon className="w-5 h-5" strokeWidth={1.75} />

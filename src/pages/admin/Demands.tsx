@@ -41,6 +41,7 @@ import { UserAvatar } from '@/components/users/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { compressImage, validateUploadFile, MAX_IMAGE_SOURCE_BYTES } from '@/lib/imageCompress';
 
 interface DemandMedia {
     path: string;
@@ -291,12 +292,13 @@ const Demands = () => {
         (files: File[]) => {
             const valid: File[] = [];
             for (const file of files) {
-                if (file.size > MAX_FILE_SIZE) {
-                    toast({
-                        title: 'File too large',
-                        description: `${file.name} exceeds the 50MB limit.`,
-                        variant: 'destructive',
-                    });
+                const problem = validateUploadFile(file, {
+                    // Images are re-encoded before upload; videos and PDFs go up as-is.
+                    maxBytes: file.type.startsWith('image/') ? MAX_IMAGE_SOURCE_BYTES : MAX_FILE_SIZE,
+                    accept: ['image/', 'video/', 'application/pdf'],
+                });
+                if (problem) {
+                    toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
                     continue;
                 }
                 valid.push(file);
@@ -328,22 +330,25 @@ const Demands = () => {
         const uploaded: DemandMedia[] = [];
         for (let i = 0; i < responseFiles.length; i++) {
             const file = responseFiles[i];
-            const ext = file.name.split('.').pop() || 'bin';
+            const compressed = file.type.startsWith('image/') ? await compressImage(file, 'media') : null;
+            const body: Blob = compressed ? compressed.blob : file;
+            const contentType = compressed ? compressed.contentType : (file.type || 'application/octet-stream');
+            const ext = compressed ? compressed.ext : (file.name.split('.').pop() || 'bin');
             const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
             const path = `responses/${demandId}/${safeName}`;
             const { error: upErr } = await supabase.storage
                 .from('demand-media')
-                .upload(path, file, {
+                .upload(path, body, {
                     cacheControl: '3600',
-                    contentType: file.type || 'application/octet-stream',
+                    contentType,
                     upsert: false,
                 });
             if (upErr) throw upErr;
             uploaded.push({
                 path,
                 name: file.name,
-                type: file.type || 'application/octet-stream',
-                size: file.size,
+                type: contentType,
+                size: body.size,
             });
             setResponseUploadProgress(Math.round(((i + 1) / responseFiles.length) * 100));
         }

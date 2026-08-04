@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { compressImage, validateUploadFile, MAX_IMAGE_SOURCE_BYTES } from '@/lib/imageCompress';
+import { imageUrl } from '@/lib/imageUrl';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,6 +109,9 @@ const campaignSchema = z
 type CampaignFormValues = z.infer<typeof campaignSchema>;
 
 const GENDERS = ['male', 'female', 'all'] as const;
+
+/** Matches the campaign-media bucket ceiling — videos are uploaded uncompressed. */
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 // Section chapter header
 const Chapter: React.FC<{ num: string; label: string; children?: React.ReactNode }> = ({ num, label, children }) => (
@@ -297,21 +302,41 @@ const CampaignForm: React.FC = () => {
             const singleOnly = campaignType === 'single_image' || campaignType === 'video';
             const toUpload = singleOnly ? valid.slice(0, 1) : valid;
 
+            // Images are re-encoded client-side; videos are uploaded as-is, so they
+            // keep the bucket's own 50 MB ceiling.
+            const rejected = toUpload
+                .map((f) => validateUploadFile(f, {
+                    maxBytes: f.type.startsWith('video/') ? MAX_VIDEO_BYTES : MAX_IMAGE_SOURCE_BYTES,
+                    accept: ['image/', 'video/'],
+                }))
+                .filter(Boolean) as string[];
+            if (rejected.length > 0) {
+                toast({ title: 'Fichier refusé', description: rejected[0], variant: 'destructive' });
+                return;
+            }
+
             setUploading(true);
             try {
                 const uploaded: CampaignMedia[] = [];
                 for (const file of toUpload) {
-                    const ext = file.name.split('.').pop() || 'bin';
+                    const isVideo = file.type.startsWith('video/');
+                    const compressed = isVideo ? null : await compressImage(file, 'media');
+                    const body = compressed ? compressed.blob : file;
+                    const ext = compressed ? compressed.ext : (file.name.split('.').pop() || 'bin');
                     const path = `${activeBusinessId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
                     const { error: upErr } = await supabase.storage
                         .from('campaign-media')
-                        .upload(path, file, { cacheControl: '3600', upsert: false });
+                        .upload(path, body, {
+                            cacheControl: '3600',
+                            upsert: false,
+                            ...(compressed ? { contentType: compressed.contentType } : {}),
+                        });
                     if (upErr) throw upErr;
                     const { data: pub } = supabase.storage.from('campaign-media').getPublicUrl(path);
                     uploaded.push({
                         url: pub.publicUrl,
                         path,
-                        type: file.type.startsWith('video/') ? 'video' : 'image',
+                        type: isVideo ? 'video' : 'image',
                         name: file.name,
                     });
                 }
@@ -804,7 +829,7 @@ const CampaignForm: React.FC = () => {
                                                                     <PlayCircle className="absolute inset-0 m-auto w-8 h-8 text-white/85" />
                                                                 </>
                                                             ) : (
-                                                                <img src={m.url} alt="" className="w-full h-full object-cover" />
+                                                                <img src={imageUrl(m.url, 'card')} alt="" className="w-full h-full object-cover" />
                                                             )}
                                                         </div>
                                                         <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-ant-ink/65 backdrop-blur px-2 py-0.5 text-[10px] font-semibold text-white">
@@ -1099,7 +1124,7 @@ const PreviewCard: React.FC<{
                     first.type === 'video' ? (
                         <video src={first.url} className="w-full h-full object-cover" muted autoPlay loop playsInline />
                     ) : (
-                        <img src={first.url} className="w-full h-full object-cover" alt="" />
+                        <img src={imageUrl(first.url, 'card')} className="w-full h-full object-cover" alt="" />
                     )
                 ) : (
                     <div className="text-ant-mid/40 flex flex-col items-center gap-2">

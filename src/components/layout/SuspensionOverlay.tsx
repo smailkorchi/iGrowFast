@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { compressImage, validateUploadFile, MAX_IMAGE_SOURCE_BYTES } from '@/lib/imageCompress';
 
 interface SuspensionOverlayProps {
     role: 'admin' | 'commercial';
@@ -102,13 +103,22 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
     const onDrop = useCallback((accepted: File[]) => {
         const f = accepted[0];
         if (!f) return;
+        const problem = validateUploadFile(f, {
+            // Photos of a transfer receipt are re-encoded; PDF statements go up as-is.
+            maxBytes: f.type.startsWith('image/') ? MAX_IMAGE_SOURCE_BYTES : 10 * 1024 * 1024,
+            accept: ['image/', 'application/pdf'],
+        });
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
         setFile(f);
         if (f.type.startsWith('image/')) {
             setPreview(URL.createObjectURL(f));
         } else {
             setPreview(null);
         }
-    }, []);
+    }, [toast]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -137,11 +147,15 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
             const licenseType = businessInfo?.plan?.license_type || businessInfo?.license_type || 'monthly';
             const currency = businessInfo?.plan?.currency || 'MAD';
 
-            const ext = file.name.split('.').pop();
+            const compressed = file.type.startsWith('image/') ? await compressImage(file, 'media') : null;
+            const body: Blob = compressed ? compressed.blob : file;
+            const ext = compressed ? compressed.ext : file.name.split('.').pop();
             const path = `${businessId}/${Date.now()}.${ext}`;
             const { error: uploadErr } = await supabase.storage
                 .from('payment-proofs')
-                .upload(path, file);
+                .upload(path, body, {
+                    contentType: compressed ? compressed.contentType : (file.type || 'application/octet-stream'),
+                });
             if (uploadErr) throw uploadErr;
 
             const now = new Date().toISOString();

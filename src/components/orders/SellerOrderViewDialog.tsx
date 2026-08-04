@@ -19,6 +19,7 @@ import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { matchPackageStatus } from '@/lib/matchPackageStatus';
+import { imageUrl } from '@/lib/imageUrl';
 import {
     Building2,
     Calendar,
@@ -713,7 +714,7 @@ const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit, ownSellerI
                                                                 <div className="flex items-center gap-3 flex-1 w-full md:w-auto">
                                                                     <div className="w-10 h-10 rounded-lg bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
                                                                         {item.product?.image_url ? (
-                                                                            <img src={item.product?.image_url} alt="" className="w-full h-full object-cover" />
+                                                                            <img src={imageUrl(item.product?.image_url, 'thumb')} alt="" className="w-full h-full object-cover" />
                                                                         ) : (
                                                                             <Package className="w-4 h-4 text-ant-mid" />
                                                                         )}
@@ -746,7 +747,7 @@ const SellerOrderViewDialog = ({ orderId, open, onOpenChange, onEdit, ownSellerI
                                                                     <div className="flex items-center gap-3 flex-1 w-full md:w-auto">
                                                                         <div className="w-8 h-8 rounded-lg bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0 md:ml-3">
                                                                             {accItem.accessory?.image_url ? (
-                                                                                <img src={accItem.accessory?.image_url} alt="" className="w-full h-full object-cover" />
+                                                                                <img src={imageUrl(accItem.accessory?.image_url, 'thumb')} alt="" className="w-full h-full object-cover" />
                                                                             ) : (
                                                                                 <Puzzle className="w-3.5 h-3.5 text-ant-mid" />
                                                                             )}

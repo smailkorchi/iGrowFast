@@ -60,6 +60,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import {
     CAMPAIGN_PLATFORMS,
     getPlatformIcon,
@@ -147,7 +148,7 @@ const AdMockCard: React.FC<{
             <div className="flex items-center gap-2.5 px-3.5 py-3">
                 <div className="w-9 h-9 rounded-full overflow-hidden bg-ant-light border border-ant-line flex items-center justify-center shrink-0">
                     {businessLogo ? (
-                        <img src={businessLogo} alt="" className="w-full h-full object-cover" />
+                        <img src={imageUrl(businessLogo, 'avatarMd')} alt="" className="w-full h-full object-cover" />
                     ) : (
                         <span className="text-[10px] font-semibold text-ant-ink">
                             {(businessName || 'DG').substring(0, 2).toUpperCase()}
@@ -249,7 +250,7 @@ const AdMockCard: React.FC<{
                             onMouseLeave={(e) => e.currentTarget.pause()}
                         />
                     ) : (
-                        <img src={current.url} alt="" className="w-full h-full object-cover" />
+                        <img src={imageUrl(current.url, 'card')} alt="" className="w-full h-full object-cover" />
                     )
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-ant-mid/40">
@@ -389,7 +390,7 @@ const CampaignRow: React.FC<{
                                 </div>
                             </>
                         ) : (
-                            <img src={thumb.url} alt="" className="w-full h-full object-cover" />
+                            <img src={imageUrl(thumb.url, 'thumb')} alt="" className="w-full h-full object-cover" />
                         )
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-ant-mid/40">

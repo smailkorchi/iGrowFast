@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { useToast } from '@/components/ui/use-toast';
 import { UserAvatar } from '@/components/users/UserAvatar';
 import {
@@ -802,7 +803,7 @@ const SellerProfile = () => {
                                             <div className="aspect-[4/3] bg-ant-light overflow-hidden">
                                                 {p.image_url ? (
                                                     <img
-                                                        src={p.image_url}
+                                                        src={imageUrl(p.image_url, 'card')}
                                                         alt={p.name}
                                                         className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                                                     />
@@ -917,7 +918,7 @@ const SellerProfile = () => {
                                     {/* Image */}
                                     <div className="md:col-span-2 relative bg-ant-light min-h-[220px] md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-ant-line">
                                         {p.image_url ? (
-                                            <img src={p.image_url} alt={displayName} className="w-full h-full object-cover" />
+                                            <img src={imageUrl(p.image_url, 'full')} alt={displayName} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
                                                 <Package className="w-14 h-14 text-ant-mid" strokeWidth={1.5} />

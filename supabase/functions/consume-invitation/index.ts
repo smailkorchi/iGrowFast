@@ -43,15 +43,37 @@ async function sha256Hex(s: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// The invitee is anonymous here and this is the one path that writes image bytes
+// to storage server-side, so the payload is capped and type-checked. The client
+// compressor (src/lib/imageCompress.ts, 'avatar' preset) emits a 512 px JPEG of
+// roughly 40-80 KB; 2 MB decoded leaves ~25x headroom and still refuses a camera
+// original. Anything else — a PDF, an SVG, a video mislabelled as a data URL —
+// is rejected outright rather than stored.
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
 function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; contentType: string; ext: string } | null {
+  // Base64 inflates by 4/3, so the encoded length bounds the payload — check it
+  // before atob() so an oversized string is never materialised as bytes.
+  if (dataUrl.length > Math.ceil((AVATAR_MAX_BYTES * 4) / 3) + 256) return null;
   const m = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
   if (!m) return null;
-  const contentType = m[1];
-  const bin = atob(m[2]);
+  const contentType = m[1].trim().toLowerCase();
+  const ext = AVATAR_EXT[contentType];
+  if (!ext) return null;
+  let bin: string;
+  try {
+    bin = atob(m[2]);
+  } catch {
+    return null;
+  }
+  if (bin.length === 0 || bin.length > AVATAR_MAX_BYTES) return null;
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") ? "jpg"
-    : contentType.includes("webp") ? "webp" : "png";
   return { bytes, contentType, ext };
 }
 
@@ -166,6 +188,14 @@ Deno.serve(async (req) => {
     if (password.length < 6) return json({ ok: false, reason: "weak_password" }, 400);
     if (!/^\d{6}$/.test(otp)) return json({ ok: false, reason: "otp_invalid" }, 400);
 
+    // Decode + validate the avatar BEFORE anything is claimed or created, so a bad
+    // payload is a plain 400 instead of a half-built account needing a rollback.
+    let avatarBytes: { bytes: Uint8Array; contentType: string; ext: string } | null = null;
+    if (avatarDataUrl) {
+      avatarBytes = dataUrlToBytes(avatarDataUrl);
+      if (!avatarBytes) return json({ ok: false, reason: "invalid_avatar" }, 400);
+    }
+
     const tokenHash = await sha256Hex(token);
 
     // 0) Verify the email-confirmation OTP BEFORE claiming the invite, so a wrong/
@@ -216,26 +246,23 @@ Deno.serve(async (req) => {
     createdUserId = authData.user.id;
 
     // 2b) Store the chosen avatar (generated or uploaded) via service role — the invitee is anon.
-    if (avatarDataUrl) {
+    if (avatarBytes) {
       try {
-        const decoded = dataUrlToBytes(avatarDataUrl);
-        if (decoded) {
-          const path = `invites/${createdUserId}.${decoded.ext}`;
-          const { error: upErr } = await service.storage.from("avatar")
-            .upload(path, decoded.bytes, { contentType: decoded.contentType, upsert: true });
-          if (!upErr) {
-            // getPublicUrl builds the URL from the client's own base, which inside this
-            // container is the INTERNAL docker hostname (SUPABASE_URL=http://kong:8000).
-            // Persisting that gives every invitee a permanently broken avatar — the bytes
-            // upload fine, but no browser can resolve the host. Swap it for the public
-            // origin the container already knows.
-            const internalOrigin = Deno.env.get("SUPABASE_URL") ?? "";
-            const publicOrigin = Deno.env.get("SUPABASE_PUBLIC_URL") || internalOrigin;
-            const built = service.storage.from("avatar").getPublicUrl(path).data.publicUrl;
-            avatarUrl = internalOrigin && publicOrigin !== internalOrigin
-              ? built.replace(internalOrigin, publicOrigin)
-              : built;
-          }
+        const path = `invites/${createdUserId}.${avatarBytes.ext}`;
+        const { error: upErr } = await service.storage.from("avatar")
+          .upload(path, avatarBytes.bytes, { contentType: avatarBytes.contentType, upsert: true });
+        if (!upErr) {
+          // getPublicUrl builds the URL from the client's own base, which inside this
+          // container is the INTERNAL docker hostname (SUPABASE_URL=http://kong:8000).
+          // Persisting that gives every invitee a permanently broken avatar — the bytes
+          // upload fine, but no browser can resolve the host. Swap it for the public
+          // origin the container already knows.
+          const internalOrigin = Deno.env.get("SUPABASE_URL") ?? "";
+          const publicOrigin = Deno.env.get("SUPABASE_PUBLIC_URL") || internalOrigin;
+          const built = service.storage.from("avatar").getPublicUrl(path).data.publicUrl;
+          avatarUrl = internalOrigin && publicOrigin !== internalOrigin
+            ? built.replace(internalOrigin, publicOrigin)
+            : built;
         }
       } catch (avErr) {
         console.error("avatar upload (consume) failed:", avErr);

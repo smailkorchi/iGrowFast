@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { compressImage, validateUploadFile, MAX_IMAGE_SOURCE_BYTES } from '@/lib/imageCompress';
 
 interface DemandMedia {
     path: string;
@@ -194,8 +195,13 @@ const MediaBuyerDemands = () => {
     const addFiles = useCallback((files: File[]) => {
         const valid: File[] = [];
         for (const file of files) {
-            if (file.size > MAX_FILE_SIZE) {
-                toast({ title: "Fichier trop volumineux", description: `${file.name} dépasse la limite de 50 Mo.`, variant: "destructive" });
+            const problem = validateUploadFile(file, {
+                // Images are re-encoded before upload; videos and PDFs go up as-is.
+                maxBytes: file.type.startsWith('image/') ? MAX_IMAGE_SOURCE_BYTES : MAX_FILE_SIZE,
+                accept: ['image/', 'video/', 'application/pdf'],
+            });
+            if (problem) {
+                toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
                 continue;
             }
             valid.push(file);
@@ -231,14 +237,17 @@ const MediaBuyerDemands = () => {
         const uploaded: DemandMedia[] = [];
         for (let i = 0; i < pendingFiles.length; i++) {
             const file = pendingFiles[i];
-            const ext = file.name.split('.').pop() || 'bin';
+            const compressed = file.type.startsWith('image/') ? await compressImage(file, 'media') : null;
+            const body: Blob = compressed ? compressed.blob : file;
+            const contentType = compressed ? compressed.contentType : (file.type || 'application/octet-stream');
+            const ext = compressed ? compressed.ext : (file.name.split('.').pop() || 'bin');
             const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
             const path = `${userId}/${safeName}`;
-            const { error: uploadError } = await supabase.storage.from('demand-media').upload(path, file, {
-                cacheControl: '3600', contentType: file.type || 'application/octet-stream', upsert: false
+            const { error: uploadError } = await supabase.storage.from('demand-media').upload(path, body, {
+                cacheControl: '3600', contentType, upsert: false
             });
             if (uploadError) throw uploadError;
-            uploaded.push({ path, name: file.name, type: file.type || 'application/octet-stream', size: file.size });
+            uploaded.push({ path, name: file.name, type: contentType, size: body.size });
             setUploadProgress(Math.round(((i + 1) / pendingFiles.length) * 100));
         }
         return uploaded;

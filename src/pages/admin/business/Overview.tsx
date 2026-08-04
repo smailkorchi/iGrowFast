@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { resolveStampUrl } from '@/lib/businessStamps';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -140,54 +141,25 @@ const statusPill = (status: string) => {
     }
 };
 
-async function rasteriseToPng(file: File, maxDim = 1024): Promise<Blob> {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(reader.error);
-        reader.onload = () => resolve(String(reader.result));
-        reader.readAsDataURL(file);
-    });
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const el = new Image();
-        el.crossOrigin = 'anonymous';
-        el.onload = () => resolve(el);
-        el.onerror = () => reject(new Error('Image inaccessible'));
-        el.src = dataUrl;
-    });
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    if (!w || !h) throw new Error('Image sans dimensions (SVG vectoriel sans viewBox ?)');
-    const scale = Math.min(1, maxDim / Math.max(w, h));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas 2D indisponible');
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Conversion PNG échouée'));
-        }, 'image/png');
-    });
-}
-
 async function uploadBrandingAsset(businessId: string, kind: 'logo' | 'cachet' | 'signature', file: File) {
-    const pngBlob = await rasteriseToPng(file);
-    const path = `profile/${businessId}/${kind}-${Date.now()}.png`;
+    // 'logo' preset: 800 px, PNG — these assets are embedded into the facture /
+    // devis / bon de livraison PDFs, which decode PNG and JPEG only, and the
+    // stamps need their transparency.
+    const { blob, contentType, ext } = await compressImage(file, 'logo');
+    const path = `profile/${businessId}/${kind}-${Date.now()}.${ext}`;
     // #44 (owner-decided): cachet + signature are legal stamping assets — they
     // go to the PRIVATE business-stamps bucket and are STORED AS PATHS
     // (consumers resolve via resolveStampUrl → signed URL). Plain logos stay
     // public in business-logos.
     if (kind === 'logo') {
-        const { error } = await supabase.storage.from('business-logos').upload(path, pngBlob, { contentType: 'image/png' });
+        const { error } = await supabase.storage.from('business-logos').upload(path, blob, { contentType });
         if (error) throw error;
         const {
             data: { publicUrl },
         } = supabase.storage.from('business-logos').getPublicUrl(path);
         return publicUrl;
     }
-    const { error } = await supabase.storage.from('business-stamps').upload(path, pngBlob, { contentType: 'image/png' });
+    const { error } = await supabase.storage.from('business-stamps').upload(path, blob, { contentType });
     if (error) throw error;
     return path;
 }
@@ -355,6 +327,11 @@ const BusinessOverview = () => {
 
     const wrapUpload = async (kind: 'logo' | 'cachet' | 'signature', file: File, setValue: (url: string) => void) => {
         if (!activeBusinessId) return;
+        const problem = validateImageFile(file);
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
         setUploadKind(kind);
         try {
             const url = await uploadBrandingAsset(activeBusinessId, kind, file);

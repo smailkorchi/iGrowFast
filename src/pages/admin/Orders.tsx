@@ -81,6 +81,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { resolveProviderLogo } from '@/lib/providerLogos';
+import { imageUrl } from '@/lib/imageUrl';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
@@ -3044,7 +3045,7 @@ const Orders = () => {
                                             <span className="flex items-center gap-2 min-w-0">
                                                 {p.image_url ? (
                                                     <img
-                                                        src={p.image_url}
+                                                        src={imageUrl(p.image_url, 'thumb')}
                                                         alt=""
                                                         className="w-6 h-6 rounded-md object-cover border border-ant-ink/5 shrink-0"
                                                     />
@@ -3170,7 +3171,7 @@ const Orders = () => {
                                                 <span className="flex items-center gap-2 min-w-0">
                                                     {img ? (
                                                         <img
-                                                            src={img}
+                                                            src={imageUrl(img, 'avatarSm')}
                                                             alt=""
                                                             className="w-6 h-6 rounded-md object-cover bg-white border border-ant-ink/5 shrink-0"
                                                         />
@@ -3382,7 +3383,7 @@ const Orders = () => {
                                                         >
                                                             {cardProductThumb ? (
                                                                 <img
-                                                                    src={cardProductThumb}
+                                                                    src={imageUrl(cardProductThumb, 'thumb')}
                                                                     alt={cardProductLabel}
                                                                     className="w-full h-full object-cover"
                                                                     loading="lazy"

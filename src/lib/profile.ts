@@ -18,9 +18,14 @@ export async function saveOwnAvatar(v: { config?: object | null; dataUrl?: strin
     if (!user) throw new Error('Not authenticated');
 
     if (v.dataUrl) {
+        const blob = dataURLtoBlob(v.dataUrl);
+        // The path stays `.png` on purpose: the object is upserted, and there is no
+        // DELETE policy on the avatar bucket for ordinary users, so changing the
+        // extension when the compressor switches codec would strand the old file
+        // forever. Storage serves by the stored Content-Type, not by the name.
         const path = `self/${user.id}.png`;
         const { error: upErr } = await supabase.storage.from('avatar')
-            .upload(path, dataURLtoBlob(v.dataUrl), { upsert: true, contentType: 'image/png' });
+            .upload(path, blob, { upsert: true, contentType: blob.type || 'image/png' });
         if (upErr) throw upErr;
         const base = supabase.storage.from('avatar').getPublicUrl(path).data.publicUrl;
         const url = `${base}?v=${Date.now()}`; // cache-bust the stable path

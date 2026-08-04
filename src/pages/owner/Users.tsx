@@ -46,6 +46,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { edgeFnErrorMessage } from '@/lib/edgeError';
@@ -401,6 +402,7 @@ type OwnerUserModalProps = {
 };
 
 const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, kicker, title }: OwnerUserModalProps) => {
+    const { toast } = useToast();
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url || null);
 
@@ -438,9 +440,15 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, kicke
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
+        if (!file) return;
+        const problem = validateImageFile(file);
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
         setAvatar(file);
         setAvatarPreview(URL.createObjectURL(file));
-    }, []);
+    }, [toast]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -452,17 +460,24 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, kicke
         const finalValues = { ...values };
 
         if (avatar) {
-            const fileExt = avatar.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `avatars/${fileName}`;
+            try {
+                const { blob, contentType, ext } = await compressImage(avatar, 'avatar');
+                const fileName = `${Math.random()}.${ext}`;
+                const filePath = `avatars/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage.from('avatar').upload(filePath, avatar);
+                const { error: uploadError } = await supabase.storage
+                    .from('avatar')
+                    .upload(filePath, blob, { contentType });
 
-            if (!uploadError) {
-                const {
-                    data: { publicUrl },
-                } = supabase.storage.from('avatar').getPublicUrl(filePath);
-                finalValues.avatar_url = publicUrl;
+                if (!uploadError) {
+                    const {
+                        data: { publicUrl },
+                    } = supabase.storage.from('avatar').getPublicUrl(filePath);
+                    finalValues.avatar_url = publicUrl;
+                }
+            } catch (e) {
+                toast({ title: 'Photo non traitée', description: (e as Error).message, variant: 'destructive' });
+                return;
             }
         }
 

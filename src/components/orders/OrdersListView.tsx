@@ -16,6 +16,7 @@ import SourceIcon from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { cn } from '@/lib/utils';
 import { resolveProviderLogo } from '@/lib/providerLogos';
+import { imageUrl } from '@/lib/imageUrl';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
 // D1: rows are the SLIM `orders_list_page` RPC shape — flat `city_name`,
@@ -170,7 +171,7 @@ export default function OrdersListView({
                         >
                           {productThumb ? (
                             <img
-                              src={productThumb}
+                              src={imageUrl(productThumb, 'thumb')}
                               alt={productLabel}
                               className="w-full h-full object-cover"
                               loading="lazy"

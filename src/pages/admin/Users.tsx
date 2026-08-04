@@ -91,6 +91,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -1292,9 +1293,15 @@ const UserModal = ({
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
+        if (!file) return;
+        const problem = validateImageFile(file);
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
         setAvatar(file);
         setAvatarPreview(URL.createObjectURL(file));
-    }, []);
+    }, [toast]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -1334,19 +1341,24 @@ const UserModal = ({
         const finalValues = { ...values };
 
         if (avatar) {
-            const fileExt = avatar.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `avatars/${fileName}`;
+            try {
+                const { blob, contentType, ext } = await compressImage(avatar, 'avatar');
+                const fileName = `${Math.random()}.${ext}`;
+                const filePath = `avatars/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('avatar')
-                .upload(filePath, avatar);
-
-            if (!uploadError) {
-                const { data: { publicUrl } } = supabase.storage
+                const { error: uploadError } = await supabase.storage
                     .from('avatar')
-                    .getPublicUrl(filePath);
-                finalValues.avatar_url = publicUrl;
+                    .upload(filePath, blob, { contentType });
+
+                if (!uploadError) {
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('avatar')
+                        .getPublicUrl(filePath);
+                    finalValues.avatar_url = publicUrl;
+                }
+            } catch (e) {
+                toast({ title: 'Photo non traitée', description: (e as Error).message, variant: 'destructive' });
+                return;
             }
         }
 

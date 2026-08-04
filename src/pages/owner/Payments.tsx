@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -616,7 +617,7 @@ const OwnerPayments = () => {
                                         <div className="p-4 flex items-start gap-3">
                                             <div className="w-12 h-12 rounded-xl bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
                                                 {biz?.logo ? (
-                                                    <img src={biz.logo} alt="" className="w-full h-full object-contain p-1.5" />
+                                                    <img src={imageUrl(biz.logo, 'logo')} alt="" className="w-full h-full object-contain p-1.5" />
                                                 ) : (
                                                     <Building2 className="w-5 h-5 text-ant-mid" />
                                                 )}

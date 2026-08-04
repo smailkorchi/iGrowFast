@@ -76,6 +76,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { resolveProviderLogo } from '@/lib/providerLogos';
+import { imageUrl } from '@/lib/imageUrl';
 import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -2934,7 +2935,7 @@ const Orders = () => {
                                             <span className="flex items-center gap-2 min-w-0">
                                                 {p.image_url ? (
                                                     <img
-                                                        src={p.image_url}
+                                                        src={imageUrl(p.image_url, 'thumb')}
                                                         alt=""
                                                         className="w-5 h-5 rounded object-cover border border-ant-ink/5 shrink-0"
                                                     />
@@ -2993,7 +2994,7 @@ const Orders = () => {
                                             <span className="flex items-center gap-2 min-w-0">
                                                 {p.imageUrl ? (
                                                     <img
-                                                        src={p.imageUrl}
+                                                        src={imageUrl(p.imageUrl, 'avatarSm')}
                                                         alt=""
                                                         className="w-5 h-5 rounded object-cover bg-white border border-ant-ink/5 shrink-0"
                                                     />
@@ -3182,7 +3183,7 @@ const Orders = () => {
                                                 >
                                                     {cardProductThumb ? (
                                                         <img
-                                                            src={cardProductThumb}
+                                                            src={imageUrl(cardProductThumb, 'thumb')}
                                                             alt={cardProductLabel}
                                                             className="w-full h-full object-cover"
                                                             loading="lazy"

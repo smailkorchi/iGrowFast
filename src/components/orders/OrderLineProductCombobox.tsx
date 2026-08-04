@@ -13,6 +13,7 @@ import {
     CommandList,
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 
 export type OrderLineProductOption = {
     id: string;
@@ -60,7 +61,7 @@ function ProductThumb({ src, alt, size = 'md' }: ProductThumbProps) {
         >
             {src ? (
                 <img
-                    src={src}
+                    src={imageUrl(src, 'thumb')}
                     alt={alt}
                     loading="lazy"
                     className="h-full w-full object-cover"

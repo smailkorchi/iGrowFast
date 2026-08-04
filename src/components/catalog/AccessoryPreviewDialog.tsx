@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Edit2, Trash2, RotateCcw, Power, Puzzle, X } from 'lucide-react';
+import { imageUrl } from '@/lib/imageUrl';
 
 export type AccessoryPreviewRow = {
     id: string;
@@ -108,7 +109,7 @@ export function AccessoryPreviewDialog({
                             <div className="relative w-full sm:w-[200px] shrink-0 aspect-square rounded-2xl border border-ant-line bg-ant-light overflow-hidden">
                                 {accessory.image_url ? (
                                     <img
-                                        src={accessory.image_url}
+                                        src={imageUrl(accessory.image_url, 'card')}
                                         alt={accessory.name}
                                         className="absolute inset-0 h-full w-full object-cover"
                                     />

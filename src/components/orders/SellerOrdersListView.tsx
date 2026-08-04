@@ -16,6 +16,7 @@ import SourceIcon from '@/components/orders/SourceIcon';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { cn } from '@/lib/utils';
 import { resolveProviderLogo } from '@/lib/providerLogos';
+import { imageUrl } from '@/lib/imageUrl';
 import { usePackageStatusResolver } from '@/hooks/usePackageStatusResolver';
 
 interface SellerOrdersListViewProps {
@@ -143,7 +144,7 @@ export default function SellerOrdersListView({
                         >
                           {productThumb ? (
                             <img
-                              src={productThumb}
+                              src={imageUrl(productThumb, 'thumb')}
                               alt={productLabel}
                               className="w-full h-full object-cover"
                               loading="lazy"

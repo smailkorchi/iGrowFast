@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDropzone } from 'react-dropzone';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
 
 export const businessSchema = z.object({
     name: z.string().min(2, 'Business name must be at least 2 characters'),
@@ -99,11 +100,18 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
         async (acceptedFiles: File[]) => {
             const file = acceptedFiles[0];
             if (!file) return;
+            const problem = validateImageFile(file);
+            if (problem) {
+                toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+                return;
+            }
             setIsUploading(true);
             try {
-                const fileExt = file.name.split('.').pop();
-                const filePath = `logos/${Math.random()}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage.from('business-logos').upload(filePath, file);
+                const { blob, contentType, ext } = await compressImage(file, 'logo');
+                const filePath = `logos/${Math.random()}.${ext}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('business-logos')
+                    .upload(filePath, blob, { contentType });
                 if (uploadError) throw uploadError;
                 const { data: { publicUrl } } = supabase.storage.from('business-logos').getPublicUrl(filePath);
                 setLogoPreview(publicUrl);

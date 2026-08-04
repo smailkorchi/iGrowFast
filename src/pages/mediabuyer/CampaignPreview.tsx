@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -108,7 +109,7 @@ const AdMock: React.FC<{ campaign: Campaign; businessName: string; businessLogo:
             <div className="flex items-center gap-2.5 px-3.5 py-3">
                 <div className="w-9 h-9 rounded-full overflow-hidden bg-ant-light border border-ant-line flex items-center justify-center shrink-0">
                     {businessLogo ? (
-                        <img src={businessLogo} alt="" className="w-full h-full object-cover" />
+                        <img src={imageUrl(businessLogo, 'avatarMd')} alt="" className="w-full h-full object-cover" />
                     ) : (
                         <span className="text-[10px] font-semibold text-ant-ink">{(businessName || 'DG').substring(0, 2).toUpperCase()}</span>
                     )}
@@ -130,7 +131,7 @@ const AdMock: React.FC<{ campaign: Campaign; businessName: string; businessLogo:
                     current.type === 'video' ? (
                         <video src={current.url} className="w-full h-full object-cover" controls muted playsInline loop />
                     ) : (
-                        <img src={current.url} alt="" className="w-full h-full object-cover" />
+                        <img src={imageUrl(current.url, 'card')} alt="" className="w-full h-full object-cover" />
                     )
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-ant-mid/40">

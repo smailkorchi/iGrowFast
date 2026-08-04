@@ -182,6 +182,7 @@ export function invitationReason(reason?: string): string {
         case 'invalid_username': return 'Username must be at least 3 characters.';
         case 'invalid_name': return 'Enter your full name.';
         case 'weak_password': return 'Password too weak. Choose a stronger one.';
+        case 'invalid_avatar': return 'That photo was rejected. Pick a JPG, PNG or WEBP image.';
         // Email-deliverability check (signup-email action=check/send)
         case 'disposable': return 'Disposable or temporary email addresses are not allowed.';
         case 'no_mx': return 'This email domain can’t receive mail. Check the address.';

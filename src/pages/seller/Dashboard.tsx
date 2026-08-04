@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { imageUrl } from '@/lib/imageUrl';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { type CommissionBasis } from '@/lib/commercialCommission';
 import {
@@ -452,7 +453,7 @@ const SellerDashboard = () => {
                                                         <div className="flex items-center gap-3 min-w-0">
                                                             <div className="w-10 h-10 bg-ant-light border border-ant-line rounded-xl flex items-center justify-center overflow-hidden shrink-0">
                                                                 {order.product_image ? (
-                                                                    <img src={order.product_image} alt="" className="w-full h-full object-cover" />
+                                                                    <img src={imageUrl(order.product_image, 'thumb')} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
                                                                     <ShoppingCart className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                                                                 )}
@@ -544,7 +545,7 @@ const SellerDashboard = () => {
                                 <div className="flex items-start gap-4">
                                     <div className="w-16 h-16 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center overflow-hidden shrink-0">
                                         {topProduct.image ? (
-                                            <img src={topProduct.image} alt={topProduct.name} className="w-full h-full object-cover" />
+                                            <img src={imageUrl(topProduct.image, 'thumb')} alt={topProduct.name} className="w-full h-full object-cover" />
                                         ) : (
                                             <Truck className="w-6 h-6 text-ant-mid" strokeWidth={1.5} />
                                         )}

@@ -62,6 +62,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
+import { imageUrl } from '@/lib/imageUrl';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -451,15 +453,21 @@ const Accessories = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const problem = validateImageFile(file);
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
+
         setIsUploading(true);
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `acc_${Math.random().toString(36).substring(2)}.${fileExt}`;
+            const { blob, contentType, ext } = await compressImage(file, 'product');
+            const fileName = `acc_${Math.random().toString(36).substring(2)}.${ext}`;
             const filePath = `${fileName}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('products')
-                .upload(filePath, file);
+                .upload(filePath, blob, { contentType });
 
             if (uploadError) throw uploadError;
 
@@ -722,7 +730,7 @@ const Accessories = () => {
                                                     <td className="px-5 py-3 text-[12px] text-ant-ink">
                                                         <div className="flex items-center gap-2.5">
                                                             {a.image_url ? (
-                                                                <img src={a.image_url} alt={a.name} className="w-8 h-8 rounded-lg object-cover border border-ant-line shrink-0" />
+                                                                <img src={imageUrl(a.image_url, 'thumb')} alt={a.name} className="w-8 h-8 rounded-lg object-cover border border-ant-line shrink-0" />
                                                             ) : (
                                                                 <div className="w-8 h-8 rounded-lg bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center shrink-0">
                                                                     <Puzzle className="w-3.5 h-3.5 text-ant-orange" />
@@ -835,7 +843,7 @@ const Accessories = () => {
                                             <div className="relative aspect-[4/3] overflow-hidden bg-ant-light">
                                                 {accessory.image_url ? (
                                                     <img
-                                                        src={accessory.image_url}
+                                                        src={imageUrl(accessory.image_url, 'card')}
                                                         alt={accessory.name}
                                                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                                                     />
@@ -935,7 +943,7 @@ const Accessories = () => {
                                         <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
                                             <div className="relative h-16 w-16 shrink-0 rounded-xl overflow-hidden bg-ant-light border border-ant-line">
                                                 {accessory.image_url ? (
-                                                    <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover" />
+                                                    <img src={imageUrl(accessory.image_url, 'thumb')} alt={accessory.name} className="h-full w-full object-cover" />
                                                 ) : (
                                                     <div className="flex items-center justify-center h-full w-full text-ant-orange/40">
                                                         <Puzzle className="w-6 h-6" strokeWidth={1.25} />
@@ -1076,7 +1084,7 @@ const Accessories = () => {
                                                 >
                                                     {form.watch('image_url') ? (
                                                         <>
-                                                            <img src={form.getValues('image_url')!} className="w-full h-full object-cover" alt="Preview" />
+                                                            <img src={imageUrl(form.getValues('image_url'), 'card')} className="w-full h-full object-cover" alt="Preview" />
                                                             <div className="absolute inset-0 bg-ant-ink/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-ant-paper px-3 py-1 text-[11px] font-semibold text-ant-ink">
                                                                     <Upload className="w-3 h-3" /> Replace
@@ -1261,7 +1269,7 @@ const Accessories = () => {
 
                                                             <div className="w-9 h-9 rounded-lg overflow-hidden bg-ant-light border border-ant-line shrink-0">
                                                                 {product.image_url ? (
-                                                                    <img src={product.image_url} className="w-full h-full object-cover" alt="" />
+                                                                    <img src={imageUrl(product.image_url, 'thumb')} className="w-full h-full object-cover" alt="" />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center">
                                                                         <Package className="w-4 h-4 text-ant-mid" />

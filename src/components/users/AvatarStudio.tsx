@@ -3,8 +3,8 @@ import NiceAvatar, { genConfig } from 'react-nice-avatar';
 import type { AvatarFullConfig } from 'react-nice-avatar';
 import { Shuffle, Upload, ImageIcon, Sparkles, Palette, Glasses, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { blobToDataUrl, compressImage, validateImageFile } from '@/lib/imageCompress';
 
-const OUTPUT_SIZE = 256;
 type Mode = 'generate' | 'upload';
 type Tab = 'Style' | 'Color' | 'Accessories';
 type Cfg = AvatarFullConfig & Record<string, unknown>;
@@ -42,26 +42,10 @@ interface AvatarStudioProps {
     seed?: string;
 }
 
-function fileToSquarePng(file: File, size = OUTPUT_SIZE): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = size; canvas.height = size;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return reject(new Error('no canvas'));
-                const side = Math.min(img.width, img.height);
-                ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-                resolve(canvas.toDataURL('image/png'));
-            };
-            img.onerror = reject;
-            img.src = reader.result as string;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+/** Centre-cropped square, downscaled and re-encoded by the shared compressor. */
+async function fileToAvatarDataUrl(file: File): Promise<string> {
+    const { blob } = await compressImage(file, 'avatar');
+    return blobToDataUrl(blob);
 }
 
 const Segmented = ({ options, value, onChange }: { options: Seg[]; value: string; onChange: (v: string) => void }) => (
@@ -105,6 +89,7 @@ export const AvatarStudio = ({ onChange, seed }: AvatarStudioProps) => {
     const [mode, setMode] = useState<Mode>('generate');
     const [config, setConfig] = useState<Cfg>(() => genConfig(seed || undefined) as Cfg);
     const [uploaded, setUploaded] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const [tab, setTab] = useState<Tab>('Style');
 
     // Generated avatars are saved as config (rendered live everywhere) — no rasterization.
@@ -123,7 +108,14 @@ export const AvatarStudio = ({ onChange, seed }: AvatarStudioProps) => {
 
     const onFile = async (file?: File) => {
         if (!file) return;
-        try { setUploaded(await fileToSquarePng(file)); } catch { /* ignore */ }
+        const problem = validateImageFile(file);
+        if (problem) { setUploadError(problem); return; }
+        setUploadError(null);
+        try {
+            setUploaded(await fileToAvatarDataUrl(file));
+        } catch (e) {
+            setUploadError((e as Error).message);
+        }
     };
 
     const modeBtn = (active: boolean) => cn(
@@ -201,18 +193,21 @@ export const AvatarStudio = ({ onChange, seed }: AvatarStudioProps) => {
                     </div>
                 </div>
             ) : (
-                <label className="flex flex-col items-center justify-center gap-3 h-44 rounded-2xl border border-dashed border-white/15 bg-white/[0.04] hover:border-white/30 cursor-pointer transition overflow-hidden">
-                    {uploaded ? (
-                        <img src={uploaded} alt="" className="w-28 h-28 object-cover rounded-2xl" />
-                    ) : (
-                        <>
-                            <Upload className="w-6 h-6 text-white/50" strokeWidth={1.5} />
-                            <span className="text-[12px] font-semibold text-white/70">Click to upload a photo</span>
-                            <span className="text-[10px] text-white/40">PNG / JPG · cropped to a square</span>
-                        </>
-                    )}
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
-                </label>
+                <div className="space-y-2">
+                    <label className="flex flex-col items-center justify-center gap-3 h-44 rounded-2xl border border-dashed border-white/15 bg-white/[0.04] hover:border-white/30 cursor-pointer transition overflow-hidden">
+                        {uploaded ? (
+                            <img src={uploaded} alt="" className="w-28 h-28 object-cover rounded-2xl" />
+                        ) : (
+                            <>
+                                <Upload className="w-6 h-6 text-white/50" strokeWidth={1.5} />
+                                <span className="text-[12px] font-semibold text-white/70">Click to upload a photo</span>
+                                <span className="text-[10px] text-white/40">PNG / JPG · cropped to a square · 25 Mo max</span>
+                            </>
+                        )}
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+                    </label>
+                    {uploadError && <p className="text-[11px] text-ant-rose">{uploadError}</p>}
+                </div>
             )}
         </div>
     );

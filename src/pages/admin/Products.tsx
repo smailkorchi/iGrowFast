@@ -61,6 +61,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
+import { imageUrl } from '@/lib/imageUrl';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -391,15 +393,21 @@ const Products = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const problem = validateImageFile(file);
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
+
         setIsUploading(true);
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+            const { blob, contentType, ext } = await compressImage(file, 'product');
+            const fileName = `${Math.random().toString(36).substring(2)}.${ext}`;
             const filePath = `${fileName}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('products')
-                .upload(filePath, file);
+                .upload(filePath, blob, { contentType });
 
             if (uploadError) throw uploadError;
 
@@ -615,7 +623,7 @@ const Products = () => {
                                                     <td className="px-5 py-3 text-[12px] text-ant-ink">
                                                         <div className="flex items-center gap-2.5">
                                                             {p.image_url ? (
-                                                                <img src={p.image_url} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-ant-line shrink-0" />
+                                                                <img src={imageUrl(p.image_url, 'thumb')} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-ant-line shrink-0" />
                                                             ) : (
                                                                 <div className="w-8 h-8 rounded-lg bg-ant-ink/5 border border-ant-line flex items-center justify-center shrink-0">
                                                                     <Package className="w-3.5 h-3.5 text-ant-mid" />
@@ -732,7 +740,7 @@ const Products = () => {
                                             <div className="relative aspect-[4/3] overflow-hidden bg-ant-light">
                                                 {product.image_url ? (
                                                     <img
-                                                        src={product.image_url}
+                                                        src={imageUrl(product.image_url, 'card')}
                                                         alt={product.name}
                                                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                                                     />
@@ -853,7 +861,7 @@ const Products = () => {
                                         <ImageHoverPreview imageUrl={product.image_url} name={product.name} code={product.code}>
                                             <div className="relative h-16 w-16 shrink-0 rounded-xl overflow-hidden bg-ant-light border border-ant-line">
                                                 {product.image_url ? (
-                                                    <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                                                    <img src={imageUrl(product.image_url, 'thumb')} alt={product.name} className="h-full w-full object-cover" />
                                                 ) : (
                                                     <div className="flex items-center justify-center h-full w-full text-ant-mid/40">
                                                         <ImageIcon className="w-6 h-6" strokeWidth={1.25} />
@@ -1005,7 +1013,7 @@ const Products = () => {
                                                 >
                                                     {form.watch('image_url') ? (
                                                         <>
-                                                            <img src={form.getValues('image_url')!} className="w-full h-full object-cover" alt="Preview" />
+                                                            <img src={imageUrl(form.getValues('image_url'), 'card')} className="w-full h-full object-cover" alt="Preview" />
                                                             <div className="absolute inset-0 bg-ant-ink/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-ant-paper px-3 py-1 text-[11px] font-semibold text-ant-ink">
                                                                     <Upload className="w-3 h-3" /> Replace

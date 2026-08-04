@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     AccessoryPreviewDialog,
@@ -253,7 +254,7 @@ const Accessories = () => {
                                         title={`${a.name}: ${Number(a.stock ?? 0)} units`}
                                     >
                                         {a.image_url ? (
-                                            <img src={a.image_url} alt={a.name} className="w-full h-full object-cover" />
+                                            <img src={imageUrl(a.image_url, 'thumb')} alt={a.name} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full bg-ant-light flex items-center justify-center">
                                                 <Puzzle className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
@@ -342,7 +343,7 @@ const Accessories = () => {
                                         <div className="relative aspect-square overflow-hidden bg-ant-light">
                                             {accessory.image_url ? (
                                                 <img
-                                                    src={accessory.image_url}
+                                                    src={imageUrl(accessory.image_url, 'card')}
                                                     alt={accessory.name}
                                                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                                                 />
@@ -399,7 +400,7 @@ const Accessories = () => {
                                     <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
                                         <div className="relative h-14 w-14 shrink-0 rounded-xl overflow-hidden border border-ant-line bg-ant-light">
                                             {accessory.image_url ? (
-                                                <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover" />
+                                                <img src={imageUrl(accessory.image_url, 'thumb')} alt={accessory.name} className="h-full w-full object-cover" />
                                             ) : (
                                                 <div className="flex items-center justify-center h-full w-full text-ant-mid">
                                                     <Puzzle className="w-5 h-5" strokeWidth={1.75} />

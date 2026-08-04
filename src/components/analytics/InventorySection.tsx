@@ -5,6 +5,7 @@ import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PackageOpen, AlertTriangle, Box } from 'lucide-react';
 import { LOW_STOCK_THRESHOLD } from '@/lib/analyticsDefinitions';
+import { imageUrl } from '@/lib/imageUrl';
 
 /**
  * `inventory` section of admin_analytics_stats (D3). Catalog counts, stock
@@ -147,7 +148,7 @@ export const InventorySection = ({ stats }: InventorySectionProps) => {
                                                         <td className="py-1.5">
                                                             <div className="flex items-center gap-2">
                                                                 {p.image_url ? (
-                                                                    <img src={p.image_url} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-ant-ink/5 shrink-0" />
+                                                                    <img src={imageUrl(p.image_url, 'thumb')} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-ant-ink/5 shrink-0" />
                                                                 ) : (
                                                                     <div className="w-6 h-6 rounded-sm bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
                                                                         <Box className="w-3 h-3 text-ant-line" />

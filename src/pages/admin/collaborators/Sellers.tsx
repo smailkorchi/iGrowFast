@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { UserAvatar } from '@/components/users/UserAvatar';
 
 
@@ -813,7 +814,7 @@ const Sellers = () => {
                                             <div key={i} className="flex items-center gap-2.5 py-1.5 border-b border-ant-line last:border-0">
                                                 <div className="w-8 h-8 bg-ant-light rounded-lg border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
                                                     {p.image ? (
-                                                        <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                                                        <img src={imageUrl(p.image, 'thumb')} alt={p.name} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <Package className="w-3.5 h-3.5 text-ant-mid" />
                                                     )}

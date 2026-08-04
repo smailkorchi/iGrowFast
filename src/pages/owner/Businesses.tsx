@@ -43,6 +43,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { compressImage, validateImageFile } from '@/lib/imageCompress';
+import { imageUrl } from '@/lib/imageUrl';
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from '@/components/users/UserAvatar';
 import { useDropzone } from 'react-dropzone';
@@ -701,7 +703,7 @@ const BusinessCard = ({ business, onEdit, onDelete }: CardProps) => {
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="h-10 w-10 rounded-xl bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
                             {business.logo ? (
-                                <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
+                                <img src={imageUrl(business.logo, 'logo')} alt="" className="w-full h-full object-contain p-1" />
                             ) : (
                                 <Building2 className="w-4 h-4 text-ant-mid" />
                             )}
@@ -756,7 +758,7 @@ const BusinessListItem = ({ business, onEdit, onDelete }: CardProps) => (
             <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
                     {business.logo ? (
-                        <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
+                        <img src={imageUrl(business.logo, 'logo')} alt="" className="w-full h-full object-contain p-1" />
                     ) : (
                         <Building2 className="w-4 h-4 text-ant-mid" />
                     )}
@@ -970,6 +972,7 @@ type CreateAdminModalProps = {
 };
 
 const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: CreateAdminModalProps) => {
+    const { toast } = useToast();
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
@@ -988,21 +991,34 @@ const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: CreateAdminMod
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
+        if (!file) return;
+        const problem = validateImageFile(file);
+        if (problem) {
+            toast({ title: 'Fichier refusé', description: problem, variant: 'destructive' });
+            return;
+        }
         setAvatar(file);
         setAvatarPreview(URL.createObjectURL(file));
-    }, []);
+    }, [toast]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] }, multiple: false });
 
     const handleSubmit = async (values: z.infer<typeof adminUserSchema>) => {
         const finalValues = { ...values };
         if (avatar) {
-            const fileExt = avatar.name.split('.').pop();
-            const filePath = `avatars/${Math.random()}.${fileExt}`;
-            const { error: uploadError } = await supabase.storage.from('avatar').upload(filePath, avatar);
-            if (!uploadError) {
-                const { data: { publicUrl } } = supabase.storage.from('avatar').getPublicUrl(filePath);
-                finalValues.avatar_url = publicUrl;
+            try {
+                const { blob, contentType, ext } = await compressImage(avatar, 'avatar');
+                const filePath = `avatars/${Math.random()}.${ext}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('avatar')
+                    .upload(filePath, blob, { contentType });
+                if (!uploadError) {
+                    const { data: { publicUrl } } = supabase.storage.from('avatar').getPublicUrl(filePath);
+                    finalValues.avatar_url = publicUrl;
+                }
+            } catch (e) {
+                toast({ title: 'Photo non traitée', description: (e as Error).message, variant: 'destructive' });
+                return;
             }
         }
         onSubmit(finalValues);

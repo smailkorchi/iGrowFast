@@ -74,6 +74,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -260,7 +261,7 @@ const ProductThumb: React.FC<{ src?: string | null; alt: string; size?: number }
         >
             {src && !failed ? (
                 <img
-                    src={src}
+                    src={imageUrl(src, 'thumb')}
                     alt={alt}
                     loading="lazy"
                     className="h-full w-full object-cover"
@@ -818,7 +819,7 @@ const AdsHistory = () => {
                                         <div className="flex justify-between items-start gap-2">
                                             <div className="flex gap-3 items-start min-w-0">
                                                 {h.products?.image_url ? (
-                                                    <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-11 h-11 rounded-xl object-cover border border-ant-line shrink-0" />
+                                                    <img src={imageUrl(h.products.image_url, 'thumb')} alt={h.products.name || 'product'} className="w-11 h-11 rounded-xl object-cover border border-ant-line shrink-0" />
                                                 ) : (
                                                     <div className="w-11 h-11 bg-ant-light border border-ant-line rounded-xl flex items-center justify-center shrink-0">
                                                         <Package className="w-4 h-4 text-ant-mid" />
@@ -1093,7 +1094,7 @@ const AdsHistory = () => {
                                     <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line shrink-0">
                                         <div className="flex items-start gap-4">
                                             {selectedHistory.products?.image_url ? (
-                                                <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-14 h-14 rounded-xl object-cover border border-ant-line shrink-0" />
+                                                <img src={imageUrl(selectedHistory.products.image_url, 'thumb')} alt={selectedHistory.products.name} className="w-14 h-14 rounded-xl object-cover border border-ant-line shrink-0" />
                                             ) : (
                                                 <div className="w-14 h-14 bg-ant-light border border-ant-line rounded-xl flex items-center justify-center shrink-0">
                                                     <Package className="w-5 h-5 text-ant-mid" />

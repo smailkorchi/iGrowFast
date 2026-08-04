@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { imageUrl } from '@/lib/imageUrl';
 import { Box, ChevronDown, ChevronRight, ShoppingBag } from 'lucide-react';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
@@ -398,7 +399,7 @@ function ProductHeaderRow({
         >
             <div className="flex items-center gap-2 min-w-0">
                 {product.image_url ? (
-                    <img src={product.image_url} alt="" className="w-7 h-7 rounded-md object-cover bg-ant-line-soft shrink-0 border border-ant-line" />
+                    <img src={imageUrl(product.image_url, 'thumb')} alt="" className="w-7 h-7 rounded-md object-cover bg-ant-line-soft shrink-0 border border-ant-line" />
                 ) : (
                     <div className="w-7 h-7 rounded-md bg-ant-line-soft flex items-center justify-center shrink-0 border border-ant-line">
                         <Box className="w-3.5 h-3.5 text-ant-mid" />

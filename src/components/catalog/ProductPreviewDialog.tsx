@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Edit2, Trash2, RotateCcw, Power, Package, X } from 'lucide-react';
+import { imageUrl } from '@/lib/imageUrl';
 
 export type ProductPreviewRow = {
     id: string;
@@ -152,7 +153,7 @@ export function ProductPreviewDialog({
                             <div className="relative w-full sm:w-[220px] shrink-0 aspect-square rounded-2xl border border-ant-line bg-ant-light overflow-hidden">
                                 {product.image_url ? (
                                     <img
-                                        src={product.image_url}
+                                        src={imageUrl(product.image_url, 'card')}
                                         alt={product.name}
                                         className="absolute inset-0 h-full w-full object-cover"
                                     />

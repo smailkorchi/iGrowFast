@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { imageUrl } from '@/lib/imageUrl';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { type CommissionBasis } from '@/lib/commercialCommission';
 import {
@@ -514,7 +515,7 @@ const SellerStatistics = () => {
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <div className="w-10 h-10 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center overflow-hidden shrink-0">
                                                         {prod.image ? (
-                                                            <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                                                            <img src={imageUrl(prod.image, 'thumb')} alt={prod.name} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <ShoppingBag className="w-4 h-4 text-ant-mid" strokeWidth={1.75} />
                                                         )}
