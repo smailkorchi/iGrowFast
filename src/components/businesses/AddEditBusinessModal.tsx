@@ -108,7 +108,15 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
             setIsUploading(true);
             try {
                 const { blob, contentType, ext } = await compressImage(file, 'logo');
-                const filePath = `logos/${Math.random()}.${ext}`;
+                // Tenant-scoped path when we know the business (edit mode): the
+                // business-logos policies key on the FIRST segment being the business id.
+                // Creating a NEW business has no id yet — the row does not exist — so that
+                // one case still writes the legacy unscoped path. This modal is owner-only
+                // (pages/owner/Businesses.tsx) and is_owner() is allowed in any folder, so
+                // it keeps working after the legacy branch is removed from the policies.
+                const filePath = initialData?.id
+                    ? `${initialData.id}/logo-${Date.now()}.${ext}`
+                    : `logos/${Math.random()}.${ext}`;
                 const { error: uploadError } = await supabase.storage
                     .from('business-logos')
                     .upload(filePath, blob, { contentType });
@@ -122,7 +130,7 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                 setIsUploading(false);
             }
         },
-        [form, toast]
+        [form, toast, initialData?.id]
     );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({

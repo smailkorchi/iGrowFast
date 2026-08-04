@@ -459,11 +459,18 @@ const Accessories = () => {
             return;
         }
 
+        if (!activeBusinessId) {
+            toast({ title: 'Upload failed', description: 'No active business selected.', variant: 'destructive' });
+            return;
+        }
+
         setIsUploading(true);
         try {
             const { blob, contentType, ext } = await compressImage(file, 'product');
             const fileName = `acc_${Math.random().toString(36).substring(2)}.${ext}`;
-            const filePath = `${fileName}`;
+            // Tenant-scoped path: the storage policies key on the FIRST segment being
+            // the caller's business id (see Products.tsx).
+            const filePath = `${activeBusinessId}/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('products')

@@ -146,19 +146,23 @@ async function uploadBrandingAsset(businessId: string, kind: 'logo' | 'cachet' |
     // devis / bon de livraison PDFs, which decode PNG and JPEG only, and the
     // stamps need their transparency.
     const { blob, contentType, ext } = await compressImage(file, 'logo');
-    const path = `profile/${businessId}/${kind}-${Date.now()}.${ext}`;
     // #44 (owner-decided): cachet + signature are legal stamping assets — they
     // go to the PRIVATE business-stamps bucket and are STORED AS PATHS
     // (consumers resolve via resolveStampUrl → signed URL). Plain logos stay
     // public in business-logos.
     if (kind === 'logo') {
-        const { error } = await supabase.storage.from('business-logos').upload(path, blob, { contentType });
+        // Tenant-scoped path: the business-logos policies key on the FIRST segment
+        // being the caller's business id. (business-stamps below keeps its own
+        // `profile/<business id>/…` shape — its policies match on segment 2.)
+        const logoPath = `${businessId}/${kind}-${Date.now()}.${ext}`;
+        const { error } = await supabase.storage.from('business-logos').upload(logoPath, blob, { contentType });
         if (error) throw error;
         const {
             data: { publicUrl },
-        } = supabase.storage.from('business-logos').getPublicUrl(path);
+        } = supabase.storage.from('business-logos').getPublicUrl(logoPath);
         return publicUrl;
     }
+    const path = `profile/${businessId}/${kind}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('business-stamps').upload(path, blob, { contentType });
     if (error) throw error;
     return path;
