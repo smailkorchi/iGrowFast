@@ -224,7 +224,17 @@ Deno.serve(async (req) => {
           const { error: upErr } = await service.storage.from("avatar")
             .upload(path, decoded.bytes, { contentType: decoded.contentType, upsert: true });
           if (!upErr) {
-            avatarUrl = service.storage.from("avatar").getPublicUrl(path).data.publicUrl;
+            // getPublicUrl builds the URL from the client's own base, which inside this
+            // container is the INTERNAL docker hostname (SUPABASE_URL=http://kong:8000).
+            // Persisting that gives every invitee a permanently broken avatar — the bytes
+            // upload fine, but no browser can resolve the host. Swap it for the public
+            // origin the container already knows.
+            const internalOrigin = Deno.env.get("SUPABASE_URL") ?? "";
+            const publicOrigin = Deno.env.get("SUPABASE_PUBLIC_URL") || internalOrigin;
+            const built = service.storage.from("avatar").getPublicUrl(path).data.publicUrl;
+            avatarUrl = internalOrigin && publicOrigin !== internalOrigin
+              ? built.replace(internalOrigin, publicOrigin)
+              : built;
           }
         }
       } catch (avErr) {
