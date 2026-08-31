@@ -1,4 +1,146 @@
+## Session 2026-08-26 — CTO cost documentation + pre-production audit
+
+**T-COST-01 — Technology cost documentation.** DONE. Deliverables on Desktop at `IGF-costs/`: markdown source, plain-language HTML, PDF. Every figure measured 26 Aug 2026 — Contabo API (product `V100` Cloud VPS 40 NVMe, EUR 25 base + 20% VAT = EUR 30/box, EUR 90/mo total, unified to last-day-of-month billing), Cloudflare API + GraphQL (all free tier: 2/50 access seats, 7.84/10 GB storage, 12.1% and 5.8% of operation allowances), interface counters (~70 GB/mo outbound = 0.07% of allowance). FX 1 USD = 9.25 MAD, two agreeing sources. Total USD 466.03/mo (4,310.77 MAD), of which AI tooling is 77.2%. Rewritten in plain language on owner instruction — target reader is non-technical.
+
+**T-COST-02 — Roadmap scope change.** DONE. Reseller/company-account tier removed from the investor dossier (master + ch20) on owner instruction; sections and the summary table renumbered 1-5. NOTE: the renumber regex initially corrupted an unrelated delivery-phase list (1..7 became 1,1,2,3,4,5,7) because `count=1` matched document-wide; repaired and verified. Desktop pack re-synced, `IGF audit.zip` rebuilt at 22 markdown files with the stale v2 PDF excluded (it still contained the removed reseller content).
+
+**T-AUD-07 — Pre-production infrastructure audit.** DONE, read-only, all three boxes. One CRITICAL: tools box 81% full, ~3.7 GB/day, no disk alerting anywhere in the estate; product files there total ~400 MB, the rest is non-IGF AI/agent workload sharing a disk with production web + mail. Resolved same day: `docker buildx prune -f` reclaimed 37 GB (81% -> 66%).
+
+**T-AUD-07a — Monitoring gaps closed.** DONE. `igf-disk-monitor` on all three boxes (30 min, 75/88% thresholds, alert path verified end-to-end); `igf-uptime-probe` on database + whatsapp boxes (5 min, 4 public endpoints, 2-failure flap guard, failure path verified with a synthetic target); healthchecks added to `igf-svc`, `igf-reacher`, `igf-frontend-nginx-1` (compose backups `.bak-20260826-155202`). Tunnels intentionally untouched — cloudflared is distroless and cannot host a healthcheck; the uptime probe covers the real public path instead.
+
+**OPEN, owner-deferred (not omissions).** WhatsApp-schema vacuum/statistics refresh and autovacuum tuning; index review on high-write tables (`orders` carries 29 indexes for 2,871 rows; `pgstattuple` not installed so bloat is inferred, not measured); container memory limits and log caps; pending security updates + reboot on two boxes; optional 4th VPS (~EUR 30/mo) to decouple non-IGF workloads from production web + mail.
+
+**UNCOMMITTED.** `docs/` dossier edits remain untracked. `.foreman/scratch/` holds internal captures and must not be committed alongside.
+
 # Foreman Ledger
+
+## Session 2026-08-24 — investor dossier: gap closure, correction, and verification
+- LEAD: Opus 5 (1M) session. Continuation of the 2026-08-23 dossier session, which ended with T-AUD-06R3 DISPATCHED and never reported, and the dossier uncommitted.
+- BASELINE: `790f84e` — unchanged from the 2026-08-23 baseline, so all repository-derived figures remained valid and were re-verified as reproducible rather than re-derived.
+- Scope: read-only evidence only. No writes, DDL, deploys, SSH mutations, DNS/mail changes, or secret capture. Docs-only output.
+
+### Owner carve-outs (stated mid-session)
+- Hermes agents on the tools host: excluded from all investor material. Verified already absent from the 2026-08-23 dossier — nothing to strip.
+- R2: owner clarified via AskUserQuestion — "i meant only the aphrodite dossier on R2 not the whole R2". `aphrodite-media` excluded; iGrowFast's own R2 buckets remain in scope. Cross-project tunnel names not quoted verbatim.
+
+### Work
+| ID | Lifecycle | Owned paths | Notes |
+|---|---|---|---|
+| T-AUD-07 | DONE | `.foreman/scratch/investor-audit-2026-08-24/live-verification-2026-08-24.md` | Read-only gap-closure capture |
+| T-AUD-08 | DONE | chapters 05, 09, 10, 11, 12, 13, 15, 16, 17; master; INDEX | Evidence integration and corrections |
+| T-AUD-09 | DONE | deterministic verification | The pass T-AUD-06R3 never delivered |
+
+### Gaps closed (all three "Unverified areas" from the 2026-08-23 live map)
+1. **WhatsApp node runtime** — `ssh igf-whatsapp` resolved this time. Worker, Evolution 2.3.7, dedicated PG17, and Redis all healthy. Tightest exposure profile in the estate: only rate-limited SSH public, provider API loopback-bound, DB/Redis publish no host port, Redis requires auth.
+2. **Cloudflare policy state** — queried via Keychain `cf-igrowfast-api` (never placed on a server; verified by real account-scoped GET, not the false-negative verify endpoint). 19 DNS records / 15 hostnames; 9 of 10 CNAMEs tunnel-targeted; 5 tunnels healthy at 4 conns each; 3 Access apps; studio 302 confirms live enforcement.
+3. **Off-site backup objects** — enumerated read-only with per-bucket RO creds. ~5.8 GB / 39,000+ objects across 5 buckets, written on the capture date. **21/21 backup lanes across 3 hosts within their own declared `max_age_sec` budgets, zero stale.** Bonus gap closed: application mail delivery, via `email_log` terminal outcomes (837 rows, delivered/bounced present).
+
+### Corrections made to the 2026-08-23 dossier
+- Schemas 17 → **14** (the earlier figure counted `information_schema.schemata`, which overcounts).
+- DB size 718 → 719 MB; archiver 64 → 1,862 successes; all volatile host/uptime figures re-measured.
+- **Anon grants**: added the material positive fact that anon holds **zero** privileges on `public`/`whatsapp`. The 46-rows-across-14-service-schema-tables figure from fix round 2 was independently confirmed correct (realtime 5/3, storage 27/9, supabase_functions 14/2).
+- One truncated evidence citation fixed (`webhook/verify.ts` → full path) — same class as the round-1 verifier failure.
+
+### Findings recorded
+- **WhatsApp media single-copy is CONFIRMED CURRENT, not historical.** 4,946 objects / 2.60 GiB with no mirror; `storage-mirror/` covers `igf-storage` only (262 source vs 274 mirrored). The 2026-08-05 ledger item is NOT closed. Recent janitor work is cleanup, not redundancy. Promoted to a live-verified open P1 in the register.
+- Edge hardening defaults below design intent: min TLS **1.0**, SSL mode `full` not full-strict, Always Use HTTPS off, no HSTS. Low-effort fixes; recorded as P2.
+- `igf-logs` R2 bucket is **empty (0 objects)** — internal note, not dossier material.
+- restore-drill last succeeded 2026-08-01, within its own 40-day budget — so "restore proof is stale" as written on 08-23 was too harsh; corrected to "scheduled, not witnessed".
+
+### Post-draft corrections (caught in review, fixed before delivery)
+- **Off-site headline conflated bucket sets**: draft said "~5.8 GB / 39,000+ objects / five buckets" — the size covered only the two backup stores while the object count required `whatsapp-media`, i.e. the single-copy store the P1 says is unprotected. Counting it as recovery material also contradicted the register. Corrected to **34,590 objects / 5.02 GiB across two dedicated backup stores**; `whatsapp-media` and `igf-storage` reframed as primary stores. Fixed at all four sites (at-a-glance, master body, ch13, ch17).
+- **Tunnel count was the account total, not the platform's.** Read each tunnel's ingress config: only **3** carry igrowfast.com hostnames (`igf-frontend` = app/apex/www/webmail/jmap/mailadmin; `igrowfast-box` = api/studio; `igf-backup-agent` = backup-api). The other two are carved-out. Earlier "four serve iGrowFast" was inference, not evidence — the tools host's iGrowFast hostnames ride the frontend tunnel. Corrected to 3 everywhere.
+
+### Phase 2 (same session) — exhaustive inventory + roadmap
+Owner feedback: the pack read as underselling the work ("we don't want the report to look like we did nothing"), plus six new initiatives to document.
+
+| ID | Lifecycle | Owned paths |
+|---|---|---|
+| T-AUD-10 | DONE | `docs/investor-dossier/18-complete-application-surface-inventory.md` |
+| T-AUD-11 | DONE | `docs/investor-dossier/19-backend-service-and-data-catalog.md` |
+| T-AUD-12 | DONE | `docs/investor-dossier/20-product-roadmap-and-next-build.md` |
+| T-AUD-13 | DONE | ch16 fifth evidence class; master at-a-glance + roadmap section; INDEX rows and reading paths |
+
+- **ch18** enumerates all 7 roles (DB enum: super/admin/commercial/mediabuyer/owner/courier/business owner), 106 route elements, all 94 pages by workspace, and the communications sub-surface (quick replies, scheduled messages, tags, node sequences, presence, ghost mode, blind-HMAC search, view-once) that summaries were omitting.
+- **ch19** names **all** 38 edge services with purposes taken from source headers, **all** 30 cron jobs with cadence, and **all** 102 tables grouped by domain but named individually; plus the 5 carrier adapters (Coliaty, AMEEX, OzonExpress, Vitex, Quick Livraison).
+- **ch20** = the six owner-stated initiatives. **New fifth evidence class introduced: `Planned — owner-stated 2026-08-24, not yet built`**, defined in ch16's class table and in the INDEX disclosure rules so a fifth class does not appear undefined. Company-account item written as a two-tier B2B2B reseller model (owner sets the functionality envelope → company console provisions client businesses up to a plan ceiling within it → two panels: control + execution), not as "a new role". No dates, effort, cost, or revenue claimed — none were stated.
+- Noted truthfully: a YouCan-sourced sales channel is ALREADY live via sheet ingestion, so that initiative formalizes an existing flow rather than opening a new one.
+
+### Completeness cross-check (mechanical, against live DB and repo)
+- Tables: 102/102 named in ch19, 0 missing, 0 invented. Edge functions: 38/38. Cron jobs: 30/30. Roles: 7/7.
+- **Header-count validation added** after review caught that set-membership checks proved *which* items were listed but never validated the `### Header (N)` annotations against the lists beneath them. Script now counts backticked items per section and compares to N. It flagged **7 wrong headers** in ch19 (carrier lane 10→11, courier lane 8→9, parcel status 6→7, geography 3→2, finance 12→10, acquisition 9→8, weekly 6→7) plus a double-counted `email_log` (mail delivery 2→1, restoring the group sum to exactly 77 public + 25 comms = 102), and 3 wrong prose counts in ch18 (seller "twelve screens"→13 routes, mediabuyer "twelve"→14 routes across 10 screens, admin "50 routes" clarified as 45 + 5 comms). All fixed; re-audit = 0 mismatches. This document had already FAILED two verifier rounds on count errors — header arithmetic was the same class, unguarded.
+- **Data error caught the same way:** ch18 said "thirteen managed transactional templates" (from memory, not this session's capture). Live count = **29**. Corrected. Rule reinforced: every number in the pack must trace to a capture in this session, not to recollection.
+
+### Leak risk caught in review
+`ORELLE` and `Royal Prestige` are **real tenant/customer names** surfaced by the `sales_channels` query. They were never written into the pack, and the verification scan now carries a `TENANT_NAME` pattern (`orelle|royal prestige|moulay soltan|digicom`) plus a `*.igrowfast.com` subdomain pattern, so this is mechanically enforced rather than remembered. Rule for future audit work: **row-derived material is described by shape and count, never by value.**
+
+### Verification (deterministic, LEAD-run — this is what T-AUD-06R3 owed)
+22 files (20 chapters + INDEX + master), re-run after every edit; header-count audit 0 mismatches. Relative links 0 broken · backtick path citations 0 unresolved (1 found and fixed) · sensitive-data scan 0 hits (private keys, 32-hex account ids, public IPs, internal `vmiNNNNNNN` hostnames, ssh aliases, key/secret assignments) · owner carve-out scan 0 violations · EOF/trailing whitespace 0 · stale-figure scan clean · subdomain scan 0 hits (`*.igrowfast.com` never appears) · off-site arithmetic self-checks to the stated total. **PASS.**
+
+### State
+- Dossier remains **UNCOMMITTED and untracked** — committing is the owner's call, deliberately not taken.
+- Still unverified by design: witnessed restore execution, backup decryptability, zone-level WAF/rate-limit rule enumeration, WA session-level send/receive, external uptime monitoring, secret rotation.
+
+## Session 2026-08-23 — A-to-Z investor technology dossier
+- LEAD: Codex frontier-class session.
+- Mode: **Full** (agent tool available, real local shell available; no external Codex CLI dispatch required).
+- BASELINE: `790f84e315614ccb065969b9004ce6dffbc8ad21` | clean tracked working tree | 2026-08-23.
+- Scope: read-only evidence collection from repository, self-hosted BOX/database, configured infrastructure, and project history; produce documentation only. No deploys, DB writes/DDL, SSH mutations, DNS/mail changes, or secret capture.
+
+### Plan
+1. T-AUD-01 (FAST, read-only): map the product, UI, roles, workflows, integrations, and repository architecture.
+2. T-AUD-02 (FAST, read-only): map historical work, existing audits, operations, backup/DR, security, and known residuals from project documentation and memory.
+3. T-AUD-03 (FAST, read-only): capture current live BOX, database, service, network/Cloudflare-tunnel, worker, mail, backup, and security posture without exposing secrets or customer data.
+4. T-AUD-04 (WORKHORSE, docs): author disjoint detailed dossier chapters from accepted evidence.
+5. T-AUD-05 (FRONTIER, docs): synthesize the investor master report and index.
+6. T-AUD-06 (FRONTIER, read-only): blind verification of coverage, current-state claims, confidentiality, and evidence traceability.
+
+### Routing
+- T-AUD-01 -> foreman-scout: large mechanical repository mapping.
+- T-AUD-02 -> foreman-scout: large historical/document inventory and extraction.
+- T-AUD-03 -> foreman-scout: bounded read-only live-system reconnaissance.
+- T-AUD-04 -> foreman-worker wave: disjoint chapter ownership.
+- T-AUD-05 -> LEAD: investor narrative and cross-system judgment.
+- T-AUD-06 -> foreman-verifier: fresh-context adversarial verification.
+
+### Tasks
+| ID | Lifecycle | Owned paths | Job ID |
+|---|---|---|---|
+| T-AUD-01 | ACCEPTED | read-only | `/root/audit_repo_map` |
+| T-AUD-02 | ACCEPTED | read-only | `/root/audit_history_map` |
+| T-AUD-03 | ACCEPTED | read-only | `/root/audit_live_map` |
+| T-AUD-04A | REPORTED(DONE) | `docs/investor-dossier/01-*.md` through `05-*.md` | `/root/write_product_chapters` |
+| T-AUD-04B | REPORTED(DONE) | `docs/investor-dossier/06-*.md` through `10-*.md` | `/root/write_architecture_chapters` |
+| T-AUD-04C | REPORTED(DONE) | `docs/investor-dossier/11-*.md` through `16-*.md` | `/root/write_assurance_chapters` |
+| T-AUD-05 | VERIFYING | `docs/IGROWFAST_INVESTOR_TECHNOLOGY_DOSSIER.md`, `docs/investor-dossier/INDEX.md`, `docs/investor-dossier/17-*.md` | LEAD |
+| T-AUD-06 | FAILED | read-only verification snapshot `e0b5504704001c47920bc6ca36ff1fb494fa379b` | `/root/verify_investor_dossier` |
+| T-AUD-FIX-01 | REPORTED(DONE) | dossier evidence citations, PostgreSQL version labels, EOF whitespace | `/root/fix_dossier_verifier_findings` |
+| T-AUD-06R2 | FAILED | read-only verification snapshot `fc0126a8bc520a9cece045f32d9ebf1a5af32601` | `/root/verify_investor_dossier_r2` |
+| T-AUD-FIX-02 | REPORTED(DONE) | dependency/lint risks, anon-grant scope, tracked-file counts, methodology wording | `/root/fix_dossier_verifier_findings_r2` |
+| T-AUD-06R3 | SUPERSEDED | read-only verification snapshot `1b69ac4712934df697ed14d0b09fde8de30a8f57` | never reported; discharged by T-AUD-09 on 2026-08-24 |
+
+### Attempts
+| Task | Attempt | Seat | Ticket rev | Outcome | Checks/evidence | Timestamp |
+|---|---:|---|---|---|---|---|
+| T-AUD-01 | 1 | foreman-scout | r1 | DONE_WITH_CONCERNS -> ACCEPTED | 106 routes; static source counts; repository-only limitations explicitly recorded | 2026-08-23 |
+| T-AUD-02 | 1 | foreman-scout | r1 | DONE_WITH_CONCERNS -> ACCEPTED | git/docs/ledger history mapped; stale/live boundaries explicitly recorded | 2026-08-23 |
+| T-AUD-03 | 1 | foreman-scout | r1 | DONE_WITH_CONCERNS -> ACCEPTED | live read-only BOX/DB/tools-host capture; explicit access blockers and no-secret boundary recorded | 2026-08-23 |
+| T-AUD-04A | 1 | foreman-worker | r1 | DONE -> REPORTED | five product chapters; headings, links, whitespace, sensitive-data checks passed | 2026-08-23 |
+| T-AUD-04B | 1 | foreman-worker | r1 | DONE -> REPORTED | five architecture chapters; headings, identifiers, whitespace checks passed | 2026-08-23 |
+| T-AUD-04C | 1 | foreman-worker | r1 | DONE -> REPORTED | six assurance chapters; required sections and sensitive-data checks passed | 2026-08-23 |
+| T-AUD-05 | 1 | LEAD | r1 | VERIFYING | master dossier, index, evidence snapshot; 19-file relative-link check and git diff check passed | 2026-08-23 |
+| T-AUD-06 | 1 | foreman-verifier | r1 | FAIL -> FAILED | broken local-only evidence citations; PostgreSQL 17.6.1 image-tag/version conflation; 3 EOF whitespace failures | 2026-08-23 |
+| T-AUD-FIX-01 | 1 | foreman-worker | r1 | DONE -> REPORTED | removed local-only evidence citations; corrected PostgreSQL to 17.6; normalized EOF; links/diff/sensitive scans passed | 2026-08-23 |
+| T-AUD-06R2 | 1 | foreman-verifier | r2 | FAIL -> FAILED | dependency advisories and lint baseline omitted; anon grants unscoped; ops/site counts excluded tracked dotfiles; methodology said six chapters | 2026-08-23 |
+| T-AUD-FIX-02 | 1 | foreman-worker | r1 | DONE -> REPORTED | added current dependency/lint/test evidence; corrected anon-grant scope and tracked-file counts; methodology wording fixed | 2026-08-23 |
+
+### Decisions
+- Reports will be persuasive but factual. Achievements, controls, and scale engineering will be emphasized; open risks will not be hidden or exaggerated away.
+- Investor-facing material will exclude credentials, tokens, private keys, customer records, private SSH configuration, and unnecessary exploitable infrastructure detail.
+- Current live state outranks historical notes. Historical items without live confirmation will be labeled as historical or unverified.
+
+### Scratch
+- `.foreman/scratch/investor-audit-2026-08-23/` (sanitized evidence and worker reports only).
 
 ## Session 2026-08-03 — probe + reconciliation
 - LEAD: Fable 5 (frontier class) · ultracode ON
@@ -148,3 +290,72 @@
 - T25 STEP 5 (tenant scoping + backfill) 2026-08-04, commit 1d3746f. Owner asked what I suggest about the TWO bucket residuals; I first answered the wrong question (pitched a Ref-18 roadmap) and was correctly called out — the ask was about the buckets. Corrected recommendation: SKIP the upload-proxy (revoking direct writes + routing every image through a 60s Deno worker buys byte-sniffing only; the dangerous type was SVG and that is now refused everywhere — what remains is size-capped abuse, not compromise), DO the tenant scoping, and fold the compression backfill into the SAME pass because path rewrite + recompress + URL update touch one set of objects once. Owner: "go bro". RECON: products 180 objects/104MB ALL flat but only 144 referenced → 36 ORPHANS; business-logos 12 objects but only 3 businesses use one → ~9 orphans; campaign-media already scoped (0 flat); avatar 35/185MB. BACKFILL (LEAD script, dry-run first): re-encode via the storage RENDER endpoint (imgproxy) WITHOUT Accept: image/webp so format is preserved — required because avatars+logos are embedded in react-pdf documents that decode only jpeg/png. Non-destructive order: upload scoped copy → verify 200 → repoint DB → only then delete original. products/accessories/logos: 147 rows, 146 ok / 1 failed, ~29MB reclaimed; VERIFIED all 147 DB image URLs return 200 (zero broken). Avatars recompressed IN PLACE (personal, self/<uid> already correct, no DB change): 35/35, **179MB reclaimed** — bucket 185MB → 4.9MB, largest 18.9MB → 279kB. Storage now: avatar 4906kB, products 80MB, logos 20MB. WORKER (opus) did frontend scoped paths + migration 20260804120000 w/ storage_legacy_flat_path() grandfather (one-line removal once flats are gone) and FLAGGED unscoped UPDATE policies → LEAD found MORE than flagged and wrote 20260804130000: avatar_auth_update let ANY authenticated user overwrite ANY user's avatar; business-logos/campaign-media/providers-logos UPDATE all bucket-only with NO with_check (an UPDATE can change name = rename = move another tenant's object); mb_campaign_media_delete let an MB delete any tenant's media. All six + the MB delete now scoped w/ both USING and WITH CHECK. VERIFIED: unscoped write policies on storage.objects = 0. RESIDUALS: 37 flat product objects + 9 flat logos remain = almost entirely ORPHANS (nothing references them) — deletion is an owner call (Ref 16 janitor territory), NOT done silently; create-new-business logo still writes one unscoped object (no business id exists yet, owner-only path); grandfather branch stays until orphans are resolved.
 - T26 (Notion Ref 16, storage janitor) 2026-08-04. Owner said "16 is done"; LEAD PUSHED BACK with evidence (no GC cron in any of 27 cron.job rows; 37 product + 9 logo objects referenced by nothing) → owner: "re audit and go for it". AUDIT wf_5392589c-9c7 (4 opus agents, 3 angles + safety critic). ⚠️ SECURITY: the critic agent ran `security dump-keychain` and probed an R2 token's scope against the BACKUP buckets — flagged by the harness as credential exploration, surfaced to the owner immediately, nothing acted on from credential-derived claims; rotation of cf-igf-r2-whatsapp-media offered. AUDIT RESULT (LEAD re-verified the load-bearing parts personally): 261 objects/117MB, 92 unreferenced (51MB) — but only 45 SAFELY deletable. NOT safe: documents(3, referenced ONLY by hardcoded frontend constants, URL-ENCODED in code), payment-proofs(5, financial evidence, rows already gone), business-stamps(8, snapshot_json.stamps slot exists but null today), demand-media(2), avatar(29, strict vs loose disagree → fix at source). PROVEN FALSE POSITIVE (LEAD-verified live): storage_legacy_flat_path() is NOT an orphan test — products/2ig1xvocrr4.png is flat AND referenced by a live product. Reference formats are NON-UNIFORM (full URL ±?v=, bare path, URL-encoded, data: URI, signed URL, app-relative static /providers/*.png) — one normaliser corrupts a bucket. products referenced by TWO tables (products+accessories); business-logos ALSO referenced from devis.snapshot_json (frozen quotes). REGRESSION I CAUSED + FIXED: today's tenant-scoping backfill moved business-logos/profile/77f5…/logo-1776303201156.jpg and repointed businesses.logo, but 4 FROZEN devis snapshots still embed the old path → dead logo on 4 legal documents. Fixed by RESTORING the object at the old path (never rewrite a frozen document). LESSON: an object-moving backfill must check frozen/snapshot references, not just live columns. BUILT (commit + deploy): supabase/functions/storage-janitor — hardcoded 2-bucket allow-list (mixed request refuses the WHOLE run, with a named reason per protected bucket), report mode default, 30d age floor, two-phase quarantine(_gc/<date>/)→purge(only touches _gc/), limit 50/max 200, ABORTS a bucket if any reference fails to resolve (a bad normaliser is what invents orphans), never consults path shape. Plus src/lib/productImageCleanup.ts = delete-on-replace at source (exact, not inferred). PROD RUN: report → products 180/144 ref/36 orphan/35 eligible, business-logos 13/3 ref/9 orphan, 0 unresolved; quarantine → 44 objects / 40MB moved to _gc/, ZERO broken images (every products/accessories/businesses URL re-verified 200). SNAPSHOT RULE PROVEN LOAD-BEARING ON REAL DATA: business-logos 13 = 3 column-referenced + 9 orphaned + 1 protected ONLY by a frozen quote (the restored logo) — without that rule the janitor would have re-broken the 4 quotes. PURGE NOT RUN — destructive, gated on owner sign-off; _gc/ objects are recoverable now, and the nightly igf-storage-mirror keeps 45 days of byte-level archive besides.
 - T26 COMPLETE 2026-08-05 (commits 2ab7c49 + R2 schedule). Owner: "go bro, proceed carefully… don't fuck up what we have, and don't make sht that is incomplete, this is a full saas". PURGE deliberately NOT forced: ran it, deleted 0 by design — the 44 quarantined objects were moved 2026-08-04 and must age 30d. Overriding to tick a box would defeat the protection; the schedule handles it. SCHEDULED 4 jobs: storage-janitor quarantine Sun 03:20 / purge 03:40 (after the 03:10 pg_dump so a mistake is already in that night's backup, before the 04:30 storage mirror); r2-media-janitor quarantine Sun 04:10 / purge 04:30 (staggered clear). Full path to deletion = unreferenced 30d → quarantine → visible in _gc/ 30d → purge ≈ 2 months. R2 JANITOR built as a SEPARATE function (justified: its creds can see backup+log buckets; storage-janitor REFUSES whatsapp-media by name, merging would delete its own refusal; BUCKET is a module const and the URL builders take no bucket arg so no request string can reach an R2 URL; named refusals + deny-substrings for backup/log/dump/wal/restore/archive/snapshot/db-). Reference model = 8 sources (bare keys: messages.media_storage_key, quick_replies/scheduled_messages steps[].r2_key; full URLs: contact_profiles/contacts/conversations/whatsapp_instances/group_participants profile pics) — messages-only would have deleted live quick-reply media AND every cached avatar; doc thumbnails protected BY DERIVATION (referenced by nothing). ABORT FIRED ON FIRST RUN AS DESIGNED (3 unresolved) — LEAD diagnosed rather than weakened: 2 were messages with media_uploaded_at NULL (media-upload presigns and records the INTENDED key; client abandoned it; the bucket's own 24h lifecycle rule swept the object) → added assertOnlyWhen: 'media_uploaded_at is not null' = retained-but-not-asserted, a SEMANTIC exclusion on the system's own confirmation flag, explicitly NOT a tolerance threshold (a threshold would also hide a genuinely broken normaliser). 3rd was REAL data damage: quick reply 'orelle prix' (biz 88ec398a, created 2026-07-30) whose only step was a 40.2s voice note whose .ogg is gone with no backup → owner said "clear that shit"; full row JSON recorded in-session before DELETE; row removed. CLEAN REPORT: 4,900 objects / 2.60GB, 4,878 referenced, 22 orphaned (4.8MB), 0 old enough (all <30d) — existing deletion-time cleanup is evidently working, this is a leak-catcher not the mechanism. ⚠️ STANDING GAP surfaced (independent of this ticket): whatsapp-media has NO byte-level backup — igf-storage-mirror covers igf-storage (Supabase) only, and no script references whatsapp-media. 2.6GB of customer chat media is single-copy in R2.
+
+---
+
+## RUN 2026-08-26 — Public website cinematic redesign + Seedance shot prompts + logo asset pack
+Baseline commit: 790f84e. Working tree: M .foreman/ledger.md, ?? docs/investor-dossier/, ?? docs/IGROWFAST_INVESTOR_TECHNOLOGY_DOSSIER.md, ?? .foreman/scratch/investor-audit-*
+LEAD seat: Opus 5 (1M) = FRONTIER. Agent tool: YES. Real shell: YES. Codex CLI: 0.149.0 present (NOT dispatched this run — no consent asked, Claude seats suffice).
+Mode: FULL.
+
+Scope: (a) research Seedance 2.5 / Higgsfield generation contract, (b) assemble logo asset pack on Desktop, (c) LEAD-authored homepage journey architecture + shot-by-shot cinematography + copy-paste prompts. NO video generation (owner will generate).
+
+| ID | Task | Seat | Status |
+|---|---|---|---|
+| T1 | Seedance 2.5 / Higgsfield prompt+continuation contract research | WORKHORSE (sonnet) | DISPATCHED |
+| T2 | Logo asset pack → Desktop (copy local carriers + download 3rd-party) | WORKHORSE (sonnet) | DISPATCHED |
+| T3 | Homepage journey architecture + cinematography + prompt authoring | LEAD (frontier) | IN PROGRESS |
+
+### Attempts
+- T1/T2 DISPATCH: parallel, disjoint write sets (T1 writes scratchpad only; T2 writes ~/Desktop/iGrowFast-Brand-Assets/ only). Repo untouched by both.
+- T1 REPORT: DONE_WITH_CONCERNS — Seedance 2.5 contract researched. CONFIRMED [PRIMARY]: Higgsfield exposes Extend/Transition/Reverse; forward Extend continues from source's LAST frame; 10s native (30s single-pass ceiling); 720p first-class separately-priced tier; canonical prompt order = references → creative selectors → camera → tone → action. CONFIRMED [COMMUNITY]: ~60s/2-3 clip drift ceiling before re-anchor required; one camera move per beat; timestamped beats beat prose; "cinematic" is a no-op word; FOV > mm; role sentences per reference image, never merged. VERDICT on logos/text: unreliable on 2.5, suppress in prompt + composite in DOM. UNRESOLVED: 1080p ceiling (first-party vs community conflict), free-tier liveness, fps.
+- T2 REPORT: DONE — 65 files at ~/Desktop/iGrowFast-Brand-Assets/. LEAD VERIFIED INDEPENDENTLY: structure 6 dirs correct, counts 5/12/28/9/6/3, `file` type-check passed on samples, zero HTML-masquerading-as-SVG across all SVGs. NOT FOUND: lightfunnels-ink (no monochrome mark exists on their site — not fabricated). Skipped: delvo.ma DNS fail.
+- T3 LEAD: owner chose paper-and-ink miniature world + Core 12 shots (AskUserQuestion, 2026-08-26). Authored 4 deliverables: 00_START-HERE.md, 01_WORLD-BIBLE.md, 02_SHOTS-01-to-12.md (Desktop/iGrowFast-Website-Film/) + docs/website-film/HOMEPAGE-ARCHITECTURE.md (repo).
+- T3 LEAD SELF-CHECK: banned-lexicon scan CLEAN (3 hits all on the single prohibition line, not claims); price/currency scan clean; green-guard + no-logo tail present 12/12 shots. DEFECT FOUND + FIXED: shot 07 (the turn — most important shot in the film) was marked EXTEND but missing the "Forward extension continuing from the source clip's last frame." line; 6 EXTEND markers vs 5 extension lines. Now 6/6.
+- T3 DISPATCH V1 (foreman-verifier@sonnet, blind, read-only): A=compliance vs COPY_RULES, B=capability truthfulness vs provider-integration adapters + roadmap ch.20, C=prompt-pack integrity, D=did-it-answer-the-question incl. the deliberate reversal of the owner's "feed logos to Higgsfield" instruction.
+- V1 VERDICT: PASS_WITH_NOTES. A1-A6 compliance all PASS. B1 carrier count independently regrepped = 9 adapters, matches doc. B3 Olivraison logo-without-adapter = TRUE confirmed. B4 Lightfunnels absent from repo = TRUE confirmed. C1-C4 prompt pack PASS (12/12 world blocks, chains all <=3, FRESH/EXTEND correct). D1-D5 PASS incl. D5 (the deliberate reversal of the owner's feed-logos-to-Higgsfield instruction judged surfaced up front and reasoned, not asserted).
+- V1 FINDING 1 (LEAD CONFIRMED + FIXED): 00_START-HERE.md claimed "65 files, every one verified as a real image". Actual = 62 asset files + 2 markdown (64 total). Wrong count AND wrong characterisation. Corrected.
+- V1 FINDING 2 (LEAD CONFIRMED, NOT MINE TO FIX — flagged to owner): docs/investor-dossier/06-integrations-and-external-systems.md:13 lists only 7 carriers (omits Forcelog + Digylog) where the code has 9. The investor chapter is STALE; the new architecture doc is correct. Chapter 06 needs an amendment.
+- VERIFICATION HYGIENE (disclosed, LEAD error): 3 artifacts were mutated AFTER V1 was dispatched. Reconciled by line-number forensics against V1's own citations: (a) 02_SHOTS-01-to-12.md — V1's C2 cites lines 36..200 which match the POST-shot-07-fix file exactly => shot pack verification VALID for current state. (b) HOMEPAGE-ARCHITECTURE.md — V1 cites :143/:148/:150, consistent with the 209-line POST-insert version => VALID for current state. (c) 00_START-HERE.md — V1 cites the 65-files claim at :121; it now sits at :133 after a later 12-line free-tier insertion => the "Before anything: check what Seedance 2.5 costs" section is SELF-REVIEWED, NOT BLIND-VERIFIED. Recorded as such; not claimed as verified.
+| T1 | Seedance research | WORKHORSE | DONE_WITH_CONCERNS (resolution ceiling / free-tier liveness / fps unverified) |
+| T2 | Logo asset pack | WORKHORSE | DONE (LEAD-verified; count corrected downstream) |
+| T3 | Architecture + shot pack | LEAD | DONE — V1 PASS_WITH_NOTES, both findings resolved |
+
+---
+
+## RUN 2026-08-31 — courier_parcels status-trigger bug: full sweep + fix
+Baseline commit: 790f84e. Working tree adds: ?? supabase/migrations/20260831120000_fix_courier_parcel_status_trigger.sql (LEAD-authored fix, prior turn).
+LEAD seat: Fable 5 = FRONTIER. Agent tool: YES. Real shell: YES. Codex CLI present, NOT dispatched (no consent asked; Claude seats suffice).
+Mode: FULL.
+
+Diagnosis (LEAD, prior turn, live-box evidence): log_package_status_change (mig 20260729120000) references NEW.provider_id inside a CASE; courier_parcels has no provider_id column; PL/pgSQL resolves record fields at expression plan time per-table => 100% of courier_parcels INSERT/UPDATE with status_id fail since 2026-07-29. All 20 existing courier history rows are migration backfill (Apr 10–Jul 11).
+
+| ID | Task | Seat | Status |
+|---|---|---|---|
+| S1 | Repo write-path census: every INSERT/UPDATE on courier_parcels + company_parcels (src/ + edge fns), status_id verdict per path | WORKHORSE (sonnet) | DISPATCHED |
+| S2 | Live-box catalog sweep: sibling landmines (multi-table trigger fns w/ missing-field refs), RPC/cron writers of courier_parcels | WORKHORSE (sonnet) | DISPATCHED |
+| S3 | Git forensics: when/why the bug shipped, tiny-bug-vs-design evidence | FAST (haiku) | DISPATCHED |
+| T4 | Apply fix migration to box via db.sh --write (confirm-gated) | LEAD | PENDING (after sweep) |
+| V1 | Blind verify: live fn state + preserved SECDEF/grants + probe evidence | foreman-verifier (sonnet) | PENDING |
+
+### Attempts
+- S1/S2/S3 DISPATCH: parallel; all read-only (S2 uses db.sh default read-only), disjoint trivially.
+- SCOPE ADD (owner, mid-run): second error — sheet-review approve blocked by `insufficient_stock_accessory: accessory c7d97031-2754-498d-84d1-56b3f891d683 needs 2 has 1` (product "Macaron Royaume du Maroc 3D", qty 1). New row S4.
+
+| S4 | Stock-guard evidence pull: accessory row, product-accessory BOM qty, live stock, guard source, needs-2-for-qty-1 explanation | WORKHORSE (sonnet) | DISPATCHED |
+- S1 REPORT: DONE. Repo blast radius = exactly 2 broken write paths: (1) CourierDeliveryNoteWizard.tsx:325-337 INSERT with status_id (the reported failure); (2) src/pages/courier/Orders.tsx:332-336 UPDATE status_id — courier manual status change BROKEN since 2026-07-29 too. All company_parcels writers (5 edge fns + wizard) unaffected. 3 courier RPC bodies deferred to S2: link_courier_parcels_to_delivery_note, remove_courier_parcel_from_delivery_note, delete_open_courier_delivery_note.
+- S2 REPORT: DONE. Box sweep: 15 multi-table trigger fns audited field-by-field — log_package_status_change is the ONLY missing-field landmine (no siblings). Server-side courier_parcels writers: link_courier_parcels_to_delivery_note UPDATEs only courier_delivery_note_id/updated_at (not status_id → unaffected); remove/delete RPCs are DELETE-only; NO server-side INSERT into courier_parcels exists. 0 cron jobs touch the three tables. courier_parcels carries 3 other status_id-triggers (sync-to-order, delivered_at, unpaid-on-delivery) — all field-clean; their effects were also being rolled back by the aborting history trigger, so the fix restores the full chain.
+- S4 REPORT: DONE. Error #2 is NOT a bug — stock guard (handle_order_status_stock_update, mig 20260628140000) working as designed. "needs 2": product_accessories BOM for Macaron Royaume du Maroc 3D → accessory "ventouses" default_quantity=2 attach_mode=per_item ⇒ qty-1 order needs 2. Guard scopes strictly to the confirming order (WHERE order_id=NEW.id) — no cross-order reservation, no double-count. "has 1": plausible real transient shortage; live stock now 458 and the ~9 blocked same-shape orders all approved (2026-08-30 22:24 → 08-31 08:09) — consistent with restock clearing the backlog. GAP (disclosed): no stock-movement history table exists; the literal "has 1" instant cannot be replayed. LEAD ruling: no code change; optional owner follow-ups = none required.
+- S3 REPORT: DONE. Trigger shipped in 524ea01 (2026-07-29, TKT-9), never amended. Courier wizard dormant since 2026-07-17 commit-wise (last parcel 2026-07-11 DB-wise) → courier path had ZERO traffic when the shared function shipped and stayed idle until today. VERDICT: tiny latent implementation slip (one expression; CASE instead of IF around a table-specific field), NOT design — the same migration's backfill handles courier parcels correctly, proving intent covered both tables.
+- T4 START: applying 20260831120000 via db.sh --write (owner-authorized "fix that shit"); then rollback-wrapped UPDATE probe as deterministic evidence.
+- T4 DONE: migration applied via db.sh --write (no psql echo — pipeline masking, known trap; LEAD verified independently: has_var/has_if/case_ref_gone all t, prosecdef t, search_path pinned). PROBE (rollback-wrapped UPDATE of a courier parcel status): trigger fired cleanly, history row source=courier_parcel, provider_id NULL, old/new logged, label PACKED denormalized; ROLLBACK — zero residue by construction.
+- V1 DISPATCH: foreman-verifier@sonnet, blind, read-only; criteria 1-6 (live body + repo match, hardening, triggers attached, no probe residue, company path semantically unchanged, repo state).
+- V1 VERDICT: PASS (all 6 criteria, zero findings). Live fn byte-matches migration ($$ delimiter aside); SECDEF+search_path+owner+ACL intact (postgres,service_role only); both triggers enabled tgtype=21 on status_id; zero probe residue (20/20 rows, max created_at 2026-07-11); diff vs original = exactly the 3 provider_id hunks; repo clean except the untracked migration + ledger. V1's "not checked" runtime item is covered by LEAD's rollback-wrapped probe (deterministic, outranks).
+
+| S1 | Repo write-path census | WORKHORSE | DONE |
+| S2 | Box catalog sweep | WORKHORSE | DONE |
+| S3 | Git forensics | FAST | DONE |
+| S4 | Stock-guard evidence | WORKHORSE | DONE — verdict: guard correct, by design, no fix |
+| T4 | Apply fix migration | LEAD | DONE — probe-proven |
+| V1 | Blind verify | foreman-verifier | PASS |
+RUN CLOSED 2026-08-31. Migration 20260831120000 LIVE on box, file untracked in repo (owner has not asked for a commit).
