@@ -359,3 +359,16 @@ Diagnosis (LEAD, prior turn, live-box evidence): log_package_status_change (mig 
 | T4 | Apply fix migration | LEAD | DONE — probe-proven |
 | V1 | Blind verify | foreman-verifier | PASS |
 RUN CLOSED 2026-08-31. Migration 20260831120000 LIVE on box, file untracked in repo (owner has not asked for a commit).
+- ADDENDUM 2026-08-31: GH Actions blocked account-wide (billing: payment failed / spending limit — private repo, deploy run 33415249680 never started). Owner ordered manual deploy. LEAD replicated deploy-frontend.yml locally: npm ci → npx tsc -b PASS → vite build (34.8s) → rsync release 20260831174921-c12b8b7 via igf-tools (root; chown'd igf-deploy, workflow --chmod applied) → atomic symlink flip + keep-5 prune → VERIFIED: HTTP 200 + live index-C10mUyEA.js hash matches local dist. App code identical to prior release (no src/ changes since 790f84e); billing fix still OWED by owner for future CI deploys.
+
+## RUN 2026-08-31 (b) — hero animation: full system inventory + new creative direction + Higgsfield prompt
+Owner rulings: old look REJECTED wholesale (palette included, paper-and-ink film direction not to be inherited); wants NEW ideas; "main force" = the integrations + modules (chips screenshot); "read the system, include every system smartly". Deliverable = Higgsfield generation prompt for the public-site hero video.
+Rails carried forward: no third-party logos in video (site legal posture §4 + Seedance mangles marks — DOM text chips composite on top); never the WhatsApp mark, never name the WA engine; no wallet/payout imagery ("track and reconcile COD"); 16:9 centre-weighted; Seedance contract per RUN 2026-08-26 T1.
+| ID | Task | Seat | Status |
+|---|---|---|---|
+| W1 | Workflow: inventory sweep (3×sonnet) → 4 concept designers (opus) → 3 judges (opus) | Workflow tool | DISPATCHED |
+| T2 | LEAD synthesis: final prompt pack from winner | LEAD | PENDING |
+- W1 REPORT: workflow wf_faeefc44-864 complete, 10/10 agents (887k tokens). Inventory: 42 systems (9 carrier adapters verified in provider-integration/index.ts; live box: 3 carriers configured, 2 active Google Sheets channels, 3 WA instances; + GA4, Meta Ads OAuth, self-hosted email+webhook, web push, R2, 16 modules, 5 roles). Concepts: Living Signal / Gravity Well / Zellige Engine / Escapement. Judges split 2-1 Escapement (totals 118/112/114/94) with production judge proving watchmaker precision = diffusion smear case; unanimous graft set.
+- T2 DONE (LEAD): synthesis = Escapement structure + Living Signal flow physics + Zellige khatem-star hub/eight-lobed irises + mobile re-crop. Deliverables: docs/hero-animation/CONCEPT-AND-ANCHORS.md (palette, timeline, 40-anchor DOM docking map, risks) + docs/hero-animation/PROMPT-PACK.md (primary + fallback Seedance prompts, settings, post-gen checklist, chip compositing honesty rules). Rails held: zero text/logos in video, WA text-only, no wallet imagery, built-vs-configured carrier distinction in DOM.
+RUN (b) CLOSED. Uncommitted: docs/hero-animation/* (owner has not asked to commit).
+- RUN (b) REOPENED: take 1 on Seedance FAILED (owner rejected; blueprint prior hijacked style — grid-blue wash, background star, subway dots). V2 shipped in PROMPT-PACK.md: two-step keyframe-image → image-to-video workflow; V1 text-to-video prompts deprecated. Standing rec on file: if 2 rounds fail, build in SVG+GSAP.
