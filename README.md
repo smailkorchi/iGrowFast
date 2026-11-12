@@ -35,9 +35,9 @@ npm run dev
 
 See `package.json` for the available development, build, lint, and test scripts. Environment-specific configuration is not documented yet; do not put production credentials in the repository.
 
-## Contributing
+## Feedback
 
-Bug reports and focused pull requests are welcome. Include steps to reproduce bugs and describe how a change was checked. Please do not submit secrets, customer data, or production credentials.
+Use GitHub Issues to report bugs or suggest improvements. Include steps to reproduce bugs. Do not post secrets, customer data, or production credentials.
 
 ## License
 
