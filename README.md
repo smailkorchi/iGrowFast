@@ -41,4 +41,4 @@ Use GitHub Issues to report bugs or suggest improvements. Include steps to repro
 
 ## License
 
-No license has been added yet. Until the maintainer selects and publishes a license, the code is public for viewing, but reuse, modification, and redistribution are not granted by an open-source license.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
